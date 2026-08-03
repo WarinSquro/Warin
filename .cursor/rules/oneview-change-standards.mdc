@@ -1,0 +1,18 @@
+---
+description: Minimal-change implementation workflow — investigate, smallest fix, verify, report root cause and testing
+alwaysApply: true
+---
+
+# OneView change standards
+
+Full text: `docs/change-implementation-standards.md`.
+
+When implementing requested fixes or features:
+
+1. **Only** what the user asked — no unrelated refactors, API renames, dependency upgrades, or architecture changes.
+2. **Before coding:** find root cause; reuse existing services/components/APIs; keep backward compatibility.
+3. **Workflow:** Investigate → smallest design → implement → verify existing + new → QA (positive/negative/empty/invalid/refresh/nav).
+4. **UI:** existing theme; loading/empty/error/success; pointer cursor on clickables; button loading; prevent double-submit; focus first field where appropriate.
+5. **Report** each item with: Root cause, Files/Components/APIs/DB/UI changes, Validation, Testing, Result (not just “Fixed”).
+
+Do not claim done unless acceptance criteria in that doc are met.

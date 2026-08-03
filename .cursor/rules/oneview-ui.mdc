@@ -1,0 +1,17 @@
+---
+description: OneView UI shell, brand tokens, navigation and permission patterns
+globs: "{screens,components,context}/**/*.{tsx,ts},App.tsx,routes.tsx,index.css"
+alwaysApply: false
+---
+
+# OneView UI
+
+- Keep **AppShell** / **AuthLayout** structure; do not replace with a new layout system.
+- Use design tokens from `index.css` / `theme/tokens.css` and Tailwind maps in `tailwind.config.js` (`brand`, `primary`, `success`, `warning`, `danger`).
+- Brand is navy (`#001433` family). Do not introduce purple gradient themes, dark mode, or emoji UI unless asked.
+- Permission keys come from `data/navConfig.ts` (`PERMISSION_PAGES`). Guards, menus, and Access Rights must stay aligned.
+- Prefer existing shared widgets (report filters, badges, cockpit cards) over one-off duplicates.
+- Fonts: Inter (UI) + JetBrains Mono (mono). Do not switch to Inter-only redesigns that drop brand colors.
+- Auth screens use `.auth-canvas-bg` / `.auth-canvas-solid`.
+- Orphan screens (`ExecutiveDashboard`, `ManagerDashboard`, `Placeholder`) stay unrouted unless explicitly requested.
+- **Delete requires confirmation:** Any user-facing delete (soft or hard) must ask for explicit confirmation before executing. Do not delete on a single click without a confirm dialog/step.

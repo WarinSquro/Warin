@@ -1,0 +1,15 @@
+---
+description: TypeScript and React conventions for OneView
+globs: "**/*.{ts,tsx}"
+alwaysApply: false
+---
+
+# TypeScript / React
+
+- Match existing style: functional components, named exports for screens/components, TypeScript types colocated or in shared `types/` when introduced.
+- Prefer existing contexts over prop-drilling session/permissions.
+- Do not add `useMemo` / `useCallback` by default; use when matching nearby code or fixing a real dependency issue.
+- Keep route definitions in `routes.tsx`; guards via `ProtectedRoute` / `Guarded`.
+- Avoid new default dependencies unless needed (no axios if `fetch` client is established; no UI kit takeover).
+- Remove or avoid dead imports when touching files; do not mass-delete orphan screens without asking.
+- When introducing files under `api/` or `server/`, keep UI files free of DB imports.

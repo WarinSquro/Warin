@@ -1,0 +1,16 @@
+---
+description: OneView API client conventions — mock-to-backend, auth PIN, errors
+globs: "{api,server,lib}/**/*.{ts,tsx},context/AuthContext.tsx"
+alwaysApply: false
+---
+
+# OneView API
+
+- Target stack: REST (or thin Express/Fastify) + **Prisma** + **PostgreSQL**. Frontend calls a single base URL from `VITE_API_BASE_URL`.
+- Auth: `POST` login with `{ email, pin }` (5-digit PIN). Server verifies against **hashed PIN in DB**. Never return the PIN or hash to the client.
+- Replace `data/*` imports gradually: keep mock fallbacks until the real endpoint is ready; do not break screens mid-migration.
+- Shared client should attach session credentials, map 401 → login, and normalize `{ error: { code, message } }` shapes.
+- Permission keys returned by the API must match `navConfig` keys (`planner`, `reports.deployment`, …).
+- Super-admin and Access Rights APIs must not invent alternate key names.
+- Do not call Prisma from React components — only from the server package.
+- Local Docker Postgres: `postgresql://admin:admin@localhost:5432/oneview` (dev only).

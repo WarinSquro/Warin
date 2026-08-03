@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Lint · Packages · Unit · Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run packages:build
+      - run: npm run lint
+      - run: npm run test:unit
+      - run: npm run build
+      - run: npm run api:build
+      - run: npm run worker:build
+
+  e2e:
+    name: E2E smoke
+    runs-on: ubuntu-latest
+    needs: quality
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: E2E (UI shell — auth requires API; login page smoke)
+        run: npm run test:e2e -- --grep "login page renders"
+        env:
+          CI: true

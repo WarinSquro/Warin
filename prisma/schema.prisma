@@ -1,0 +1,670 @@
+// OneView production schema — BIGINT identity PKs + business keys + audit columns.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum EmpStatus {
+  active
+  inactive
+}
+
+enum ProjectStatus {
+  active
+  inactive
+}
+
+enum ProjectType {
+  paid
+  poc
+  product
+}
+
+enum ProjectHealth {
+  green
+  amber
+  red
+}
+
+enum MilestoneKind {
+  commercial_only
+  signoff_only
+  commercial_signoff
+  checkpoint_only
+}
+
+enum SetupStatus {
+  active
+  inactive
+}
+
+enum CapacityBasis {
+  billable
+  total
+}
+
+enum SettingsScheduleStatus {
+  pending
+  applied
+  cancelled
+  superseded
+}
+
+enum ConfirmationLineKind {
+  planned
+  deviation
+  unplanned
+}
+
+enum CompetencyKind {
+  technical
+  behavioural
+}
+
+model Employee {
+  id              BigInt     @id @default(autoincrement()) @map("id")
+  hrmsId          String     @unique @map("hrms_id")
+  name            String
+  email           String     @unique
+  pinHash         String     @map("pin_hash")
+  departmentId    BigInt?    @map("department_id")
+  resourceOwnerId BigInt?    @map("resource_owner_id")
+  status          EmpStatus  @default(active)
+  isSuperAdmin    Boolean    @default(false) @map("is_super_admin")
+  utilization     Int?
+  isActive        Boolean    @default(true) @map("is_active")
+  isDeleted       Boolean    @default(false) @map("is_deleted")
+  deletedAt       DateTime?  @map("deleted_at")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  modifiedAt      DateTime   @updatedAt @map("modified_at")
+  createdBy       BigInt?    @map("created_by")
+  modifiedBy      BigInt?    @map("modified_by")
+  version         Int        @default(1)
+
+  department      Department? @relation(fields: [departmentId], references: [id])
+  resourceOwner   Employee?   @relation("ResourceOwner", fields: [resourceOwnerId], references: [id])
+  reports         Employee[]  @relation("ResourceOwner")
+  skills             EmployeeSkill[]
+  permissions        EmployeePermission[]
+  pinResetTokens     PinResetToken[]
+  allocations              Allocation[]
+  workConfirmations        WorkConfirmation[]
+  confirmationProductivityDays ConfirmationProductivityDay[]
+  weeklyCheckIns           WeeklyCheckInSubmission[] @relation("WciEmployee")
+  weeklyCheckInsAsOwner    WeeklyCheckInSubmission[] @relation("WciOwner")
+  weeklyCheckInsSubmitted  WeeklyCheckInSubmission[] @relation("WciSubmitter")
+  settingsAuditEntries     AppSettingsAudit[]
+  settingsSchedulesCreated AppSettingsSchedule[] @relation("SettingsScheduleCreator")
+
+  @@index([departmentId])
+  @@index([resourceOwnerId])
+  @@index([isDeleted, isActive])
+  @@index([createdAt])
+  @@map("employees")
+}
+
+model Department {
+  id         BigInt      @id @default(autoincrement())
+  code       String      @unique
+  name       String      @unique
+  headName   String?     @map("head_name")
+  status     SetupStatus @default(active)
+  isActive   Boolean     @default(true) @map("is_active")
+  isDeleted  Boolean     @default(false) @map("is_deleted")
+  deletedAt  DateTime?   @map("deleted_at")
+  createdAt  DateTime    @default(now()) @map("created_at")
+  modifiedAt DateTime    @updatedAt @map("modified_at")
+  createdBy  BigInt?     @map("created_by")
+  modifiedBy BigInt?     @map("modified_by")
+  version    Int         @default(1)
+
+  employees               Employee[]
+  weeklyCheckInCompetencies WeeklyCheckInCompetency[]
+
+  @@index([isDeleted, isActive])
+  @@map("departments")
+}
+
+model SkillCategory {
+  id         BigInt      @id @default(autoincrement())
+  code       String      @unique
+  name       String      @unique
+  status     SetupStatus @default(active)
+  isActive   Boolean     @default(true) @map("is_active")
+  isDeleted  Boolean     @default(false) @map("is_deleted")
+  deletedAt  DateTime?   @map("deleted_at")
+  createdAt  DateTime    @default(now()) @map("created_at")
+  modifiedAt DateTime    @updatedAt @map("modified_at")
+  createdBy  BigInt?     @map("created_by")
+  modifiedBy BigInt?     @map("modified_by")
+  version    Int         @default(1)
+
+  skills Skill[]
+
+  @@index([isDeleted, isActive])
+  @@map("skill_categories")
+}
+
+model Skill {
+  id         BigInt      @id @default(autoincrement())
+  code       String      @unique
+  name       String      @unique
+  categoryId BigInt      @map("category_id")
+  status     SetupStatus @default(active)
+  isActive   Boolean     @default(true) @map("is_active")
+  isDeleted  Boolean     @default(false) @map("is_deleted")
+  deletedAt  DateTime?   @map("deleted_at")
+  createdAt  DateTime    @default(now()) @map("created_at")
+  modifiedAt DateTime    @updatedAt @map("modified_at")
+  createdBy  BigInt?     @map("created_by")
+  modifiedBy BigInt?     @map("modified_by")
+  version    Int         @default(1)
+
+  category  SkillCategory  @relation(fields: [categoryId], references: [id])
+  employees EmployeeSkill[]
+
+  @@index([isDeleted, isActive])
+  @@index([categoryId])
+  @@map("skills")
+}
+
+model EmployeeSkill {
+  employeeId BigInt @map("employee_id")
+  skillId    BigInt @map("skill_id")
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  skill    Skill    @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@id([employeeId, skillId])
+  @@map("employee_skills")
+}
+
+model EmployeePermission {
+  id         BigInt   @id @default(autoincrement())
+  employeeId BigInt   @map("employee_id")
+  key        String
+  createdAt  DateTime @default(now()) @map("created_at")
+  createdBy  BigInt?  @map("created_by")
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, key])
+  @@index([employeeId])
+  @@map("employee_permissions")
+}
+
+model ActivityMilestone {
+  id          BigInt        @id @default(autoincrement())
+  code        String        @unique
+  name        String
+  projectType ProjectType   @map("project_type")
+  kind        MilestoneKind
+  isActive    Boolean       @default(true) @map("is_active")
+  isDeleted   Boolean       @default(false) @map("is_deleted")
+  deletedAt   DateTime?     @map("deleted_at")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  modifiedAt  DateTime      @updatedAt @map("modified_at")
+  createdBy   BigInt?       @map("created_by")
+  modifiedBy  BigInt?       @map("modified_by")
+  version     Int           @default(1)
+
+  activities Activity[]
+
+  @@unique([name, projectType])
+  @@map("activity_milestones")
+}
+
+model Activity {
+  id                  BigInt      @id @default(autoincrement())
+  code                String      @unique
+  name                String
+  activityMilestoneId BigInt      @map("activity_milestone_id")
+  billable            Boolean     @default(true)
+  status              SetupStatus @default(active)
+  isActive            Boolean     @default(true) @map("is_active")
+  isDeleted           Boolean     @default(false) @map("is_deleted")
+  deletedAt           DateTime?   @map("deleted_at")
+  createdAt           DateTime    @default(now()) @map("created_at")
+  modifiedAt          DateTime    @updatedAt @map("modified_at")
+  createdBy           BigInt?     @map("created_by")
+  modifiedBy          BigInt?     @map("modified_by")
+  version             Int         @default(1)
+
+  milestone   ActivityMilestone @relation(fields: [activityMilestoneId], references: [id])
+  allocations Allocation[]
+
+  @@index([activityMilestoneId])
+  @@map("activities")
+}
+
+model Customer {
+  id         BigInt      @id @default(autoincrement())
+  code       String      @unique
+  name       String      @unique
+  status     SetupStatus @default(active)
+  isActive   Boolean     @default(true) @map("is_active")
+  isDeleted  Boolean     @default(false) @map("is_deleted")
+  deletedAt  DateTime?   @map("deleted_at")
+  createdAt  DateTime    @default(now()) @map("created_at")
+  modifiedAt DateTime    @updatedAt @map("modified_at")
+  createdBy  BigInt?     @map("created_by")
+  modifiedBy BigInt?     @map("modified_by")
+  version    Int         @default(1)
+
+  projects Project[]
+
+  @@index([isDeleted, isActive])
+  @@map("customers")
+}
+
+model Project {
+  id             BigInt        @id @default(autoincrement())
+  projectCode    String        @unique @map("project_code")
+  name           String
+  customerId     BigInt        @map("customer_id")
+  poNumber       String        @default("") @map("po_number")
+  type           ProjectType
+  approvedByName String?       @map("approved_by_name")
+  approvedByDate DateTime?     @map("approved_by_date") @db.Date
+  approvedBySnap String?       @map("approved_by_snap")
+  kickoffDate    DateTime      @map("kickoff_date") @db.Date
+  startDate      DateTime      @map("start_date") @db.Date
+  endDate        DateTime      @map("end_date") @db.Date
+  demand         String        @default("")
+  health         ProjectHealth @default(green)
+  healthRemarks  String        @default("") @map("health_remarks")
+  status         ProjectStatus @default(active)
+  isActive       Boolean       @default(true) @map("is_active")
+  isDeleted      Boolean       @default(false) @map("is_deleted")
+  deletedAt      DateTime?     @map("deleted_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  modifiedAt     DateTime      @updatedAt @map("modified_at")
+  createdBy      BigInt?       @map("created_by")
+  modifiedBy     BigInt?       @map("modified_by")
+  version        Int           @default(1)
+
+  customer    Customer            @relation(fields: [customerId], references: [id])
+  milestones  ProjectMilestone[]
+  demandLines ProjectDemandLine[]
+  allocations Allocation[]
+
+  @@index([customerId])
+  @@index([isDeleted, isActive])
+  @@map("projects")
+}
+
+model ProjectMilestone {
+  id         BigInt         @id @default(autoincrement())
+  projectId  BigInt         @map("project_id")
+  name       String
+  date       DateTime       @db.Date
+  kind       MilestoneKind?
+  isActive   Boolean        @default(true) @map("is_active")
+  isDeleted  Boolean        @default(false) @map("is_deleted")
+  deletedAt  DateTime?      @map("deleted_at")
+  createdAt  DateTime       @default(now()) @map("created_at")
+  modifiedAt DateTime       @updatedAt @map("modified_at")
+  createdBy  BigInt?        @map("created_by")
+  modifiedBy BigInt?        @map("modified_by")
+  version    Int            @default(1)
+
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  allocations Allocation[]
+
+  @@index([projectId])
+  @@map("project_milestones")
+}
+
+model Allocation {
+  id          BigInt    @id @default(autoincrement())
+  employeeId  BigInt    @map("employee_id")
+  projectId   BigInt    @map("project_id")
+  milestoneId BigInt    @map("milestone_id")
+  activityId  BigInt    @map("activity_id")
+  tasks       String[]  @default([])
+  startDate   DateTime  @map("start_date") @db.Date
+  endDate     DateTime  @map("end_date") @db.Date
+  hoursPerDay Float     @map("hours_per_day")
+  reason      String    @default("")
+  isActive    Boolean   @default(true) @map("is_active")
+  isDeleted   Boolean   @default(false) @map("is_deleted")
+  deletedAt   DateTime? @map("deleted_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  modifiedAt  DateTime  @updatedAt @map("modified_at")
+  createdBy   BigInt?   @map("created_by")
+  modifiedBy  BigInt?   @map("modified_by")
+  version     Int       @default(1)
+
+  employee            Employee                @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  project             Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  milestone           ProjectMilestone        @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  activity            Activity                @relation(fields: [activityId], references: [id])
+  confirmationLines   WorkConfirmationLine[]
+  focusSessions       ConfirmationFocusSession[]
+  focusLaps           ConfirmationFocusLap[]
+
+  @@index([employeeId])
+  @@index([projectId])
+  @@index([milestoneId])
+  @@index([activityId])
+  @@index([startDate, endDate])
+  @@index([isDeleted, isActive])
+  @@map("allocations")
+}
+
+model WorkConfirmation {
+  id              BigInt    @id @default(autoincrement())
+  employeeId      BigInt    @map("employee_id")
+  workDate        DateTime  @map("work_date") @db.Date
+  submittedAt     DateTime  @map("submitted_at")
+  isMissedPosting Boolean   @default(false) @map("is_missed_posting")
+  missReason      String?   @map("miss_reason")
+  hasDeviation    Boolean   @default(false) @map("has_deviation")
+  isActive        Boolean   @default(true) @map("is_active")
+  isDeleted       Boolean   @default(false) @map("is_deleted")
+  deletedAt       DateTime? @map("deleted_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  modifiedAt      DateTime  @updatedAt @map("modified_at")
+  createdBy       BigInt?   @map("created_by")
+  modifiedBy      BigInt?   @map("modified_by")
+  version         Int       @default(1)
+
+  employee Employee                @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  lines    WorkConfirmationLine[]
+
+  @@unique([employeeId, workDate])
+  @@index([workDate])
+  @@index([isDeleted, isActive])
+  @@map("work_confirmations")
+}
+
+model WorkConfirmationLine {
+  id             BigInt                @id @default(autoincrement())
+  confirmationId BigInt                @map("confirmation_id")
+  allocationId   BigInt?               @map("allocation_id")
+  projectLabel   String                @map("project_label")
+  milestoneLabel String                @map("milestone_label")
+  activity       String
+  plannedHours   Float                 @map("planned_hours")
+  actualHours    Float                 @map("actual_hours")
+  kind           ConfirmationLineKind
+  reason         String                @default("")
+  tasks          String[]              @default([])
+  createdAt      DateTime              @default(now()) @map("created_at")
+
+  confirmation WorkConfirmation @relation(fields: [confirmationId], references: [id], onDelete: Cascade)
+  allocation   Allocation?      @relation(fields: [allocationId], references: [id], onDelete: SetNull)
+
+  @@index([confirmationId])
+  @@index([allocationId])
+  @@map("work_confirmation_lines")
+}
+
+/// Per-employee, per-day workday timeline + focus timer evidence (Confirmation screen).
+model ConfirmationProductivityDay {
+  id                  BigInt    @id @default(autoincrement())
+  employeeId          BigInt    @map("employee_id")
+  workDate            DateTime  @map("work_date") @db.Date
+  dayStartAt          DateTime? @map("day_start_at")
+  lunchOutAt          DateTime? @map("lunch_out_at")
+  lunchInAt           DateTime? @map("lunch_in_at")
+  dayEndAt            DateTime? @map("day_end_at")
+  workHoursSnapshot   Float?    @map("work_hours_snapshot")
+  /// UI allocation key currently running (allocations.id as text, or orphan-* key)
+  activeAllocationKey String?   @map("active_allocation_key")
+  isActive            Boolean   @default(true) @map("is_active")
+  isDeleted           Boolean   @default(false) @map("is_deleted")
+  deletedAt           DateTime? @map("deleted_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  modifiedAt          DateTime  @updatedAt @map("modified_at")
+  createdBy           BigInt?   @map("created_by")
+  modifiedBy          BigInt?   @map("modified_by")
+  version             Int       @default(1)
+
+  employee      Employee                    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  focusSessions ConfirmationFocusSession[]
+  focusLaps     ConfirmationFocusLap[]
+
+  @@unique([employeeId, workDate])
+  @@index([workDate])
+  @@index([isDeleted, isActive])
+  @@map("confirmation_productivity_days")
+}
+
+/// Open or paused focus session for one allocation key on a productivity day.
+model ConfirmationFocusSession {
+  id               BigInt    @id @default(autoincrement())
+  dayId            BigInt    @map("day_id")
+  allocationId     BigInt?   @map("allocation_id")
+  allocationKey    String    @map("allocation_key")
+  sessionAccumMs   Int       @default(0) @map("session_accum_ms")
+  segmentStartedAt DateTime? @map("segment_started_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  modifiedAt       DateTime  @updatedAt @map("modified_at")
+
+  day        ConfirmationProductivityDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  allocation Allocation?                 @relation(fields: [allocationId], references: [id], onDelete: SetNull)
+
+  @@unique([dayId, allocationKey])
+  @@index([dayId])
+  @@index([allocationId])
+  @@map("confirmation_focus_sessions")
+}
+
+/// Completed focus timer laps (Stop) for an allocation key on a productivity day.
+model ConfirmationFocusLap {
+  id            BigInt   @id @default(autoincrement())
+  dayId         BigInt   @map("day_id")
+  allocationId  BigInt?  @map("allocation_id")
+  allocationKey String   @map("allocation_key")
+  startedAt     DateTime @map("started_at")
+  endedAt       DateTime @map("ended_at")
+  durationMs    Int      @map("duration_ms")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  day        ConfirmationProductivityDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  allocation Allocation?                 @relation(fields: [allocationId], references: [id], onDelete: SetNull)
+
+  @@index([dayId, allocationKey])
+  @@index([allocationId])
+  @@map("confirmation_focus_laps")
+}
+
+model ProjectDemandLine {
+  id        BigInt   @id @default(autoincrement())
+  projectId BigInt   @map("project_id")
+  skills    String[]
+  count     Int
+  createdAt DateTime @default(now()) @map("created_at")
+  createdBy BigInt?  @map("created_by")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("project_demand_lines")
+}
+
+model AppSettings {
+  id                  BigInt        @id @default(autoincrement())
+  code                String        @unique @default("default")
+  idleBelow           Int           @map("idle_below")
+  optimalTo           Int           @map("optimal_to")
+  excellent           Int
+  good                Int
+  needsAttention      Int           @map("needs_attention")
+  capacityBasis       CapacityBasis @map("capacity_basis")
+  overallocationLimit Int           @map("overallocation_limit")
+  workingHoursPerDay  Float         @map("working_hours_per_day")
+  workingDays         String[]      @map("working_days")
+  demandPriority      String[]      @map("demand_priority")
+  isActive            Boolean       @default(true) @map("is_active")
+  isDeleted           Boolean       @default(false) @map("is_deleted")
+  deletedAt           DateTime?     @map("deleted_at")
+  createdAt           DateTime      @default(now()) @map("created_at")
+  modifiedAt          DateTime      @updatedAt @map("modified_at")
+  createdBy           BigInt?       @map("created_by")
+  modifiedBy          BigInt?       @map("modified_by")
+  version             Int           @default(1)
+
+  @@map("app_settings")
+}
+
+/** Immutable System Parameters change history (FR-616). Append-only. */
+model AppSettingsAudit {
+  id         BigInt   @id @default(autoincrement())
+  what       String   @db.Text
+  whoName    String   @map("who_name")
+  employeeId BigInt?  @map("employee_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  employee Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([employeeId])
+  @@map("app_settings_audit")
+}
+
+/** Pending / historical effective-dated Settings apply (FR-033). */
+model AppSettingsSchedule {
+  id             BigInt                 @id @default(autoincrement())
+  effectiveDate  DateTime               @map("effective_date") @db.Date
+  status         SettingsScheduleStatus @default(pending)
+  payload        Json
+  changeSummary  String                 @map("change_summary") @db.Text
+  createdById    BigInt?                @map("created_by_id")
+  appliedAt      DateTime?              @map("applied_at")
+  cancelledAt    DateTime?              @map("cancelled_at")
+  createdAt      DateTime               @default(now()) @map("created_at")
+  modifiedAt     DateTime               @updatedAt @map("modified_at")
+
+  createdBy Employee? @relation("SettingsScheduleCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([status, effectiveDate])
+  @@index([createdById])
+  @@map("app_settings_schedule")
+}
+
+model CompanyOffDay {
+  id         BigInt    @id @default(autoincrement())
+  date       DateTime  @unique @db.Date
+  label      String
+  isActive   Boolean   @default(true) @map("is_active")
+  isDeleted  Boolean   @default(false) @map("is_deleted")
+  deletedAt  DateTime? @map("deleted_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  modifiedAt DateTime  @updatedAt @map("modified_at")
+  createdBy  BigInt?   @map("created_by")
+  modifiedBy BigInt?   @map("modified_by")
+  version    Int       @default(1)
+
+  @@map("company_off_days")
+}
+
+model PinResetToken {
+  id         BigInt    @id @default(autoincrement())
+  employeeId BigInt    @map("employee_id")
+  tokenHash  String    @map("token_hash")
+  expiresAt  DateTime  @map("expires_at")
+  usedAt     DateTime? @map("used_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([tokenHash])
+  @@map("pin_reset_tokens")
+}
+
+model RefreshToken {
+  id         BigInt    @id @default(autoincrement())
+  employeeId BigInt    @map("employee_id")
+  tokenHash  String    @unique @map("token_hash")
+  expiresAt  DateTime  @map("expires_at")
+  revokedAt  DateTime? @map("revoked_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([employeeId])
+  @@map("refresh_tokens")
+}
+
+model WeeklyCheckInSettings {
+  id             BigInt   @id @default(autoincrement())
+  code           String   @unique @default("default")
+  rankingLevels  Json     @map("ranking_levels")
+  actionTypes    String[] @map("action_types")
+  isActive       Boolean  @default(true) @map("is_active")
+  isDeleted      Boolean  @default(false) @map("is_deleted")
+  deletedAt      DateTime? @map("deleted_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  modifiedAt     DateTime @updatedAt @map("modified_at")
+  createdBy      BigInt?  @map("created_by")
+  modifiedBy     BigInt?  @map("modified_by")
+  version        Int      @default(1)
+
+  @@map("weekly_check_in_settings")
+}
+
+model WeeklyCheckInCompetency {
+  id           BigInt         @id @default(autoincrement())
+  code         String         @unique
+  departmentId BigInt         @map("department_id")
+  kind         CompetencyKind
+  label        String
+  sequence     Int
+  isActive     Boolean        @default(true) @map("is_active")
+  isDeleted    Boolean        @default(false) @map("is_deleted")
+  deletedAt    DateTime?      @map("deleted_at")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  modifiedAt   DateTime       @updatedAt @map("modified_at")
+  createdBy    BigInt?        @map("created_by")
+  modifiedBy   BigInt?        @map("modified_by")
+  version      Int            @default(1)
+
+  department Department @relation(fields: [departmentId], references: [id])
+
+  @@index([departmentId, isDeleted])
+  @@map("weekly_check_in_competencies")
+}
+
+model WeeklyCheckInSubmission {
+  id                   BigInt    @id @default(autoincrement())
+  employeeId           BigInt    @map("employee_id")
+  resourceOwnerId      BigInt    @map("resource_owner_id")
+  weekStart            DateTime  @map("week_start") @db.Date
+  evidence             Json
+  technicalRatings     Json      @map("technical_ratings")
+  behaviouralRatings   Json      @map("behavioural_ratings")
+  weeklyStatus         String    @map("weekly_status")
+  confidence           String
+  roRemarks            String    @map("ro_remarks")
+  actionType           String    @map("action_type")
+  actionNotes          String?   @map("action_notes")
+  previousActionStatus String?   @map("previous_action_status")
+  recognition          String
+  submittedAt          DateTime  @map("submitted_at")
+  submittedById        BigInt    @map("submitted_by_id")
+  actionOutcome        String?   @map("action_outcome")
+  isActive             Boolean   @default(true) @map("is_active")
+  isDeleted            Boolean   @default(false) @map("is_deleted")
+  deletedAt            DateTime? @map("deleted_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  modifiedAt           DateTime  @updatedAt @map("modified_at")
+  createdBy            BigInt?   @map("created_by")
+  modifiedBy           BigInt?   @map("modified_by")
+  version              Int       @default(1)
+
+  employee      Employee @relation("WciEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  resourceOwner Employee @relation("WciOwner", fields: [resourceOwnerId], references: [id], onDelete: Cascade)
+  submittedBy   Employee @relation("WciSubmitter", fields: [submittedById], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, weekStart])
+  @@index([resourceOwnerId, weekStart])
+  @@index([weekStart])
+  @@index([isDeleted, isActive])
+  @@map("weekly_check_in_submissions")
+}

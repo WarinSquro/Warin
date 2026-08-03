@@ -1,0 +1,62 @@
+/**
+ * OneView design tokens
+ * Mirrored from index.css :root — keep both in sync when changing brand colors.
+ * See docs/theme.md for usage and Tailwind mapping.
+ */
+:root {
+  /* Brand — Warin teal (#152F39 family). Orange is logo-only, not UI primary. */
+  --color-brand: #152F39;
+  --color-brand-fg: #C5D7DD;
+  --color-brand-muted: #8AADB8;
+  --color-brand-active: #1E3F4C;
+  --color-brand-border: #2A5363;
+
+  /* Auth / shell header canvas — login screen palette */
+  --color-auth-canvas: #F2F6F8;
+  --color-auth-canvas-from: #F2F6F8;
+  --color-auth-canvas-via: #EEF3F5;
+  --color-auth-canvas-to: #E4ECEF;
+
+  /* Primary action */
+  --color-primary: #152F39;
+  --color-primary-foreground: #ffffff;
+
+  /* Surfaces */
+  --color-background: #F2F6F8;
+  --color-surface: #ffffff;
+  --color-surface-alt: #fafafa;
+  --color-highlight: #E6EEF1;
+
+  /* Text */
+  --color-foreground: #111827;
+  --color-muted: #6b7280;
+  --color-muted-foreground: #9ca3af;
+
+  /* Lines */
+  --color-border: #e5e7eb;
+  --color-border-soft: #eef0f3;
+
+  /* Accent-soft */
+  --color-accent-soft: #E6EEF1;
+  --color-accent-soft-fg: #1E3F4C;
+  --color-accent-line: #C5D7DD;
+
+  /* Status — load-bearing (unchanged) */
+  --color-success: #16a34a;
+  --color-success-fg: #15803d;
+  --color-success-soft: #f0f9f3;
+  --color-success-border: #cfe3d6;
+
+  --color-warning: #b45309;
+  --color-warning-soft: #fdf6ec;
+  --color-warning-border: #f0e4cf;
+
+  --color-danger: #dc2626;
+  --color-danger-fg: #b91c1c;
+  --color-danger-soft: #fdf5f5;
+  --color-danger-border: #f0d9d9;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+}

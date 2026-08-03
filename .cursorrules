@@ -1,0 +1,24 @@
+{
+  "project_context": {
+    "tech_stack": ["React", "TypeScript", "PostgreSQL"],
+    "testing_frameworks": ["Vitest/Jest for frontend", "Playwright/Cypress for E2E", "Supertest/Node-Postgres for DB/API integration"]
+  },
+  "testing_loop_instructions": [
+    "You are in an automated Test-Driven Development (TDD) and bug-fixing loop.",
+    "When a user provides a test failure or commands you to run the test loop, follow these steps strictly:",
+    "1. Run the specific test command related to the failure.",
+    "2. If the test fails, analyze the error output completely. Do not guess.",
+    "3. Check the React component, TypeScript types, or PostgreSQL schema/queries causing the issue.",
+    "4. Fix the bug in the source code without breaking existing functionality.",
+    "5. Ensure TypeScript types are fully resolved and no 'any' types are introduced.",
+    "6. Verify that database migrations or mock data match the expected test state.",
+    "7. Re-run the test command automatically using the terminal agent.",
+    "8. Repeat this loop until the test passes completely.",
+    "9. Once passing, check for linting or build errors before declaring success."
+  ],
+  "database_testing_rules": [
+    "Always wrap database integration tests in transactions that roll back, or ensure the database is cleared/seeded before each test run.",
+    "Do not hardcode database credentials; use environment variables.",
+    "Ensure Prisma/Sequelize/TypeORM models or raw SQL queries match the current PostgreSQL schema precisely."
+  ]
+}

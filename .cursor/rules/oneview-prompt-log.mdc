@@ -1,0 +1,15 @@
+---
+description: Require updating docs/prompt-log.md with each coding prompt and output
+alwaysApply: true
+---
+
+# Prompt & output log
+
+After every coding task that changes the repo (or produces a documented deliverable):
+
+1. Append a new entry at the **top** of the Entries section in `docs/prompt-log.md` (newest first).
+2. Include **Recorded at** date/time with timezone (prefer `YYYY-MM-DD HH:MM IST`).
+3. Include the user **Prompt** and the **Output** (files, commands, results, blockers) in the **same** entry.
+4. Do not delete or rewrite older entries.
+
+See the template and rules at the top of `docs/prompt-log.md`.

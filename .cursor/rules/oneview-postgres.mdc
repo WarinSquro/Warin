@@ -1,0 +1,20 @@
+---
+description: OneView PostgreSQL + Prisma conventions — local install first, Docker later
+globs: "{server,prisma,lib}/**/*.{prisma,ts,sql},**/schema.prisma,docker-compose*.yml,docs/postgres*.md,docs/database.md,docs/OneView_Table_Structure.xlsx"
+alwaysApply: false
+---
+
+# OneView PostgreSQL + Prisma
+
+- Database: **PostgreSQL**. **Now:** native local install (`docs/postgres-local-setup.md`). **Later:** Docker (`docker-compose.yml`).
+- Dev credentials: user `admin`, password `admin`, database `oneview`. Same `DATABASE_URL` for local and Docker.
+- ORM: **Prisma** only (`schema.prisma`, migrate, seed). Prefer `prisma migrate` over hand-editing production DBs.
+- Naming: Prisma models PascalCase; DB tables `snake_case` via `@@map` / `@map`.
+- Auth table must store **PIN hash** (e.g. bcrypt/argon2), never plaintext. Column: `pin_hash`.
+- Use `created_at` / `updated_at`; soft-delete with status (or `deleted_at`) when masters need history.
+- Seed from current `data/*.ts` shapes so the UI keeps working after cutover.
+- Connection string lives in `.env` as `DATABASE_URL`; never hardcode passwords in committed app code.
+- Indexes on email (unique), foreign keys used by planner/reports, and permission lookups.
+- Do not mix another ORM into this repo unless the user changes preference.
+- **Table structure workbook (mandatory):** When creating, altering, or removing a PostgreSQL/Prisma table (or significant columns/enums), update `docs/OneView_Table_Structure.xlsx` in the **same change**. Keep sheets consistent: `00_Index`, `01_Table_Fields`, `02_Enums` (and auth notes if relevant). Match live DB / Prisma schema; exclude `_prisma_migrations` from the app table index. Agents must not finish schema work without this sync.
+- **FK = primary key (mandatory):** Cross-table references must use the referenced table’s **BIGINT primary key** (`id`) as the foreign key column (e.g. `department_id`, `customer_id`, `activity_id`). Never persist another table’s `code`, name, or free-text label as the relational link. Business keys stay unique for display/lookup; joins and integrity constraints go through PK FKs. Display-only snapshot fields (e.g. confirmation `project_label` / `milestone_label`) are allowed when they are historical denormalizations, not live master references.
