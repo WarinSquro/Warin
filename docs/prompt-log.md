@@ -32,6 +32,14 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-04 15:15 IST
+
+**Prompt:**  
+> Update docs/service-urls-and-credentials.md
+
+**Output:**  
+- Expanded doc: laptop browser vs `127.0.0.1`, SSH/PEM path, SPA publish (laptop build + scp), never wipe `shared/web` before successful build, 2026-08-04 wipe/restore incident note, QA URLs for Settings/SMTP.
+
 ### 2026-08-04 14:40 IST
 
 **Prompt:**  
