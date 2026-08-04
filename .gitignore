@@ -29,9 +29,9 @@ playwright-report/
 blob-report/
 playwright/.cache/
 
-# Workspace package builds + local file storage
+# Workspace package builds + local file storage (uploads only — keep data/*.ts mocks in git)
 packages/*/dist/
-data/
+data/files/
 
 # Prisma (generated client lives in node_modules; local DB volumes if added later)
 server/node_modules/

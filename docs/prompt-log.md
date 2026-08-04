@@ -32,6 +32,50 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-04 11:30 IST
+
+**Prompt:**  
+> Vite build: Could not resolve `../data/accessRights` — no dist.
+
+**Output:**  
+- Root cause: `.gitignore` had `data/` so all `data/*.ts` mocks were never pushed to GitHub; EC2 clone missing them.  
+- `.gitignore` — ignore only `data/files/` (uploads); track `data/*.ts`.  
+- Staged `data/*.ts` + `.gitignore` for commit/push.  
+- EC2 after push: `git pull` then `npx vite build` again.  
+- `docs/prompt-log.md` — this entry.
+
+### 2026-08-04 11:25 IST
+
+**Prompt:**  
+> SPA build: Found 303 errors; `cp: cannot stat dist/.`
+
+**Output:**  
+- Cause: `npm run build` = `tsc -b && vite build`; tsc failed so no `dist/`.  
+- Added `npm run build:web` → `vite build` only.  
+- Checklist: use `npx vite build` / `build:web` on EC2 for IP deploy.  
+- `docs/prompt-log.md` — this entry.
+
+### 2026-08-04 11:20 IST
+
+**Prompt:**  
+> A3/A4 completed. No domain — access via IP.
+
+**Output:**  
+- `infra/nginx/host-ip.conf` — host Nginx SPA + `/api` → Compose `:8080` (HTTP / IP).  
+- `docs/aws-ec2-deploy-checklist.md` — A3/A4 Done; next A5 build + A6-IP + SG port 80 + CORS.  
+- `docs/prompt-log.md` — this entry.  
+- User: push → EC2 `git pull` → run IP access commands with public IP.
+
+### 2026-08-04 11:15 IST
+
+**Prompt:**  
+> Health check running now… Next?
+
+**Output:**  
+- Checklist updated: S1, A1 (Dockerfile fix), A2 health via tunnel **Done**.  
+- Next: **A3** worker → confirm **A4** seed → **A5** SPA → **A6** TLS.  
+- `docs/aws-ec2-deploy-checklist.md` + `docs/prompt-log.md` updated.
+
 ### 2026-08-04 11:10 IST
 
 **Prompt:**  
