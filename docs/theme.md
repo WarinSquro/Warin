@@ -45,6 +45,10 @@ Helpers: `.auth-canvas-bg` (gradient), `.auth-canvas-solid`.
 | `--color-muted-foreground` | `#9ca3af` | `muted-foreground` |
 | `--color-border` | `#e5e7eb` | `border` |
 | `--color-border-soft` | `#eef0f3` | `border-soft` |
+| `--color-border-focus` | mix of foreground + border | focused inputs (global) |
+| `--duration-focus` | `200ms` | input focus transition |
+
+Focused text fields, textareas, selects, and similar controls use a slightly darker border + thin outline via global rules in `index.css` (keyboard and mouse focus). Checkbox/radio are excluded.
 
 ## Accent soft (allocation chips)
 

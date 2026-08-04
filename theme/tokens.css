@@ -35,6 +35,8 @@
   /* Lines */
   --color-border: #e5e7eb;
   --color-border-soft: #eef0f3;
+  --color-border-focus: color-mix(in srgb, var(--color-foreground) 42%, var(--color-border));
+  --duration-focus: 200ms;
 
   /* Accent-soft */
   --color-accent-soft: #E6EEF1;
@@ -59,4 +61,9 @@
   --radius-sm: 4px;
   --radius-md: 6px;
   --radius-lg: 8px;
+}
+
+.dark,
+[data-theme="dark"] {
+  --color-border-focus: color-mix(in srgb, var(--color-foreground) 55%, var(--color-border));
 }

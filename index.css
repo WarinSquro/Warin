@@ -34,6 +34,9 @@
   /* Lines */
   --color-border: #e5e7eb;
   --color-border-soft: #eef0f3;
+  /* Active field focus — slightly darker than default border (see docs/theme.md) */
+  --color-border-focus: color-mix(in srgb, var(--color-foreground) 42%, var(--color-border));
+  --duration-focus: 200ms;
 
   /* Accent-soft */
   --color-accent-soft: #E6EEF1;
@@ -58,6 +61,12 @@
   --radius-sm: 4px;
   --radius-md: 6px;
   --radius-lg: 8px;
+}
+
+/* Dark theme tokens (when `.dark` / data-theme is applied later) */
+.dark,
+[data-theme="dark"] {
+  --color-border-focus: color-mix(in srgb, var(--color-foreground) 55%, var(--color-border));
 }
 
 html, body, #root { height: 100%; }
@@ -97,4 +106,40 @@ input[type="submit"]:not(:disabled),
 input[type="reset"]:not(:disabled),
 .cursor-pointer {
   cursor: pointer;
+}
+
+/*
+ * Global focus border for text-entry / selection controls.
+ * Unlayered (after Tailwind) so behavior is consistent app-wide.
+ * Checkbox/radio keep native focus affordances.
+ */
+:where(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"]),
+  textarea,
+  select
+) {
+  transition:
+    border-color var(--duration-focus, 200ms) ease,
+    box-shadow var(--duration-focus, 200ms) ease;
+}
+
+:where(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"]),
+  textarea,
+  select
+):where(:focus, :focus-visible):not(:disabled):not([readonly]) {
+  border-color: var(--color-border-focus);
+  outline: none;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-border-focus) 40%, transparent);
+}
+
+/* Readonly: still show focus for keyboard users, slightly softer */
+:where(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"]),
+  textarea,
+  select
+):where(:focus, :focus-visible):not(:disabled)[readonly] {
+  border-color: var(--color-border-focus);
+  outline: none;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-border-focus) 25%, transparent);
 }

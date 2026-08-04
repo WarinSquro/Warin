@@ -32,6 +32,17 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-04 12:40 IST
+
+**Prompt:**  
+> UI/UX — global focus border for all text-entry/selection controls (darker border, 150–250ms, theme tokens, light/dark).
+
+**Output:**  
+- Root cause: focus styles were per-control / inconsistent; no shared focus border token.  
+- `index.css` — `--color-border-focus`, `--duration-focus` (200ms); global `:focus`/`:focus-visible` for input/textarea/select; dark via `.dark` / `[data-theme="dark"]`.  
+- Mirrored tokens in `theme/tokens.css`; noted in `docs/theme.md`.  
+- Checkbox/radio/button/file/range excluded. Preserves radius/spacing; outline cleared in favor of border + soft box-shadow for a11y visibility.
+
 ### 2026-08-04 12:25 IST
 
 **Prompt:**  
