@@ -82,9 +82,9 @@ export function AccountSettings() {
     <>
       <header className="flex h-14 flex-shrink-0 items-center border-b border-border bg-surface px-5">
         <div>
-          <div className="text-[15px] font-semibold tracking-tight text-foreground">Account settings</div>
+          <div className="text-[15px] font-semibold tracking-tight text-foreground">Profile</div>
           <div className="text-[12px] text-muted-foreground">
-            Your profile, PIN, and access · not org System Parameters
+            Your details, PIN, and access · not org System Parameters
           </div>
         </div>
       </header>
@@ -191,12 +191,19 @@ export function AccountSettings() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
           <div className="absolute inset-0 bg-brand/50" onClick={() => setLogoutConfirm(false)} />
           <div className="relative z-10 w-full max-w-[360px] rounded-xl bg-surface p-5 text-center shadow-2xl">
-            <div className="text-[15px] font-semibold text-foreground">Log out of OneView?</div>
+            <div className="flex justify-center">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-danger-soft">
+                <LogOut className="h-5 w-5 text-danger" />
+              </div>
+            </div>
+            <div className="mt-3 text-[15px] font-semibold text-foreground">
+              Are you sure you want to Log out ?
+            </div>
             <div className="mt-5 flex gap-2">
               <button
                 type="button"
                 onClick={() => setLogoutConfirm(false)}
-                className="flex-1 rounded-md border border-border px-3 py-2 text-[12px] text-foreground hover:bg-surface-alt"
+                className="flex-1 rounded-md border border-border py-2 text-[13px] text-foreground hover:bg-surface-alt"
               >
                 Cancel
               </button>
@@ -207,7 +214,7 @@ export function AccountSettings() {
                   signOut();
                   navigate("/login", { replace: true });
                 }}
-                className="flex-1 rounded-md bg-danger px-3 py-2 text-[12px] font-medium text-white"
+                className="flex-1 rounded-md bg-danger py-2 text-[13px] font-medium text-white"
               >
                 Log out
               </button>

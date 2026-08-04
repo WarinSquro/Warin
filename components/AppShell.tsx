@@ -158,7 +158,7 @@ function AccountFooter() {
               onClick={() => closeAndNavigate("/account")}
               className="flex w-full items-center gap-2.5 px-3 py-2 text-[12px] text-brand-fg hover:bg-brand-active/60 hover:text-white"
             >
-              <UserCog className="h-[14px] w-[14px]" /> Account settings
+              <UserCog className="h-[14px] w-[14px]" /> Profile
             </button>
             {showSettings && (
               <button

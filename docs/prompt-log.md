@@ -32,6 +32,26 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-04 12:15 IST
+
+**Prompt:**  
+> Put same logout message in Account Settings as image 2; rename Account settings → Profile; note how to push local changes to live.
+
+**Output:**  
+- `screens/AccountSettings.tsx` — page title **Profile**; logout modal matches AppShell (“Are you sure you want to Log out ?” + icon).  
+- `components/AppShell.tsx` / `screens/AccessDenied.tsx` — menu/link label **Profile**.  
+- `docs/aws-ec2-deploy-checklist.md` — **Local changes → live (EC2)** section (push → pull → SPA rebuild or API rebuild).  
+- To go live: commit/push these files, then on EC2 `git pull` + `npx vite build` + copy to `/opt/warin/shared/web`.
+
+### 2026-08-04 11:37 IST
+
+**Prompt:**  
+> commit and push the security files
+
+**Output:**  
+- Already done: `1f13c60` on `origin/main` — `docker-compose.yml`, `infra/nginx/host-ip.conf`, `docs/aws-ec2-deploy-checklist.md`, `docs/prompt-log.md`.  
+- No new commit/push needed. EC2: `cd /opt/warin/app && git pull` then CORS recreate + host Nginx.
+
 ### 2026-08-04 11:32 IST
 
 **Prompt:**  

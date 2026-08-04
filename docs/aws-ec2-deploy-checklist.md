@@ -156,4 +156,47 @@ HTTP only (no TLS) until you have a domain.
 
 ---
 
-*Last updated: 2026-08-04 — Next: A5 SPA + A6 host Nginx + H2 localhost binds + SG 22/80 only.*
+## Local changes → live (EC2)
+
+Whenever you change code on the **laptop**, ship it like this:
+
+### A) Laptop (Git)
+
+```powershell
+cd D:\Amit\AI\Web\OneView
+git add <files>
+git commit -m "Describe why"
+git push origin main
+```
+
+### B) EC2 — always pull
+
+```bash
+cd /opt/warin/app && git pull
+```
+
+### C) What to rebuild (depends on what changed)
+
+| Changed | On EC2 after `git pull` |
+|---------|-------------------------|
+| **SPA / React** (`screens/`, `components/`, `api/`, …) | Rebuild web + copy to host Nginx root (below) |
+| **API / packages / Prisma schema** | `docker compose up -d --build api worker` (and migrate if needed) |
+| **`docker-compose.yml` / nginx conf** | `docker compose up -d` and/or re-copy `host-ip.conf` + `sudo systemctl reload nginx` |
+| **Seed / data only** | `npm run db:seed` (or targeted SQL) — **do not** re-seed casually on real data |
+
+**SPA publish (most UI fixes):**
+
+```bash
+cd /opt/warin/app
+export VITE_API_BASE_URL="http://PUBLIC_IP/api/v1"   # e.g. 13.126.64.134
+npx vite build
+rm -rf /opt/warin/shared/web/*
+cp -a dist/. /opt/warin/shared/web/
+# hard-refresh browser (Ctrl+Shift+R)
+```
+
+Hard-refresh the browser after SPA deploy so cached JS is not reused.
+
+---
+
+*Last updated: 2026-08-04 — Live SPA up; Profile rename + logout copy; document local→live.*

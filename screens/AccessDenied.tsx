@@ -33,7 +33,7 @@ export function AccessDenied() {
             to="/account"
             className="rounded-md border border-border px-4 py-2 text-[13px] text-foreground hover:bg-surface-alt"
           >
-            Account settings
+            Profile
           </Link>
           <Link
             to="/login"
