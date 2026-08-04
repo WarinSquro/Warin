@@ -23,7 +23,8 @@ Instructions for AI agents working in this repository.
 DATABASE_URL="postgresql://admin:admin@127.0.0.1:15432/oneview?schema=public"
 ```
 
-Setup guide: `docs/postgres-local-setup.md`. Monorepo: `docs/monorepo.md`.
+Setup guide: `docs/postgres-local-setup.md`. Monorepo: `docs/monorepo.md`.  
+**Service URLs & credentials:** `docs/service-urls-and-credentials.md`.
 
 ## How to work
 

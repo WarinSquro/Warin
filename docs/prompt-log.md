@@ -32,6 +32,16 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-04 14:40 IST
+
+**Prompt:**  
+> Infrastructure — document all service URLs & credentials (Postgres, Nginx, Docker, web, API, Redis, pgAdmin, dashboards, etc.).
+
+**Output:**  
+- Added `docs/service-urls-and-credentials.md` (tables: purpose, local/prod URL, ports, user/pass, env vars, config paths).  
+- Linked from `AGENTS.md` and `docs/aws-ec2-deploy-checklist.md`.  
+- Dev defaults documented; live secrets pointed at `/opt/warin/shared/.env`; ops profile noted.
+
 ### 2026-08-04 13:50 IST
 
 **Prompt:**  

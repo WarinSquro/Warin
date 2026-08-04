@@ -9,6 +9,8 @@ Product brand: **Warin** (code/DB may still say OneView until rebrand — see `d
 **Server app path:** `/opt/warin`  
 **Git remote:** `https://github.com/WarinSquro/Warin.git` (`main`)  
 
+**Credentials / URLs inventory:** [`docs/service-urls-and-credentials.md`](./service-urls-and-credentials.md)
+
 ---
 
 ## Completed
