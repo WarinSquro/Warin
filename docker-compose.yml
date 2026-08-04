@@ -1,5 +1,9 @@
-# OneView production Docker stack
-# Start: docker compose up -d
+# OneView / Warin Docker stack
+# Start (app only): docker compose up -d
+# Ops tools (pgAdmin, Grafana, …): docker compose --profile ops up -d
+#
+# Security: host ports bind to 127.0.0.1 only — not reachable from the internet.
+# Public HTTP should go through host Nginx (:80/:443) → 127.0.0.1:8080 (Compose nginx).
 
 services:
   postgres:
@@ -11,8 +15,8 @@ services:
       POSTGRES_PASSWORD: admin
       POSTGRES_DB: oneview
     ports:
-      # Host 15432 avoids local Windows PostgreSQL (often 5432/5433)
-      - "15432:5432"
+      # Host 15432 avoids local Windows PostgreSQL (often 5432/5433). Localhost only.
+      - "127.0.0.1:15432:5432"
     volumes:
       - oneview_pgdata:/var/lib/postgresql/data
       - oneview_pgbackups:/backups
@@ -30,7 +34,7 @@ services:
     container_name: oneview-redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - oneview_redis:/data
     networks:
@@ -58,10 +62,11 @@ services:
       JWT_EXPIRES_SECONDS: ${JWT_EXPIRES_SECONDS:-28800}
       HMAC_PEPPER: ${HMAC_PEPPER:-oneview-dev-pepper-change-me}
       STORAGE_ROOT: /data/files
-      CORS_ORIGIN: http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173,http://localhost
+      # Override on EC2: CORS_ORIGIN=http://PUBLIC_IP (and APP_PUBLIC_URL)
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173,http://localhost}
       MAIL_DRY_RUN: "false"
       MAIL_PROVIDER: smtp
-      MAIL_FROM: ${MAIL_FROM:-noreply@oneview.local}
+      MAIL_FROM: ${MAIL_FROM:-noreply@warin.local}
       MAIL_SMTP_HOST: mailpit
       MAIL_SMTP_PORT: "1025"
       MAIL_SMTP_SECURE: "false"
@@ -93,8 +98,9 @@ services:
     container_name: oneview-mailpit
     restart: unless-stopped
     ports:
-      - "1025:1025"
-      - "8025:8025"
+      # SMTP + UI: localhost only (API uses Docker DNS mailpit:1025)
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
     networks:
       - backend-network
 
@@ -127,7 +133,8 @@ services:
     container_name: oneview-nginx
     restart: unless-stopped
     ports:
-      - "8080:80"
+      # Compose API gateway — localhost only; host Nginx (:80) proxies here
+      - "127.0.0.1:8080:80"
     volumes:
       - ./infra/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
@@ -135,15 +142,17 @@ services:
     networks:
       - backend-network
 
+  # --- Ops profile: do not expose on the public internet; use SSH tunnel ---
   pgadmin:
     image: dpage/pgadmin4:8
     container_name: oneview-pgadmin
+    profiles: ["ops"]
     restart: unless-stopped
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@acme.io
       PGADMIN_DEFAULT_PASSWORD: admin
     ports:
-      - "5050:80"
+      - "127.0.0.1:5050:80"
     volumes:
       - oneview_pgadmin:/var/lib/pgadmin
     depends_on:
@@ -154,12 +163,13 @@ services:
   prometheus:
     image: prom/prometheus:v2.54.1
     container_name: oneview-prometheus
+    profiles: ["ops"]
     restart: unless-stopped
     volumes:
       - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - oneview_prometheus:/prometheus
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     networks:
       - monitoring-network
       - backend-network
@@ -167,15 +177,16 @@ services:
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
     container_name: oneview-rabbitmq
+    profiles: ["ops"]
     restart: unless-stopped
     environment:
       RABBITMQ_DEFAULT_USER: admin
       RABBITMQ_DEFAULT_PASS: admin
       RABBITMQ_DEFAULT_VHOST: /
     ports:
-      - "5672:5672"
-      - "5552:5552"
-      - "15672:15672"
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:5552:5552"
+      - "127.0.0.1:15672:15672"
     volumes:
       - oneview_rabbitmq:/var/lib/rabbitmq
       - ./infra/rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
@@ -193,6 +204,7 @@ services:
   grafana:
     image: grafana/grafana:11.2.0
     container_name: oneview-grafana
+    profiles: ["ops"]
     restart: unless-stopped
     environment:
       GF_SECURITY_ADMIN_USER: admin
@@ -200,7 +212,7 @@ services:
       # Allow unsigned community plugins (e.g. RabbitMQ) if installed via UI
       GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS: maormil-rabbitmq-datasource
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     volumes:
       - oneview_grafana:/var/lib/grafana
     depends_on:
@@ -213,10 +225,11 @@ services:
   loki:
     image: grafana/loki:3.1.1
     container_name: oneview-loki
+    profiles: ["ops"]
     restart: unless-stopped
     command: -config.file=/etc/loki/local-config.yaml
     ports:
-      - "3100:3100"
+      - "127.0.0.1:3100:3100"
     volumes:
       - oneview_loki:/loki
     networks:

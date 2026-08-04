@@ -30,21 +30,35 @@ Product brand: **Warin** (code/DB may still say OneView until rebrand — see `d
 |----|------|--------|
 | **A5** | Build SPA with `VITE_API_BASE_URL=http://PUBLIC_IP/api/v1` | **← Next** |
 | **A6-IP** | Host Nginx on port 80 (SPA + `/api` proxy) — `infra/nginx/host-ip.conf` | Pending |
-| **SG-80** | Security Group inbound **TCP 80** from your IP or `0.0.0.0/0` | Pending |
-| **CORS** | API `CORS_ORIGIN` includes `http://PUBLIC_IP` | Pending |
+| **SG-80** | Security Group inbound **TCP 80** (prefer your IP only) + **SSH 22** (your IP) | Pending |
+| **CORS** | API `CORS_ORIGIN` / `APP_PUBLIC_URL` = `http://PUBLIC_IP` | Pending |
+| **H2** | Pull hardened Compose (`127.0.0.1` binds; ops profile) + recreate | With A5–CORS |
 | A6-TLS | Domain + Certbot HTTPS | Deferred (no domain) |
 
 ---
 
 ## Pending — production hardening
 
-| ID | Step |
-|----|------|
-| H1 | Strong secrets |
-| H2 | Don’t publish DB/Redis/Mailpit publicly |
-| H3 | Real SMTP |
-| H4–H5 | UFW + SG tighten |
-| H6 | Backups |
+| ID | Step | Notes |
+|----|------|--------|
+| **H2** | Localhost-only Docker ports + no ops stack by default | In `docker-compose.yml` |
+| H1 | Strong `JWT_SECRET` / `HMAC_PEPPER` / DB password in `.env` | Not default `admin`/`admin` forever |
+| H3 | Real SMTP (disable public Mailpit UI habit) | Later |
+| H4 | UFW: allow 22, 80 (443 later); deny rest | After host Nginx works |
+| H5 | SG: only 22 + 80 from trusted IPs; **no** 5432/6379/8080/8025/5050/9090/… | Critical |
+| H6 | Backups | `/opt/warin/backups` |
+
+### Target exposure
+
+| Port / surface | Public internet? | How to reach |
+|----------------|------------------|--------------|
+| **80** (host Nginx → SPA + `/api`) | Yes (or your IP only) | Browser |
+| **22** SSH | Your IP only | SSH / tunnels |
+| **443** | Later (TLS) | — |
+| Compose **8080**, Postgres **15432**, Redis **6379**, Mailpit **8025** | **No** — `127.0.0.1` only | SSH tunnel or on-box |
+| pgAdmin / Grafana / RabbitMQ / Prometheus / Loki | **No** — `profiles: [ops]` + localhost | `docker compose --profile ops up -d` + SSH tunnel |
+
+Do **not** open SG rules for Postgres, Redis, Mailpit, Compose nginx, or ops UIs.
 
 ---
 
@@ -70,21 +84,31 @@ ls /opt/warin/shared/web/index.html
 
 Skip `packages:build` for the SPA (API image already builds packages).
 
-### 2) API CORS + public URL
+### 2) API CORS + public URL + hardened ports
 
-Edit Compose API env (or recreate with overrides). Minimal approach — set in `docker-compose.yml` under `api.environment` then recreate:
+In `/opt/warin/shared/.env` (Compose reads env for `${CORS_ORIGIN}` etc.):
 
-```text
-CORS_ORIGIN: http://PUBLIC_IP
-APP_PUBLIC_URL: http://PUBLIC_IP
+```bash
+# /opt/warin/shared/.env — example
+CORS_ORIGIN=http://PUBLIC_IP
+APP_PUBLIC_URL=http://PUBLIC_IP
+JWT_SECRET=<long-random>
+HMAC_PEPPER=<long-random>
 ```
+
+Ensure app symlink/env: `cd /opt/warin/app && ln -sfn /opt/warin/shared/.env .env` (if not already).
 
 ```bash
 cd /opt/warin/app
-docker compose up -d --force-recreate api
+git pull
+# Stops publishing DB/Redis/Mailpit/8080 on 0.0.0.0; ops services stay down unless --profile ops
+docker compose up -d
+docker compose up -d --force-recreate api nginx
+# Confirm nothing critical is on 0.0.0.0 except host ssh/nginx:
+sudo ss -tlnp | grep -E ':80|:8080|:5432|:15432|:6379|:8025|:5050|:9090' || true
 ```
 
-Also update `/opt/warin/shared/.env` the same for host tooling.
+Expect Compose **8080 / 15432 / 6379 / 8025** as `127.0.0.1` only. Host **:80** is host Nginx (next step).
 
 ### 3) Host Nginx (A6-IP)
 
@@ -100,9 +124,28 @@ sudo systemctl reload nginx
 
 If `host-ip.conf` not on server yet: `git pull` after push from laptop.
 
-### 4) Security Group
+### 4) Security Group + UFW (H4/H5)
 
-Inbound: **HTTP TCP 80** ← your IP or `0.0.0.0/0` (temporary).
+**AWS SG (inbound):**
+
+- TCP **22** — your admin IP `/32` only  
+- TCP **80** — your IP `/32` (or `0.0.0.0/0` only while testing)  
+- **Remove** any rules for 5432, 15432, 6379, 8080, 8025, 5050, 3000, 9090, 15672, 3100, etc.
+
+**UFW (on box, after host Nginx works):**
+
+```bash
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow OpenSSH
+sudo ufw allow 80/tcp
+# sudo ufw allow 443/tcp   # when TLS exists
+sudo ufw enable
+sudo ufw status
+```
+
+Mailpit UI via tunnel (example):  
+`ssh -i PEM -L 18025:127.0.0.1:8025 ubuntu@PUBLIC_IP` → `http://127.0.0.1:18025`
 
 ### 5) Open browser
 
@@ -113,4 +156,4 @@ HTTP only (no TLS) until you have a domain.
 
 ---
 
-*Last updated: 2026-08-04 — A3/A4 done; next IP-based SPA + host Nginx.*
+*Last updated: 2026-08-04 — Next: A5 SPA + A6 host Nginx + H2 localhost binds + SG 22/80 only.*

@@ -32,6 +32,18 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-04 11:32 IST
+
+**Prompt:**  
+> Done. Next? Keep in mind we need to tighten software-side securities (database, ports, nginx, postgres, URL access, …).
+
+**Output:**  
+- Restored incomplete local `warin-*` Compose rename (would break `APP_NAME: warin-api`); kept working `oneview-*` names.  
+- Hardened `docker-compose.yml`: all published ports → `127.0.0.1`; pgAdmin/Grafana/Prometheus/RabbitMQ/Loki → `profiles: [ops]`; `CORS_ORIGIN`/`APP_PUBLIC_URL` from env.  
+- `infra/nginx/host-ip.conf` — `server_tokens off` + basic security headers.  
+- `docs/aws-ec2-deploy-checklist.md` — target exposure table, SG/UFW, recreate steps with H2.  
+- **Next for user:** push → EC2 A5 SPA build → A6 host Nginx → SG 22+80 only → CORS recreate.
+
 ### 2026-08-04 11:30 IST
 
 **Prompt:**  
