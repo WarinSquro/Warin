@@ -13,8 +13,10 @@ Living inventory of infrastructure and app services.
 | Compose Nginx (API) | `infra/nginx/default.conf` |
 | Deploy checklist | `docs/aws-ec2-deploy-checklist.md` |
 | Git sync | `docs/git-sync-workflow.md` |
+| **HTTPS / Let's Encrypt** | `docs/https-letsencrypt.md` |
 
-**Current QA public IP (confirm in AWS if instance restarted):** `http://13.126.64.134/`
+**Current QA public IP (confirm in AWS if instance restarted):** `http://13.126.64.134/`  
+**HTTPS:** after DNS + Certbot → `https://YOUR_DOMAIN/` (not available for bare IP)
 
 **SSH (laptop → EC2):**
 
@@ -155,7 +157,7 @@ postgresql://admin:admin@postgres:5432/oneview?schema=public
 | Service | Purpose | Local URL | Production / QA URL | Default port(s) | Username | Password / secret | Env var(s) | Config location |
 |---------|---------|-----------|---------------------|-----------------|----------|-------------------|------------|-----------------|
 | **Compose Nginx** (`oneview-nginx`) | Proxies `/api` → API container | On-box: `http://127.0.0.1:8080/` | Bound to **127.0.0.1:8080** on EC2; fronted by host Nginx | Host **8080** → container **80** | — | — | — | `infra/nginx/default.conf` · `docker-compose.yml` → `nginx` |
-| **Host Nginx** (Ubuntu) | Serves SPA + proxies `/api` to Compose nginx | N/A from laptop without tunnel | **Browser:** `http://13.126.64.134/` (port **80**); TLS deferred | **80** (443 later) | — | — | — | `infra/nginx/host-ip.conf` → `/etc/nginx/sites-available/warin` · root `/opt/warin/shared/web` |
+| **Host Nginx** (Ubuntu) | Serves SPA + proxies `/api` | On-box HTTP | **HTTP:** `http://PUBLIC_IP/` · **HTTPS:** `https://DOMAIN/` after Certbot | **80**, **443** | — | Let's Encrypt files under `/etc/letsencrypt/` | — | `host-ip.conf` / `host-http-acme.conf` / `host-https.conf` · `docs/https-letsencrypt.md` |
 
 ---
 
@@ -230,8 +232,20 @@ npm run dev
 | SPA files | `/opt/warin/shared/web` |
 | Postgres | On-box `127.0.0.1:15432` or SSH tunnel |
 | Mailpit UI | SSH tunnel → local `18025` → EC2 `8025` |
+| AWS SG | 22 + 80 (+ **443** when TLS) |
 | Secrets | `/opt/warin/shared/.env` |
+
+### HTTPS (when domain is ready)
+
+See **`docs/https-letsencrypt.md`**. Summary:
+
+```bash
+export DOMAIN=warin.example.com
+export EMAIL=you@example.com
+bash /opt/warin/app/scripts/ec2-enable-https.sh
+# then CORS/APP_PUBLIC_URL=https://$DOMAIN and rebuild SPA with https API base
+```
 
 ---
 
-*Last updated: 2026-08-04 — SPA publish/restore, laptop vs 127.0.0.1 browser rules, QA IP + PEM path.*
+*Last updated: 2026-08-04 — HTTPS Let's Encrypt guide + SPA publish/restore notes.*

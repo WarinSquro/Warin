@@ -5,7 +5,7 @@ Product brand: **Warin** (code/DB may still say OneView until rebrand — see `d
 
 **Instance (current):** `t3.small` · Ubuntu · public IP **`13.126.64.134`** (confirm after stop/start)  
 **SSH:** `ssh -i "…\WARIN-QA-PAIR.pem" ubuntu@<PUBLIC_IP>`  
-**Access (no domain yet):** `http://<PUBLIC_IP>/` after A5+A6-IP  
+**Access:** `http://<PUBLIC_IP>/` until TLS; then `https://<DOMAIN>/` — see [`docs/https-letsencrypt.md`](./https-letsencrypt.md)  
 **Server app path:** `/opt/warin`  
 **Git remote:** `https://github.com/WarinSquro/Warin.git` (`main`)  
 
@@ -23,19 +23,39 @@ Product brand: **Warin** (code/DB may still say OneView until rebrand — see `d
 | A2 | Compose nginx; health OK | Done |
 | A3 | Worker | Done |
 | A4 | Migrate + seed | Done |
+| A5–A6-IP | SPA + host Nginx :80 | Done (IP HTTP) |
 
 ---
 
-## Pending — IP access (no domain) ← **Next**
+## Pending — HTTPS (Let's Encrypt) ← **Next when you have a domain**
 
 | ID | Step | Status |
 |----|------|--------|
-| **A5** | Build SPA with `VITE_API_BASE_URL=http://PUBLIC_IP/api/v1` | **← Next** |
-| **A6-IP** | Host Nginx on port 80 (SPA + `/api` proxy) — `infra/nginx/host-ip.conf` | Pending |
-| **SG-80** | Security Group inbound **TCP 80** (prefer your IP only) + **SSH 22** (your IP) | Pending |
-| **CORS** | API `CORS_ORIGIN` / `APP_PUBLIC_URL` = `http://PUBLIC_IP` | Pending |
-| **H2** | Pull hardened Compose (`127.0.0.1` binds; ops profile) + recreate | With A5–CORS |
-| A6-TLS | Domain + Certbot HTTPS | Deferred (no domain) |
+| **A6-TLS** | DNS A record → EC2; Certbot; HTTP→HTTPS | **Ready in repo** — `docs/https-letsencrypt.md` |
+| **SG-443** | Security Group (+ UFW) **TCP 443** (keep **80** for ACME renewals) | With A6-TLS |
+| **CORS-HTTPS** | `CORS_ORIGIN` / `APP_PUBLIC_URL` = `https://DOMAIN` | With A6-TLS |
+| **SPA-HTTPS** | Rebuild with `VITE_API_BASE_URL=https://DOMAIN/api/v1` | With A6-TLS |
+
+**Quick enable (EC2):**
+
+```bash
+cd /opt/warin/app && git pull origin main
+export DOMAIN=warin.example.com
+export EMAIL=you@example.com
+bash scripts/ec2-enable-https.sh
+# then update .env + rebuild SPA — full steps in docs/https-letsencrypt.md
+```
+
+> Let's Encrypt **cannot** issue a trusted cert for a bare public IP. A hostname is required.
+
+---
+
+## Pending — IP access notes
+
+| ID | Step | Status |
+|----|------|--------|
+| A5 / A6-IP / SG-80 / CORS | HTTP via public IP | Done for QA |
+| H2 | Localhost-only Docker ports | In compose |
 
 ---
 
@@ -46,8 +66,8 @@ Product brand: **Warin** (code/DB may still say OneView until rebrand — see `d
 | **H2** | Localhost-only Docker ports + no ops stack by default | In `docker-compose.yml` |
 | H1 | Strong `JWT_SECRET` / `HMAC_PEPPER` / DB password in `.env` | Not default `admin`/`admin` forever |
 | H3 | Real SMTP (disable public Mailpit UI habit) | Later |
-| H4 | UFW: allow 22, 80 (443 later); deny rest | After host Nginx works |
-| H5 | SG: only 22 + 80 from trusted IPs; **no** 5432/6379/8080/8025/5050/9090/… | Critical |
+| H4 | UFW: allow 22, 80, **443** | With HTTPS |
+| H5 | SG: 22 + 80 + **443**; **no** DB/Redis/8080/ops ports | Critical |
 | H6 | Backups | `/opt/warin/backups` |
 
 ### Target exposure

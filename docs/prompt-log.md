@@ -32,6 +32,18 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-04 19:45 IST
+
+**Prompt:**  
+> Implement free HTTPS (Let's Encrypt); Nginx HTTPS + HTTP→HTTPS redirect; auto-renew; verify endpoints; update deployment docs.
+
+**Output:**  
+- `infra/nginx/host-http-acme.conf` (pre-Certbot), `infra/nginx/host-https.conf` (TLS + redirect + HSTS).  
+- `scripts/ec2-enable-https.sh` — certbot --nginx, timer, dry-run renew.  
+- `docs/https-letsencrypt.md` — domain prerequisite, setup, renew, verification, rollback.  
+- Checklist + credentials inventory updated.  
+- Note: LE requires DNS hostname (not bare IP).
+
 ### 2026-08-04 15:15 IST
 
 **Prompt:**  
