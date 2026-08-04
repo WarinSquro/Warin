@@ -1,6 +1,8 @@
-# OneView
+# Warin
 
 Phase-1 **Resource Management System (RMS)** — capacity planning, utilization, work confirmations, reports, weekly manager check-ins, and org setup.
+
+> Product brand: **Warin**. Legacy code paths may still use `oneview` / `@oneview/*` (Docker DB name, npm packages) until a dedicated rename — see `docs/warin-rebrand-inventory.md`.
 
 This repository started as a React/Vite UI prototype and is being extended with **PostgreSQL**, **Prisma**, and **PIN-in-DB** authentication.
 

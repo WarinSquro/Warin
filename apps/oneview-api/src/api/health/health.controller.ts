@@ -20,7 +20,7 @@ export class HealthController {
     }
     return {
       status: database === "up" ? "ok" : "degraded",
-      service: "oneview-api",
+      service: "warin-api",
       database,
       timestamp: new Date().toISOString(),
     };

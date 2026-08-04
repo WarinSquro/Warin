@@ -12,7 +12,7 @@ import { JwtStrategy } from "./jwt.strategy";
     PassportModule.register({ defaultStrategy: "jwt" }),
     JwtModule.register({
       global: true,
-      secret: process.env.JWT_SECRET ?? "oneview-dev-jwt-secret-change-me",
+      secret: process.env.JWT_SECRET ?? "warin-dev-jwt-secret-change-me",
       signOptions: {
         expiresIn: Number(process.env.JWT_EXPIRES_SECONDS ?? 3600),
       },

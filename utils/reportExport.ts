@@ -1,4 +1,4 @@
-// Shared Excel + PDF export for OneView report screens.
+// Shared Excel + PDF export for Warin report screens.
 import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";

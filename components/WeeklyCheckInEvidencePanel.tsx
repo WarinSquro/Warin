@@ -62,7 +62,7 @@ export function WeeklyCheckInEvidencePanel({
         <span>
           {frozen
             ? "Frozen snapshot — as captured at submission"
-            : "Auto-pulled from OneView · read-only"}
+            : "Auto-pulled from Warin · read-only"}
         </span>
       </div>
       )}

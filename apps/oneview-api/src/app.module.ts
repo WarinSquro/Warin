@@ -23,7 +23,7 @@ import { WeeklyCheckInModule } from "./api/weekly-check-in/weekly-check-in.modul
     ConfigModule.forRoot({ isGlobal: true }),
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
     SecurityModule.forRoot({
-      hmacPepper: process.env.HMAC_PEPPER ?? "oneview-dev-pepper-change-me",
+      hmacPepper: process.env.HMAC_PEPPER ?? "warin-dev-pepper-change-me",
     }),
     RedisModule.forRoot({
       url: process.env.REDIS_URL ?? "redis://127.0.0.1:6379",
@@ -35,7 +35,7 @@ import { WeeklyCheckInModule } from "./api/weekly-check-in/weekly-check-in.modul
     MailModule.forRoot({
       provider: (process.env.MAIL_PROVIDER as "smtp" | "console") ?? "console",
       dryRun: process.env.MAIL_DRY_RUN !== "false",
-      from: process.env.MAIL_FROM ?? "noreply@oneview.local",
+      from: process.env.MAIL_FROM ?? "noreply@warin.local",
       smtp: {
         host: process.env.MAIL_SMTP_HOST ?? "127.0.0.1",
         port: Number(process.env.MAIL_SMTP_PORT ?? 1025),

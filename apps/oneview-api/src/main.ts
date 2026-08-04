@@ -29,7 +29,7 @@ async function bootstrap() {
   app.useGlobalFilters(new AllExceptionsFilter());
 
   const swagger = new DocumentBuilder()
-    .setTitle("OneView API")
+    .setTitle("Warin API")
     .setDescription("Resource Management System API")
     .setVersion("1.0")
     .addBearerAuth()
@@ -38,7 +38,7 @@ async function bootstrap() {
 
   const port = Number(process.env.API_PORT ?? process.env.PORT ?? 3001);
   await app.listen(port, "0.0.0.0");
-  logger.log(`OneView API listening on :${port}`);
+  logger.log(`Warin API listening on :${port}`);
 }
 
 bootstrap();

@@ -158,5 +158,5 @@ export function downloadEmployeeUploadTemplate(): void {
   instructionsSheet["!cols"] = [{ wch: 90 }];
   XLSX.utils.book_append_sheet(wb, instructionsSheet, "Instructions");
 
-  XLSX.writeFile(wb, "OneView-Employee-Upload-Template.xlsx");
+  XLSX.writeFile(wb, "Warin-Employee-Upload-Template.xlsx");
 }

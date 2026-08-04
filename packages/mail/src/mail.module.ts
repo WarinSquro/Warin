@@ -15,7 +15,7 @@ export class MailModule {
           useValue: {
             dryRun: options.dryRun ?? provider === "console",
             provider,
-            from: options.from ?? "noreply@oneview.local",
+            from: options.from ?? "noreply@warin.local",
             smtp: options.smtp,
           } satisfies MailModuleOptions,
         },

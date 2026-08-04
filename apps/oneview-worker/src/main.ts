@@ -6,7 +6,7 @@ import { WorkerModule } from "./worker.module";
 async function bootstrap() {
   const app = await NestFactory.createApplicationContext(WorkerModule, { bufferLogs: true });
   const logger = new Logger("Worker");
-  logger.log("OneView worker started (mail + cleanup queues)");
+  logger.log("Warin worker started (mail + cleanup queues)");
   // Keep process alive
   process.on("SIGINT", async () => {
     await app.close();
