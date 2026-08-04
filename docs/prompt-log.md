@@ -32,6 +32,86 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-04 11:10 IST
+
+**Prompt:**  
+> Fix apps/Dockerfile so packages copy from build stage.
+
+**Output:**  
+- `apps/Dockerfile` — runner now `COPY --from=build /app/packages` (includes `@oneview/*/dist` after `packages:build`). Fixes API crash `Cannot find module .../security/dist/index.js`.  
+- EC2: `git pull` then `docker compose up -d --build api`.  
+- `docs/prompt-log.md` — this entry.
+
+### 2026-08-04 01:05 IST
+
+**Prompt:**  
+> N6 done
+
+**Output:**  
+- Checklist: **N6 Redis Done**. Postgres + Redis up on EC2.  
+- Next: **S1** upgrade to `t3.small` (recommended) or **A1** API build if staying on micro.  
+- `docs/aws-ec2-deploy-checklist.md` + `docs/prompt-log.md` updated.
+
+### 2026-08-04 01:00 IST
+
+**Prompt:**  
+> N5 done
+
+**Output:**  
+- Checklist: **N5 Postgres Done**; next **N6 Redis**.  
+- `docs/aws-ec2-deploy-checklist.md` + `docs/prompt-log.md` updated.
+
+### 2026-08-04 00:55 IST
+
+**Prompt:**  
+> `2` (rebrand decision)
+
+**Output:**  
+- Interpreted as **defer `@oneview/*` / apps folder rename** (question 2).  
+- Docker/DB `oneview-*` kept for now (default through EC2 N5+); P1 rename later unless user says otherwise.  
+- `docs/warin-rebrand-inventory.md` updated. Next: continue **N5 Postgres** on EC2.
+
+### 2026-08-04 00:50 IST
+
+**Prompt:**  
+> Change OneView → Warin where required; check impact; list changes; ask if needed.
+
+**Output:**  
+- **Applied (Wave 0 — safe branding):** UI logout/WCI copy; API Swagger/logs/health; mail PIN reset + remind; worker log; seed messages; upload template name; `.env.example` + Compose JWT/HMAC/MAIL defaults; README + AGENTS product name.  
+- **Not changed (needs OK / high risk):** Docker container/volume/DB `oneview*`; `@oneview/*` packages; `apps/oneview-*` folders; localStorage productivity key; Excel filename.  
+- `docs/warin-rebrand-inventory.md` — updated with Done + decision asks.  
+- `docs/prompt-log.md` — this entry.  
+- Awaiting user: P1 Docker rename now vs after EC2; P2 package rename defer?
+
+### 2026-08-04 00:40 IST
+
+**Prompt:**  
+> N4 done
+
+**Output:**  
+- Checklist: **N4 Done**; next **N5** Postgres only.  
+- `docs/aws-ec2-deploy-checklist.md` + `docs/prompt-log.md` updated.
+
+### 2026-08-04 00:35 IST
+
+**Prompt:**  
+> EC2 at `/opt/warin/app`; `git` OK; `ls` + `docker-compose.yml` confirmed (`compose OK`).
+
+**Output:**  
+- Checklist: **N1–N3 Done**; next **N4** `.env`.  
+- `docs/aws-ec2-deploy-checklist.md` + `docs/prompt-log.md` updated.
+
+### 2026-08-04 00:30 IST
+
+**Prompt:**  
+> Local Git push to Warin is done — document it, then next step.
+
+**Output:**  
+- Marked **L0–L5 Done** in `docs/aws-ec2-deploy-checklist.md` and `docs/warin-local-git-setup.md`.  
+- Remote recorded: `https://github.com/WarinSquro/Warin.git` (`main`).  
+- Next: EC2 **N1** (install git) → N2 `/opt/warin` → N3 clone → N4 `.env`.  
+- `docs/prompt-log.md` — this entry.
+
 ### 2026-08-03 23:30 IST
 
 **Prompt:**  

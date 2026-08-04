@@ -20,7 +20,8 @@ ARG APP_NAME=oneview-api
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/packages ./packages
+# packages:build runs in `build` — must copy dist from there (deps has sources only)
+COPY --from=build /app/packages ./packages
 COPY --from=deps /app/package.json ./package.json
 COPY --from=build /app/apps/${APP_NAME}/dist ./apps/${APP_NAME}/dist
 COPY --from=deps /app/apps/${APP_NAME}/package.json ./apps/${APP_NAME}/package.json
