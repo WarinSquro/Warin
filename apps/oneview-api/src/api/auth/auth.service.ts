@@ -1,8 +1,8 @@
-import { BadRequestException, Injectable, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, Injectable, ServiceUnavailableException, UnauthorizedException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { HashingService } from "@oneview/security";
 import { createHash, randomBytes } from "node:crypto";
-import { MailService } from "@oneview/mail";
+import { MailService, SmtpNotConfiguredError, SMTP_NOT_CONFIGURED_CODE } from "@oneview/mail";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 
 function serializeBigInt<T>(value: T): T {
@@ -142,10 +142,18 @@ export class AuthService {
   }
 
   async forgotPin(email: string) {
+    if (!this.mail.isProductConfigured()) {
+      throw new ServiceUnavailableException({
+        error: SMTP_NOT_CONFIGURED_CODE,
+        message:
+          "Email is not configured yet. Ask an administrator to set up SMTP under Settings → SMTP Settings.",
+      });
+    }
+
     const employee = await this.prisma.employee.findFirst({
       where: { email: email.trim().toLowerCase(), isDeleted: false },
     });
-    // Always generic success
+    // Always generic success when SMTP is configured (anti-enumeration)
     if (employee) {
       const raw = randomBytes(32).toString("hex");
       const expiresMinutes = 30;
@@ -161,7 +169,7 @@ export class AuthService {
       const text = [
         `Hi ${employee.name},`,
         "",
-        "We received a request to reset your OneView PIN.",
+        "We received a request to reset your Warin PIN.",
         `Open this link within ${expiresMinutes} minutes (one-time use):`,
         resetUrl,
         "",
@@ -169,19 +177,30 @@ export class AuthService {
       ].join("\n");
       const html = `
         <p>Hi ${employee.name},</p>
-        <p>We received a request to reset your OneView PIN.</p>
+        <p>We received a request to reset your Warin PIN.</p>
         <p><a href="${resetUrl}">Reset your PIN</a></p>
         <p style="color:#666;font-size:13px">This link works once and expires in ${expiresMinutes} minutes.</p>
         <p style="color:#666;font-size:13px">If you did not request this, you can ignore this email.</p>
       `;
-      await this.mail.send({
-        to: employee.email,
-        subject: "OneView PIN reset",
-        text,
-        html,
-        template: "forgot-pin",
-        context: { token: raw, name: employee.name, resetUrl },
-      });
+      try {
+        await this.mail.send({
+          to: employee.email,
+          subject: "Warin PIN reset",
+          text,
+          html,
+          template: "forgot-pin",
+          context: { token: raw, name: employee.name, resetUrl },
+        });
+      } catch (e) {
+        if (e instanceof SmtpNotConfiguredError) {
+          throw new ServiceUnavailableException({
+            error: SMTP_NOT_CONFIGURED_CODE,
+            message: e.message,
+          });
+        }
+        const detail = e instanceof Error ? e.message : "Mail send failed";
+        throw new ServiceUnavailableException(`Failed to send reset email: ${detail}`);
+      }
     }
     return { message: "If the email exists, a reset link has been sent." };
   }

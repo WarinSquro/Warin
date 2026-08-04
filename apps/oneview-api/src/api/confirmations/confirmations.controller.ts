@@ -12,7 +12,7 @@ import {
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import type { ConfirmationLineKind } from "@prisma/client";
-import { MailService } from "@oneview/mail";
+import { MailService, SmtpNotConfiguredError } from "@oneview/mail";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import type { JwtPayload } from "../auth/jwt.strategy";
 import { RequirePermissions } from "../auth/guards";
@@ -644,17 +644,17 @@ export class ConfirmationsController {
       `Hi ${employee.name},`,
       "",
       `${manager.name} is reminding you to confirm your work for ${workDateLabel}.`,
-      `Open OneView and submit your confirmation:`,
+      `Open Warin and submit your confirmation:`,
       confirmUrl,
       "",
       "Thank you,",
-      "OneView",
+      "Warin",
     ].join("\n");
     const html = `
       <p>Hi ${employee.name},</p>
       <p><strong>${manager.name}</strong> is reminding you to confirm your work for <strong>${workDateLabel}</strong>.</p>
       <p><a href="${confirmUrl}">Open Work Confirmation</a></p>
-      <p style="color:#666;font-size:13px">OneView</p>
+      <p style="color:#666;font-size:13px">Warin</p>
     `;
 
     let mailResult;
@@ -673,15 +673,18 @@ export class ConfirmationsController {
         },
       });
     } catch (err) {
+      if (err instanceof SmtpNotConfiguredError) {
+        throw new ServiceUnavailableException({
+          error: "SMTP_NOT_CONFIGURED",
+          message: err.message,
+        });
+      }
       const detail = err instanceof Error ? err.message : "Mail send failed";
       throw new ServiceUnavailableException(`Failed to send reminder email: ${detail}`);
     }
 
-    // console/dry-run logs only — never claim the employee was notified
-    if (mailResult.provider === "console" || !mailResult.accepted?.length) {
-      throw new ServiceUnavailableException(
-        "Mail is not configured for delivery (set MAIL_DRY_RUN=false and MAIL_PROVIDER=smtp). Reminder was not sent."
-      );
+    if (!mailResult.accepted?.length) {
+      throw new ServiceUnavailableException("Reminder email was not accepted by the mail server.");
     }
 
     return ser({

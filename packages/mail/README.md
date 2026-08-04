@@ -2,41 +2,22 @@
 
 Mail facade for product flows (forgot PIN, notifications).
 
+**Runtime source of truth:** Settings → **SMTP Settings** (Postgres `smtp_settings`, password AES-GCM encrypted).  
+Env `MAIL_*` remains for Compose/Mailpit defaults during bring-up; product sends require Settings SMTP to be configured.
+
 | Provider | Status |
 |----------|--------|
-| `console` / dryRun | Implemented (logs) |
-| `smtp` | Implemented (nodemailer) |
-| `bullmq` | Planned |
-| `rabbitmq` | Planned |
+| Settings SMTP (DB) | Implemented (nodemailer) |
+| `console` / dryRun | Legacy; product flows require Settings SMTP |
+| `bullmq` / `rabbitmq` | Planned |
 
-## Local (Docker Mailpit)
+## Local Mailpit via Settings UI
 
-Compose runs [Mailpit](https://github.com/axllent/mailpit) as SMTP catcher:
+1. Open **Settings → SMTP Settings**
+2. Host `mailpit` (from API container) or `127.0.0.1` (host-run API), Port `1025`, Security **None**, Auth **No**
+3. Sender Name / Email as desired → **Save Settings** → **Test SMTP Connection**
+4. Inbox: http://127.0.0.1:8025 (SSH tunnel on EC2)
 
-- SMTP: `mailpit:1025` (from API container) / `127.0.0.1:1025` (host)
-- UI inbox: http://127.0.0.1:8025
+## Encryption
 
-API env (Compose defaults):
-
-```
-MAIL_DRY_RUN=false
-MAIL_PROVIDER=smtp
-MAIL_SMTP_HOST=mailpit
-MAIL_SMTP_PORT=1025
-MAIL_FROM=noreply@oneview.local
-APP_PUBLIC_URL=http://127.0.0.1:5173
-```
-
-## Real SMTP (e.g. Gmail)
-
-```
-MAIL_DRY_RUN=false
-MAIL_PROVIDER=smtp
-MAIL_SMTP_HOST=smtp.gmail.com
-MAIL_SMTP_PORT=587
-MAIL_SMTP_USER=you@gmail.com
-MAIL_SMTP_PASS=app-password
-MAIL_FROM=OneView <you@gmail.com>
-```
-
-Forgot-PIN only emails **registered employee** addresses. Use Mailpit UI for local testing with `admin@acme.io`.
+SMTP passwords are stored with `@oneview/security` AES-GCM. Key: `SMTP_ENCRYPTION_KEY` or fallback `HMAC_PEPPER`.

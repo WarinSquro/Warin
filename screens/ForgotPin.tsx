@@ -11,6 +11,7 @@ export function ForgotPin() {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const focusRef = useFocusFirstField<HTMLDivElement>(!sent);
 
   if (isAuthenticated) {
@@ -20,13 +21,16 @@ export function ForgotPin() {
   const send = async () => {
     if (!email.includes("@")) return;
     setLoading(true);
+    setErrorMsg(null);
     try {
       await forgotPinApi(email.trim().toLowerCase());
-    } catch {
-      /* still show generic success */
+      setSent(true);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Could not send reset link.";
+      setErrorMsg(msg);
+      setSent(false);
     } finally {
       setLoading(false);
-      setSent(true);
     }
   };
 
@@ -73,11 +77,20 @@ export function ForgotPin() {
           <label className="mb-1.5 block text-[12px] font-medium text-foreground">Work email</label>
           <input
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              setErrorMsg(null);
+            }}
             placeholder="name@acme.io"
             className="w-full rounded-md border border-border bg-surface px-3 py-2.5 text-[13px] text-foreground outline-none focus:border-accent-line"
           />
         </div>
+
+        {errorMsg && (
+          <div className="rounded-md border border-danger-border bg-danger-soft px-3 py-2 text-[12px] text-danger">
+            {errorMsg}
+          </div>
+        )}
 
         <button
           onClick={() => void send()}

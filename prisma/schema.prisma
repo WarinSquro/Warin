@@ -1,4 +1,4 @@
-// OneView production schema — BIGINT identity PKs + business keys + audit columns.
+// Warin production schema — BIGINT identity PKs + business keys + audit columns.
 
 generator client {
   provider = "prisma-client-js"
@@ -59,6 +59,13 @@ enum ConfirmationLineKind {
   planned
   deviation
   unplanned
+}
+
+enum SmtpSecurityType {
+  none
+  ssl
+  tls
+  starttls
 }
 
 enum CompetencyKind {
@@ -563,6 +570,32 @@ model CompanyOffDay {
   version    Int       @default(1)
 
   @@map("company_off_days")
+}
+
+/** Org SMTP for outbound app email (forgot PIN, notifications, etc.). Singleton via code=default. */
+model SmtpSettings {
+  id                 BigInt           @id @default(autoincrement())
+  code               String           @unique @default("default")
+  host               String           @default("")
+  port               Int              @default(587)
+  securityType       SmtpSecurityType @default(starttls) @map("security_type")
+  senderName         String           @default("") @map("sender_name")
+  senderEmail        String           @default("") @map("sender_email")
+  username           String           @default("")
+  /** AES-256-GCM ciphertext (base64url); never store plaintext */
+  passwordEncrypted  String?          @map("password_encrypted")
+  authRequired       Boolean          @default(true) @map("auth_required")
+  isConfigured       Boolean          @default(false) @map("is_configured")
+  isActive           Boolean          @default(true) @map("is_active")
+  isDeleted          Boolean          @default(false) @map("is_deleted")
+  deletedAt          DateTime?        @map("deleted_at")
+  createdAt          DateTime         @default(now()) @map("created_at")
+  modifiedAt         DateTime         @updatedAt @map("modified_at")
+  createdBy          BigInt?          @map("created_by")
+  modifiedBy         BigInt?          @map("modified_by")
+  version            Int              @default(1)
+
+  @@map("smtp_settings")
 }
 
 model PinResetToken {

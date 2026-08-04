@@ -32,6 +32,19 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-04 13:05 IST
+
+**Prompt:**  
+> Feature — SMTP Settings on Settings page (host/port/security/sender/auth/password encrypted; Save / Test connection / Test email; Forgot PIN prompts if not configured).
+
+**Output:**  
+- Prisma `smtp_settings` + enum `SmtpSecurityType`; migration `20260804123000_smtp_settings`.  
+- API `GET/PUT /settings/smtp`, `POST …/test-connection`, `POST …/test-email`; AES-GCM password via CryptoService.  
+- `@oneview/mail` — product SMTP from DB (`applyProductConfig`); `SmtpNotConfiguredError`.  
+- UI `SmtpSettingsSection` on Settings; Forgot PIN surfaces configure-SMTP message.  
+- Excel sync `scripts/apply-smtp-settings-doc.mjs` → `docs/OneView_Table_Structure.xlsx`.  
+- Validation: API `tsc --noEmit` OK; packages mail built; prisma generate OK.
+
 ### 2026-08-04 12:40 IST
 
 **Prompt:**  

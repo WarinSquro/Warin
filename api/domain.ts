@@ -571,6 +571,57 @@ export async function cancelSettingsSchedule(id: string) {
   });
 }
 
+export type SmtpSecurityType = "none" | "ssl" | "tls" | "starttls";
+
+export type SmtpSettings = {
+  host: string;
+  port: number;
+  securityType: SmtpSecurityType;
+  senderName: string;
+  senderEmail: string;
+  username: string;
+  password: string;
+  passwordSet: boolean;
+  authRequired: boolean;
+  isConfigured: boolean;
+};
+
+export type SmtpSettingsPayload = {
+  host: string;
+  port: number;
+  securityType: SmtpSecurityType;
+  senderName: string;
+  senderEmail: string;
+  username: string;
+  password?: string;
+  authRequired: boolean;
+};
+
+export function fetchSmtpSettings() {
+  return apiFetch<SmtpSettings>("/settings/smtp");
+}
+
+export function putSmtpSettings(body: SmtpSettingsPayload) {
+  return apiFetch<SmtpSettings>("/settings/smtp", {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+}
+
+export function testSmtpConnection(body: SmtpSettingsPayload) {
+  return apiFetch<{ ok: boolean; message: string }>("/settings/smtp/test-connection", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function sendSmtpTestEmail(body: SmtpSettingsPayload & { to: string }) {
+  return apiFetch<{ ok: boolean; message: string }>("/settings/smtp/test-email", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
 export type ApiAllocation = {
   id: string;
   employeeHrmsId: string;

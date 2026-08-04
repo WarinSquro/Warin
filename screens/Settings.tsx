@@ -14,6 +14,7 @@ import {
 import { tomorrowISO } from "../utils/date";
 import { useFocusFirstField } from "../hooks/useFocusFirstField";
 import type { SettingsAuditEntry } from "../utils/settingsAudit";
+import { SmtpSettingsSection } from "../components/SmtpSettingsSection";
 
 const IMPACT_PREVIEW: ImpactRow[] = [];
 
@@ -290,6 +291,8 @@ export function Settings() {
               ))}
             </div>
           </Card>
+
+          <SmtpSettingsSection />
         </div>
 
         {/* Audit rail */}
