@@ -111,6 +111,15 @@ Test:
 - Refresh behavior
 - Navigation behavior
 
+### Phase 6 – Git sync
+
+Keep local and remote repositories synchronized (`docs/git-sync-workflow.md`):
+
+- **Before work:** `git pull origin <branch>` (usually `main`). Resolve merge conflicts before coding.
+- **After verified changes:** `git add` → `git commit` → `git push origin <branch>`.
+- Include those commands in every task that touches the web app or shared codebase.
+- Deploy to EC2 only after a successful push (`git pull` on the server + rebuild as needed).
+
 ---
 
 ## Output information (per completed item)
