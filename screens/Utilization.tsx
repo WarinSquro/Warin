@@ -12,6 +12,7 @@ import type { Band, UtilRow } from "../data/utilization";
 import { usePlanningEmployees } from "../hooks/usePlanningEmployees";
 import { useMasters } from "../context/MastersContext";
 import { useSettings } from "../context/SettingsContext";
+import { useToast } from "../context/ToastContext";
 import { buildUtilRowsFromEmployees } from "../api/liveViews";
 import { fetchAllocations, fetchSettingsSchedules, type ApiAllocation, type SettingsSchedule } from "../api/domain";
 import { runReportExport, summarizeFilter } from "../utils/reportExport";
@@ -68,7 +69,7 @@ export function Utilization() {
   const [seg, setSeg] = useState<Segment>("all");
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [pendingSchedule, setPendingSchedule] = useState<SettingsSchedule | null>(null);
-  const [exportToast, setExportToast] = useState<string | null>(null);
+  const toast = useToast();
 
   useEffect(() => {
     void fetchSettingsSchedules()
@@ -124,8 +125,7 @@ export function Utilization() {
   const toggleSeg = (next: Segment) => setSeg((s) => (s === next ? "all" : next));
 
   const showExportToast = (msg: string) => {
-    setExportToast(msg);
-    window.setTimeout(() => setExportToast(null), 2500);
+    toast.info(msg);
   };
 
   const buildExportInput = (): ReportExportInput => {
@@ -220,12 +220,6 @@ export function Utilization() {
           </button>
         </div>
       </header>
-
-      {exportToast && (
-        <div className="flex-shrink-0 border-b border-accent-line bg-accent-soft px-5 py-2 text-[12px] text-accent-softfg">
-          {exportToast}
-        </div>
-      )}
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden bg-background p-5">
         {pendingSchedule && !bannerDismissed && (

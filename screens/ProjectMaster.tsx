@@ -11,6 +11,7 @@ import type { ProjectHealth } from "../data/executionReport";
 import { milestonesForProjectType } from "../data/setup";
 import type { Project, Milestone, ProjectStatus, ResourceDemandLine } from "../data/projects";
 import { useMasters } from "../context/MastersContext";
+import { useToast } from "../context/ToastContext";
 import { useFocusFirstField } from "../hooks/useFocusFirstField";
 import { matchesSearchQuery } from "../utils/textSearch";
 
@@ -296,6 +297,8 @@ function ProjectDrawer({
     (m) => !milestones.some((added) => added.name === m.name)
   );
 
+  const toast = useToast();
+
   const addCustomer = async () => {
     const v = newCustomer.trim();
     if (!v || addingCustomerBusy) return;
@@ -307,6 +310,7 @@ function ProjectDrawer({
       setNewCustomer("");
       setAddingCustomer(false);
       setCustomersError(null);
+      toast.created();
     } catch (e) {
       setCustomersError(e instanceof Error ? e.message : "Failed to add customer");
     } finally {
@@ -849,6 +853,7 @@ export function ProjectMaster() {
   const scrolledRef = useRef<string | null>(null);
 
   const { projects: rows, refresh } = useProjects();
+  const toast = useToast();
   const [tab, setTab] = useState<Tab>("active");
   const [q, setQ] = useState("");
   const [editing, setEditing] = useState<Project | null>(null);
@@ -941,6 +946,7 @@ export function ProjectMaster() {
     try {
       await updateProject(id, { status: next });
       await refresh();
+      toast.updated();
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Failed to update status");
     }
@@ -978,12 +984,17 @@ export function ProjectMaster() {
     try {
       if (editing) {
         await updateProject(saved.id, toWriteBody(saved));
+        await refresh();
+        setDrawerOpen(false);
+        setEditing(null);
+        toast.updated();
       } else {
         await createProject(toWriteBody(saved));
+        await refresh();
+        setDrawerOpen(false);
+        setEditing(null);
+        toast.created();
       }
-      await refresh();
-      setDrawerOpen(false);
-      setEditing(null);
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Failed to save project");
     } finally {

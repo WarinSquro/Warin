@@ -20,6 +20,7 @@ import { initEmptyEmployeeRights } from "../data/accessRights";
 import { createEmployee, updateEmployee } from "../api/domain";
 import { useEmployees } from "../context/EmployeesContext";
 import { useMasters } from "../context/MastersContext";
+import { useToast } from "../context/ToastContext";
 import { useFocusFirstField } from "../hooks/useFocusFirstField";
 import {
   downloadEmployeeUploadTemplate,
@@ -38,6 +39,7 @@ export function EmployeeMaster() {
   const scrolledRef = useRef<string | null>(null);
 
   const { employees, refresh } = useEmployees();
+  const toast = useToast();
 
   const rows = employees;
   const [tab, setTab] = useState<Tab>("active");
@@ -126,6 +128,7 @@ export function EmployeeMaster() {
     try {
       await updateEmployee(id, { status: next });
       await refresh();
+      toast.updated();
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Failed to update status");
     }
@@ -144,6 +147,9 @@ export function EmployeeMaster() {
           resourceOwnerHrmsId: emp.resourceOwnerId ?? null,
           status: emp.status,
         });
+        await refresh();
+        setDrawerOpen(false);
+        toast.updated();
       } else {
         await createEmployee({
           hrmsId: emp.id,
@@ -155,9 +161,10 @@ export function EmployeeMaster() {
           status: emp.status,
         });
         initEmptyEmployeeRights(emp.id);
+        await refresh();
+        setDrawerOpen(false);
+        toast.created();
       }
-      await refresh();
-      setDrawerOpen(false);
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Failed to save employee");
     } finally {
@@ -439,6 +446,7 @@ type ImportOutcome = { row: ParsedEmployeeRow; status: "success" | "failed"; mes
 function UploadModal({ onClose }: { onClose: () => void }) {
   const { employees, refresh } = useEmployees();
   const { departments } = useMasters();
+  const toast = useToast();
   const activeDepartmentNames = useMemo(
     () => departments.filter((d) => d.status === "active").map((d) => d.name),
     [departments]
@@ -482,6 +490,8 @@ function UploadModal({ onClose }: { onClose: () => void }) {
   const runImport = async () => {
     setStage("importing");
     const results: ImportOutcome[] = [];
+    let created = 0;
+    let updated = 0;
     for (const row of validRows) {
       try {
         if (existingIds.has(row.hrmsId)) {
@@ -491,6 +501,7 @@ function UploadModal({ onClose }: { onClose: () => void }) {
             department: row.department,
             skills: row.skills,
           });
+          updated += 1;
         } else {
           await createEmployee({
             hrmsId: row.hrmsId,
@@ -501,6 +512,7 @@ function UploadModal({ onClose }: { onClose: () => void }) {
             status: "active",
           });
           initEmptyEmployeeRights(row.hrmsId);
+          created += 1;
         }
         results.push({ row, status: "success" });
       } catch (e) {
@@ -513,6 +525,8 @@ function UploadModal({ onClose }: { onClose: () => void }) {
     } catch {
       /* refresh failure surfaces on the main grid; import itself already completed */
     }
+    if (created > 0) toast.created();
+    if (updated > 0) toast.updated();
     setStage("done");
   };
 

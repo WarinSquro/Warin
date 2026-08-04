@@ -30,6 +30,7 @@ import type {
 } from "../data/performanceReport";
 import { useEmployees } from "../context/EmployeesContext";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 import { useSettings } from "../context/SettingsContext";
 import {
   buildPerformanceHistoryFromLive,
@@ -64,7 +65,7 @@ export function ResourcePerformanceReport() {
   );
   const [compareOn, setCompareOn] = useState(false);
   const [search, setSearch] = useState("");
-  const [exportToast, setExportToast] = useState<string | null>(null);
+  const toast = useToast();
   const [drawerRow, setDrawerRow] = useState<PerformanceRow | null>(null);
   const [allocations, setAllocations] = useState<ApiAllocation[]>([]);
   const [confirmations, setConfirmations] = useState<ApiConfirmation[]>([]);
@@ -231,8 +232,7 @@ export function ResourcePerformanceReport() {
   ]);
 
   const showExportToast = (msg: string) => {
-    setExportToast(msg);
-    window.setTimeout(() => setExportToast(null), 2500);
+    toast.info(msg);
   };
 
   const buildExportInput = (): ReportExportInput => {
@@ -364,12 +364,6 @@ export function ResourcePerformanceReport() {
           </button>
         </div>
       </header>
-
-      {exportToast && (
-        <div className="flex-shrink-0 border-b border-accent-line bg-accent-soft px-5 py-2 text-[12px] text-accent-softfg">
-          {exportToast}
-        </div>
-      )}
 
       <div className="flex flex-shrink-0 flex-wrap items-center gap-3 border-b border-border-soft bg-surface-alt px-5 py-2.5 text-[12px]">
         <SummaryKpi

@@ -13,6 +13,8 @@ import {
 } from "../data/weeklyCheckIn";
 import type { CompetencyKind, DepartmentConfigStatus } from "../data/weeklyCheckIn";
 import { useMasters } from "../context/MastersContext";
+import { useToast } from "../context/ToastContext";
+import { ConfirmDeleteDialog } from "../components/ConfirmDeleteDialog";
 import { fetchWeeklyCheckInConfig, putWeeklyCheckInConfig } from "../api/domain";
 
 type Segment = "competencies" | "ranking";
@@ -25,6 +27,7 @@ const STATUS_CHIP: Record<DepartmentConfigStatus, { label: string; className: st
 
 export function WeeklyCheckInConfig() {
   const { departments } = useMasters();
+  const toast = useToast();
   const [segment, setSegment] = useState<Segment>("competencies");
   const [selectedDeptId, setSelectedDeptId] = useState("");
   const [config, setConfig] = useState(() => getWeeklyCheckInConfig());
@@ -96,17 +99,22 @@ export function WeeklyCheckInConfig() {
             sequence: c.sequence,
           })),
       });
+      return true;
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : "Failed to save configuration");
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
-  const refresh = () => {
+  const refresh = async (notify?: "created" | "updated" | "deleted") => {
     const next = getWeeklyCheckInConfig();
     setConfig(next);
-    void persistConfig(next);
+    const ok = await persistConfig(next);
+    if (ok && notify === "created") toast.created();
+    if (ok && notify === "updated") toast.updated();
+    if (ok && notify === "deleted") toast.deleted();
   };
 
   const handleAdd = () => {
@@ -114,26 +122,26 @@ export function WeeklyCheckInConfig() {
     const result = addCompetency(selectedDeptId, newKind, newLabel);
     if (!result.ok) return;
     setNewLabel("");
-    refresh();
+    void refresh("created");
   };
 
   const handleCopy = () => {
     if (!copyFromId || copyFromId === selectedDeptId) return;
     copyCompetenciesFromDepartment(copyFromId, selectedDeptId);
-    refresh();
+    void refresh("created");
   };
 
   const saveRankTitle = (value: 1 | 2 | 3 | 4 | 5) => {
     updateRankingTitle(value, rankDraft);
     setEditingRank(null);
-    refresh();
+    void refresh("updated");
   };
 
   const confirmDeleteCompetency = () => {
     if (!pendingDelete) return;
     removeCompetency(pendingDelete.id);
     setPendingDelete(null);
-    refresh();
+    void refresh("deleted");
   };
 
   const renderCompList = (kind: CompetencyKind, list: typeof techComps, title: string) => (
@@ -158,7 +166,7 @@ export function WeeklyCheckInConfig() {
               type="button"
               onClick={() => {
                 moveCompetency(c.id, "up");
-                refresh();
+                void refresh("updated");
               }}
               className="rounded p-1 text-muted-foreground hover:bg-surface"
               aria-label="Move up"
@@ -169,7 +177,7 @@ export function WeeklyCheckInConfig() {
               type="button"
               onClick={() => {
                 moveCompetency(c.id, "down");
-                refresh();
+                void refresh("updated");
               }}
               className="rounded p-1 text-muted-foreground hover:bg-surface"
               aria-label="Move down"
@@ -386,44 +394,14 @@ export function WeeklyCheckInConfig() {
         )}
       </div>
 
-      {pendingDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-          <div className="absolute inset-0 bg-brand/50" onClick={() => setPendingDelete(null)} />
-          <div className="relative z-10 w-full max-w-[400px] rounded-xl bg-surface p-5 shadow-2xl">
-            <div className="flex justify-center">
-              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-danger-soft">
-                <Trash2 className="h-5 w-5 text-danger" />
-              </div>
-            </div>
-            <div className="mt-3 text-center text-[15px] font-semibold text-foreground">
-              Delete this competency?
-            </div>
-            <p className="mt-2 text-center text-[12px] text-muted-foreground">
-              <span className="font-medium text-foreground">{pendingDelete.label}</span>
-              {" · "}
-              {pendingDelete.kind === "technical" ? "Technical" : "Behavioural"}
-              . This cannot be undone from here.
-            </p>
-            <div className="mt-5 flex gap-2">
-              <button
-                type="button"
-                onClick={() => setPendingDelete(null)}
-                className="flex-1 rounded-md border border-border py-2 text-[13px] text-foreground hover:bg-surface-alt"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={saving}
-                onClick={confirmDeleteCompetency}
-                className="flex-1 rounded-md bg-danger py-2 text-[13px] font-medium text-white disabled:opacity-60"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDeleteDialog
+        open={!!pendingDelete}
+        confirming={saving}
+        onCancel={() => {
+          if (!saving) setPendingDelete(null);
+        }}
+        onConfirm={confirmDeleteCompetency}
+      />
     </div>
   );
 }

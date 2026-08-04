@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { KeyRound, LogOut, Shield } from "lucide-react";
 import { changePinApi } from "../api/client";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 import { PERMISSION_PAGES, type PermissionPage } from "../data/navConfig";
 import { useFocusFirstField } from "../hooks/useFocusFirstField";
 
@@ -32,13 +33,13 @@ function assignedPageLabels(allowedKeys: Set<string>, isSuperAdmin: boolean): st
 export function AccountSettings() {
   const navigate = useNavigate();
   const { currentEmployee, isSuperAdmin, allowedKeys, signOut, sessionEmail } = useAuth();
+  const toast = useToast();
   const pinFormRef = useFocusFirstField<HTMLDivElement>();
 
   const [currentPin, setCurrentPin] = useState("");
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [pinError, setPinError] = useState("");
-  const [pinSuccess, setPinSuccess] = useState("");
   const [pinSaving, setPinSaving] = useState(false);
   const [logoutConfirm, setLogoutConfirm] = useState(false);
 
@@ -54,23 +55,20 @@ export function AccountSettings() {
     if (!pinReady) return;
     if (newPin !== confirmPin) {
       setPinError("New PIN and confirmation do not match.");
-      setPinSuccess("");
       return;
     }
     if (newPin === currentPin) {
       setPinError("New PIN must be different from the current PIN.");
-      setPinSuccess("");
       return;
     }
     setPinSaving(true);
     setPinError("");
-    setPinSuccess("");
     try {
       await changePinApi(currentPin, newPin);
-      setPinSuccess("PIN updated successfully.");
       setCurrentPin("");
       setNewPin("");
       setConfirmPin("");
+      toast.updated();
     } catch (e) {
       setPinError(e instanceof Error ? e.message : "Could not update PIN.");
     } finally {
@@ -128,9 +126,9 @@ export function AccountSettings() {
                 autoComplete="new-password"
               />
             </div>
-            {(pinError || pinSuccess) && (
-              <div className={`mt-3 text-[12px] ${pinError ? "text-danger" : "text-success"}`}>
-                {pinError || pinSuccess}
+            {(pinError) && (
+              <div className={`mt-3 text-[12px] text-danger`}>
+                {pinError}
               </div>
             )}
             <div className="mt-4">

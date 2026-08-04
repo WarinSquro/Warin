@@ -9,6 +9,7 @@ import {
   type SmtpSettings,
   type SmtpSettingsPayload,
 } from "../api/domain";
+import { useToast } from "../context/ToastContext";
 
 const SECURITY_OPTIONS: { value: SmtpSecurityType; label: string }[] = [
   { value: "none", label: "None" },
@@ -47,6 +48,7 @@ function toPayload(form: SmtpSettings): SmtpSettingsPayload {
 }
 
 export function SmtpSettingsSection() {
+  const toast = useToast();
   const [form, setForm] = useState<SmtpSettings>(emptyForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -90,7 +92,7 @@ export function SmtpSettingsSection() {
     try {
       const saved = await putSmtpSettings(toPayload(form));
       setForm({ ...saved, password: "" });
-      setMessage({ type: "ok", text: "SMTP settings saved." });
+      toast.updated();
     } catch (e) {
       setMessage({ type: "err", text: e instanceof Error ? e.message : "Save failed." });
     } finally {
@@ -103,7 +105,7 @@ export function SmtpSettingsSection() {
     setMessage(null);
     try {
       const res = await testSmtpConnection(toPayload(form));
-      setMessage({ type: "ok", text: res.message });
+      toast.success(res.message);
     } catch (e) {
       setMessage({ type: "err", text: e instanceof Error ? e.message : "Connection test failed." });
     } finally {
@@ -116,7 +118,7 @@ export function SmtpSettingsSection() {
     setMessage(null);
     try {
       const res = await sendSmtpTestEmail({ ...toPayload(form), to: testTo.trim() });
-      setMessage({ type: "ok", text: res.message });
+      toast.success(res.message);
     } catch (e) {
       setMessage({ type: "err", text: e instanceof Error ? e.message : "Test email failed." });
     } finally {

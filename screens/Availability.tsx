@@ -13,6 +13,7 @@ import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import { usePlanningEmployees } from "../hooks/usePlanningEmployees";
 import { useMasters } from "../context/MastersContext";
 import { useSettings } from "../context/SettingsContext";
+import { useToast } from "../context/ToastContext";
 import { buildAvailRowsFromEmployees, buildRollingOffFromLive, toLocalISO, addDaysISO } from "../api/liveViews";
 import { createAllocation, fetchAllocations, type ApiAllocation } from "../api/domain";
 
@@ -303,6 +304,7 @@ export function Availability() {
   const { employees } = usePlanningEmployees();
   const { departments: deptRows, skills: skillRows } = useMasters();
   const { settings } = useSettings();
+  const toast = useToast();
   const weekCapacity = Math.round(settings.workingHoursPerDay * settings.workingDays.length) || 40;
   const [allocations, setAllocations] = useState<ApiAllocation[]>([]);
 
@@ -385,6 +387,7 @@ export function Availability() {
       reason: payload.reason,
     });
     await reloadAllocations();
+    toast.created();
   };
 
   const deptCounts = useMemo(() => {

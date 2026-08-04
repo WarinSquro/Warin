@@ -27,6 +27,7 @@ import { useProjects } from "../context/ProjectsContext";
 import { usePlanningEmployees } from "../hooks/usePlanningEmployees";
 import { useMasters } from "../context/MastersContext";
 import { useSettings } from "../context/SettingsContext";
+import { useToast } from "../context/ToastContext";
 import {
   createAllocation,
   deleteAllocation,
@@ -178,6 +179,7 @@ export function ResourcePlanner() {
   const { employees } = usePlanningEmployees();
   const { departments: deptRows } = useMasters();
   const { settings } = useSettings();
+  const toast = useToast();
   const location = useLocation();
   const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [view, setView] = useState<"day" | "week">("week");
@@ -340,10 +342,13 @@ export function ResourcePlanner() {
       setSaveError(null);
       if (payload.editRef?.allocationId) {
         await updateAllocation(payload.editRef.allocationId, body);
+        await reloadAllocations();
+        toast.updated();
       } else {
         await createAllocation(body);
+        await reloadAllocations();
+        toast.created();
       }
-      await reloadAllocations();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to save allocation";
       setSaveError(msg);
@@ -359,6 +364,7 @@ export function ResourcePlanner() {
       }
       await deleteAllocation(editRef.allocationId);
       await reloadAllocations();
+      toast.deleted();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to delete allocation";
       setSaveError(msg);

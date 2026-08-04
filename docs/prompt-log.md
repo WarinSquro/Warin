@@ -32,6 +32,18 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-04 20:11 IST
+
+**Prompt:**  
+> Global UI Enhancement – Standard Success & Confirmation Notifications for Create / Edit / Delete (toast bottom-right, Confirm Delete dialog, standard copy).
+
+**Output:**  
+- Added `ToastProvider` / `useToast` (`context/ToastContext.tsx`), `ToastViewport` (bottom-right stack, slide-in, 3s, × dismiss, success/info/warning/error tones), and `ConfirmDeleteDialog` (Confirm Delete / standard message / Delete · Cancel). Wired in `App.tsx` + `index.css` toast animation.  
+- CRUD toasts on Employee / Project / Setup masters, Resource Planner & Availability allocations, Weekly Check-In config & workspace, Access Rights, Settings (incl. calendar off-days + schedule cancel), Account PIN, SMTP, Work Confirmation.  
+- Delete confirmation on allocation delete, competency delete, company off-day remove, scheduled settings cancel.  
+- Replaced ad-hoc Access Rights / reminder / report export local toasts with global toast API.  
+- Validation: `tsc` — no new errors from this change (pre-existing unit test type issue only).
+
 ### 2026-08-04 19:45 IST
 
 **Prompt:**  

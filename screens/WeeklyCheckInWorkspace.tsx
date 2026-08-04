@@ -13,6 +13,7 @@ import { WeeklyCheckInWeekPicker } from "../components/WeeklyCheckInWeekPicker";
 import { useEmployees } from "../context/EmployeesContext";
 import { useMasters } from "../context/MastersContext";
 import { useSettings } from "../context/SettingsContext";
+import { useToast } from "../context/ToastContext";
 import {
   MIN_REMARKS_LENGTH,
   addWeeks,
@@ -44,6 +45,7 @@ export function WeeklyCheckInWorkspace() {
   const [searchParams, setSearchParams] = useSearchParams();
   const weekStart = searchParams.get("week") ?? getCurrentWeekStart();
   const navigate = useNavigate();
+  const toast = useToast();
   const { currentEmployee, isSuperAdmin } = useAuth();
   const { employees, loading: employeesLoading } = useEmployees();
   const { departments } = useMasters();
@@ -266,6 +268,7 @@ export function WeeklyCheckInWorkspace() {
         previousActionStatus: draft.previousActionStatus,
         recognition,
       });
+      toast.created();
       navigate(`/my-team/weekly-check-in?week=${weekStart}`);
     } catch (e) {
       setErrors([e instanceof Error ? e.message : "Submission failed."]);

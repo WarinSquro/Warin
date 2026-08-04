@@ -5,6 +5,7 @@ import type { PlannerRow } from "../data/planner";
 import { useProjects } from "../context/ProjectsContext";
 import { useMasters } from "../context/MastersContext";
 import { useSettings } from "../context/SettingsContext";
+import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
 import { milestoneKindLabel, type Project } from "../data/projects";
 import { activitiesForProjectMilestone } from "../data/setup";
 import type { Activity, ActivityMilestone } from "../data/setup";
@@ -116,6 +117,8 @@ export function AllocationDrawer({ open, onClose, prefill, people, onSave, onDel
   const [form, setForm] = useState({ ...EMPTY });
   const [taskInput, setTaskInput] = useState("");
   const [pastAllocationHours, setPastAllocationHours] = useState(0);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const focusRef = useFocusFirstField<HTMLDivElement>(open);
   const today = todayISO();
   const endMin = form.start >= today ? form.start : today;
@@ -147,6 +150,8 @@ export function AllocationDrawer({ open, onClose, prefill, people, onSave, onDel
       const acts = milestone
         ? resolveActivities(milestone.name, project?.type)
         : [];
+      setConfirmDeleteOpen(false);
+      setDeleting(false);
       setForm({
         ...defaults,
         personId: person?.id ?? "",
@@ -247,11 +252,15 @@ export function AllocationDrawer({ open, onClose, prefill, people, onSave, onDel
 
   const handleDelete = async () => {
     if (!canDelete || !prefill?.editRef) return;
+    setDeleting(true);
     try {
       await onDelete?.(prefill.editRef);
+      setConfirmDeleteOpen(false);
       onClose();
     } catch {
       /* keep drawer open — parent surfaces error */
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -459,7 +468,7 @@ export function AllocationDrawer({ open, onClose, prefill, people, onSave, onDel
               <div className="rounded-md border border-danger-border bg-danger-soft px-3 py-2.5">
                 <button
                   type="button"
-                  onClick={handleDelete}
+                  onClick={() => setConfirmDeleteOpen(true)}
                   className="flex w-full items-center justify-center gap-1.5 rounded-md border border-danger-border bg-surface px-3 py-2 text-[12px] font-medium text-danger transition-colors hover:bg-danger-soft"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -487,6 +496,15 @@ export function AllocationDrawer({ open, onClose, prefill, people, onSave, onDel
           </button>
         </div>
       </div>
+
+      <ConfirmDeleteDialog
+        open={confirmDeleteOpen}
+        confirming={deleting}
+        onCancel={() => {
+          if (!deleting) setConfirmDeleteOpen(false);
+        }}
+        onConfirm={() => void handleDelete()}
+      />
     </div>
   );
 }

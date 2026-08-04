@@ -15,6 +15,7 @@ import {
 import type { PlannedLine, DayStatus, ComplianceRow, DeviationEntry } from "../data/confirmation";
 import { useAuth } from "../context/AuthContext";
 import { useSettings } from "../context/SettingsContext";
+import { useToast } from "../context/ToastContext";
 import {
   fetchAllocations,
   fetchMissPostingCount,
@@ -162,6 +163,7 @@ function initLineStates(lines: PlannedLine[]): Record<string, LineState> {
 function EmployeeConfirm() {
   const { currentEmployee } = useAuth();
   const { settings } = useSettings();
+  const toast = useToast();
   const today = todayISO();
   const [activeLines, setActiveLines] = useState<PlannedLine[]>(EMPTY_LINES);
   const [planHeading, setPlanHeading] = useState("Your plan for today");
@@ -622,6 +624,7 @@ function EmployeeConfirm() {
       });
       setSubmitted(true);
       setSubmittedAtLabel(saved.submittedAtLabel);
+      toast.created();
       const hours = computeConfirmationWorkHours(activeLines, states, unplanned);
       persistDay(workDate, {
         ...getDayProductivity(prodStore, workDate),
@@ -1093,6 +1096,7 @@ function todayLabelClass(status: DayStatus) {
 
 function ManagerCompliance() {
   const navigate = useNavigate();
+  const toast = useToast();
   const today = todayISO();
   const [kpis, setKpis] = useState({
     confirmedPct: 0,
@@ -1105,7 +1109,6 @@ function ManagerCompliance() {
   const [rows, setRows] = useState<ComplianceRow[]>([]);
   const [deviations, setDeviations] = useState<DeviationEntry[]>([]);
   const [error, setError] = useState("");
-  const [toast, setToast] = useState<string | null>(null);
   const [remindingId, setRemindingId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -1148,11 +1151,9 @@ function ManagerCompliance() {
     setRemindingId(row.id);
     try {
       const res = await remindConfirmation({ employeeHrmsId: row.id, workDate: today });
-      setToast(res.message || `Reminder sent to ${row.name}`);
-      window.setTimeout(() => setToast(null), 2500);
+      toast.success(res.message || `Reminder sent to ${row.name}`);
     } catch (e) {
-      setToast(e instanceof Error ? e.message : "Failed to send reminder");
-      window.setTimeout(() => setToast(null), 3000);
+      toast.error(e instanceof Error ? e.message : "Failed to send reminder");
     } finally {
       setRemindingId(null);
     }
@@ -1160,11 +1161,6 @@ function ManagerCompliance() {
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background p-5">
-      {toast && (
-        <div className="absolute right-5 top-3 z-50 rounded-md border border-border bg-surface px-3 py-2 text-[12px] shadow-md">
-          {toast}
-        </div>
-      )}
       {error && <div className="mb-3 text-[12px] text-danger">{error}</div>}
       <div className="grid flex-shrink-0 grid-cols-4 gap-3">
         <Kpi

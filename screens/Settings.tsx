@@ -15,6 +15,8 @@ import { tomorrowISO } from "../utils/date";
 import { useFocusFirstField } from "../hooks/useFocusFirstField";
 import type { SettingsAuditEntry } from "../utils/settingsAudit";
 import { SmtpSettingsSection } from "../components/SmtpSettingsSection";
+import { useToast } from "../context/ToastContext";
+import { ConfirmDeleteDialog } from "../components/ConfirmDeleteDialog";
 
 const IMPACT_PREVIEW: ImpactRow[] = [];
 
@@ -35,6 +37,7 @@ function settingsPutBody(s: SettingsState, companyOffDays = s.companyOffDays) {
 
 export function Settings() {
   const { settings: s, setSettings, patchSettings, patchMetricBands, refresh } = useSettings();
+  const toast = useToast();
   const [dirty, setDirty] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
@@ -42,6 +45,7 @@ export function Settings() {
   const [saveError, setSaveError] = useState("");
   const [auditLog, setAuditLog] = useState<SettingsAuditEntry[]>([]);
   const [scheduled, setScheduled] = useState<SettingsSchedule[]>([]);
+  const [pendingCancelScheduleId, setPendingCancelScheduleId] = useState<string | null>(null);
 
   const reloadAuditAndSchedules = async () => {
     const [entries, schedules] = await Promise.all([
@@ -115,8 +119,10 @@ export function Settings() {
         await refresh();
         await reloadAuditAndSchedules();
         setDirty(false);
+        toast.created();
       } else {
         await persistSettings(s);
+        toast.updated();
       }
       setConfirmOpen(false);
     } catch (e) {
@@ -132,6 +138,8 @@ export function Settings() {
     try {
       await cancelSettingsSchedule(id);
       await reloadAuditAndSchedules();
+      setPendingCancelScheduleId(null);
+      toast.deleted();
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : "Could not cancel schedule.");
     } finally {
@@ -139,7 +147,10 @@ export function Settings() {
     }
   };
 
-  const handleCalendarOffDaysChange = async (companyOffDays: CompanyOffDay[]) => {
+  const handleCalendarOffDaysChange = async (
+    companyOffDays: CompanyOffDay[],
+    notify?: "created" | "deleted"
+  ) => {
     const next = { ...s, companyOffDays };
     patchSettings({ companyOffDays });
     setDirty(true);
@@ -147,6 +158,8 @@ export function Settings() {
     setSaveError("");
     try {
       await persistSettings(next);
+      if (notify === "created") toast.created();
+      if (notify === "deleted") toast.deleted();
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : "Could not save calendar.");
       setDirty(true);
@@ -183,7 +196,7 @@ export function Settings() {
               <button
                 type="button"
                 disabled={saving}
-                onClick={() => void handleCancelSchedule(scheduled[0].id)}
+                onClick={() => setPendingCancelScheduleId(scheduled[0].id)}
                 className="flex-shrink-0 rounded-md border border-accent-line px-2.5 py-1 text-[11px] font-medium text-primary hover:bg-surface disabled:opacity-60"
               >
                 Cancel
@@ -329,11 +342,21 @@ export function Settings() {
           saving={saving}
           error={saveError}
           onClose={() => setCalendarOpen(false)}
-          onChange={(companyOffDays) => {
-            void handleCalendarOffDaysChange(companyOffDays);
+          onChange={(companyOffDays, notify) => {
+            void handleCalendarOffDaysChange(companyOffDays, notify);
           }}
         />
       )}
+      <ConfirmDeleteDialog
+        open={pendingCancelScheduleId != null}
+        confirming={saving}
+        onCancel={() => {
+          if (!saving) setPendingCancelScheduleId(null);
+        }}
+        onConfirm={() => {
+          if (pendingCancelScheduleId) void handleCancelSchedule(pendingCancelScheduleId);
+        }}
+      />
     </>
   );
 }
@@ -460,11 +483,12 @@ function CompanyCalendarModal({
   saving?: boolean;
   error?: string;
   onClose: () => void;
-  onChange: (days: CompanyOffDay[]) => void;
+  onChange: (days: CompanyOffDay[], notify?: "created" | "deleted") => void;
 }) {
   const [date, setDate] = useState("");
   const [label, setLabel] = useState("");
   const [error, setError] = useState("");
+  const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null);
   const focusRef = useFocusFirstField<HTMLDivElement>();
 
   const sorted = [...offDays].sort((a, b) => a.date.localeCompare(b.date));
@@ -482,10 +506,13 @@ function CompanyCalendarModal({
       setError("This date is already marked as an off day.");
       return;
     }
-    onChange([
-      ...offDays,
-      { id: `off${Date.now()}`, date, label: label.trim() },
-    ]);
+    onChange(
+      [
+        ...offDays,
+        { id: `off${Date.now()}`, date, label: label.trim() },
+      ],
+      "created"
+    );
     setDate("");
     setLabel("");
     setError("");
@@ -528,7 +555,7 @@ function CompanyCalendarModal({
                     <button
                       type="button"
                       disabled={saving}
-                      onClick={() => onChange(offDays.filter((d) => d.id !== day.id))}
+                      onClick={() => setPendingRemoveId(day.id)}
                       className="flex-shrink-0 text-[11px] text-muted-foreground hover:text-danger hover:underline disabled:opacity-50"
                     >
                       Remove
@@ -595,6 +622,22 @@ function CompanyCalendarModal({
           </button>
         </div>
       </div>
+      <ConfirmDeleteDialog
+        open={pendingRemoveId != null}
+        confirming={!!saving}
+        onCancel={() => {
+          if (!saving) setPendingRemoveId(null);
+        }}
+        onConfirm={() => {
+          if (!pendingRemoveId) return;
+          const id = pendingRemoveId;
+          setPendingRemoveId(null);
+          onChange(
+            offDays.filter((d) => d.id !== id),
+            "deleted"
+          );
+        }}
+      />
     </div>
   );
 }

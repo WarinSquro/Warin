@@ -15,6 +15,7 @@ import type {
 import type { ProjectType, MilestoneKind } from "../data/projects";
 import { MilestoneKindPicker } from "../components/MilestoneKindPicker";
 import { useMasters } from "../context/MastersContext";
+import { useToast } from "../context/ToastContext";
 import { matchesSearchQuery } from "../utils/textSearch";
 import {
   createActivity,
@@ -131,6 +132,7 @@ function SkillDrawer({
   onClose: () => void;
   onSave: (payload: { name: string; categoryId: string }) => void;
 }) {
+  const toast = useToast();
   const isEdit = !!skill;
   const [name, setName] = useState(skill?.name ?? "");
   const [categoryId, setCategoryId] = useState<string>(skill?.categoryId ?? "");
@@ -183,6 +185,7 @@ function SkillDrawer({
       setCategoryId(opt.id);
       setNewCategory("");
       setAddingCategory(false);
+      toast.created();
     } catch (err) {
       setCategoryError(err instanceof Error ? err.message : "Failed to add category");
     }
@@ -987,6 +990,7 @@ export function SetupMasters() {
   const [segment, setSegment] = useState<Segment>("departments");
   const [tab, setTab] = useState<Tab>("active");
   const [q, setQ] = useState("");
+  const toast = useToast();
 
   const {
     departments: depts,
@@ -1019,6 +1023,7 @@ export function SetupMasters() {
     try {
       await updateDepartment(id, { status: next });
       await refresh();
+      toast.updated();
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Failed to update department");
     }
@@ -1030,6 +1035,7 @@ export function SetupMasters() {
     try {
       await updateSkill(id, { status: next });
       await refresh();
+      toast.updated();
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Failed to update skill");
     }
@@ -1041,6 +1047,7 @@ export function SetupMasters() {
     try {
       await updateActivity(id, { status: next });
       await refresh();
+      toast.updated();
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Failed to update activity");
     }
@@ -1066,10 +1073,17 @@ export function SetupMasters() {
     setSaving(true);
     setSaveError(null);
     try {
-      if (editingDept) await updateDepartment(editingDept.id, { name });
-      else await createDepartment({ name });
-      await refresh();
-      setDeptDrawer(false);
+      if (editingDept) {
+        await updateDepartment(editingDept.id, { name });
+        await refresh();
+        setDeptDrawer(false);
+        toast.updated();
+      } else {
+        await createDepartment({ name });
+        await refresh();
+        setDeptDrawer(false);
+        toast.created();
+      }
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Failed to save department");
     } finally {
@@ -1081,10 +1095,17 @@ export function SetupMasters() {
     setSaving(true);
     setSaveError(null);
     try {
-      if (editingSkill) await updateSkill(editingSkill.id, payload);
-      else await createSkill(payload);
-      await refresh();
-      setSkillDrawer(false);
+      if (editingSkill) {
+        await updateSkill(editingSkill.id, payload);
+        await refresh();
+        setSkillDrawer(false);
+        toast.updated();
+      } else {
+        await createSkill(payload);
+        await refresh();
+        setSkillDrawer(false);
+        toast.created();
+      }
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Failed to save skill");
     } finally {
@@ -1106,15 +1127,19 @@ export function SetupMasters() {
           billable: payload.billable,
           milestoneCode: payload.milestoneId,
         });
+        await refresh();
+        setActivityDrawer(false);
+        toast.updated();
       } else {
         await createActivity({
           name: payload.name,
           billable: payload.billable,
           milestoneCode: payload.milestoneId,
         });
+        await refresh();
+        setActivityDrawer(false);
+        toast.created();
       }
-      await refresh();
-      setActivityDrawer(false);
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Failed to save activity");
     } finally {
@@ -1132,6 +1157,7 @@ export function SetupMasters() {
       if (prev.some((m) => m.id === created.id)) return prev;
       return [...prev, created];
     });
+    toast.created();
     return created;
   };
 

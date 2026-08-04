@@ -26,6 +26,7 @@ import type {
 } from "../data/deploymentReport";
 import { useEmployees } from "../context/EmployeesContext";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 import { useSettings } from "../context/SettingsContext";
 import {
   buildDeploymentRowsFromEmployees,
@@ -62,7 +63,7 @@ export function ResourceDeploymentReport() {
   const [periodId, setPeriodId] = useState<ReportPeriodId>("today");
   const [search, setSearch] = useState("");
   const [groupBy, setGroupBy] = useState<DeploymentGroupBy>("none");
-  const [exportToast, setExportToast] = useState<string | null>(null);
+  const toast = useToast();
   const [allocations, setAllocations] = useState<ApiAllocation[]>([]);
   const [confirmations, setConfirmations] = useState<ApiConfirmation[]>([]);
 
@@ -218,8 +219,7 @@ export function ResourceDeploymentReport() {
   const ownerItems = ownerNames;
 
   const showExportToast = (msg: string) => {
-    setExportToast(msg);
-    window.setTimeout(() => setExportToast(null), 2500);
+    toast.info(msg);
   };
 
   const periodLabel = REPORT_PERIODS.find((p) => p.id === periodId)?.label ?? periodId;
@@ -334,12 +334,6 @@ export function ResourceDeploymentReport() {
           </button>
         </div>
       </header>
-
-      {exportToast && (
-        <div className="flex-shrink-0 border-b border-accent-line bg-accent-soft px-5 py-2 text-[12px] text-accent-softfg">
-          {exportToast}
-        </div>
-      )}
 
       <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-b border-border-soft bg-surface px-5 py-2.5">
         <div className="relative min-w-[180px] flex-1">

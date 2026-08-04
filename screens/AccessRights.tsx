@@ -13,6 +13,7 @@ import {
 } from "../data/accessRights";
 import { useAuth } from "../context/AuthContext";
 import { useEmployees } from "../context/EmployeesContext";
+import { useToast } from "../context/ToastContext";
 import { fetchAccessRights, fetchAllAccessRights, putAccessRights } from "../api/domain";
 import { formatDataReachSummary, getResourceOwnerDisplay } from "../utils/employeeHierarchy";
 import { matchesSearchQuery } from "../utils/textSearch";
@@ -31,6 +32,7 @@ function keysForEmployeeLocal(emp: Employee, keys: string[]): Set<string> {
 export function AccessRights() {
   const { refreshAllowedKeys } = useAuth();
   const { employees } = useEmployees();
+  const toast = useToast();
   const treeRef = useRef<AccessRightsPermissionTreeHandle>(null);
   const [includeInactive, setIncludeInactive] = useState(false);
   const [search, setSearch] = useState("");
@@ -38,7 +40,6 @@ export function AccessRights() {
   const [draftKeys, setDraftKeys] = useState<Set<string>>(new Set());
   const [savedKeys, setSavedKeys] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
   const [pendingSelectId, setPendingSelectId] = useState<string | null>(null);
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
   const [rightsCache, setRightsCache] = useState<Record<string, string[]>>({});
@@ -133,11 +134,9 @@ export function AccessRights() {
       setRightsCache((c) => ({ ...c, [selectedEmployee.id]: keys }));
       setSavedKeys(new Set(draftKeys));
       refreshAllowedKeys();
-      setToast("Access rights saved");
-      window.setTimeout(() => setToast(null), 2000);
+      toast.updated();
     } catch (e) {
-      setToast(e instanceof Error ? e.message : "Save failed");
-      window.setTimeout(() => setToast(null), 3000);
+      toast.error(e instanceof Error ? e.message : "Save failed");
     } finally {
       setSaving(false);
     }
@@ -204,12 +203,6 @@ export function AccessRights() {
           )}
         </div>
       </header>
-
-      {toast && (
-        <div className="absolute right-5 top-16 z-50 rounded-md border border-border bg-surface px-3 py-2 text-[12px] shadow-md">
-          {toast}
-        </div>
-      )}
 
       <div className="flex min-h-0 flex-1 overflow-hidden bg-background">
         <aside className="flex w-[300px] flex-shrink-0 flex-col border-r border-border bg-surface">
