@@ -191,15 +191,70 @@ export const WORKDAY_ACTIONS: { key: WorkdayMarkKey; label: string }[] = [
   { key: "dayEnd", label: "Day End" },
 ];
 
-/** Next stampable step in mandatory order, or null when Day End is done. */
-export function nextWorkdayActionKey(marks: WorkdayMarks): WorkdayMarkKey | null {
-  for (const { key } of WORKDAY_ACTIONS) {
-    if (!marks[key]) return key;
-  }
-  return null;
+/** Lunch was skipped when the day ended without a lunch-out stamp. */
+export function isLunchSkipped(marks: WorkdayMarks): boolean {
+  return Boolean(marks.dayEnd && !marks.lunchOut);
 }
 
-/** True only when `key` is the next required step (strict sequence). */
+/**
+ * Stampable actions given optional lunch:
+ * - No dayStart → Day Start only
+ * - Day Start done, no lunch, no dayEnd → Lunch Out **or** Day End
+ * - Lunch Out without Lunch In → Lunch In only
+ * - Lunch In (or no lunch) without Day End → Day End only
+ * - Day End done → none
+ */
+export function allowedWorkdayActionKeys(marks: WorkdayMarks): WorkdayMarkKey[] {
+  if (!marks.dayStart) return ["dayStart"];
+  if (marks.dayEnd) return [];
+
+  if (marks.lunchOut && !marks.lunchIn) return ["lunchIn"];
+  if (marks.lunchOut && marks.lunchIn) return ["dayEnd"];
+
+  // After check-in, lunch is optional — may start lunch or check out directly
+  return ["lunchOut", "dayEnd"];
+}
+
+/** First stampable step (legacy helpers / single-next UX). Prefer `allowedWorkdayActionKeys`. */
+export function nextWorkdayActionKey(marks: WorkdayMarks): WorkdayMarkKey | null {
+  return allowedWorkdayActionKeys(marks)[0] ?? null;
+}
+
 export function canStampWorkdayAction(marks: WorkdayMarks, key: WorkdayMarkKey): boolean {
-  return nextWorkdayActionKey(marks) === key;
+  return allowedWorkdayActionKeys(marks).includes(key);
+}
+
+/** Structural + chronological rules for persisted marks (client + API). */
+export function validateWorkdayMarks(marks: WorkdayMarks): string | null {
+  const t = (iso: string | null | undefined) => (iso ? new Date(iso).getTime() : NaN);
+  const dayStart = t(marks.dayStart);
+  const lunchOut = t(marks.lunchOut);
+  const lunchIn = t(marks.lunchIn);
+  const dayEnd = t(marks.dayEnd);
+
+  if (marks.lunchIn && !marks.lunchOut) {
+    return "Lunch In requires Lunch Out first.";
+  }
+  if (marks.lunchOut && !marks.dayStart) {
+    return "Lunch Out requires Day Start first.";
+  }
+  if (marks.dayEnd && !marks.dayStart) {
+    return "Day End requires Day Start first.";
+  }
+  if (marks.dayEnd && marks.lunchOut && !marks.lunchIn) {
+    return "Complete Lunch In before Day End, or clear Lunch Out if no lunch was taken.";
+  }
+  if (marks.lunchOut && marks.lunchIn && !Number.isNaN(lunchOut) && !Number.isNaN(lunchIn) && lunchIn < lunchOut) {
+    return "Lunch In must be at or after Lunch Out.";
+  }
+  if (marks.dayStart && marks.lunchOut && !Number.isNaN(dayStart) && !Number.isNaN(lunchOut) && lunchOut < dayStart) {
+    return "Lunch Out must be at or after Day Start.";
+  }
+  if (marks.dayStart && marks.dayEnd && !Number.isNaN(dayStart) && !Number.isNaN(dayEnd) && dayEnd < dayStart) {
+    return "Day End must be at or after Day Start.";
+  }
+  if (marks.lunchIn && marks.dayEnd && !Number.isNaN(lunchIn) && !Number.isNaN(dayEnd) && dayEnd < lunchIn) {
+    return "Day End must be at or after Lunch In.";
+  }
+  return null;
 }

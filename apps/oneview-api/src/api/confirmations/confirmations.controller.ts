@@ -30,6 +30,49 @@ function parseDate(iso?: string | null): Date | null {
   return new Date(`${iso.slice(0, 10)}T00:00:00.000Z`);
 }
 
+/** Mirror of client `validateWorkdayMarks` — optional lunch, valid sequences only. */
+function validateWorkdayPayload(workday: {
+  dayStart?: string | null;
+  lunchOut?: string | null;
+  lunchIn?: string | null;
+  dayEnd?: string | null;
+}): string | null {
+  const has = (v?: string | null) => Boolean(v && String(v).trim());
+  const t = (iso?: string | null) => (has(iso) ? new Date(String(iso)).getTime() : NaN);
+
+  if (has(workday.lunchIn) && !has(workday.lunchOut)) {
+    return "Lunch In requires Lunch Out first.";
+  }
+  if (has(workday.lunchOut) && !has(workday.dayStart)) {
+    return "Lunch Out requires Day Start first.";
+  }
+  if (has(workday.dayEnd) && !has(workday.dayStart)) {
+    return "Day End requires Day Start first.";
+  }
+  if (has(workday.dayEnd) && has(workday.lunchOut) && !has(workday.lunchIn)) {
+    return "Complete Lunch In before Day End, or omit Lunch Out if no lunch was taken.";
+  }
+
+  const dayStart = t(workday.dayStart);
+  const lunchOut = t(workday.lunchOut);
+  const lunchIn = t(workday.lunchIn);
+  const dayEnd = t(workday.dayEnd);
+
+  if (has(workday.lunchOut) && has(workday.lunchIn) && lunchIn < lunchOut) {
+    return "Lunch In must be at or after Lunch Out.";
+  }
+  if (has(workday.dayStart) && has(workday.lunchOut) && lunchOut < dayStart) {
+    return "Lunch Out must be at or after Day Start.";
+  }
+  if (has(workday.dayStart) && has(workday.dayEnd) && dayEnd < dayStart) {
+    return "Day End must be at or after Day Start.";
+  }
+  if (has(workday.lunchIn) && has(workday.dayEnd) && dayEnd < lunchIn) {
+    return "Day End must be at or after Lunch In.";
+  }
+  return null;
+}
+
 function isoDate(d: Date): string {
   // Prefer calendar date (DATE columns) without UTC day-shift.
   if (
@@ -330,6 +373,9 @@ export class ConfirmationsController {
     if (!workDate) throw new BadRequestException("workDate is required");
 
     const workday = body.workday ?? {};
+    const workdayError = validateWorkdayPayload(workday);
+    if (workdayError) throw new BadRequestException(workdayError);
+
     const focusByAllocation = body.focusByAllocation ?? {};
     const allocationKeys = Object.keys(focusByAllocation);
 

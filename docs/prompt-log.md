@@ -32,6 +32,18 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-04 13:50 IST
+
+**Prompt:**  
+> Work Confirmation Workday Timeline — optional lunch (Day Start→Day End or full lunch path); validate sequences; update calcs/UI.
+
+**Output:**  
+- Root cause: `nextWorkdayActionKey` forced all four stamps in order.  
+- `utils/confirmationProductivity.ts` — `allowedWorkdayActionKeys`, `isLunchSkipped`, `validateWorkdayMarks`; lunch optional after Day Start.  
+- `components/ConfirmationProductivity.tsx` — dual next actions, Optional/Skipped labels, lunch break row.  
+- API PUT productivity — `validateWorkdayPayload` rejects invalid sequences.  
+- Productive window already office−lunch (0 when no lunch). No report consumers of lunch fields.
+
 ### 2026-08-04 13:05 IST
 
 **Prompt:**  

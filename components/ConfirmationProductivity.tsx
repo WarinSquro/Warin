@@ -5,14 +5,15 @@ import {
   type DayProductivity,
   type FocusAllocationState,
   type WorkdayMarkKey,
+  allowedWorkdayActionKeys,
   canStampWorkdayAction,
   emptyFocusState,
   focusElapsedMs,
   formatClockAmPm,
   formatCompactDuration,
   formatHms,
+  isLunchSkipped,
   monthDays,
-  nextWorkdayActionKey,
   sessionDisplayMs,
   workdayDurationMs,
 } from "../utils/confirmationProductivity";
@@ -31,8 +32,10 @@ export function WorkdayTimelinePanel({
   disabled?: boolean;
   disabledReason?: string;
 }) {
-  const { officeMs, productiveMs } = workdayDurationMs(marks);
-  const nextKey = disabled ? null : nextWorkdayActionKey(marks);
+  const { officeMs, lunchMs, productiveMs } = workdayDurationMs(marks);
+  const allowed = disabled ? [] : allowedWorkdayActionKeys(marks);
+  const lunchSkipped = isLunchSkipped(marks);
+  const lunchTaken = Boolean(marks.lunchOut && marks.lunchIn);
 
   return (
     <div
@@ -40,17 +43,29 @@ export function WorkdayTimelinePanel({
         disabled ? "opacity-70" : ""
       }`}
     >
-      <div className="mb-2.5 flex items-baseline justify-between gap-2">
+      <div className="mb-1 flex items-baseline justify-between gap-2">
         <div className="text-[12px] font-semibold text-foreground">Workday Timeline</div>
         <div className="text-[11px] text-muted-foreground">
           {disabled ? disabledReason || "Unavailable" : "Today"}
         </div>
       </div>
+      <div className="mb-2.5 text-[11px] leading-snug text-muted-foreground">
+        Lunch is optional. After Day Start you can take lunch or check out directly.
+      </div>
       <div className="grid grid-cols-2 gap-2">
         {WORKDAY_ACTIONS.map(({ key, label }) => {
           const stamped = !!marks[key];
-          const isNext = nextKey === key;
-          const enabled = !disabled && isNext;
+          const isLunchStep = key === "lunchOut" || key === "lunchIn";
+          const skipped = isLunchStep && lunchSkipped;
+          const isAllowed = allowed.includes(key);
+          const enabled = !disabled && isAllowed;
+          const optionalHint =
+            isLunchStep && !stamped && !skipped && marks.dayStart && !marks.dayEnd && !marks.lunchOut
+              ? "Optional"
+              : isLunchStep && key === "lunchIn" && marks.lunchOut && !marks.lunchIn
+                ? "Required"
+                : null;
+
           return (
             <button
               key={key}
@@ -63,20 +78,34 @@ export function WorkdayTimelinePanel({
               className={`relative rounded-md border px-2.5 py-2.5 pb-6 text-left transition-colors ${
                 stamped
                   ? "cursor-default border-border-soft bg-surface-alt"
-                  : enabled
-                    ? "cursor-pointer border-border bg-surface hover:border-accent-line hover:bg-accent-soft/40"
-                    : "cursor-not-allowed border-border-soft bg-surface opacity-60"
+                  : skipped
+                    ? "cursor-default border-dashed border-border-soft bg-surface-alt/50"
+                    : enabled
+                      ? "cursor-pointer border-border bg-surface hover:border-accent-line hover:bg-accent-soft/40"
+                      : "cursor-not-allowed border-border-soft bg-surface opacity-60"
               }`}
             >
-              <div className="text-[10px] font-semibold uppercase tracking-wide text-muted">
-                {label}
+              <div className="flex items-center justify-between gap-1">
+                <div className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+                  {label}
+                </div>
+                {optionalHint && (
+                  <span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
+                    {optionalHint}
+                  </span>
+                )}
+                {skipped && (
+                  <span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Skipped
+                  </span>
+                )}
               </div>
               <div
                 className={`mt-1 text-[13px] font-semibold tabular-nums ${
-                  stamped ? "text-foreground" : "text-muted-foreground"
+                  stamped ? "text-foreground" : skipped ? "text-muted-foreground" : "text-muted-foreground"
                 }`}
               >
-                {formatClockAmPm(marks[key])}
+                {skipped ? "—" : formatClockAmPm(marks[key])}
               </div>
               {stamped ? (
                 <span
@@ -86,11 +115,11 @@ export function WorkdayTimelinePanel({
                 >
                   <Square className="h-2.5 w-2.5 fill-current" />
                 </span>
-              ) : isNext ? (
+              ) : skipped ? null : isAllowed ? (
                 <span
                   className="absolute bottom-1.5 right-1.5 inline-flex h-5 w-5 items-center justify-center rounded-sm bg-primary text-white"
                   aria-hidden
-                  title="Next action"
+                  title="Available action"
                 >
                   <Play className="h-2.5 w-2.5 fill-current" />
                 </span>
@@ -104,6 +133,14 @@ export function WorkdayTimelinePanel({
           <span className="text-muted-foreground">Total Office Time</span>
           <span className="font-medium tabular-nums text-foreground">
             {formatCompactDuration(officeMs)}
+          </span>
+        </div>
+        <div className="flex items-center justify-between text-[11px]">
+          <span className="text-muted-foreground">
+            Lunch Break{lunchSkipped ? " (skipped)" : lunchTaken ? "" : ""}
+          </span>
+          <span className="font-medium tabular-nums text-foreground">
+            {lunchSkipped ? "—" : formatCompactDuration(lunchMs)}
           </span>
         </div>
         <div className="flex items-center justify-between rounded-md bg-accent-soft px-2.5 py-1.5 text-[11px]">
