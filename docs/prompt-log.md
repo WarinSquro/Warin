@@ -32,6 +32,27 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-04 12:25 IST
+
+**Prompt:**  
+> Document and follow Git sync workflow: pull before work; add/commit/push after; include commands on every codebase task; remind about merge conflicts.
+
+**Output:**  
+- Added `docs/git-sync-workflow.md` and `.cursor/rules/oneview-git-sync.mdc` (`alwaysApply`).  
+- Linked from `AGENTS.md`, `docs/aws-ec2-deploy-checklist.md`, `docs/warin-local-git-setup.md`.  
+- Also committing pending admin rename (`Administrator`) + this workflow; push to `origin/main`.
+
+### 2026-08-04 12:20 IST
+
+**Prompt:**  
+> Change Name: Anil Kumar to Administrator
+
+**Output:**  
+- Root cause: blank/demo seed creates EMP-0001 as `Anil Kumar`.  
+- Updated `prisma/seed.ts`, `prisma/seed-demo.ts`, `data/employees.ts`, `docs/api-contract.md`.  
+- Live EC2 (already seeded): SQL update employees name — do not full re-seed.  
+- Validation: Profile shows Administrator after DB update + refresh (or re-login for JWT/session name).
+
 ### 2026-08-04 12:15 IST
 
 **Prompt:**  

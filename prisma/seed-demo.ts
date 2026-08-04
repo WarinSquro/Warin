@@ -14,7 +14,7 @@ function parseDate(iso: string): Date {
 }
 
 async function main() {
-  console.log("Seeding OneView (BIGINT schema)…");
+  console.log("Seeding Warin (BIGINT schema)…");
 
   await prisma.refreshToken.deleteMany();
   await prisma.pinResetToken.deleteMany();
@@ -146,7 +146,7 @@ async function main() {
   };
 
   const employees = [
-    { hrmsId: "EMP-0001", name: "Anil Kumar", email: "admin@acme.io", department: "Engineering", skills: ["Administration"], isSuperAdmin: true },
+    { hrmsId: "EMP-0001", name: "Administrator", email: "admin@acme.io", department: "Engineering", skills: ["Administration"], isSuperAdmin: true },
     { hrmsId: "EMP-1042", name: "Ravi Sharma", email: "ravi.sharma@acme.io", department: "Engineering", skills: ["React", "Node.js", "AWS"], resourceOwnerHrms: "EMP-1088", utilization: 110 },
     { hrmsId: "EMP-1043", name: "Arjun Mehta", email: "arjun.mehta@acme.io", department: "Engineering", skills: ["React", "TypeScript"], resourceOwnerHrms: "EMP-1042", utilization: 105 },
     { hrmsId: "EMP-1051", name: "Priya Nair", email: "priya.nair@acme.io", department: "QA", skills: ["Automation", "Selenium", "API testing"], resourceOwnerHrms: "EMP-0991", utilization: 80 },

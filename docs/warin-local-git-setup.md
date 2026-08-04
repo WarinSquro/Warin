@@ -1,10 +1,9 @@
 # Warin — local Git setup (laptop first)
 
 **Why:** The EC2 step `git clone … /opt/warin/app` needs a **remote repository URL**.  
-The project folder `D:\Amit\AI\Web\OneView` is **not** a git repo yet (`No .git`).  
-Do this on your **Windows laptop**, then continue EC2 clone.
+**Status (2026-08-04):** Laptop Git **complete** — `main` pushed to `https://github.com/WarinSquro/Warin.git`.
 
-Related: `docs/aws-ec2-deploy-checklist.md`
+Related: `docs/aws-ec2-deploy-checklist.md`, **`docs/git-sync-workflow.md`** (pull before work · push after).
 
 ---
 
@@ -12,14 +11,20 @@ Related: `docs/aws-ec2-deploy-checklist.md`
 
 | ID | Step | Status |
 |----|------|--------|
-| **L0** | Install Git for Windows (if missing) | **← start here** |
-| **L1** | Create empty remote repo (GitHub/GitLab) named **Warin** (or `warin-rms`) | Pending |
-| **L2** | `git init` in project folder + `.gitignore` check | Pending |
-| **L3** | First commit | Pending |
-| **L4** | Add remote `origin` + `git push` | Pending |
-| **L5** | Note clone URL for EC2 | Pending → then EC2 **N3** |
+| **L0** | Install Git for Windows (if missing) | **Done** |
+| **L1** | Create empty remote repo **Warin** | **Done** (`WarinSquro/Warin`, private) |
+| **L2** | `git init` in project folder + `.gitignore` check | **Done** |
+| **L3** | First commit | **Done** |
+| **L4** | Add remote `origin` + `git push` | **Done** (`main` → `origin/main`) |
+| **L5** | Note clone URL for EC2 | **Done** — see below |
 
-**Blocked until L4:** EC2 `git clone` (checklist **N3**).
+**Next:** EC2 checklist **N1** (`docs/aws-ec2-deploy-checklist.md`).
+
+### Clone URL (for EC2 N3)
+
+```text
+https://github.com/WarinSquro/Warin.git
+```
 
 ---
 

@@ -1,10 +1,11 @@
-# AGENTS.md — OneView
+# AGENTS.md — Warin
 
 Instructions for AI agents working in this repository.
 
 ## What this is
 
-**OneView** is a Phase-1 Resource Management System (RMS) UI prototype being turned into a working application.
+**Warin** is a Phase-1 Resource Management System (RMS) UI prototype being turned into a working application.  
+(Legacy identifiers `oneview` / `@oneview/*` remain in Docker/npm until rebrand wave P1/P2 — see `docs/warin-rebrand-inventory.md`.)
 
 ## Locked technical choices
 
@@ -14,7 +15,7 @@ Instructions for AI agents working in this repository.
 | Database | **PostgreSQL** |
 | ORM | **Prisma** |
 | Auth (product) | Evolving: PIN-in-DB seed + platform `@oneview/auth` (Keycloak) packages |
-| Hosting (now) | **Docker Compose** — user `admin`, password `admin`, DB `oneview` |
+| Hosting (now) | **Docker Compose** — user `admin`, password `admin`, DB `oneview` (legacy id; product name Warin) |
 | Hosting (host Prisma) | Published as `127.0.0.1:15432` (avoids local Windows Postgres on 5432/5433) |
 | Monorepo | **npm workspaces** — `packages/*` platform libs, `apps/*` Nest APIs |
 
@@ -27,8 +28,9 @@ Setup guide: `docs/postgres-local-setup.md`. Monorepo: `docs/monorepo.md`.
 ## How to work
 
 1. Read `.cursor/skills/oneview-dev/SKILL.md` for product/stack rules; use `reference.md` for routes and permissions.
-2. Follow `.cursor/rules/` (`oneview-ui`, `oneview-api`, `oneview-postgres`, `typescript-react`, `oneview-prompt-log`, `oneview-change-standards`).
+2. Follow `.cursor/rules/` (`oneview-ui`, `oneview-api`, `oneview-postgres`, `typescript-react`, `oneview-prompt-log`, `oneview-change-standards`, `oneview-git-sync`).
 3. **Change standards (required for fixes/features):** `docs/change-implementation-standards.md` — investigate root cause, smallest change, verify no regressions, report cause/files/tests/result.
+3b. **Git sync (required):** Keep laptop and `origin` synchronized. Before work: pull. After verified changes: add / commit / push. Include those commands in every codebase task. See `docs/git-sync-workflow.md`. Resolve merge conflicts before continuing.
 4. Theme: `docs/theme.md` + `theme/tokens.css` / `index.css`. Do not redesign brand colors.
 5. Preserve `AppShell`, `routes.tsx`, and permission keys in `data/navConfig.ts`.
 6. Treat `data/*.ts` as temporary mocks until API + Prisma replace them screen-by-screen.

@@ -158,6 +158,8 @@ HTTP only (no TLS) until you have a domain.
 
 ## Local changes → live (EC2)
 
+**Git sync first:** always pull before work and push after verified changes — see `docs/git-sync-workflow.md`.
+
 Whenever you change code on the **laptop**, ship it like this:
 
 ### A) Laptop (Git)

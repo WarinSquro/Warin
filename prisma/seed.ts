@@ -29,7 +29,7 @@ async function wipe() {
 }
 
 async function main() {
-  console.log("Seeding OneView (blank: masters + 1 admin)…");
+  console.log("Seeding Warin (blank: masters + 1 admin)…");
   await wipe();
 
   const pinHash = await argon2.hash(DEMO_PIN, { type: argon2.argon2id });
@@ -145,7 +145,7 @@ async function main() {
   const admin = await prisma.employee.create({
     data: {
       hrmsId: "EMP-0001",
-      name: "Anil Kumar",
+      name: "Administrator",
       email: "admin@acme.io",
       pinHash,
       departmentId: deptIds.Engineering,

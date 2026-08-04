@@ -42,7 +42,7 @@ Status: **not implemented yet** — frontend still uses mocks. Align implementat
 {
   "user": {
     "id": "EMP-0001",
-    "name": "Anil Kumar",
+    "name": "Administrator",
     "email": "admin@acme.io",
     "isSuperAdmin": true,
     "permissionKeys": ["my_workspace", "planner"]
