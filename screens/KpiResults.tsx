@@ -13,10 +13,26 @@ import { useMasters } from "../context/MastersContext";
 import { useToast } from "../context/ToastContext";
 import { useAuth } from "../context/AuthContext";
 import { useFocusFirstField } from "../hooks/useFocusFirstField";
+import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 
 const CYCLES: AssessmentCycle[] = ["Q1", "Q2", "Q3", "Q4"];
 const fieldClass =
   "w-full rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none";
+
+type KpiResultsSortKey =
+  | "resource"
+  | "kpi"
+  | "period"
+  | "target"
+  | "weight"
+  | "status"
+  | "updatedOn";
+
+const STATUS_ORDER: Record<KpiRowStatus, number> = {
+  draft: 0,
+  pending_result: 1,
+  completed: 2,
+};
 
 function emptySummary(): ApiKpiResultsSummary {
   return { total: 0, pending: 0, completed: 0, finalAchievement: null };
@@ -37,6 +53,7 @@ export function KpiResults() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<ApiKpiItem | null>(null);
+  const { sortKey, sortDir, handleSort } = useColumnSort<KpiResultsSortKey>("resource");
 
   const activeDepts = useMemo(
     () => departments.filter((d) => d.status === "active"),
@@ -71,12 +88,13 @@ export function KpiResults() {
     setLoading(true);
     setError("");
     try {
+      // Always load unfiltered scope so summary / tab counts stay stable.
       const res = await fetchKpiResults({
         calendarYear: year,
         assessmentCycle: cycle,
         employeeHrmsId: resourceId || undefined,
         departmentId: deptId || undefined,
-        status: statusTab === "all" ? "all" : statusTab,
+        status: "all",
       });
       setItems(res.items);
       setSummary(res.summary);
@@ -87,7 +105,7 @@ export function KpiResults() {
     } finally {
       setLoading(false);
     }
-  }, [year, cycle, resourceId, deptId, statusTab]);
+  }, [year, cycle, resourceId, deptId]);
 
   useEffect(() => {
     void load();
@@ -95,6 +113,46 @@ export function KpiResults() {
 
   const pendingCount = summary.pending;
   const completedCount = summary.completed;
+
+  const filteredItems = useMemo(() => {
+    if (statusTab === "completed") return items.filter((i) => i.status === "completed");
+    if (statusTab === "pending_result") {
+      return items.filter((i) => i.status === "pending_result" || i.status === "draft");
+    }
+    return items;
+  }, [items, statusTab]);
+
+  const sorted = useMemo(() => {
+    const mul = sortDir === "asc" ? 1 : -1;
+    return [...filteredItems].sort((a, b) => {
+      let cmp = 0;
+      switch (sortKey) {
+        case "resource":
+          cmp = (a.employeeName ?? "").localeCompare(b.employeeName ?? "");
+          break;
+        case "kpi":
+          cmp = a.kpiName.localeCompare(b.kpiName);
+          break;
+        case "period":
+          cmp = a.periodLabel.localeCompare(b.periodLabel);
+          break;
+        case "target":
+          cmp = a.target - b.target;
+          break;
+        case "weight":
+          cmp = a.weightage - b.weightage;
+          break;
+        case "status":
+          cmp = STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
+          break;
+        case "updatedOn":
+          cmp = (a.resultUpdatedAt ?? "").localeCompare(b.resultUpdatedAt ?? "");
+          break;
+      }
+      if (cmp !== 0) return mul * cmp;
+      return (a.employeeName ?? "").localeCompare(b.employeeName ?? "") || a.id.localeCompare(b.id);
+    });
+  }, [filteredItems, sortKey, sortDir]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -201,7 +259,7 @@ export function KpiResults() {
         <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
           {loading ? (
             <div className="px-4 py-12 text-center text-[12px] text-muted-foreground">Loading…</div>
-          ) : items.length === 0 ? (
+          ) : filteredItems.length === 0 ? (
             <div className="px-4 py-12 text-center text-[12px] text-muted-foreground">
               No KPI results for this filter.
             </div>
@@ -210,17 +268,73 @@ export function KpiResults() {
               <table className="w-full min-w-[900px] text-left text-[12px]">
                 <thead className="border-b border-border-soft bg-surface-alt text-[11px] uppercase tracking-wide text-muted-foreground">
                   <tr>
-                    <th className="px-3 py-2.5 font-medium">Resource</th>
-                    <th className="px-3 py-2.5 font-medium">KPI</th>
-                    <th className="px-3 py-2.5 font-medium">KPI Period</th>
-                    <th className="px-3 py-2.5 font-medium">Target</th>
-                    <th className="px-3 py-2.5 font-medium">Weight %</th>
-                    <th className="px-3 py-2.5 font-medium">Status</th>
-                    <th className="px-3 py-2.5 font-medium">Result Updated On</th>
+                    <th className="px-3 py-2.5 font-medium">
+                      <SortColHeader
+                        label="Resource"
+                        col="resource"
+                        sortKey={sortKey}
+                        sortDir={sortDir}
+                        onSort={handleSort}
+                      />
+                    </th>
+                    <th className="px-3 py-2.5 font-medium">
+                      <SortColHeader
+                        label="KPI"
+                        col="kpi"
+                        sortKey={sortKey}
+                        sortDir={sortDir}
+                        onSort={handleSort}
+                      />
+                    </th>
+                    <th className="px-3 py-2.5 font-medium">
+                      <SortColHeader
+                        label="KPI Period"
+                        col="period"
+                        sortKey={sortKey}
+                        sortDir={sortDir}
+                        onSort={handleSort}
+                      />
+                    </th>
+                    <th className="px-3 py-2.5 font-medium">
+                      <SortColHeader
+                        label="Target"
+                        col="target"
+                        sortKey={sortKey}
+                        sortDir={sortDir}
+                        onSort={handleSort}
+                      />
+                    </th>
+                    <th className="px-3 py-2.5 font-medium">
+                      <SortColHeader
+                        label="Weight %"
+                        col="weight"
+                        sortKey={sortKey}
+                        sortDir={sortDir}
+                        onSort={handleSort}
+                      />
+                    </th>
+                    <th className="px-3 py-2.5 font-medium">
+                      <SortColHeader
+                        label="Status"
+                        col="status"
+                        sortKey={sortKey}
+                        sortDir={sortDir}
+                        onSort={handleSort}
+                      />
+                    </th>
+                    <th className="px-3 py-2.5 font-medium">
+                      <SortColHeader
+                        label="Result Updated On"
+                        col="updatedOn"
+                        sortKey={sortKey}
+                        sortDir={sortDir}
+                        onSort={handleSort}
+                      />
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((row) => (
+                  {sorted.map((row) => (
                     <tr
                       key={row.id}
                       onClick={() => setSelected(row)}
@@ -255,7 +369,7 @@ export function KpiResults() {
       </div>
 
       {selected && (
-        <ResultModal
+        <ResultDrawer
           item={selected}
           onClose={() => setSelected(null)}
           onSaved={async () => {
@@ -270,7 +384,7 @@ export function KpiResults() {
   );
 }
 
-function ResultModal({
+function ResultDrawer({
   item,
   onClose,
   onSaved,
@@ -290,8 +404,10 @@ function ResultModal({
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const title = locked ? "KPI Result" : canSave ? "Update KPI Result" : "KPI Result";
+
   const save = async () => {
-    if (!canSave) return;
+    if (!canSave || saving) return;
     const resultNum = Number(kpiResult);
     const scoreNum = Number(kpiScore);
     if (!Number.isFinite(resultNum)) {
@@ -341,19 +457,24 @@ function ResultModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-      <div className="absolute inset-0 bg-brand/50" onClick={onClose} aria-hidden />
+    <div className="fixed inset-0 z-40">
+      <div onClick={onClose} className="absolute inset-0 bg-brand/30" aria-hidden />
       <div
         ref={focusRef}
-        className="relative z-10 flex max-h-[90vh] w-full max-w-[520px] flex-col overflow-hidden rounded-xl bg-surface shadow-2xl"
+        className="absolute right-0 top-0 flex h-full w-[440px] flex-col bg-surface shadow-2xl"
       >
-        <div className="flex items-center justify-between border-b border-border-soft px-5 py-3.5">
-          <div className="text-[15px] font-semibold text-foreground">KPI Result</div>
-          <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
+        <div className="flex flex-shrink-0 items-center justify-between border-b border-border-soft px-5 py-4">
+          <div className="text-[15px] font-semibold text-foreground">{title}</div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="cursor-pointer text-muted-foreground hover:text-foreground"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4">
+
+        <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-5 py-4">
           <ReadOnly label="KPI Category" value={item.categoryName ?? "—"} />
           <ReadOnly label="KPI" value={item.kpiName} />
           <ReadOnly label="Measurement Method" value={item.measurementMethodName ?? "—"} />
@@ -372,19 +493,19 @@ function ResultModal({
             </div>
           )}
 
-          <label className="block">
-            <span className="mb-1.5 block text-[11px] text-muted">KPI Result</span>
+          <label className="flex flex-col">
+            <span className="mb-1.5 text-[11px] text-muted">KPI Result</span>
             <input
               type="number"
               step="any"
               disabled={locked || !canSave}
               value={kpiResult}
               onChange={(e) => setKpiResult(e.target.value)}
-              className={fieldClass}
+              className={`${fieldClass} focus:border-accent-line disabled:cursor-not-allowed disabled:bg-surface-alt disabled:text-muted`}
             />
           </label>
-          <label className="block">
-            <span className="mb-1.5 block text-[11px] text-muted">RO KPI Score (0–100)</span>
+          <label className="flex flex-col">
+            <span className="mb-1.5 text-[11px] text-muted">RO KPI Score (0–100)</span>
             <input
               type="number"
               min={0}
@@ -393,21 +514,21 @@ function ResultModal({
               disabled={locked || !canSave}
               value={kpiScore}
               onChange={(e) => setKpiScore(e.target.value)}
-              className={fieldClass}
+              className={`${fieldClass} focus:border-accent-line disabled:cursor-not-allowed disabled:bg-surface-alt disabled:text-muted`}
             />
           </label>
-          <label className="block">
-            <span className="mb-1.5 block text-[11px] text-muted">Resource Owner Remarks</span>
+          <label className="flex flex-col">
+            <span className="mb-1.5 text-[11px] text-muted">Resource Owner Remarks</span>
             <textarea
               disabled={locked || !canSave}
               value={remarks}
               onChange={(e) => setRemarks(e.target.value)}
               rows={3}
-              className={fieldClass}
+              className={`${fieldClass} focus:border-accent-line disabled:cursor-not-allowed disabled:bg-surface-alt disabled:text-muted`}
             />
           </label>
-          <label className="block">
-            <span className="mb-1.5 block text-[11px] text-muted">
+          <label className="flex flex-col">
+            <span className="mb-1.5 text-[11px] text-muted">
               Attachment (PDF / XLSX / JPG · max 5 MB)
             </span>
             {item.hasAttachment && !file && (
@@ -418,15 +539,17 @@ function ResultModal({
               disabled={locked || !canSave}
               accept=".pdf,.xlsx,.xls,.jpg,.jpeg,application/pdf,image/jpeg"
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              className="block w-full text-[12px]"
+              className="block w-full cursor-pointer text-[12px] disabled:cursor-not-allowed"
             />
           </label>
         </div>
-        <div className="flex gap-2 border-t border-border-soft px-5 py-3.5">
+
+        <div className="flex flex-shrink-0 gap-2 border-t border-border-soft px-5 py-3.5">
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 rounded-md border border-border py-2 text-[13px] hover:bg-surface-alt"
+            disabled={saving}
+            className="flex-1 cursor-pointer rounded-md border border-border py-2 text-[13px] text-foreground hover:bg-surface-alt disabled:opacity-40"
           >
             Cancel
           </button>
@@ -434,7 +557,7 @@ function ResultModal({
             type="button"
             disabled={!canSave || saving}
             onClick={() => void save()}
-            className="flex-1 rounded-md bg-primary py-2 text-[13px] font-medium text-primary-foreground disabled:opacity-40"
+            className="flex-1 cursor-pointer rounded-md bg-primary py-2 text-[13px] font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-40"
           >
             {saving ? "Saving…" : locked ? "Locked" : "Save"}
           </button>

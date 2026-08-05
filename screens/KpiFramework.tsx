@@ -16,12 +16,30 @@ import {
   type KpiTargetDirection,
 } from "../api/domain";
 import { ConfirmDeleteDialog } from "../components/ConfirmDeleteDialog";
+import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import { useEmployees } from "../context/EmployeesContext";
 import { useMasters } from "../context/MastersContext";
 import { useToast } from "../context/ToastContext";
 
 type PageSeg = "framework" | "masters";
 type MasterTab = "categories" | "methods" | "units";
+type FrameworkSortKey =
+  | "category"
+  | "kpi"
+  | "method"
+  | "unit"
+  | "target"
+  | "direction"
+  | "period"
+  | "weight"
+  | "status";
+type MasterSortKey = "name" | "status";
+
+const FRAMEWORK_STATUS_ORDER: Record<string, number> = {
+  draft: 0,
+  pending_result: 1,
+  completed: 2,
+};
 
 const CYCLES: AssessmentCycle[] = ["Q1", "Q2", "Q3", "Q4"];
 const CYCLE_MONTHS: Record<AssessmentCycle, number[]> = {
@@ -51,6 +69,12 @@ export function KpiFramework() {
   const [error, setError] = useState("");
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const { sortKey, sortDir, handleSort } = useColumnSort<FrameworkSortKey>("category");
+  const {
+    sortKey: masterSortKey,
+    sortDir: masterSortDir,
+    handleSort: handleMasterSort,
+  } = useColumnSort<MasterSortKey>("name");
 
   const [categories, setCategories] = useState<ApiKpiMaster[]>([]);
   const [methods, setMethods] = useState<ApiKpiMaster[]>([]);
@@ -76,6 +100,47 @@ export function KpiFramework() {
   const weightOk = Math.abs(weightTotal - 100) < 0.01;
   const canEdit = items.every((i) => i.status === "draft") && !items.some((i) => i.cycleExpired);
   const canCopy = Boolean(resourceId) && items.length === 0;
+
+  const sortedItems = useMemo(() => {
+    const mul = sortDir === "asc" ? 1 : -1;
+    return [...items].sort((a, b) => {
+      let cmp = 0;
+      switch (sortKey) {
+        case "category":
+          cmp = (a.categoryName ?? "").localeCompare(b.categoryName ?? "");
+          break;
+        case "kpi":
+          cmp = a.kpiName.localeCompare(b.kpiName);
+          break;
+        case "method":
+          cmp = (a.measurementMethodName ?? "").localeCompare(b.measurementMethodName ?? "");
+          break;
+        case "unit":
+          cmp = (a.unitName ?? "").localeCompare(b.unitName ?? "");
+          break;
+        case "target":
+          cmp = a.target - b.target;
+          break;
+        case "direction":
+          cmp = a.targetDirection.localeCompare(b.targetDirection);
+          break;
+        case "period":
+          cmp =
+            a.periodStartMonth - b.periodStartMonth ||
+            a.periodEndMonth - b.periodEndMonth ||
+            a.periodLabel.localeCompare(b.periodLabel);
+          break;
+        case "weight":
+          cmp = a.weightage - b.weightage;
+          break;
+        case "status":
+          cmp = (FRAMEWORK_STATUS_ORDER[a.status] ?? 9) - (FRAMEWORK_STATUS_ORDER[b.status] ?? 9);
+          break;
+      }
+      if (cmp !== 0) return mul * cmp;
+      return a.id.localeCompare(b.id);
+    });
+  }, [items, sortKey, sortDir]);
 
   const loadMasters = useCallback(async () => {
     const [c, m, u] = await Promise.all([
@@ -125,6 +190,17 @@ export function KpiFramework() {
     masterTab === "categories" ? categories : masterTab === "methods" ? methods : units;
   const masterKind: KpiMasterKind =
     masterTab === "categories" ? "categories" : masterTab === "methods" ? "methods" : "units";
+
+  const sortedMasters = useMemo(() => {
+    const mul = masterSortDir === "asc" ? 1 : -1;
+    return [...masterList].sort((a, b) => {
+      let cmp = 0;
+      if (masterSortKey === "name") cmp = a.name.localeCompare(b.name);
+      else cmp = a.status.localeCompare(b.status);
+      if (cmp !== 0) return mul * cmp;
+      return a.name.localeCompare(b.name);
+    });
+  }, [masterList, masterSortKey, masterSortDir]);
 
   const addMaster = async () => {
     if (!newMasterName.trim()) return;
@@ -298,10 +374,28 @@ export function KpiFramework() {
               </div>
             </div>
             <div>
-              {masterList.length === 0 ? (
+              {sortedMasters.length === 0 ? (
                 <div className="px-4 py-10 text-center text-[12px] text-muted-foreground">No items yet.</div>
               ) : (
-                masterList.map((row) => (
+                <>
+                  <div className="flex items-center justify-between border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    <SortColHeader
+                      label="Name"
+                      col="name"
+                      sortKey={masterSortKey}
+                      sortDir={masterSortDir}
+                      onSort={handleMasterSort}
+                    />
+                    <SortColHeader
+                      label="Status"
+                      col="status"
+                      sortKey={masterSortKey}
+                      sortDir={masterSortDir}
+                      onSort={handleMasterSort}
+                      className="justify-end"
+                    />
+                  </div>
+                  {sortedMasters.map((row) => (
                   <div
                     key={row.id}
                     className="flex items-center justify-between border-b border-border-soft px-4 py-3 last:border-b-0"
@@ -324,7 +418,8 @@ export function KpiFramework() {
                       </button>
                     </div>
                   </div>
-                ))
+                  ))}
+                </>
               )}
             </div>
           </div>
@@ -447,20 +542,92 @@ export function KpiFramework() {
                   <table className="w-full min-w-[1100px] text-left text-[12px]">
                     <thead className="border-b border-border-soft bg-surface-alt text-[11px] uppercase tracking-wide text-muted-foreground">
                       <tr>
-                        <th className="px-3 py-2.5 font-medium">Category</th>
-                        <th className="px-3 py-2.5 font-medium">KPI</th>
-                        <th className="px-3 py-2.5 font-medium">Method</th>
-                        <th className="px-3 py-2.5 font-medium">Unit</th>
-                        <th className="px-3 py-2.5 font-medium">Target</th>
-                        <th className="px-3 py-2.5 font-medium">Direction</th>
-                        <th className="px-3 py-2.5 font-medium">Period</th>
-                        <th className="px-3 py-2.5 font-medium">Weight %</th>
-                        <th className="px-3 py-2.5 font-medium">Status</th>
+                        <th className="px-3 py-2.5 font-medium">
+                          <SortColHeader
+                            label="Category"
+                            col="category"
+                            sortKey={sortKey}
+                            sortDir={sortDir}
+                            onSort={handleSort}
+                          />
+                        </th>
+                        <th className="px-3 py-2.5 font-medium">
+                          <SortColHeader
+                            label="KPI"
+                            col="kpi"
+                            sortKey={sortKey}
+                            sortDir={sortDir}
+                            onSort={handleSort}
+                          />
+                        </th>
+                        <th className="px-3 py-2.5 font-medium">
+                          <SortColHeader
+                            label="Method"
+                            col="method"
+                            sortKey={sortKey}
+                            sortDir={sortDir}
+                            onSort={handleSort}
+                          />
+                        </th>
+                        <th className="px-3 py-2.5 font-medium">
+                          <SortColHeader
+                            label="Unit"
+                            col="unit"
+                            sortKey={sortKey}
+                            sortDir={sortDir}
+                            onSort={handleSort}
+                          />
+                        </th>
+                        <th className="px-3 py-2.5 font-medium">
+                          <SortColHeader
+                            label="Target"
+                            col="target"
+                            sortKey={sortKey}
+                            sortDir={sortDir}
+                            onSort={handleSort}
+                          />
+                        </th>
+                        <th className="px-3 py-2.5 font-medium">
+                          <SortColHeader
+                            label="Direction"
+                            col="direction"
+                            sortKey={sortKey}
+                            sortDir={sortDir}
+                            onSort={handleSort}
+                          />
+                        </th>
+                        <th className="px-3 py-2.5 font-medium">
+                          <SortColHeader
+                            label="Period"
+                            col="period"
+                            sortKey={sortKey}
+                            sortDir={sortDir}
+                            onSort={handleSort}
+                          />
+                        </th>
+                        <th className="px-3 py-2.5 font-medium">
+                          <SortColHeader
+                            label="Weight %"
+                            col="weight"
+                            sortKey={sortKey}
+                            sortDir={sortDir}
+                            onSort={handleSort}
+                          />
+                        </th>
+                        <th className="px-3 py-2.5 font-medium">
+                          <SortColHeader
+                            label="Status"
+                            col="status"
+                            sortKey={sortKey}
+                            sortDir={sortDir}
+                            onSort={handleSort}
+                          />
+                        </th>
                         <th className="px-3 py-2.5 font-medium" />
                       </tr>
                     </thead>
                     <tbody>
-                      {items.map((row) => {
+                      {sortedItems.map((row) => {
                         const locked = row.status !== "draft" || row.cycleExpired;
                         return (
                           <tr key={row.id} className="border-b border-border-soft last:border-b-0">

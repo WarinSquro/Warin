@@ -14,6 +14,12 @@ import {
   buildPlannerRowsFromEmployees,
   buildOpenDemandFromProjects,
   OPEN_DEMAND_RIBBON_MAX,
+  allocationEffectiveDate,
+  addDaysToIso,
+  isPlannerWorkingDay,
+  plannerTodayISO,
+  weekCapacityHours,
+  type PlannerCalendarOpts,
 } from "../data/planner";
 import type { Chip, ChipKind, Demand, Candidate, PlannerRow, AllocationSlice } from "../data/planner";
 import { AllocationDrawer } from "../components/AllocationDrawer";
@@ -23,6 +29,7 @@ import { OpenDemandPanel } from "../components/OpenDemandPanel";
 import { getHighlightParam, getPanelParam } from "../utils/reportPresets";
 import { DemandRequestCard } from "../components/DemandRequestCard";
 import { DepartmentSelect } from "../components/DepartmentSelect";
+import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import { useProjects } from "../context/ProjectsContext";
 import { usePlanningEmployees } from "../hooks/usePlanningEmployees";
 import { useMasters } from "../context/MastersContext";
@@ -76,13 +83,23 @@ function buildNewPrefill(
   cellIndex: number,
   cell: Chip[]
 ): AllocationPrefill {
-  const { start, end } = cellDateRange(view, cellIndex);
+  const { end: cellEnd } = cellDateRange(view, cellIndex);
+  const effective = allocationEffectiveDate(view, cellIndex);
+  const start = effective;
+  const end = cellEnd < start ? start : cellEnd;
   const freeChip = cell.find((c) => c.kind === "free");
   const freeHours = freeChip ? parseChipLabel(freeChip.label)?.hours : undefined;
+  const spanDays = Math.max(
+    1,
+    Math.round(
+      (new Date(`${end}T12:00:00`).getTime() - new Date(`${start}T12:00:00`).getTime()) / 86400000
+    ) + 1
+  );
+  const workingSpan = view === "week" ? Math.min(5, spanDays) : 1;
   const hoursPerDay =
     freeHours != null
       ? view === "week"
-        ? Math.min(8, freeHours / 5)
+        ? Math.min(8, freeHours / workingSpan)
         : Math.min(8, freeHours)
       : 8;
 
@@ -133,7 +150,13 @@ function buildEditPrefill(
   const live = chip.allocationId ? allocLookup.get(chip.allocationId) : undefined;
   const projectName = live?.projectName ?? resolveProjectName(parsed.key);
   const hoursPerDay = live?.hoursPerDay ?? (view === "week" ? parsed.hours / 5 : parsed.hours);
-  const { start, end } = cellDateRange(view, cellIndex);
+  const { end: cellEnd } = cellDateRange(view, cellIndex);
+  const effective = allocationEffectiveDate(view, cellIndex);
+  const today = plannerTodayISO();
+  // Prefill start = effective date (never past); keep original end (or cell end)
+  const rawStart = live?.startDate ?? effective;
+  const start = rawStart < effective ? effective : rawStart < today ? today : rawStart;
+  const end = live?.endDate ?? cellEnd;
   const pastAllocationHours = cellBookedHours(cell) - parsed.hours;
 
   return {
@@ -144,8 +167,8 @@ function buildEditPrefill(
     milestoneId: live?.milestoneId,
     activity: live?.activity,
     tasks: live?.tasks,
-    start: live?.startDate ?? start,
-    end: live?.endDate ?? end,
+    start,
+    end: end < start ? start : end,
     reason: live?.reason,
     replacingHours: parsed.hours,
     pastAllocationHours,
@@ -192,7 +215,19 @@ export function ResourcePlanner() {
   const [openDemandPanel, setOpenDemandPanel] = useState(false);
   const [highlightRowId, setHighlightRowId] = useState<string | null>(null);
 
-  const weekCapacity = Math.round(settings.workingHoursPerDay * settings.workingDays.length) || 40;
+  const calendarOpts: PlannerCalendarOpts = useMemo(
+    () => ({
+      workingDays: settings.workingDays,
+      companyOffDays: settings.companyOffDays.map((d) => d.date.slice(0, 10)),
+      workingHoursPerDay: settings.workingHoursPerDay,
+    }),
+    [settings.workingDays, settings.companyOffDays, settings.workingHoursPerDay]
+  );
+
+  const weekCapacity =
+    weekCapacityHours(WEEK_START_ISO[CURRENT_WEEK_INDEX]!, calendarOpts) ||
+    Math.round(settings.workingHoursPerDay * settings.workingDays.length) ||
+    40;
   const departments = useMemo(
     () => deptRows.filter((d) => d.status === "active").map((d) => d.name),
     [deptRows]
@@ -251,9 +286,11 @@ export function ResourcePlanner() {
 
   useEffect(() => {
     setPlannerRows(
-      clonePlannerRows(buildPlannerRowsFromEmployees(employees, weekCapacity, allocations))
+      clonePlannerRows(
+        buildPlannerRowsFromEmployees(employees, weekCapacity, allocations, calendarOpts)
+      )
     );
-  }, [employees, weekCapacity, allocations]);
+  }, [employees, weekCapacity, allocations, calendarOpts]);
 
   useEffect(() => {
     if (departments.length === 0) return;
@@ -272,6 +309,12 @@ export function ResourcePlanner() {
     () => plannerRows.filter((r) => selectedDepts.includes(r.dept)),
     [plannerRows, selectedDepts]
   );
+
+  const { sortKey, sortDir, handleSort } = useColumnSort<"name">("name");
+  const sortedRows = useMemo(() => {
+    const mul = sortDir === "asc" ? 1 : -1;
+    return [...visibleRows].sort((a, b) => mul * a.name.localeCompare(b.name));
+  }, [visibleRows, sortKey, sortDir]);
 
   useEffect(() => {
     const panel = getPanelParam(location.search);
@@ -301,6 +344,10 @@ export function ResourcePlanner() {
   };
 
   const handleCellClick = (row: PlannerRow, cellIndex: number, cell: Chip[]) => {
+    if (view === "day") {
+      const iso = DAY_START_ISO[cellIndex];
+      if (iso && !isPlannerWorkingDay(iso, calendarOpts)) return;
+    }
     openAllocate(buildNewPrefill(row, view, cellIndex, cell));
   };
 
@@ -327,25 +374,65 @@ export function ResourcePlanner() {
   const handleAllocationSave = async (payload: AllocationSavePayload) => {
     const project = projects.find((p) => p.id === payload.projectId);
     if (!project) return;
-    const body = {
+
+    const today = plannerTodayISO();
+    // Never write to past dates — clamp start to today
+    let start = payload.start.slice(0, 10);
+    let end = payload.end.slice(0, 10);
+    if (start < today) start = today;
+    if (end < start) end = start;
+
+    const bodyBase = {
       employeeHrmsId: payload.personId,
       projectCode: payload.projectId,
       milestoneId: payload.milestoneId,
       activity: payload.activity,
       tasks: payload.tasks,
-      startDate: payload.start,
-      endDate: payload.end,
-      hoursPerDay: payload.hoursPerDay,
       reason: payload.reason,
     };
+
     try {
       setSaveError(null);
-      if (payload.editRef?.allocationId) {
-        await updateAllocation(payload.editRef.allocationId, body);
+      const editId = payload.editRef?.allocationId;
+      if (editId) {
+        const existing = allocations.find((a) => a.id === editId);
+        if (existing && existing.startDate.slice(0, 10) < start) {
+          // Preserve historical days: truncate old row, create new from effective date
+          const dayBefore = addDaysToIso(start, -1);
+          await updateAllocation(editId, {
+            employeeHrmsId: existing.employeeHrmsId,
+            projectCode: existing.projectCode,
+            milestoneId: existing.milestoneId,
+            activity: existing.activity,
+            tasks: existing.tasks,
+            startDate: existing.startDate.slice(0, 10),
+            endDate: dayBefore,
+            hoursPerDay: existing.hoursPerDay,
+            reason: existing.reason ?? payload.reason,
+          });
+          await createAllocation({
+            ...bodyBase,
+            startDate: start,
+            endDate: end,
+            hoursPerDay: payload.hoursPerDay,
+          });
+        } else {
+          await updateAllocation(editId, {
+            ...bodyBase,
+            startDate: start,
+            endDate: end,
+            hoursPerDay: payload.hoursPerDay,
+          });
+        }
         await reloadAllocations();
         toast.updated();
       } else {
-        await createAllocation(body);
+        await createAllocation({
+          ...bodyBase,
+          startDate: start,
+          endDate: end,
+          hoursPerDay: payload.hoursPerDay,
+        });
         await reloadAllocations();
         toast.created();
       }
@@ -465,7 +552,13 @@ export function ResourcePlanner() {
         {/* Column header */}
         <div className="flex flex-shrink-0 border-b border-border bg-surface-alt">
           <div className="w-[210px] flex-shrink-0 border-r border-border-soft px-4 py-2.5 text-[11px] font-semibold text-muted">
-            TEAM MEMBER
+            <SortColHeader
+              label="TEAM MEMBER"
+              col="name"
+              sortKey={sortKey}
+              sortDir={sortDir}
+              onSort={handleSort}
+            />
           </div>
           {view === "week"
             ? WEEKS.map((w, i) => (
@@ -478,26 +571,37 @@ export function ResourcePlanner() {
                   {w}
                 </div>
               ))
-            : DAYS.map((d, i) => (
-                <div
-                  key={d}
-                  className={`flex-1 border-r border-border-soft px-3 py-2.5 text-center text-[11px] ${
-                    i === CURRENT_DAY_INDEX ? "bg-highlight font-semibold text-foreground" : "text-muted-foreground"
-                  }`}
-                >
-                  {d}
-                </div>
-              ))}
+            : DAYS.map((d, i) => {
+                const iso = DAY_START_ISO[i]!;
+                const holiday = !isPlannerWorkingDay(iso, calendarOpts);
+                const isToday = i === CURRENT_DAY_INDEX;
+                return (
+                  <div
+                    key={d}
+                    className={`flex flex-1 border-r border-border-soft px-3 py-2.5 text-center text-[11px] ${
+                      holiday
+                        ? "bg-surface-alt font-medium text-muted-foreground"
+                        : isToday
+                          ? "bg-highlight font-semibold text-foreground"
+                          : "text-muted-foreground"
+                    }`}
+                    title={holiday ? "Company holiday / non-working day" : undefined}
+                  >
+                    {d}
+                    {holiday ? <div className="text-[9px] font-normal">Holiday</div> : null}
+                  </div>
+                );
+              })}
         </div>
 
         {/* Rows */}
         <div className="flex flex-1 flex-col overflow-y-auto">
-          {visibleRows.length === 0 ? (
+          {sortedRows.length === 0 ? (
             <div className="px-4 py-10 text-center text-[13px] text-muted-foreground">
               No team members match the selected departments.
             </div>
           ) : (
-            visibleRows.map((row) => (
+            sortedRows.map((row) => (
               <div
                 key={row.id}
                 ref={(el) => {
@@ -512,6 +616,7 @@ export function ResourcePlanner() {
                 <PlannerGridRow
                   row={row}
                   view={view}
+                  calendarOpts={calendarOpts}
                   onCellClick={handleCellClick}
                   onChipClick={handleChipClick}
                 />
@@ -549,23 +654,32 @@ export function ResourcePlanner() {
 function PlannerGridRow({
   row,
   view,
+  calendarOpts,
   onCellClick,
   onChipClick,
 }: {
   row: PlannerRow;
   view: "day" | "week";
+  calendarOpts: PlannerCalendarOpts;
   onCellClick: (row: PlannerRow, cellIndex: number, cell: Chip[]) => void;
   onChipClick: (row: PlannerRow, chip: Chip, cellIndex: number, chipIndex: number, cell: Chip[]) => void;
 }) {
-  const ratio = row.bookedHours / row.capacity;
+  const bookedHours = view === "day" ? row.dayBookedHours : row.bookedHours;
+  const capacityHours = view === "day" ? row.dayCapacity : row.capacity;
+  const capacity = capacityHours > 0 ? capacityHours : 1;
+  const ratio = bookedHours / capacity;
   const tone = loadTone(ratio);
   const pct = Math.min(ratio, 1.25) * 80; // cap visual width
   const cells = view === "week" ? row.weeks : row.days;
   const currentIndex = view === "week" ? CURRENT_WEEK_INDEX : CURRENT_DAY_INDEX;
+  const fmtH = (n: number) =>
+    Number.isInteger(n) ? String(n) : String(parseFloat(n.toFixed(1)));
+  const bookedLabel = fmtH(bookedHours);
+  const capacityLabel = fmtH(capacityHours);
 
   return (
     <div className="flex min-h-[72px] flex-1 border-b border-border-soft">
-      {/* Left: person + load meter */}
+      {/* Left: person + allocated / total working hours for visible range */}
       <div className="flex w-[210px] flex-shrink-0 flex-col justify-center border-r border-border-soft px-4 py-2.5">
         <div className="text-[13px] font-medium text-foreground">{row.name}</div>
         <div className="mb-1.5 text-[11px] text-muted-foreground">{row.dept}</div>
@@ -573,8 +687,15 @@ function PlannerGridRow({
           <div className={`h-[5px] flex-1 rounded-full ${tone.track}`}>
             <div className={`h-full rounded-full ${tone.bar}`} style={{ width: `${pct}%` }} />
           </div>
-          <span className={`text-[11px] font-semibold ${tone.text}`}>
-            {row.bookedHours}/{row.capacity}h
+          <span
+            className={`text-[11px] font-semibold ${tone.text}`}
+            title={
+              view === "day"
+                ? `Allocated ${bookedLabel}h of ${capacityLabel}h working hours (visible days)`
+                : `Allocated ${bookedLabel}h of ${capacityLabel}h working hours (all 5 weeks)`
+            }
+          >
+            {bookedLabel}/{capacityLabel}h
           </span>
         </div>
       </div>
@@ -582,42 +703,60 @@ function PlannerGridRow({
       {/* Week or day cells */}
       {cells.map((cell, i) => {
         const hasOver = cell.some((c) => c.kind === "over");
+        const dayIso = view === "day" ? DAY_START_ISO[i] : undefined;
+        const holiday = view === "day" && dayIso ? !isPlannerWorkingDay(dayIso, calendarOpts) : false;
+        const isCurrent = i === currentIndex && !holiday;
         return (
           <div
             key={i}
-            role="button"
-            tabIndex={0}
-            onClick={() => onCellClick(row, i, cell)}
+            role={holiday ? undefined : "button"}
+            tabIndex={holiday ? undefined : 0}
+            onClick={() => {
+              if (holiday) return;
+              onCellClick(row, i, cell);
+            }}
             onKeyDown={(e) => {
+              if (holiday) return;
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
                 onCellClick(row, i, cell);
               }
             }}
-            className={`flex flex-1 cursor-pointer flex-col justify-center gap-1 border-r border-border-soft p-1.5 hover:bg-surface-alt/40 ${
-              hasOver ? "bg-danger-soft/50" : i === currentIndex ? "bg-highlight" : ""
+            className={`flex flex-1 flex-col justify-center gap-1 border-r border-border-soft p-1.5 ${
+              holiday
+                ? "cursor-not-allowed bg-surface-alt"
+                : `cursor-pointer hover:bg-surface-alt/40 ${
+                    hasOver ? "bg-danger-soft/50" : isCurrent ? "bg-highlight" : ""
+                  }`
             }`}
+            title={holiday ? "Holiday — no allocation" : undefined}
           >
-            {cell.map((c: Chip, j) =>
-              c.kind === "free" ? (
-                <div
-                  key={j}
-                  className={`pointer-events-none rounded-sm px-1.5 py-1 text-[10px] leading-tight ${chipClass(c.kind)}`}
-                >
-                  {c.label}
-                </div>
-              ) : (
-                <button
-                  key={j}
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onChipClick(row, c, i, j, cell);
-                  }}
-                  className={`rounded-sm px-1.5 py-1 text-left text-[10px] leading-tight ${chipClass(c.kind)} hover:brightness-95`}
-                >
-                  {c.label}
-                </button>
+            {holiday ? (
+              <div className="pointer-events-none rounded-sm border border-dashed border-border px-1.5 py-1 text-[10px] leading-tight text-muted-foreground">
+                Holiday
+              </div>
+            ) : (
+              cell.map((c: Chip, j) =>
+                c.kind === "free" ? (
+                  <div
+                    key={j}
+                    className={`pointer-events-none rounded-sm px-1.5 py-1 text-[10px] leading-tight ${chipClass(c.kind)}`}
+                  >
+                    {c.label}
+                  </div>
+                ) : (
+                  <button
+                    key={j}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onChipClick(row, c, i, j, cell);
+                    }}
+                    className={`rounded-sm px-1.5 py-1 text-left text-[10px] leading-tight ${chipClass(c.kind)} hover:brightness-95`}
+                  >
+                    {c.label}
+                  </button>
+                )
               )
             )}
           </div>

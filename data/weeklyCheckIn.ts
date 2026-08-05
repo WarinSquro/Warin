@@ -634,7 +634,8 @@ export type QueueSortKey =
   | "lastWeek"
   | "confirmationDiscipline"
   | "openAction"
-  | "reviewStatus";
+  | "reviewStatus"
+  | "status";
 
 function lastWeekSortValue(row: QueueRow): number {
   if (!row.lastWeekStatus) return 0;
@@ -674,6 +675,12 @@ export function sortQueueRows(
         const av = a.status === "pending" ? 0 : 1;
         const bv = b.status === "pending" ? 0 : 1;
         cmp = av !== bv ? av - bv : (a.submittedAt ?? "").localeCompare(b.submittedAt ?? "");
+        break;
+      }
+      case "status": {
+        const av = a.status === "pending" ? 0 : 1;
+        const bv = b.status === "pending" ? 0 : 1;
+        cmp = av - bv;
         break;
       }
     }

@@ -5,7 +5,7 @@ import { MIN_FREE_HOUR_OPTIONS, computeAvailKpis } from "../data/availability";
 import type { AvailRow, RollingOffPerson } from "../data/availability";
 import { AllocationDrawer } from "../components/AllocationDrawer";
 import type { AllocationPrefill, AllocationSavePayload } from "../components/AllocationDrawer";
-import { buildPlannerRowsFromEmployees } from "../data/planner";
+import { buildPlannerRowsFromEmployees, weekCapacityHours } from "../data/planner";
 import { DepartmentSelect } from "../components/DepartmentSelect";
 import { FilterMultiSelect } from "../components/FilterMultiSelect";
 import { MinFreeHoursSelect } from "../components/MinFreeHoursSelect";
@@ -14,7 +14,7 @@ import { usePlanningEmployees } from "../hooks/usePlanningEmployees";
 import { useMasters } from "../context/MastersContext";
 import { useSettings } from "../context/SettingsContext";
 import { useToast } from "../context/ToastContext";
-import { buildAvailRowsFromEmployees, buildRollingOffFromLive, toLocalISO, addDaysISO } from "../api/liveViews";
+import { buildAvailRowsFromEmployees, buildRollingOffFromLive, toLocalISO, addDaysISO, mondayISO } from "../api/liveViews";
 import { createAllocation, fetchAllocations, type ApiAllocation } from "../api/domain";
 
 type Segment = "all" | "now" | "rolling";
@@ -305,7 +305,14 @@ export function Availability() {
   const { departments: deptRows, skills: skillRows } = useMasters();
   const { settings } = useSettings();
   const toast = useToast();
-  const weekCapacity = Math.round(settings.workingHoursPerDay * settings.workingDays.length) || 40;
+  const weekCapacity =
+    weekCapacityHours(mondayISO(), {
+      workingDays: settings.workingDays,
+      companyOffDays: settings.companyOffDays.map((d) => d.date.slice(0, 10)),
+      workingHoursPerDay: settings.workingHoursPerDay,
+    }) ||
+    Math.round(settings.workingHoursPerDay * settings.workingDays.length) ||
+    40;
   const [allocations, setAllocations] = useState<ApiAllocation[]>([]);
 
   const reloadAllocations = useCallback(async () => {
@@ -323,8 +330,14 @@ export function Availability() {
   }, [reloadAllocations]);
 
   const availRows = useMemo(
-    () => buildAvailRowsFromEmployees(employees, weekCapacity, allocations),
-    [employees, weekCapacity, allocations]
+    () =>
+      buildAvailRowsFromEmployees(
+        employees,
+        weekCapacity,
+        allocations,
+        settings.companyOffDays.map((d) => d.date.slice(0, 10))
+      ),
+    [employees, weekCapacity, allocations, settings.companyOffDays]
   );
   const rollingOffAll = useMemo(
     () =>

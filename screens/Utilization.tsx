@@ -13,7 +13,8 @@ import { usePlanningEmployees } from "../hooks/usePlanningEmployees";
 import { useMasters } from "../context/MastersContext";
 import { useSettings } from "../context/SettingsContext";
 import { useToast } from "../context/ToastContext";
-import { buildUtilRowsFromEmployees } from "../api/liveViews";
+import { buildUtilRowsFromEmployees, mondayISO } from "../api/liveViews";
+import { weekCapacityHours } from "../data/planner";
 import { fetchAllocations, fetchSettingsSchedules, type ApiAllocation, type SettingsSchedule } from "../api/domain";
 import { runReportExport, summarizeFilter } from "../utils/reportExport";
 import type { ReportExportInput } from "../utils/reportExport";
@@ -48,7 +49,14 @@ export function Utilization() {
   const { employees } = usePlanningEmployees();
   const { departments: deptMaster } = useMasters();
   const { settings } = useSettings();
-  const weekCapacity = Math.round(settings.workingHoursPerDay * settings.workingDays.length) || 40;
+  const weekCapacity =
+    weekCapacityHours(mondayISO(), {
+      workingDays: settings.workingDays,
+      companyOffDays: settings.companyOffDays.map((d) => d.date.slice(0, 10)),
+      workingHoursPerDay: settings.workingHoursPerDay,
+    }) ||
+    Math.round(settings.workingHoursPerDay * settings.workingDays.length) ||
+    40;
   const [allocations, setAllocations] = useState<ApiAllocation[]>([]);
 
   useEffect(() => {
@@ -58,8 +66,14 @@ export function Utilization() {
   }, []);
 
   const utilRows = useMemo(
-    () => buildUtilRowsFromEmployees(employees, weekCapacity, allocations),
-    [employees, weekCapacity, allocations]
+    () =>
+      buildUtilRowsFromEmployees(
+        employees,
+        weekCapacity,
+        allocations,
+        settings.companyOffDays.map((d) => d.date.slice(0, 10))
+      ),
+    [employees, weekCapacity, allocations, settings.companyOffDays]
   );
   const utilDepartments = useMemo(
     () => deptMaster.filter((d) => d.status === "active").map((d) => d.name),

@@ -7,6 +7,7 @@ import {
   formatPlanDate,
 } from "../data/confirmation";
 import { Tooltip } from "../components/Tooltip";
+import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import {
   AllocationFocusTimer,
   ConfirmationDayCalendar,
@@ -180,6 +181,11 @@ function EmployeeConfirm() {
   const [missDate, setMissDate] = useState("");
   const [fetchError, setFetchError] = useState("");
   const [fetchedMissDate, setFetchedMissDate] = useState("");
+  const {
+    sortKey: lineSortKey,
+    sortDir: lineSortDir,
+    handleSort: handleLineSort,
+  } = useColumnSort<"allocation" | "tasks" | "status">("allocation");
 
   const hrmsId = currentEmployee?.id;
   const workDate = fetchedMissDate || today;
@@ -578,6 +584,26 @@ function EmployeeConfirm() {
     activeLines.filter((l) => states[l.id]?.mode === "deviation").length + unplanned.length;
   const plannedTotal = activeLines.reduce((sum, l) => sum + l.plannedHours, 0);
 
+  const sortedLines = useMemo(() => {
+    const mul = lineSortDir === "asc" ? 1 : -1;
+    return [...activeLines].sort((a, b) => {
+      let cmp = 0;
+      if (lineSortKey === "allocation") {
+        cmp = `${a.project} ${a.milestone} ${a.activity}`.localeCompare(
+          `${b.project} ${b.milestone} ${b.activity}`
+        );
+      } else if (lineSortKey === "tasks") {
+        cmp = a.tasks.join(", ").localeCompare(b.tasks.join(", "));
+      } else {
+        const am = states[a.id]?.mode ?? "";
+        const bm = states[b.id]?.mode ?? "";
+        cmp = am.localeCompare(bm);
+      }
+      if (cmp !== 0) return mul * cmp;
+      return a.id.localeCompare(b.id);
+    });
+  }, [activeLines, lineSortKey, lineSortDir, states]);
+
   const canSubmit =
     activeLines.length + unplanned.length > 0 &&
     activeLines.every((l) => states[l.id]?.mode === "planned" || states[l.id]?.reason !== "") &&
@@ -851,11 +877,32 @@ function EmployeeConfirm() {
 
         <div className="overflow-hidden rounded-lg border border-border bg-surface">
           <div className="flex flex-shrink-0 border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold text-muted">
-            <div className="flex-1">ALLOCATION</div>
-            <div className="w-[220px]">TASKS</div>
-            <div className="w-[200px] flex-shrink-0 text-right">STATUS</div>
+            <SortColHeader
+              label="ALLOCATION"
+              col="allocation"
+              sortKey={lineSortKey}
+              sortDir={lineSortDir}
+              onSort={handleLineSort}
+              className="flex-1"
+            />
+            <SortColHeader
+              label="TASKS"
+              col="tasks"
+              sortKey={lineSortKey}
+              sortDir={lineSortDir}
+              onSort={handleLineSort}
+              className="w-[220px]"
+            />
+            <SortColHeader
+              label="STATUS"
+              col="status"
+              sortKey={lineSortKey}
+              sortDir={lineSortDir}
+              onSort={handleLineSort}
+              className="w-[200px] flex-shrink-0 justify-end"
+            />
           </div>
-          {activeLines.map((l, i) => (
+          {sortedLines.map((l, i) => (
             <LineRow
               key={l.id}
               line={l}
@@ -1110,6 +1157,11 @@ function ManagerCompliance() {
   const [deviations, setDeviations] = useState<DeviationEntry[]>([]);
   const [error, setError] = useState("");
   const [remindingId, setRemindingId] = useState<string | null>(null);
+  const {
+    sortKey: complianceSortKey,
+    sortDir: complianceSortDir,
+    handleSort: handleComplianceSort,
+  } = useColumnSort<"member" | "today">("member");
 
   useEffect(() => {
     let cancelled = false;
@@ -1145,6 +1197,17 @@ function ManagerCompliance() {
   }, [today]);
 
   const days = ["M", "T", "W", "T", "F"];
+
+  const sortedCompliance = useMemo(() => {
+    const mul = complianceSortDir === "asc" ? 1 : -1;
+    return [...rows].sort((a, b) => {
+      let cmp = 0;
+      if (complianceSortKey === "member") cmp = a.name.localeCompare(b.name);
+      else cmp = a.todayLabel.localeCompare(b.todayLabel);
+      if (cmp !== 0) return mul * cmp;
+      return a.name.localeCompare(b.name);
+    });
+  }, [rows, complianceSortKey, complianceSortDir]);
 
   const handleRemind = async (row: ComplianceRow) => {
     if (remindingId) return;
@@ -1186,7 +1249,14 @@ function ManagerCompliance() {
             </div>
           </div>
           <div className="flex flex-shrink-0 items-center border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold text-muted">
-            <div className="flex-1">TEAM MEMBER</div>
+            <SortColHeader
+              label="TEAM MEMBER"
+              col="member"
+              sortKey={complianceSortKey}
+              sortDir={complianceSortDir}
+              onSort={handleComplianceSort}
+              className="flex-1"
+            />
             <div className="flex w-[120px] justify-between px-1">
               {days.map((d, i) => (
                 <span key={i} className={i === todayIndex ? "text-foreground" : ""}>
@@ -1194,10 +1264,17 @@ function ManagerCompliance() {
                 </span>
               ))}
             </div>
-            <div className="w-[120px] text-right">TODAY</div>
+            <SortColHeader
+              label="TODAY"
+              col="today"
+              sortKey={complianceSortKey}
+              sortDir={complianceSortDir}
+              onSort={handleComplianceSort}
+              className="w-[120px] justify-end"
+            />
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-            {rows.map((r) => (
+            {sortedCompliance.map((r) => (
               <ComplianceRowView
                 key={r.id}
                 row={r}
@@ -1206,7 +1283,7 @@ function ManagerCompliance() {
                 onRemind={() => void handleRemind(r)}
               />
             ))}
-            {rows.length === 0 && (
+            {sortedCompliance.length === 0 && (
               <div className="px-4 py-10 text-center text-[13px] text-muted-foreground">
                 No active employees for compliance yet
               </div>

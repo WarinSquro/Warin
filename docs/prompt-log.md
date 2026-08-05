@@ -32,6 +32,97 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-05 23:50 IST
+
+**Prompt:**  
+> KPI Results status tabs: All shows All 5/Pending 5/Completed 0, but Pending/Completed tabs reset all counts to 0. Fix.
+
+**Output:**  
+- **Root cause:** (1) API built `summary` from status-filtered rows, so empty Completed → total/pending/completed all 0. (2) Pending tab filtered only `pending_result`, while rows were still `draft` (summary.pending includes draft), so Pending returned no rows.
+- **Fix:** `GET /kpi/results` loads full year/cycle/scope set, computes summary from that, then filters items in memory. Pending tab = `draft` + `pending_result`.
+- **Files:** `apps/oneview-api/src/api/kpi/kpi.controller.ts`; `screens/KpiResults.tsx` (client-side tab filter + always fetch `status=all` so counts work without waiting on API rebuild); `docs/prompt-log.md`.
+- **Result:** Tab labels stay All 5 / Pending 5 / Completed 0 while switching tabs; table only filters rows. Restart/rebuild API container if running via Docker.
+
+### 2026-08-05 23:40 IST
+
+**Prompt:**  
+> KPI Results add/update UI: replace centered modal (image 1) with right-side drawer like Employees Add employee (image 2). Only KPI Result page.
+
+**Output:**  
+- **Root cause:** `ResultModal` used a centered overlay (`max-w-[520px] rounded-xl`) instead of the standard masters side-drawer pattern.
+- **Fix:** Renamed to `ResultDrawer` — full-height right panel `w-[440px]`, `bg-brand/30` scrim, header / scroll body / sticky Cancel+Save footer matching `EmployeeDrawer`. Fields and save/validation behavior unchanged.
+- **Files:** `screens/KpiResults.tsx`; `docs/prompt-log.md`.
+- **Result:** Row click opens a side drawer for view/update KPI result, not a center modal.
+
+### 2026-08-05 23:20 IST
+
+**Prompt:**  
+> Resource Planner Allocation: show allocated hours/total hours (not allocated only). Day = total working hours for day strip; Week = total working hours for all 5 weeks.
+
+**Output:**  
+- **Root cause:** `PlannerGridRow` rendered only `{booked}h` after the Total fix; capacity denominator was already computed (`dayCapacity` / 5-week `capacity`) but not shown.
+- **Fix:** Label format `{allocated}/{total}h` (e.g. `0/215h`). Day uses `dayCapacity` (visible Mon–Fri working hours, holidays excluded); Week uses `row.capacity` (sum of `weekCapacityHours` across all 5 weeks).
+- **Files:** `screens/ResourcePlanner.tsx` (`PlannerGridRow`).
+- **Result:** Matches `allocated/total` UI; Week total hours span the full 5-week window (not a single week’s 43h).
+
+### 2026-08-05 20:00 IST
+
+**Prompt:**  
+> Resource Planner – Fix Team Member Total Hours Calculation (Day/Week Total stuck at 0h; sum allocated hours for selected range; exclude holidays; recalc after allocation changes).
+
+**Output:**  
+- **Root cause:** Total used `cellBookedHours(weeks[CURRENT_WEEK_INDEX])` (chip parse of the highlighted week column only). Allocations in other visible week columns still yielded **0h**; Day view reused the same week-only field.
+- **Fix:** Compute Total from live allocations via `allocatedHoursInRange` (holiday-aware working days from Settings calendar):
+  - Day → sum over visible Mon–Fri strip (`DAY_START_ISO`)
+  - Week → sum over visible header window (`WEEK_START_ISO[0]` … Friday of last week)
+- **Files:** `data/planner.ts` (`allocatedHoursInRange`, `PlannerRow.dayBookedHours`/`dayCapacity`, `buildPlannerRowsFromEmployees`); `screens/ResourcePlanner.tsx` (`PlannerGridRow` view-specific Total + load bar); `api/liveViews.ts` + Utilization/Availability pass `companyOffDays` into booked-hours helpers for consistent holiday exclusion.
+- **Validation:** Total rebuilds whenever `allocations` change (existing `useEffect`); Free chips excluded; holidays reduce capacity and allocated-day counts.
+- **Result:** Total shows real allocated hours for the visible range; **0h** only when the employee has no allocations in that range.
+
+### 2026-08-05 19:45 IST
+
+**Prompt:**  
+> Resource Planner – Allocation & Weekly Total Enhancements (effective-date allocation; Total = allocated hours; holidays from Settings calendar; Day-view holiday column styling).
+
+**Output:**  
+- **Effective date:** Edit/save clamps start to today; if existing allocation starts earlier, truncate old row to day-before and create new row from effective date with new hours (past days unchanged). Prefill start uses `allocationEffectiveDate` (day cell / mid-week today).  
+- **Weekly Total:** Team Member meter shows allocated hours for current week (`{Nh}`); capacity bar uses holiday-aware week capacity from Settings calendar.  
+- **Holidays:** `data/planner.ts` working-day helpers; free/chip hours skip holidays; Day view columns + cells use vertical `bg-surface-alt` disabled styling; clicks blocked. Utilization/Availability week capacity also holiday-aware.  
+- Files: `data/planner.ts`, `screens/ResourcePlanner.tsx`, `api/liveViews.ts` (optional off-days in weekday hours), `Utilization.tsx`, `Availability.tsx`, prompt-log.
+
+### 2026-08-05 18:45 IST
+
+**Prompt:**  
+> why in local gives this error? (`Cannot GET /api/v1/kpi/masters/methods?…` on KPI Framework)
+
+**Output:**  
+- Root cause: local `oneview-api` Docker image was ~2 weeks old (recreate without `--build`), so KPI Nest routes were missing → 404. Frontend/DB were fine; migrations already applied.  
+- Fix: `docker compose up -d --build api worker`. Verified KPI masters endpoint returns 200 with auth.
+
+### 2026-08-05 17:10 IST
+
+**Prompt:**  
+> check/update local config and verify health. (Login showed Failed to fetch; pgAdmin OK)
+
+**Output:**  
+- Root cause: not bad credentials — frontend needs API at `http://127.0.0.1:8080/api/v1`. `:3001` is not on host. Docker Desktop was down mid-check → connection refused / Failed to fetch.  
+- Updated `.env`: `VITE_API_BASE_URL`, `DATABASE_URL` (15432), added `CORS_ORIGIN` / `API_PORT` / `JWT_REFRESH_DAYS`.  
+- Restarted Docker Desktop; `docker compose up -d`; recreated nginx on `127.0.0.1:8080`.  
+- Verified when engine healthy: health `database:up`; login `admin@acme.io`/`12345` → 201; Vite on `:5173`.  
+- Hard-refresh `http://127.0.0.1:5173/login` and sign in again. Keep Docker Desktop running.
+
+### 2026-08-05 15:15 IST
+
+**Prompt:**  
+> Implement a global sorting rule for all data tables — every table supports column sorting; sortable headers show existing sort icons (active ArrowUp/Down, inactive ArrowUpDown). Do not change sorting icons.
+
+**Output:**  
+- Reused `components/SortColHeader.tsx` + `useColumnSort` (Lucide ArrowUp / ArrowDown / ArrowUpDown unchanged).  
+- Wired sorting on previously unsorted tables: `KpiResults`, `KpiFramework` (framework grid + masters Name/Status), `PlanningConflicts`, `ProjectExecutionDrawer` roster, `WorkConfirmation` (employee allocation + manager compliance TEAM MEMBER/TODAY), `ResourcePlanner` TEAM MEMBER.  
+- Completed `WeeklyCheckInQueue` STATUS column (new `status` sort key in `data/weeklyCheckIn.ts`).  
+- Left ACTION-only headers and day-matrix labels (M–F / week cells) non-sortable; all data columns show sort indicators.  
+- Existing sorted screens (Employee/Project/Setup masters, Availability, Utilization, reports, Daily Work, WCI queue other cols) already compliant.
+
 ### 2026-08-05 12:15 IST
 
 **Prompt:**  

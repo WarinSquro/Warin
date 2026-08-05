@@ -656,17 +656,19 @@ export class KpiController {
         ? (status as KpiRowStatus)
         : undefined;
 
+    const whereBase = {
+      isDeleted: false,
+      calendarYear: year,
+      assessmentCycle: cycle,
+      ...(employeeId ? { employeeId } : scopeIds ? { employeeId: { in: scopeIds } } : {}),
+      ...(departmentId
+        ? { employee: { departmentId: BigInt(departmentId), isDeleted: false } }
+        : {}),
+    };
+
+    // Load full scope first so tab/summary counts stay stable across status filters.
     const rows = await this.prisma.kpiFrameworkItem.findMany({
-      where: {
-        isDeleted: false,
-        calendarYear: year,
-        assessmentCycle: cycle,
-        ...(employeeId ? { employeeId } : scopeIds ? { employeeId: { in: scopeIds } } : {}),
-        ...(departmentId
-          ? { employee: { departmentId: BigInt(departmentId), isDeleted: false } }
-          : {}),
-        ...(statusFilter ? { status: statusFilter } : {}),
-      },
+      where: whereBase,
       include: {
         employee: { select: { id: true, hrmsId: true, name: true, departmentId: true } },
         category: { select: { id: true, name: true } },
@@ -676,8 +678,17 @@ export class KpiController {
       orderBy: [{ employee: { name: "asc" } }, { id: "asc" }],
     });
 
-    const items = rows.map((r) => this.mapItem(r));
-    const summary = buildSummary(items, Boolean(employeeId));
+    const allItems = rows.map((r) => this.mapItem(r));
+    const summary = buildSummary(allItems, Boolean(employeeId));
+
+    // "Pending" tab = not completed (draft + pending_result), matching summary.pending.
+    const items =
+      statusFilter === "completed"
+        ? allItems.filter((i) => i.status === "completed")
+        : statusFilter === "pending_result" || statusFilter === "draft"
+          ? allItems.filter((i) => i.status === "pending_result" || i.status === "draft")
+          : allItems;
+
     return { items, summary };
   }
 

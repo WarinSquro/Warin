@@ -192,7 +192,14 @@ export function WeeklyCheckInQueue() {
               sortDir={sortDir}
               onSort={handleSort}
             />
-            <div className="text-right">STATUS</div>
+            <SortColHeader
+              label="STATUS"
+              col="status"
+              sortKey={sortKey}
+              sortDir={sortDir}
+              onSort={handleSort}
+              className="justify-end"
+            />
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">

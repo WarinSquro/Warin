@@ -4,15 +4,19 @@ import { ChevronRight } from "lucide-react";
 import { buildPlanningConflictsFromLive } from "../api/cockpitDaily";
 import { fetchAllocations, type ApiAllocation } from "../api/domain";
 import { addDaysISO, mondayISO } from "../api/liveViews";
+import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import { usePlanningEmployees } from "../hooks/usePlanningEmployees";
 import { useSettings } from "../context/SettingsContext";
 import type { PlanningConflictRow } from "../data/cockpit";
+
+type ConflictSortKey = "employee" | "type" | "projects" | "detail";
 
 export function PlanningConflicts() {
   const { employees } = usePlanningEmployees();
   const { settings } = useSettings();
   const [allocations, setAllocations] = useState<ApiAllocation[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const { sortKey, sortDir, handleSort } = useColumnSort<ConflictSortKey>("employee");
 
   const weekCapacity = Math.round(settings.workingHoursPerDay * settings.workingDays.length) || 40;
   const hoursPerDay = settings.workingHoursPerDay || 8;
@@ -48,6 +52,20 @@ export function PlanningConflicts() {
       hoursPerDay
     );
   }, [loaded, employees, allocations, weekCapacity, weekFrom, weekTo, hoursPerDay]);
+
+  const sorted = useMemo(() => {
+    const mul = sortDir === "asc" ? 1 : -1;
+    return [...conflicts].sort((a, b) => {
+      let cmp = 0;
+      if (sortKey === "employee") cmp = a.employeeName.localeCompare(b.employeeName);
+      else if (sortKey === "type") cmp = a.conflictType.localeCompare(b.conflictType);
+      else if (sortKey === "projects")
+        cmp = (a.projects.join(", ") || "").localeCompare(b.projects.join(", ") || "");
+      else cmp = a.detail.localeCompare(b.detail);
+      if (cmp !== 0) return mul * cmp;
+      return a.employeeName.localeCompare(b.employeeName);
+    });
+  }, [conflicts, sortKey, sortDir]);
 
   return (
     <>
@@ -89,14 +107,46 @@ export function PlanningConflicts() {
             <table className="w-full text-left text-[13px]">
               <thead className="border-b border-border bg-surface-alt text-[11px] uppercase tracking-wide text-muted-foreground">
                 <tr>
-                  <th className="px-4 py-2.5 font-medium">Employee</th>
-                  <th className="px-4 py-2.5 font-medium">Type</th>
-                  <th className="px-4 py-2.5 font-medium">Projects</th>
-                  <th className="px-4 py-2.5 font-medium">Detail</th>
+                  <th className="px-4 py-2.5 font-medium">
+                    <SortColHeader
+                      label="Employee"
+                      col="employee"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onSort={handleSort}
+                    />
+                  </th>
+                  <th className="px-4 py-2.5 font-medium">
+                    <SortColHeader
+                      label="Type"
+                      col="type"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onSort={handleSort}
+                    />
+                  </th>
+                  <th className="px-4 py-2.5 font-medium">
+                    <SortColHeader
+                      label="Projects"
+                      col="projects"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onSort={handleSort}
+                    />
+                  </th>
+                  <th className="px-4 py-2.5 font-medium">
+                    <SortColHeader
+                      label="Detail"
+                      col="detail"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onSort={handleSort}
+                    />
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {conflicts.map((c) => (
+                {sorted.map((c) => (
                   <tr key={c.id} className="border-b border-border-soft last:border-0">
                     <td className="px-4 py-3">
                       <div className="font-medium text-foreground">{c.employeeName}</div>

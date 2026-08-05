@@ -39,8 +39,14 @@ export interface PlannerRow {
   initials: string;
   dept: string;
   role: string; // derived from primary skill (no designation stored)
+  /** Allocated hours for Week view (visible week window). */
   bookedHours: number;
+  /** Allocated hours for Day view (visible Mon–Fri strip). */
+  dayBookedHours: number;
+  /** Capacity for Week view load bar (sum of holiday-aware week capacities). */
   capacity: number;
+  /** Capacity for Day view load bar (sum of holiday-aware day capacities). */
+  dayCapacity: number;
   weeks: Chip[][]; // 5 week columns
   days: Chip[][]; // 5 day columns (current week)
 }
@@ -143,18 +149,6 @@ function parseISO(iso: string): Date {
   return new Date(`${iso.slice(0, 10)}T12:00:00`);
 }
 
-function weekdayOverlapDays(rangeStart: string, rangeEnd: string, cellStart: string, cellEnd: string): number {
-  const start = Math.max(parseISO(rangeStart).getTime(), parseISO(cellStart).getTime());
-  const end = Math.min(parseISO(rangeEnd).getTime(), parseISO(cellEnd).getTime());
-  if (end < start) return 0;
-  let count = 0;
-  for (let t = start; t <= end; t += 86400000) {
-    const dow = new Date(t).getDay();
-    if (dow >= 1 && dow <= 5) count += 1;
-  }
-  return count;
-}
-
 const PROJECT_ALIASES: Record<string, string> = {
   Falcon: "Project Falcon",
   Atlas: "Project Atlas",
@@ -169,8 +163,14 @@ const PROJECT_SHORT_NAMES: Record<string, string> = {
   "Automation Suite": "Auto",
 };
 
+export function formatChipLabel(projectName: string, hours: number) {
+  const h = Number.isInteger(hours) ? hours : parseFloat(hours.toFixed(1));
+  return `${projectShortName(projectName)} · ${h}h`;
+}
+
 export function parseChipLabel(label: string) {
-  const match = label.match(/^(.+?) · (\d+(?:\.\d+)?)h$/);
+  // Accept middle dot or hyphen separators (UI / copy variants)
+  const match = label.match(/^(.+?)\s*(?:·|-|–)\s*(\d+(?:\.\d+)?)h$/);
   if (!match) return null;
   return { key: match[1].trim(), hours: Number(match[2]) };
 }
@@ -183,11 +183,6 @@ export function projectShortName(fullName: string) {
   return PROJECT_SHORT_NAMES[fullName] ?? fullName.replace(/^Project /, "");
 }
 
-export function formatChipLabel(projectName: string, hours: number) {
-  const h = Number.isInteger(hours) ? hours : parseFloat(hours.toFixed(1));
-  return `${projectShortName(projectName)} · ${h}h`;
-}
-
 export function cellBookedHours(cell: Chip[]) {
   return cell.reduce((sum, chip) => {
     if (chip.kind === "free") return sum;
@@ -195,8 +190,114 @@ export function cellBookedHours(cell: Chip[]) {
   }, 0);
 }
 
+/** Sum allocated working hours for an employee over [rangeStart, rangeEnd], excluding holidays. */
+export function allocatedHoursInRange(
+  allocs: AllocationSlice[],
+  rangeStart: string,
+  rangeEnd: string,
+  opts: PlannerCalendarOpts = {}
+): number {
+  let total = 0;
+  for (const a of allocs) {
+    const days = workingOverlapDays(
+      a.startDate.slice(0, 10),
+      a.endDate.slice(0, 10),
+      rangeStart.slice(0, 10),
+      rangeEnd.slice(0, 10),
+      opts
+    );
+    if (days > 0) total += a.hoursPerDay * days;
+  }
+  return Math.round(total * 10) / 10;
+}
+
 export function capacityForView(capacity: number, view: "day" | "week") {
   return view === "week" ? capacity : capacity / 5;
+}
+
+const DOW_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+
+export type PlannerCalendarOpts = {
+  workingDays?: string[];
+  /** ISO YYYY-MM-DD company off days / holidays */
+  companyOffDays?: string[];
+  workingHoursPerDay?: number;
+};
+
+export function plannerTodayISO(anchor = new Date()): string {
+  return toISODate(anchor);
+}
+
+/** Whether `iso` is a working day given Settings calendar. */
+export function isPlannerWorkingDay(iso: string, opts: PlannerCalendarOpts = {}): boolean {
+  const working = opts.workingDays?.length ? opts.workingDays : ["Mon", "Tue", "Wed", "Thu", "Fri"];
+  const off = new Set((opts.companyOffDays ?? []).map((d) => d.slice(0, 10)));
+  const day = parseISO(iso.slice(0, 10));
+  const label = DOW_SHORT[day.getDay()]!;
+  if (!working.includes(label)) return false;
+  if (off.has(iso.slice(0, 10))) return false;
+  return true;
+}
+
+/** Count working days in [rangeStart, rangeEnd] ∩ [cellStart, cellEnd]. */
+export function workingOverlapDays(
+  rangeStart: string,
+  rangeEnd: string,
+  cellStart: string,
+  cellEnd: string,
+  opts: PlannerCalendarOpts = {}
+): number {
+  const start = Math.max(parseISO(rangeStart).getTime(), parseISO(cellStart).getTime());
+  const end = Math.min(parseISO(rangeEnd).getTime(), parseISO(cellEnd).getTime());
+  if (end < start) return 0;
+  let count = 0;
+  for (let t = start; t <= end; t += 86400000) {
+    if (isPlannerWorkingDay(toISODate(new Date(t)), opts)) count += 1;
+  }
+  return count;
+}
+
+/** Weekly capacity in hours for a Mon–Fri week starting `weekStartIso`. */
+export function weekCapacityHours(weekStartIso: string, opts: PlannerCalendarOpts = {}): number {
+  const hpd = opts.workingHoursPerDay ?? 8;
+  const end = toISODate(addDays(parseISO(weekStartIso), 4));
+  const days = workingOverlapDays(weekStartIso, end, weekStartIso, end, opts);
+  const raw = days * hpd;
+  return Math.round(raw * 10) / 10;
+}
+
+/** Day capacity in hours (0 on holiday / non-working). */
+export function dayCapacityHours(iso: string, opts: PlannerCalendarOpts = {}): number {
+  if (!isPlannerWorkingDay(iso, opts)) return 0;
+  return opts.workingHoursPerDay ?? 8;
+}
+
+/**
+ * Effective date for allocation changes: never before today;
+ * for day cells use that day; for week cells use Monday (or today if mid current week).
+ */
+export function allocationEffectiveDate(
+  view: "day" | "week",
+  cellIndex: number,
+  today = plannerTodayISO()
+): string {
+  if (view === "day") {
+    const cell = DAY_START_ISO[cellIndex] ?? today;
+    return cell < today ? today : cell;
+  }
+  const monday = WEEK_START_ISO[cellIndex] ?? today;
+  const friday = toISODate(addDays(parseISO(monday), 4));
+  if (today >= monday && today <= friday) return today;
+  if (today > friday) return today;
+  return monday;
+}
+
+export function addDaysToIso(iso: string, days: number): string {
+  return toISODate(addDays(parseISO(iso.slice(0, 10)), days));
+}
+
+export function isFutureAllocationCell(view: "day" | "week", cellIndex: number) {
+  return view === "week" ? cellIndex > CURRENT_WEEK_INDEX : cellIndex > CURRENT_DAY_INDEX;
 }
 
 export function normalizeCellKinds(cell: Chip[], capacity: number, view: "day" | "week"): Chip[] {
@@ -208,8 +309,12 @@ export function normalizeCellKinds(cell: Chip[], capacity: number, view: "day" |
   });
 }
 
-export function isFutureAllocationCell(view: "day" | "week", cellIndex: number) {
-  return view === "week" ? cellIndex > CURRENT_WEEK_INDEX : cellIndex > CURRENT_DAY_INDEX;
+function markOverload(cell: Chip[], limit: number): Chip[] {
+  const over = cellBookedHours(cell) > limit + 0.05;
+  return cell.map((chip) => {
+    if (chip.kind === "free") return chip;
+    return { ...chip, kind: over ? "over" : "normal" };
+  });
 }
 
 export const DEPARTMENTS = UTIL_DEPARTMENTS;
@@ -266,43 +371,43 @@ const FREE = (label: string): Chip => ({ label, kind: "free" });
 export const PLANNER_ROWS: PlannerRow[] = [
   {
     id: "p1", name: "Ravi Sharma", initials: "RS", dept: "Engineering", role: "Sr Developer",
-    bookedHours: 44, capacity: 40,
+    bookedHours: 44, dayBookedHours: 44, capacity: 40, dayCapacity: 40,
     weeks: [[N("Falcon · 32h")], [N("Falcon · 32h"), O("Support · 12h")], [N("Falcon · 40h")], [N("Falcon · 40h")], [FREE("Free")]],
     days: [[N("Falcon · 8h")], [N("Falcon · 8h")], [N("Falcon · 8h"), O("Support · 4h")], [N("Falcon · 8h"), O("Support · 4h")], [N("Falcon · 8h"), O("Support · 4h")]],
   },
   {
     id: "p2", name: "Sneha Rao", initials: "SR", dept: "Support", role: "Support Executive",
-    bookedHours: 16, capacity: 40,
+    bookedHours: 16, dayBookedHours: 16, capacity: 40, dayCapacity: 40,
     weeks: [[N("Support · 16h")], [N("Support · 16h")], [FREE("Free · 24h")], [FREE("Free · 24h")], [FREE("Free")]],
     days: [[N("Support · 4h")], [N("Support · 4h")], [FREE("Free · 8h")], [N("Support · 4h")], [N("Support · 4h")]],
   },
   {
     id: "p3", name: "Arjun Mehta", initials: "AM", dept: "Engineering", role: "Developer",
-    bookedHours: 40, capacity: 40,
+    bookedHours: 40, dayBookedHours: 40, capacity: 40, dayCapacity: 40,
     weeks: [[N("Atlas · 40h")], [N("Atlas · 40h")], [N("Atlas · 24h")], [FREE("Free")], [FREE("Free")]],
     days: [[N("Atlas · 8h")], [N("Atlas · 8h")], [N("Atlas · 8h")], [N("Atlas · 8h")], [N("Atlas · 8h")]],
   },
   {
     id: "p4", name: "Priya Nair", initials: "PN", dept: "QA", role: "QA Engineer",
-    bookedHours: 32, capacity: 40,
+    bookedHours: 32, dayBookedHours: 32, capacity: 40, dayCapacity: 40,
     weeks: [[N("Atlas QA · 32h")], [N("Atlas QA · 32h")], [N("Atlas QA · 20h")], [FREE("Free")], [FREE("Free")]],
     days: [[N("Atlas QA · 8h")], [N("Atlas QA · 8h")], [N("Atlas QA · 8h")], [N("Atlas QA · 8h")], [FREE("Free · 8h")]],
   },
   {
     id: "p5", name: "Vikram Kaul", initials: "VK", dept: "Engineering", role: "Sr Backend Dev",
-    bookedHours: 30, capacity: 40,
+    bookedHours: 30, dayBookedHours: 30, capacity: 40, dayCapacity: 40,
     weeks: [[N("Falcon · 30h")], [N("Falcon · 30h")], [FREE("Free · 10h")], [FREE("Free")], [FREE("Free")]],
     days: [[N("Falcon · 8h")], [N("Falcon · 8h")], [N("Falcon · 8h")], [N("Falcon · 6h")], [FREE("Free · 10h")]],
   },
   {
     id: "p6", name: "Deepa Menon", initials: "DM", dept: "Engineering", role: "Backend Dev",
-    bookedHours: 24, capacity: 40,
+    bookedHours: 24, dayBookedHours: 24, capacity: 40, dayCapacity: 40,
     weeks: [[N("Falcon · 24h")], [N("Falcon · 24h")], [FREE("Free · 16h")], [FREE("Free")], [FREE("Free")]],
     days: [[N("Falcon · 8h")], [N("Falcon · 8h")], [N("Falcon · 8h")], [FREE("Free · 8h")], [FREE("Free · 8h")]],
   },
   {
     id: "p7", name: "Tara Gupta", initials: "TG", dept: "DevOps", role: "Automation Eng",
-    bookedHours: 9, capacity: 40,
+    bookedHours: 9, dayBookedHours: 9, capacity: 40, dayCapacity: 40,
     weeks: [[N("Auto · 9h")], [FREE("Free · 31h")], [FREE("Free")], [FREE("Free")], [FREE("Free")]],
     days: [[N("Auto · 9h")], [FREE("Free · 8h")], [FREE("Free · 8h")], [FREE("Free · 8h")], [FREE("Free · 8h")]],
   },
@@ -344,11 +449,16 @@ function buildCellFromAllocations(
   view: "day" | "week",
   cellStart: string,
   cellEnd: string,
-  capacity: number
+  cellCapacity: number,
+  calendar: PlannerCalendarOpts = {}
 ): Chip[] {
+  if (view === "day" && !isPlannerWorkingDay(cellStart, calendar)) {
+    return [{ label: "Holiday", kind: "free" }];
+  }
+
   const chips: Chip[] = [];
   for (const a of allocs) {
-    const days = weekdayOverlapDays(a.startDate, a.endDate, cellStart, cellEnd);
+    const days = workingOverlapDays(a.startDate, a.endDate, cellStart, cellEnd, calendar);
     if (days <= 0) continue;
     const hours = view === "week" ? a.hoursPerDay * days : a.hoursPerDay;
     chips.push({
@@ -358,10 +468,15 @@ function buildCellFromAllocations(
     });
   }
   const booked = cellBookedHours(chips);
-  const limit = capacityForView(capacity, view);
+  const limit = cellCapacity;
   const free = Math.max(0, limit - booked);
   if (chips.length === 0) {
-    return [{ label: `Free · ${Number.isInteger(free) ? free : parseFloat(free.toFixed(1))}h`, kind: "free" }];
+    return [
+      {
+        label: `Free · ${Number.isInteger(free) ? free : parseFloat(free.toFixed(1))}h`,
+        kind: "free",
+      },
+    ];
   }
   if (free > 0.05) {
     chips.push({
@@ -369,14 +484,15 @@ function buildCellFromAllocations(
       kind: "free",
     });
   }
-  return normalizeCellKinds(chips, capacity, view);
+  return markOverload(chips, cellCapacity);
 }
 
 /** Build planner grid from live employees + persisted allocations. */
 export function buildPlannerRowsFromEmployees(
   employees: { id: string; name: string; department: string; status: string; skills: string[] }[],
   capacity = 40,
-  allocations: AllocationSlice[] = []
+  allocations: AllocationSlice[] = [],
+  calendar: PlannerCalendarOpts = {}
 ): PlannerRow[] {
   const byEmp = new Map<string, AllocationSlice[]>();
   for (const a of allocations) {
@@ -385,26 +501,50 @@ export function buildPlannerRowsFromEmployees(
     byEmp.set(a.employeeHrmsId, list);
   }
 
+  const hpd = calendar.workingHoursPerDay ?? capacity / 5;
+  const cal: PlannerCalendarOpts = {
+    workingDays: calendar.workingDays ?? ["Mon", "Tue", "Wed", "Thu", "Fri"],
+    companyOffDays: calendar.companyOffDays ?? [],
+    workingHoursPerDay: hpd,
+  };
+
+  const dayRangeStart = DAY_START_ISO[0]!;
+  const dayRangeEnd = DAY_START_ISO[DAY_START_ISO.length - 1]!;
+  const weekRangeStart = WEEK_START_ISO[0]!;
+  const weekRangeEnd = toISODate(addDays(parseISO(WEEK_START_ISO[WEEK_START_ISO.length - 1]!), 4));
+  const dayStripCapacity = Math.round(
+    DAY_START_ISO.reduce((sum, iso) => sum + dayCapacityHours(iso, cal), 0) * 10
+  ) / 10;
+  const weekWindowCapacity = Math.round(
+    WEEK_START_ISO.reduce((sum, start) => sum + weekCapacityHours(start, cal), 0) * 10
+  ) / 10;
+
   return employees
     .filter((e) => e.status === "active")
     .map((e) => {
       const allocs = byEmp.get(e.id) ?? [];
       const weeks = WEEK_START_ISO.map((start) => {
         const end = toISODate(addDays(parseISO(start), 4));
-        return buildCellFromAllocations(allocs, "week", start, end, capacity);
+        const weekCap = weekCapacityHours(start, cal);
+        return buildCellFromAllocations(allocs, "week", start, end, weekCap, cal);
       });
-      const days = DAY_START_ISO.map((start) =>
-        buildCellFromAllocations(allocs, "day", start, start, capacity)
-      );
-      const bookedHours = cellBookedHours(weeks[CURRENT_WEEK_INDEX] ?? []);
+      const days = DAY_START_ISO.map((start) => {
+        const dayCap = dayCapacityHours(start, cal);
+        return buildCellFromAllocations(allocs, "day", start, start, dayCap, cal);
+      });
+      // Total from live allocations over the visible header range (not chip parse / not only current column)
+      const dayBookedHours = allocatedHoursInRange(allocs, dayRangeStart, dayRangeEnd, cal);
+      const weekBookedHours = allocatedHoursInRange(allocs, weekRangeStart, weekRangeEnd, cal);
       return {
         id: e.id,
         name: e.name,
         initials: initialsFromName(e.name),
         dept: e.department,
         role: e.skills[0] ?? "—",
-        bookedHours,
-        capacity,
+        bookedHours: weekBookedHours,
+        dayBookedHours,
+        capacity: weekWindowCapacity > 0 ? weekWindowCapacity : capacity,
+        dayCapacity: dayStripCapacity > 0 ? dayStripCapacity : Math.round(hpd * DAY_START_ISO.length * 10) / 10,
         weeks,
         days,
       };

@@ -115,11 +115,14 @@ function weekdayHoursInRange(
   endDate: string,
   rangeFrom: string,
   rangeTo: string,
-  hoursPerDay: number
+  hoursPerDay: number,
+  companyOffDays?: string[]
 ): number {
+  const off = new Set((companyOffDays ?? []).map((d) => d.slice(0, 10)));
   let days = 0;
   for (let d = rangeFrom; d <= rangeTo; d = addDaysISO(d, 1)) {
     if (d < startDate || d > endDate) continue;
+    if (off.has(d)) continue;
     const dow = new Date(`${d}T12:00:00`).getDay();
     if (dow >= 1 && dow <= 5) days += 1;
   }
@@ -128,16 +131,18 @@ function weekdayHoursInRange(
 
 export function bookedHoursByEmployee(
   allocations: ApiAllocation[],
-  weekStart = mondayISO()
+  weekStart = mondayISO(),
+  companyOffDays?: string[]
 ): Map<string, { hours: number; primaryProject: string | null }> {
   const weekEnd = addDaysISO(weekStart, 4);
-  return bookedHoursInRange(allocations, weekStart, weekEnd);
+  return bookedHoursInRange(allocations, weekStart, weekEnd, companyOffDays);
 }
 
 export function bookedHoursInRange(
   allocations: ApiAllocation[],
   rangeFrom: string,
-  rangeTo: string
+  rangeTo: string,
+  companyOffDays?: string[]
 ): Map<string, { hours: number; primaryProject: string | null }> {
   const map = new Map<string, { hours: number; primaryProject: string | null }>();
   const projectHours = new Map<string, Map<string, number>>();
@@ -148,7 +153,8 @@ export function bookedHoursInRange(
       a.endDate.slice(0, 10),
       rangeFrom,
       rangeTo,
-      a.hoursPerDay
+      a.hoursPerDay,
+      companyOffDays
     );
     if (hours <= 0) continue;
     const prev = map.get(a.employeeHrmsId) ?? { hours: 0, primaryProject: null };
@@ -206,9 +212,10 @@ function weekdayCount(from: string, to: string): number {
 export function buildAvailRowsFromEmployees(
   employees: Employee[],
   weekCapacity = 40,
-  allocations: ApiAllocation[] = []
+  allocations: ApiAllocation[] = [],
+  companyOffDays?: string[]
 ): AvailRow[] {
-  const booked = bookedHoursByEmployee(allocations);
+  const booked = bookedHoursByEmployee(allocations, mondayISO(), companyOffDays);
   return employees
     .filter((e) => e.status === "active")
     .map((e) => {
@@ -352,9 +359,10 @@ export function buildRollingOffEmpty(): RollingOffPerson[] {
 export function buildUtilRowsFromEmployees(
   employees: Employee[],
   weekCapacity = 40,
-  allocations: ApiAllocation[] = []
+  allocations: ApiAllocation[] = [],
+  companyOffDays?: string[]
 ): UtilRow[] {
-  const booked = bookedHoursByEmployee(allocations);
+  const booked = bookedHoursByEmployee(allocations, mondayISO(), companyOffDays);
   return employees
     .filter((e) => e.status === "active")
     .map((e) => {

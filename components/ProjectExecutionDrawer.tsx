@@ -14,6 +14,7 @@ import {
 import { MetricChip } from "./MetricChip";
 import { BillableSplitBar } from "./BillableSplitBar";
 import { ProjectHealthBadge } from "./ProjectHealthBadge";
+import { SortColHeader, useColumnSort } from "./SortColHeader";
 import {
   EXECUTION_STATUS_LABELS,
   type ExecutionHistory,
@@ -32,6 +33,8 @@ interface Props {
 
 const ROSTER_GRID =
   "grid grid-cols-[minmax(0,1.2fr)_minmax(3rem,0.45fr)_minmax(3.5rem,0.5fr)_minmax(3.5rem,0.5fr)] gap-2";
+
+type RosterSortKey = "resource" | "util" | "alloc" | "discipline";
 
 type TrendMetric = "planningAccuracy" | "confirmationDiscipline" | "utilization" | "billableSplit";
 
@@ -97,6 +100,7 @@ const TREND_METRICS: Record<
 
 export function ProjectExecutionDrawer({ open, onClose, row, history, roster, periodLabel }: Props) {
   const [trendMetric, setTrendMetric] = useState<TrendMetric>("confirmationDiscipline");
+  const { sortKey, sortDir, handleSort } = useColumnSort<RosterSortKey>("resource");
 
   useEffect(() => {
     if (open && row) setTrendMetric("confirmationDiscipline");
@@ -113,6 +117,19 @@ export function ProjectExecutionDrawer({ open, onClose, row, history, roster, pe
       })) ?? [],
     [history]
   );
+
+  const sortedRoster = useMemo(() => {
+    const mul = sortDir === "asc" ? 1 : -1;
+    return [...roster].sort((a, b) => {
+      let cmp = 0;
+      if (sortKey === "resource") cmp = a.name.localeCompare(b.name);
+      else if (sortKey === "util") cmp = a.utilizationHrs - b.utilizationHrs;
+      else if (sortKey === "alloc") cmp = a.allocationPct - b.allocationPct;
+      else cmp = (a.disciplinePct ?? -1) - (b.disciplinePct ?? -1);
+      if (cmp !== 0) return mul * cmp;
+      return a.name.localeCompare(b.name);
+    });
+  }, [roster, sortKey, sortDir]);
 
   if (!row) return null;
 
@@ -271,12 +288,39 @@ export function ProjectExecutionDrawer({ open, onClose, row, history, roster, pe
                 <div
                   className={`${ROSTER_GRID} border-b border-border-soft bg-surface-alt px-3 py-1.5 text-[10px] font-semibold uppercase text-muted`}
                 >
-                  <span>Resource</span>
-                  <span className="text-right">Util</span>
-                  <span className="text-right">Alloc</span>
-                  <span className="text-right">Discipline</span>
+                  <SortColHeader
+                    label="Resource"
+                    col="resource"
+                    sortKey={sortKey}
+                    sortDir={sortDir}
+                    onSort={handleSort}
+                  />
+                  <SortColHeader
+                    label="Util"
+                    col="util"
+                    sortKey={sortKey}
+                    sortDir={sortDir}
+                    onSort={handleSort}
+                    className="justify-end"
+                  />
+                  <SortColHeader
+                    label="Alloc"
+                    col="alloc"
+                    sortKey={sortKey}
+                    sortDir={sortDir}
+                    onSort={handleSort}
+                    className="justify-end"
+                  />
+                  <SortColHeader
+                    label="Discipline"
+                    col="discipline"
+                    sortKey={sortKey}
+                    sortDir={sortDir}
+                    onSort={handleSort}
+                    className="justify-end"
+                  />
                 </div>
-                {roster.map((entry) => (
+                {sortedRoster.map((entry) => (
                   <div
                     key={entry.employeeId}
                     className={`${ROSTER_GRID} border-b border-border-soft px-3 py-2 last:border-b-0`}
