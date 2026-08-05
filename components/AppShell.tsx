@@ -21,6 +21,8 @@ import {
   TableProperties,
   UsersRound,
   SlidersHorizontal,
+  Target,
+  Crosshair,
   type LucideIcon,
 } from "lucide-react";
 import { ProductLogo } from "./ProductLogo";
@@ -38,7 +40,9 @@ const NAV_ICONS: Record<string, LucideIcon> = {
   "reports.execution": BarChart3,
   "reports.daily_work": TableProperties,
   "my_team.weekly_check_in": UsersRound,
+  "my_team.kpi_results": Target,
   "masters.weekly_check_in": SlidersHorizontal,
+  "masters.kpi_framework": Crosshair,
   projects: FolderKanban,
   masters: Boxes,
   employees: UserPlus,

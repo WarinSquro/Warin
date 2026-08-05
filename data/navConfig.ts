@@ -97,6 +97,13 @@ export const PERMISSION_PAGES: PermissionPage[] = [
     menuVisible: true,
   },
   {
+    key: "my_team.kpi_results",
+    label: "KPI Results",
+    route: "/my-team/kpi-results",
+    group: "My Team",
+    menuVisible: true,
+  },
+  {
     key: "masters",
     label: "Org · Skills · Activities",
     route: "/masters",
@@ -107,6 +114,13 @@ export const PERMISSION_PAGES: PermissionPage[] = [
       { key: "masters.skills", label: "Skills", route: "/masters", segment: "skills" },
       { key: "masters.activities", label: "Activities", route: "/masters", segment: "activities" },
     ],
+  },
+  {
+    key: "masters.kpi_framework",
+    label: "KPI Framework",
+    route: "/masters/kpi-framework",
+    group: "Setup",
+    menuVisible: true,
   },
   {
     key: "masters.weekly_check_in",

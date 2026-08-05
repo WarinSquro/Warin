@@ -32,6 +32,32 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-05 12:15 IST
+
+**Prompt:**  
+> Please build… (KPI Framework & KPI Result Management Phase-1)
+
+**Output:**  
+- **Root cause / scope:** New Phase-1 module — masters + framework definition + RO results after cycle end.  
+- **DB:** Prisma models/enums + migration `20260805120000_kpi_framework` (tables + default masters). Applied locally via `npx prisma migrate deploy`. Seed masters idempotent (`upsert`).  
+- **API:** `apps/oneview-api/src/api/kpi/*` wired in `app.module.ts` — masters CRUD, framework CRUD/copy, results list/save + attachment storage; cycle-end auto draft→pending_result; Final Achievement = Σ(Score×Weight)/100 when all KPIs completed for selected resource.  
+- **UI:** `screens/KpiFramework.tsx` (Framework|Masters), `screens/KpiResults.tsx` (modal + attachment); routes + `navConfig` keys `masters.kpi_framework`, `my_team.kpi_results`; AppShell icons; `api/domain.ts` client.  
+- **Docs:** `scripts/apply-kpi-framework-doc.mjs` → tables 28–31 + enums in `docs/OneView_Table_Structure.xlsx`.  
+- **Validation:** `prisma generate` OK; API `tsc` clean; frontend `tsc` only pre-existing unit-test error; migrate deploy OK.  
+- **QA note:** Grant Access Rights for new keys (or use super-admin). Results editable only after quarter last day EOD (UTC). Restart API after pull.
+
+### 2026-08-05 12:00 IST
+
+**Prompt:**  
+> Build KPI Framework & KPI Result Management (Phase-1) per aligned requirements + UI mockups.
+
+**Output:**  
+- Prisma: `kpi_categories`, `kpi_measurement_methods`, `kpi_units_of_measurement`, `kpi_framework_items` + enums; migration `20260805120000_kpi_framework` (includes default master seeds).  
+- API: `apps/oneview-api/src/api/kpi/*` — masters CRUD, framework CRUD/copy, RO results + attachment; cycle-end auto draft→pending_result; Final = Σ(Score×Weight)/100.  
+- UI: Setup → KPI Framework (Framework|Masters), My Team → KPI Results; nav keys `masters.kpi_framework`, `my_team.kpi_results`.  
+- Client: `api/domain.ts` KPI helpers; seed masters in `prisma/seed.ts`.  
+- Deploy: `npx prisma migrate deploy` + rebuild/restart API; grant Access Rights for new keys.
+
 ### 2026-08-04 20:11 IST
 
 **Prompt:**  

@@ -1011,3 +1011,174 @@ export async function fetchWeeklyQueue(weekStart: string): Promise<{
 }> {
   return apiFetch(`/weekly-check-in/queue?weekStart=${encodeURIComponent(weekStart)}`);
 }
+
+// ─── KPI Framework ───────────────────────────────────────────────────────────
+
+export type AssessmentCycle = "Q1" | "Q2" | "Q3" | "Q4";
+export type KpiRowStatus = "draft" | "pending_result" | "completed";
+export type KpiTargetDirection = "higher_is_better" | "lower_is_better";
+export type KpiMasterKind = "categories" | "methods" | "units";
+
+export type ApiKpiMaster = {
+  id: string;
+  code: string;
+  name: string;
+  status: SetupStatus;
+  isActive: boolean;
+};
+
+export type ApiKpiItem = {
+  id: string;
+  employeeId: string;
+  employeeHrmsId: string | null;
+  employeeName: string | null;
+  departmentId: string | null;
+  calendarYear: number;
+  assessmentCycle: AssessmentCycle;
+  categoryId: string;
+  categoryName: string | null;
+  kpiName: string;
+  measurementMethodId: string;
+  measurementMethodName: string | null;
+  unitId: string;
+  unitName: string | null;
+  target: number;
+  targetDirection: KpiTargetDirection;
+  periodStartMonth: number;
+  periodEndMonth: number;
+  periodLabel: string;
+  weightage: number;
+  status: KpiRowStatus;
+  kpiResult: number | null;
+  kpiScore: number | null;
+  remarks: string | null;
+  hasAttachment: boolean;
+  attachmentName: string | null;
+  resultUpdatedAt: string | null;
+  cycleExpired: boolean;
+  cycleMonths: number[];
+};
+
+export type ApiKpiResultsSummary = {
+  total: number;
+  pending: number;
+  completed: number;
+  finalAchievement: number | null;
+};
+
+export async function fetchKpiMasters(
+  kind: KpiMasterKind,
+  includeInactive = true
+): Promise<ApiKpiMaster[]> {
+  return apiFetch(
+    `/kpi/masters/${kind}?includeInactive=${includeInactive ? "true" : "false"}`
+  );
+}
+
+export async function createKpiMaster(kind: KpiMasterKind, name: string): Promise<ApiKpiMaster> {
+  return apiFetch(`/kpi/masters/${kind}`, {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+}
+
+export async function updateKpiMaster(
+  kind: KpiMasterKind,
+  id: string,
+  body: { name?: string; status?: SetupStatus }
+): Promise<ApiKpiMaster> {
+  return apiFetch(`/kpi/masters/${kind}/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function fetchKpiFramework(params: {
+  calendarYear: number;
+  assessmentCycle: AssessmentCycle;
+  employeeHrmsId?: string;
+  departmentId?: string;
+}): Promise<ApiKpiItem[]> {
+  const q = new URLSearchParams();
+  q.set("calendarYear", String(params.calendarYear));
+  q.set("assessmentCycle", params.assessmentCycle);
+  if (params.employeeHrmsId) q.set("employeeHrmsId", params.employeeHrmsId);
+  if (params.departmentId) q.set("departmentId", params.departmentId);
+  return apiFetch(`/kpi/framework?${q}`);
+}
+
+export async function createKpiFrameworkItem(body: {
+  employeeHrmsId: string;
+  calendarYear: number;
+  assessmentCycle: AssessmentCycle;
+  categoryId: string;
+  kpiName: string;
+  measurementMethodId: string;
+  unitId: string;
+  target: number;
+  targetDirection: KpiTargetDirection;
+  periodStartMonth: number;
+  periodEndMonth: number;
+  weightage: number;
+}): Promise<ApiKpiItem> {
+  return apiFetch("/kpi/framework", { method: "POST", body: JSON.stringify(body) });
+}
+
+export async function updateKpiFrameworkItem(
+  id: string,
+  body: Partial<{
+    categoryId: string;
+    kpiName: string;
+    measurementMethodId: string;
+    unitId: string;
+    target: number;
+    targetDirection: KpiTargetDirection;
+    periodStartMonth: number;
+    periodEndMonth: number;
+    weightage: number;
+  }>
+): Promise<ApiKpiItem> {
+  return apiFetch(`/kpi/framework/${id}`, { method: "PUT", body: JSON.stringify(body) });
+}
+
+export async function deleteKpiFrameworkItem(id: string): Promise<{ ok: boolean }> {
+  return apiFetch(`/kpi/framework/${id}`, { method: "DELETE" });
+}
+
+export async function copyKpiFramework(body: {
+  targetEmployeeHrmsId: string;
+  sourceEmployeeHrmsId: string;
+  calendarYear: number;
+  assessmentCycle: AssessmentCycle;
+}): Promise<ApiKpiItem[]> {
+  return apiFetch("/kpi/framework/copy", { method: "POST", body: JSON.stringify(body) });
+}
+
+export async function fetchKpiResults(params: {
+  calendarYear: number;
+  assessmentCycle: AssessmentCycle;
+  employeeHrmsId?: string;
+  departmentId?: string;
+  status?: KpiRowStatus | "all";
+}): Promise<{ items: ApiKpiItem[]; summary: ApiKpiResultsSummary }> {
+  const q = new URLSearchParams();
+  q.set("calendarYear", String(params.calendarYear));
+  q.set("assessmentCycle", params.assessmentCycle);
+  if (params.employeeHrmsId) q.set("employeeHrmsId", params.employeeHrmsId);
+  if (params.departmentId) q.set("departmentId", params.departmentId);
+  if (params.status && params.status !== "all") q.set("status", params.status);
+  return apiFetch(`/kpi/results?${q}`);
+}
+
+export async function saveKpiResult(
+  id: string,
+  body: {
+    kpiResult: number;
+    kpiScore: number;
+    remarks?: string;
+    attachment?: { fileName: string; mimeType: string; base64: string } | null;
+  }
+): Promise<ApiKpiItem> {
+  return apiFetch(`/kpi/results/${id}`, { method: "PUT", body: JSON.stringify(body) });
+}
+

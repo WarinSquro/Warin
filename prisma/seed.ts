@@ -175,6 +175,40 @@ async function main() {
     },
   });
 
+  const kpiCategories = ["Delivery", "Quality", "Utilization", "Collaboration", "Learning", "Documentation"];
+  for (const name of kpiCategories) {
+    await prisma.kpiCategory.upsert({
+      where: { code: `kcat-${name.toLowerCase()}` },
+      create: { code: `kcat-${name.toLowerCase()}`, name },
+      update: {},
+    });
+  }
+  for (const [code, name] of [
+    ["kmeth-system", "System measured"],
+    ["kmeth-manual", "Manual assessment"],
+    ["kmeth-client", "Client feedback"],
+    ["kmeth-peer", "Peer review"],
+  ] as const) {
+    await prisma.kpiMeasurementMethod.upsert({
+      where: { code },
+      create: { code, name },
+      update: {},
+    });
+  }
+  for (const [code, name] of [
+    ["kunit-pct", "%"],
+    ["kunit-score", "Score"],
+    ["kunit-days", "Days"],
+    ["kunit-count", "Count"],
+    ["kunit-hours", "Hours"],
+  ] as const) {
+    await prisma.kpiUnitOfMeasurement.upsert({
+      where: { code },
+      create: { code, name },
+      update: {},
+    });
+  }
+
   console.log(`Blank seed complete.`);
   console.log(`  Login: admin@acme.io / PIN ${DEMO_PIN}`);
   console.log(`  Masters: ${depts.length} departments, ${skills.length} skills, ${activities.length} activities`);

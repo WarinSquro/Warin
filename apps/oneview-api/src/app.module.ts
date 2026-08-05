@@ -17,6 +17,7 @@ import { CockpitModule } from "./api/cockpit/cockpit.module";
 import { AllocationsModule } from "./api/allocations/allocations.module";
 import { ConfirmationsModule } from "./api/confirmations/confirmations.module";
 import { WeeklyCheckInModule } from "./api/weekly-check-in/weekly-check-in.module";
+import { KpiModule } from "./api/kpi/kpi.module";
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { WeeklyCheckInModule } from "./api/weekly-check-in/weekly-check-in.modul
     AllocationsModule,
     ConfirmationsModule,
     WeeklyCheckInModule,
+    KpiModule,
   ],
   controllers: [HealthController],
 })

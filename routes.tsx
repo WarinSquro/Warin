@@ -23,6 +23,8 @@ import { WeeklyCheckInQueue } from "./screens/WeeklyCheckInQueue";
 import { WeeklyCheckInWorkspace } from "./screens/WeeklyCheckInWorkspace";
 import { WeeklyCheckInHistory } from "./screens/WeeklyCheckInHistory";
 import { WeeklyCheckInConfig } from "./screens/WeeklyCheckInConfig";
+import { KpiFramework } from "./screens/KpiFramework";
+import { KpiResults } from "./screens/KpiResults";
 import { AccessRights } from "./screens/AccessRights";
 import { AccessDenied } from "./screens/AccessDenied";
 import { AccountSettings } from "./screens/AccountSettings";
@@ -84,8 +86,10 @@ function AppShellRoutes() {
         <Route path="/my-team/weekly-check-in" element={<Guarded path="/my-team/weekly-check-in" permissionKey="my_team.weekly_check_in"><WeeklyCheckInQueue /></Guarded>} />
         <Route path="/my-team/weekly-check-in/:employeeId/history" element={<Guarded path="/my-team/weekly-check-in" permissionKey="my_team.weekly_check_in"><WeeklyCheckInHistory /></Guarded>} />
         <Route path="/my-team/weekly-check-in/:employeeId" element={<Guarded path="/my-team/weekly-check-in" permissionKey="my_team.weekly_check_in"><WeeklyCheckInWorkspace /></Guarded>} />
+        <Route path="/my-team/kpi-results" element={<Guarded path="/my-team/kpi-results" permissionKey="my_team.kpi_results"><KpiResults /></Guarded>} />
         <Route path="/projects" element={<Guarded path="/projects"><ProjectMaster /></Guarded>} />
         <Route path="/masters/weekly-check-in" element={<Guarded path="/masters/weekly-check-in" superAdminOnly><WeeklyCheckInConfig /></Guarded>} />
+        <Route path="/masters/kpi-framework" element={<Guarded path="/masters/kpi-framework" permissionKey="masters.kpi_framework"><KpiFramework /></Guarded>} />
         <Route path="/masters" element={<Guarded path="/masters"><SetupMasters /></Guarded>} />
         <Route path="/employees" element={<Guarded path="/employees"><EmployeeMaster /></Guarded>} />
         <Route path="/settings" element={<Guarded path="/settings"><Settings /></Guarded>} />
