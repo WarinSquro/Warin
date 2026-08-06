@@ -89,7 +89,7 @@ export function WorkdayTimelinePanel({
                 if (disabled || !canStampWorkdayAction(marks, key)) return;
                 onStamp(key);
               }}
-              className={`relative rounded-md border px-2 py-1.5 pb-5 text-left transition-colors ${
+              className={`rounded-md border px-2 py-1 text-left transition-colors ${
                 stamped
                   ? "cursor-default border-border-soft bg-surface-alt"
                   : skipped
@@ -114,30 +114,36 @@ export function WorkdayTimelinePanel({
                   </span>
                 )}
               </div>
-              <div
-                className={`mt-1 text-[13px] font-semibold tabular-nums ${
-                  stamped ? "text-foreground" : skipped ? "text-muted-foreground" : "text-muted-foreground"
-                }`}
-              >
-                {skipped ? "—" : formatClockAmPm(marks[key])}
+              <div className="mt-0.5 flex items-center justify-between gap-1">
+                <div
+                  className={`text-[13px] font-semibold tabular-nums ${
+                    stamped
+                      ? "text-foreground"
+                      : skipped
+                        ? "text-muted-foreground"
+                        : "text-muted-foreground"
+                  }`}
+                >
+                  {skipped ? "—" : formatClockAmPm(marks[key])}
+                </div>
+                {stamped ? (
+                  <span
+                    className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border border-border-soft bg-surface text-muted-foreground opacity-50"
+                    aria-hidden
+                    title="Completed"
+                  >
+                    <Square className="h-2 w-2 fill-current" />
+                  </span>
+                ) : skipped ? null : isAllowed ? (
+                  <span
+                    className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm bg-primary text-white"
+                    aria-hidden
+                    title="Available action"
+                  >
+                    <Play className="h-2 w-2 fill-current" />
+                  </span>
+                ) : null}
               </div>
-              {stamped ? (
-                <span
-                  className="absolute bottom-1.5 right-1.5 inline-flex h-5 w-5 items-center justify-center rounded-sm border border-border-soft bg-surface text-muted-foreground opacity-50"
-                  aria-hidden
-                  title="Completed"
-                >
-                  <Square className="h-2.5 w-2.5 fill-current" />
-                </span>
-              ) : skipped ? null : isAllowed ? (
-                <span
-                  className="absolute bottom-1.5 right-1.5 inline-flex h-5 w-5 items-center justify-center rounded-sm bg-primary text-white"
-                  aria-hidden
-                  title="Available action"
-                >
-                  <Play className="h-2.5 w-2.5 fill-current" />
-                </span>
-              ) : null}
             </button>
           );
         })}
@@ -229,7 +235,7 @@ export function AllocationFocusTimer({
             <Square className="h-3 w-3 fill-current" />
           </button>
         </div>
-        <div className="font-mono text-[14px] font-bold tabular-nums tracking-tight text-foreground">
+        <div className="font-mono text-[13px] font-bold tabular-nums tracking-tight text-foreground">
           {formatHms(sessionMs)}
         </div>
         <div className="ml-auto flex-shrink-0 font-mono text-[10px] tabular-nums text-muted-foreground">
@@ -274,8 +280,6 @@ export function ConfirmationDayCalendar({
   liveWorkHours: number;
   liveFocusMs: number;
 }) {
-  const { settings } = useSettings();
-  const dateFmt = settings.dateFormat ?? "dd/MM/yyyy";
   const selected = useMemo(() => new Date(`${selectedDate}T12:00:00`), [selectedDate]);
   const [viewYear, setViewYear] = useState(selected.getFullYear());
   const [viewMonth, setViewMonth] = useState(selected.getMonth());
@@ -361,9 +365,6 @@ export function ConfirmationDayCalendar({
         })}
       </div>
       <div className="mt-3 space-y-1.5 border-t border-border-soft pt-2.5">
-        <div className="text-[12px] font-semibold text-foreground">
-          {formatAppDate(selectedDate, dateFmt)}
-        </div>
         <div className="flex items-center justify-between text-[11px]">
           <span className="text-muted-foreground">Total (Planned/Unplan.) Work Hours</span>
           <span className="font-medium tabular-nums text-foreground">

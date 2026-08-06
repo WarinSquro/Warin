@@ -158,7 +158,14 @@ export function WeeklyCheckInWorkspace() {
             prevMapped?.actionType && prevMapped.actionType !== "None" ? "Completed" : undefined
           );
           setEvidence(
-            buildLiveWeeklyEvidence(employeeId, weekStart, allocs, confs, weekCapacity)
+            buildLiveWeeklyEvidence(
+              employeeId,
+              weekStart,
+              allocs,
+              confs,
+              weekCapacity,
+              settings.workingDays
+            )
           );
         }
       } catch (e) {
@@ -174,7 +181,7 @@ export function WeeklyCheckInWorkspace() {
     return () => {
       cancelled = true;
     };
-  }, [employeeId, weekStart, weekCapacity]);
+  }, [employeeId, weekStart, weekCapacity, settings.workingDays]);
 
   if (!currentEmployee) {
     return (
@@ -295,7 +302,7 @@ export function WeeklyCheckInWorkspace() {
           <div>
             <div className="text-[15px] font-semibold text-foreground">{employee.name}</div>
             <div className="text-[12px] text-muted-foreground">
-              {formatWeekLabel(weekStart)} · {employee.department}
+              {formatWeekLabel(weekStart, settings.workingDays)} · {employee.department}
             </div>
           </div>
         </div>

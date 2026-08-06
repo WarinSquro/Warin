@@ -32,6 +32,54 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-06 17:11 IST
+
+**Prompt:**  
+> AllocationFocusTimer clock (`00:00:00`) — decrease font size by 1 point.
+
+**Output:**  
+- `components/ConfirmationProductivity.tsx`: timer text `text-[14px]` → `text-[13px]`.
+
+### 2026-08-06 17:09 IST
+
+**Prompt:**  
+> Work Confirmation calendar sidebar — remove the selected date text field (e.g. 06/08/2026) below the grid and shift totals up.
+
+**Output:**  
+- Removed formatted selected-date line from `ConfirmationDayCalendar` in `components/ConfirmationProductivity.tsx`.
+- Totals (work hours / focus time) remain directly under the calendar divider; dropped unused `useSettings`/`dateFmt` in that panel.
+- Prompt log updated.
+
+### 2026-08-06 17:05 IST
+
+**Prompt:**  
+> Work Confirmation Workday Timeline buttons (Day Start etc.) — reduce height.
+
+**Output:**  
+- **Root cause:** Extra `pb-5` + absolutely positioned play/stop icon forced ~66px button height.
+- **Fix:** `components/ConfirmationProductivity.tsx` (`WorkdayTimelinePanel`) — removed `pb-5`/absolute icon; time + icon on one row with tighter `py-1` padding.
+- **Result:** Shorter Day Start / Lunch / Lunch In / Day End action buttons; behavior unchanged.
+
+### 2026-08-06 16:42 IST
+
+**Prompt:**  
+> Weekly Check-In week range showing wrong — Aug 3 to Aug 9 instead of Aug 3 to Aug 7. Week dates from Settings → Working calendar. Check entire app and correct if any.
+
+**Output:**  
+- **Root cause:** `formatWeekLabel` / `getReviewWeeks` used Mon+6 (calendar week Sun end) instead of Settings `workingDays` (default Mon–Fri).
+- **Fix:** Added `utils/workingWeek.ts` (`workingWeekBounds` / `workingWeekEnd` from working calendar). Wired Weekly Check-In picker, workspace, history labels; report period options / `reportRange("week")`; cockpit week labels & ranges; planner / planning conflicts week end; confirmations team API week dates from `app_settings.workingDays`.
+- **Validation:** `npx tsc --noEmit` exit 0.
+- **Result:** Week labels show first–last working day (e.g. Aug 3 – Aug 7 for Mon–Fri).
+
+### 2026-08-06 16:20 IST
+
+**Prompt:**  
+> Access Rights — restyle all checkboxes to match current theme (FilterMultiSelect dark primary + white check), not browser-default blue.
+
+**Output:**  
+- Added `components/ThemeCheckbox.tsx` (checked / indeterminate / disabled).  
+- Wired into `AccessRightsPermissionTree` (group, page, child) and Access Rights “Include inactive”.
+
 ### 2026-08-06 15:50 IST
 
 **Prompt:**  

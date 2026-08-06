@@ -12,7 +12,6 @@ import { ProjectExecutionDrawer } from "../components/ProjectExecutionDrawer";
 import {
   DEFAULT_EXECUTION_CUSTOM_MONTH,
   EXECUTION_CUSTOM_MONTHS,
-  EXECUTION_PERIODS,
   EXECUTION_STATUS_OPTIONS,
   EXECUTION_STATUS_LABELS,
   HEALTH_LABELS,
@@ -26,6 +25,7 @@ import {
   getExecutionPeriodLabel,
   sortExecutionRows,
 } from "../data/executionReport";
+import { performancePeriodOptions } from "../utils/reportPeriods";
 import type {
   ExecutionCustomMonthId,
   ExecutionFilters,
@@ -88,8 +88,13 @@ export function ProjectExecutionReport() {
   const [allocations, setAllocations] = useState<ApiAllocation[]>([]);
   const [confirmations, setConfirmations] = useState<ApiConfirmation[]>([]);
 
+  const EXECUTION_PERIODS = useMemo(
+    () => performancePeriodOptions(new Date(), settings.workingDays),
+    [settings.workingDays]
+  );
+
   const range = useMemo(() => {
-    if (periodId === "week") return reportRange("week");
+    if (periodId === "week") return reportRange("week", { workingDays: settings.workingDays });
     if (periodId === "custom") {
       const [y, m] = customMonthId.split("-").map(Number);
       const from = `${customMonthId}-01`;
@@ -98,7 +103,7 @@ export function ProjectExecutionReport() {
       return { from, to, label: customMonthId };
     }
     return reportRange("month");
-  }, [periodId, customMonthId]);
+  }, [periodId, customMonthId, settings.workingDays]);
 
   /** Wider window so the drawer 6-month trend can aggregate live months. */
   const fetchRange = useMemo(() => {

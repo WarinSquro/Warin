@@ -3,7 +3,8 @@ import { Link } from "react-router-dom";
 import { ChevronRight } from "lucide-react";
 import { buildPlanningConflictsFromLive } from "../api/cockpitDaily";
 import { fetchAllocations, type ApiAllocation } from "../api/domain";
-import { addDaysISO, mondayISO } from "../api/liveViews";
+import { mondayISO } from "../api/liveViews";
+import { workingWeekEnd } from "../utils/workingWeek";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import { usePlanningEmployees } from "../hooks/usePlanningEmployees";
 import { useSettings } from "../context/SettingsContext";
@@ -21,7 +22,7 @@ export function PlanningConflicts() {
   const weekCapacity = Math.round(settings.workingHoursPerDay * settings.workingDays.length) || 40;
   const hoursPerDay = settings.workingHoursPerDay || 8;
   const weekFrom = mondayISO();
-  const weekTo = addDaysISO(weekFrom, 4);
+  const weekTo = workingWeekEnd(weekFrom, settings.workingDays);
 
   useEffect(() => {
     let cancelled = false;

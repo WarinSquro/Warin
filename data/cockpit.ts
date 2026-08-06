@@ -25,6 +25,7 @@ import { computePerformanceSummary, getPerformanceRowsForPeriod } from "./perfor
 import type { Employee } from "./employees";
 import type { Project, ProjectType } from "./projects";
 import { DEPT_CAPACITY } from "./executive";
+import { workingWeekEnd } from "../utils/workingWeek";
 import { currentWeekBounds, formatWeekSpan } from "../utils/reportPeriods";
 
 export type CockpitRoleId = "executive" | "delivery_head";
@@ -178,8 +179,8 @@ export function cockpitWeekContextLabel(): string {
 }
 
 /** Live week label aligned with report period helpers (`reportPeriods` / `reportRange("week")`). */
-export function liveCockpitWeekContextLabel(from = new Date()): string {
-  const { start, end } = currentWeekBounds(from);
+export function liveCockpitWeekContextLabel(from = new Date(), workingDays?: string[]): string {
+  const { start, end } = currentWeekBounds(from, workingDays);
   return `Week of ${formatWeekSpan(start, end)} · vs prior week`;
 }
 
@@ -530,6 +531,7 @@ export function buildLiveCockpitSnapshot(
     departmentNames: string[];
     weekCapacityHours?: number;
     hoursPerDay?: number;
+    workingDays?: string[];
     projects?: Project[];
     allocations?: ApiAllocation[];
     confirmations?: ApiConfirmation[];
@@ -542,6 +544,7 @@ export function buildLiveCockpitSnapshot(
   const profile = COCKPIT_ROLE_PROFILES[roleId];
   const capacity = input.weekCapacityHours ?? 40;
   const hoursPerDay = input.hoursPerDay ?? 8;
+  const workingDays = input.workingDays;
   const active = input.employees.filter((e) => e.status === "active");
 
   // Scope: executive sees all; delivery_head sees recursive RO subtree (or dept fallback).
@@ -598,7 +601,7 @@ export function buildLiveCockpitSnapshot(
     };
   });
 
-  const weekContextLabel = liveCockpitWeekContextLabel();
+  const weekContextLabel = liveCockpitWeekContextLabel(new Date(), workingDays);
   const pendingMetric: WeeklyMetric = {
     value: null,
     prior: null,
@@ -623,9 +626,9 @@ export function buildLiveCockpitSnapshot(
     const confirmations = input.confirmations ?? [];
     const projects = input.projects ?? [];
     const currentMon = mondayISO();
-    const currentFri = addDaysISO(currentMon, 4);
+    const currentFri = workingWeekEnd(currentMon, workingDays);
     const priorMon = addDaysISO(currentMon, -7);
-    const priorFri = addDaysISO(priorMon, 4);
+    const priorFri = workingWeekEnd(priorMon, workingDays);
     const planFrom = currentMon;
     const planTo = addDaysISO(currentMon, 13);
     windowLabel = planningWindowLabel(planFrom, planTo);
@@ -746,7 +749,7 @@ export function buildLiveCockpitSnapshot(
     // 8-week utilization bars (oldest → newest), same billable% path as Performance report.
     for (let i = 7; i >= 0; i--) {
       const mon = addDaysISO(currentMon, -7 * i);
-      const fri = addDaysISO(mon, 4);
+      const fri = workingWeekEnd(mon, workingDays);
       const weekRows = buildPerformanceRowsFromEmployees(
         scoped,
         capacity,

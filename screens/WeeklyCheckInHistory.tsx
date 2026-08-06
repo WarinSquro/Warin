@@ -27,6 +27,7 @@ import type { WeeklyCheckInSubmission, EmployeeHistory } from "../data/weeklyChe
 import { useAuth } from "../context/AuthContext";
 import { useEmployees } from "../context/EmployeesContext";
 import { useMasters } from "../context/MastersContext";
+import { useSettings } from "../context/SettingsContext";
 import { fetchWeeklyCheckInConfig, fetchWeeklySubmissions } from "../api/domain";
 import { mapApiWeeklySubmission } from "../api/liveViews";
 import { useAppDateFormat } from "../hooks/useAppDateFormat";
@@ -38,6 +39,7 @@ export function WeeklyCheckInHistory() {
   const { currentEmployee, isSuperAdmin } = useAuth();
   const { employees, loading: employeesLoading } = useEmployees();
   const { departments } = useMasters();
+  const { settings } = useSettings();
   // Route param and Employee.id are both HRMS ids.
   const emp = employees.find((e) => e.id === employeeId);
   const dept = departments.find((d) => d.name === emp?.department);
@@ -89,7 +91,7 @@ export function WeeklyCheckInHistory() {
       const sub = submissions.find((s) => s.weekStart === weekStart);
       return {
         weekStart,
-        weekLabel: formatWeekLabel(weekStart).split(",")[0] ?? weekStart,
+        weekLabel: formatWeekLabel(weekStart, settings.workingDays).split(",")[0] ?? weekStart,
         submissionId: sub?.id,
         weeklyStatus: sub?.weeklyStatus,
         confidence: sub?.confidence,
@@ -104,7 +106,7 @@ export function WeeklyCheckInHistory() {
       .filter((s) => s.actionType && s.actionType !== "None")
       .map((s) => ({
         weekStart: s.weekStart,
-        weekLabel: formatWeekLabel(s.weekStart).split(",")[0] ?? s.weekStart,
+        weekLabel: formatWeekLabel(s.weekStart, settings.workingDays).split(",")[0] ?? s.weekStart,
         actionType: s.actionType,
         actionNotes: s.actionNotes,
         outcome: s.actionOutcome,
@@ -125,7 +127,7 @@ export function WeeklyCheckInHistory() {
       weeks,
       actions,
     };
-  }, [submissions, dept, configReady, emp, employeeId]);
+  }, [submissions, dept, configReady, emp, employeeId, settings.workingDays]);
 
   const [snapshotId, setSnapshotId] = useState<string | null>(null);
   const snapshot = snapshotId ? submissions.find((s) => s.id === snapshotId) : undefined;
@@ -437,6 +439,7 @@ function SnapshotDrawer({
   onClose: () => void;
 }) {
   const { formatDateTime } = useAppDateFormat();
+  const { settings } = useSettings();
   return (
     <div className="fixed inset-0 z-40">
       <div onClick={onClose} className="absolute inset-0 bg-brand/30" />
@@ -448,7 +451,7 @@ function SnapshotDrawer({
               <div className="shrink-0 text-[11px] text-muted-foreground">
                 Week Period:{" "}
                 <span className="font-medium text-foreground">
-                  {formatWeekLabel(submission.weekStart)}
+                  {formatWeekLabel(submission.weekStart, settings.workingDays)}
                 </span>
               </div>
             </div>

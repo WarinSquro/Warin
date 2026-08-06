@@ -1,7 +1,7 @@
 import { forwardRef, useImperativeHandle, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { getPermissionGroups, type PermissionPage } from "../data/navConfig";
-
+import { ThemeCheckbox } from "./ThemeCheckbox";
 interface AccessRightsPermissionTreeProps {
   selectedKeys: Set<string>;
   onChange: (keys: Set<string>) => void;
@@ -168,18 +168,12 @@ export const AccessRightsPermissionTree = forwardRef<
             <section key={groupLabel} className="rounded-lg border border-border bg-surface">
               <div className="flex items-center justify-between gap-2 border-b border-border-soft px-3 py-2">
                 <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
+                  <ThemeCheckbox
                     disabled={readOnly}
                     checked={groupSelected === groupLeaves.length && groupLeaves.length > 0}
-                    ref={(el) => {
-                      if (el) {
-                        el.indeterminate =
-                          groupSelected > 0 && groupSelected < groupLeaves.length;
-                      }
-                    }}
+                    indeterminate={groupSelected > 0 && groupSelected < groupLeaves.length}
                     onChange={() => toggleGroup(group.pages)}
-                    className="rounded border-border"
+                    aria-label={`Select all ${groupLabel}`}
                   />
                   <span className="text-[12px] font-semibold text-foreground">{groupLabel}</span>
                 </div>
@@ -214,15 +208,12 @@ export const AccessRightsPermissionTree = forwardRef<
                         ) : (
                           <span className="w-3.5" />
                         )}
-                        <input
-                          type="checkbox"
+                        <ThemeCheckbox
                           disabled={readOnly}
                           checked={state === "all"}
-                          ref={(el) => {
-                            if (el) el.indeterminate = state === "some";
-                          }}
+                          indeterminate={state === "some"}
                           onChange={() => togglePage(page)}
-                          className="rounded border-border"
+                          aria-label={page.label}
                         />
                         <span className="text-[12px] font-medium text-foreground">{page.label}</span>
                       </div>
@@ -233,12 +224,11 @@ export const AccessRightsPermissionTree = forwardRef<
                               key={child.key}
                               className="flex items-center gap-2 py-1.5 pl-10 pr-3"
                             >
-                              <input
-                                type="checkbox"
+                              <ThemeCheckbox
                                 disabled={readOnly}
                                 checked={selectedKeys.has(child.key)}
                                 onChange={() => toggleKey(child.key)}
-                                className="rounded border-border"
+                                aria-label={child.label}
                               />
                               <span className="text-[11px] text-foreground">{child.label}</span>
                             </li>

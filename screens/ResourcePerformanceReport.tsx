@@ -9,7 +9,6 @@ import { BillableSplitBar } from "../components/BillableSplitBar";
 import { PerformanceHistoryDrawer } from "../components/PerformanceHistoryDrawer";
 import {
   EMPLOYMENT_STATUS_OPTIONS,
-  PERFORMANCE_PERIODS,
   PERFORMANCE_CUSTOM_MONTHS,
   DEFAULT_PERFORMANCE_CUSTOM_MONTH,
   computePerformanceSummary,
@@ -28,6 +27,7 @@ import type {
   PerformanceRow,
   PerformanceSortKey,
 } from "../data/performanceReport";
+import { performancePeriodOptions } from "../utils/reportPeriods";
 import { useEmployees } from "../context/EmployeesContext";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
@@ -70,8 +70,13 @@ export function ResourcePerformanceReport() {
   const [allocations, setAllocations] = useState<ApiAllocation[]>([]);
   const [confirmations, setConfirmations] = useState<ApiConfirmation[]>([]);
 
+  const PERFORMANCE_PERIODS = useMemo(
+    () => performancePeriodOptions(new Date(), settings.workingDays),
+    [settings.workingDays]
+  );
+
   const range = useMemo(() => {
-    if (periodId === "week") return reportRange("week");
+    if (periodId === "week") return reportRange("week", { workingDays: settings.workingDays });
     if (periodId === "custom") {
       const [y, m] = customMonthId.split("-").map(Number);
       const from = `${customMonthId}-01`;
@@ -80,7 +85,7 @@ export function ResourcePerformanceReport() {
       return { from, to, label: customMonthId };
     }
     return reportRange("month");
-  }, [periodId, customMonthId]);
+  }, [periodId, customMonthId, settings.workingDays]);
 
   /** Wider window so the drawer 6-month trend can aggregate live months. */
   const fetchRange = useMemo(() => {

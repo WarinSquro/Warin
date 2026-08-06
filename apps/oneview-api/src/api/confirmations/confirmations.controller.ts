@@ -114,6 +114,23 @@ function mondayOfISO(iso: string): string {
   return todayLocalISOFrom(d);
 }
 
+const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+
+/** Working-day ISO dates in a Monday-based week from Settings → Working calendar. */
+function workingWeekDatesFromSettings(
+  weekStartMonday: string,
+  workingDays: string[] | null | undefined
+): string[] {
+  const days =
+    workingDays && workingDays.length > 0
+      ? workingDays
+      : ["Mon", "Tue", "Wed", "Thu", "Fri"];
+  const set = new Set(days);
+  return WEEKDAY_LABELS.map((label, i) => (set.has(label) ? addDaysISO(weekStartMonday, i) : null)).filter(
+    (d): d is string => Boolean(d)
+  );
+}
+
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/);
   if (parts.length >= 2) {
@@ -751,8 +768,12 @@ export class ConfirmationsController {
   ) {
     const today = (asOf ?? todayLocalISO()).slice(0, 10);
     const mon = mondayOfISO(weekStart ?? today);
-    const fri = addDaysISO(mon, 4);
-    const weekDates = [0, 1, 2, 3, 4].map((i) => addDaysISO(mon, i));
+    const settings = await this.prisma.appSettings.findFirst({
+      where: { code: "default", isDeleted: false },
+      select: { workingDays: true },
+    });
+    const weekDates = workingWeekDatesFromSettings(mon, settings?.workingDays);
+    const fri = weekDates[weekDates.length - 1] ?? addDaysISO(mon, 4);
     const todayIndex = weekDates.indexOf(today);
 
     const scopedIds = await immediateReportEmployeeIds(this.prisma, req.user);

@@ -21,6 +21,7 @@ import {
   weekCapacityHours,
   type PlannerCalendarOpts,
 } from "../data/planner";
+import { workingWeekEnd } from "../utils/workingWeek";
 import type { Chip, ChipKind, Demand, Candidate, PlannerRow, AllocationSlice } from "../data/planner";
 import { AllocationDrawer } from "../components/AllocationDrawer";
 import type { AllocationPrefill, AllocationSavePayload, AllocationEditRef } from "../components/AllocationDrawer";
@@ -51,15 +52,6 @@ function clonePlannerRows(rows: PlannerRow[]) {
   }));
 }
 
-function addDaysISO(iso: string, days: number) {
-  const date = new Date(`${iso}T12:00:00`);
-  date.setDate(date.getDate() + days);
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
 const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 /** Header label like "Jul 27" from ISO date. */
@@ -68,22 +60,27 @@ function shortMonthDay(iso: string) {
   return `${SHORT_MONTHS[date.getMonth()]} ${date.getDate()}`;
 }
 
-function cellDateRange(view: "day" | "week", cellIndex: number) {
+function cellDateRange(
+  view: "day" | "week",
+  cellIndex: number,
+  workingDays?: string[]
+) {
   const start =
     view === "week"
       ? WEEK_START_ISO[cellIndex] ?? WEEK_START_ISO[CURRENT_WEEK_INDEX]
       : DAY_START_ISO[cellIndex] ?? DAY_START_ISO[CURRENT_DAY_INDEX];
-  const end = view === "week" ? addDaysISO(start, 4) : start;
-  return { start, end };
+  const end = view === "week" ? workingWeekEnd(start!, workingDays) : start!;
+  return { start: start!, end };
 }
 
 function buildNewPrefill(
   row: PlannerRow,
   view: "day" | "week",
   cellIndex: number,
-  cell: Chip[]
+  cell: Chip[],
+  workingDays?: string[]
 ): AllocationPrefill {
-  const { end: cellEnd } = cellDateRange(view, cellIndex);
+  const { end: cellEnd } = cellDateRange(view, cellIndex, workingDays);
   const effective = allocationEffectiveDate(view, cellIndex);
   const start = effective;
   const end = cellEnd < start ? start : cellEnd;
@@ -95,7 +92,7 @@ function buildNewPrefill(
       (new Date(`${end}T12:00:00`).getTime() - new Date(`${start}T12:00:00`).getTime()) / 86400000
     ) + 1
   );
-  const workingSpan = view === "week" ? Math.min(5, spanDays) : 1;
+  const workingSpan = view === "week" ? Math.min(workingDays?.length || 5, spanDays) : 1;
   const hoursPerDay =
     freeHours != null
       ? view === "week"
@@ -142,15 +139,18 @@ function buildEditPrefill(
   cellIndex: number,
   chipIndex: number,
   cell: Chip[],
-  allocLookup: Map<string, AllocationSlice>
+  allocLookup: Map<string, AllocationSlice>,
+  workingDays?: string[]
 ): AllocationPrefill | null {
   const parsed = parseChipLabel(chip.label);
   if (!parsed) return null;
 
   const live = chip.allocationId ? allocLookup.get(chip.allocationId) : undefined;
   const projectName = live?.projectName ?? resolveProjectName(parsed.key);
-  const hoursPerDay = live?.hoursPerDay ?? (view === "week" ? parsed.hours / 5 : parsed.hours);
-  const { end: cellEnd } = cellDateRange(view, cellIndex);
+  const weekDayCount = workingDays?.length || 5;
+  const hoursPerDay =
+    live?.hoursPerDay ?? (view === "week" ? parsed.hours / weekDayCount : parsed.hours);
+  const { end: cellEnd } = cellDateRange(view, cellIndex, workingDays);
   const effective = allocationEffectiveDate(view, cellIndex);
   const today = plannerTodayISO();
   // Prefill start = effective date (never past); keep original end (or cell end)
@@ -237,7 +237,7 @@ export function ResourcePlanner() {
   const rangeFrom = WEEK_START_ISO[0];
   const rangeTo = (() => {
     const last = WEEK_START_ISO[WEEK_START_ISO.length - 1];
-    return addDaysISO(last, 4);
+    return workingWeekEnd(last!, settings.workingDays);
   })();
 
   const openDemandRangeLabel = useMemo(() => {
@@ -348,7 +348,7 @@ export function ResourcePlanner() {
       const iso = DAY_START_ISO[cellIndex];
       if (iso && !isPlannerWorkingDay(iso, calendarOpts)) return;
     }
-    openAllocate(buildNewPrefill(row, view, cellIndex, cell));
+    openAllocate(buildNewPrefill(row, view, cellIndex, cell, settings.workingDays));
   };
 
   const handleChipClick = (
@@ -366,7 +366,8 @@ export function ResourcePlanner() {
       cellIndex,
       chipIndex,
       cell,
-      allocLookup
+      allocLookup,
+      settings.workingDays
     );
     if (editPrefill) openAllocate(editPrefill);
   };

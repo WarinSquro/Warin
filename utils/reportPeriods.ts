@@ -3,6 +3,8 @@
  * Used by Deployment, Performance, Execution, Daily Work, and Utilization dropdowns.
  */
 
+import { workingWeekBounds } from "./workingWeek";
+
 export function todayISO(d = new Date()): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -95,13 +97,16 @@ export function buildMonthOptions(
   return out;
 }
 
-export function currentWeekBounds(from = new Date()): { start: string; end: string } {
-  const start = mondayISO(from);
-  return { start, end: addDaysISO(start, 4) };
+export function currentWeekBounds(
+  from = new Date(),
+  workingDays?: string[]
+): { start: string; end: string } {
+  const monday = mondayISO(from);
+  return workingWeekBounds(monday, workingDays);
 }
 
-export function deploymentPeriodOptions(from = new Date()) {
-  const { start, end } = currentWeekBounds(from);
+export function deploymentPeriodOptions(from = new Date(), workingDays?: string[]) {
+  const { start, end } = currentWeekBounds(from, workingDays);
   return [
     { id: "today" as const, label: "Today" },
     { id: "week" as const, label: `This week (${formatWeekSpan(start, end)})` },
@@ -109,8 +114,8 @@ export function deploymentPeriodOptions(from = new Date()) {
   ];
 }
 
-export function performancePeriodOptions(from = new Date()) {
-  const { start, end } = currentWeekBounds(from);
+export function performancePeriodOptions(from = new Date(), workingDays?: string[]) {
+  const { start, end } = currentWeekBounds(from, workingDays);
   return [
     { id: "week" as const, label: `This week (${formatWeekSpan(start, end)})` },
     { id: "month" as const, label: formatMonthYear(from) },
@@ -118,9 +123,9 @@ export function performancePeriodOptions(from = new Date()) {
   ];
 }
 
-export function dailyWorkPeriodOptions(from = new Date()) {
+export function dailyWorkPeriodOptions(from = new Date(), workingDays?: string[]) {
   const today = todayISO(from);
-  const { start, end } = currentWeekBounds(from);
+  const { start, end } = currentWeekBounds(from, workingDays);
   const prev = new Date(from.getFullYear(), from.getMonth() - 1, 1);
   const threeStart = new Date(from.getFullYear(), from.getMonth() - 2, 1);
   const threeSpan = `${threeStart.toLocaleDateString("en-US", { month: "short" })} – ${from.toLocaleDateString("en-US", { month: "short" })}`;

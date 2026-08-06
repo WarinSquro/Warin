@@ -6,15 +6,16 @@ import { ReportPagination } from "../components/ReportPagination";
 import { ReportColumnPicker } from "../components/ReportColumnPicker";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+import { useSettings } from "../context/SettingsContext";
 import { useAppDateFormat } from "../hooks/useAppDateFormat";
 import { getVisibleEmployeeIds } from "../utils/employeeHierarchy";
 import { scopeEmployeesForViewer } from "../utils/reportVisibility";
+import { dailyWorkPeriodOptions } from "../utils/reportPeriods";
 import { milestoneKindLabel } from "../data/projects";
 import {
   CONFIRMATION_CODES,
   CONFIRMATION_CODE_LABELS,
   DAILY_WORK_COLUMNS,
-  DAILY_WORK_PERIODS,
   confirmationCodeLabel,
   dailyWorkDepartments,
   dailyWorkProjects,
@@ -134,6 +135,7 @@ function exportCellValue(
 export function DailyWorkReport() {
   const { currentEmployee, isSuperAdmin } = useAuth();
   const { dateFormat } = useAppDateFormat();
+  const { settings } = useSettings();
   const { employees } = useEmployees();
   const { projects: liveProjects } = useProjects();
   const [periodId, setPeriodId] = useState<DailyWorkPeriodId>("week");
@@ -147,13 +149,19 @@ export function DailyWorkReport() {
   const [allocations, setAllocations] = useState<ApiAllocation[]>([]);
   const [apiConfirmations, setApiConfirmations] = useState<ApiConfirmation[]>([]);
 
+  const DAILY_WORK_PERIODS = useMemo(
+    () => dailyWorkPeriodOptions(new Date(), settings.workingDays),
+    [settings.workingDays]
+  );
+
   const range = useMemo(() => {
+    const weekOpts = { workingDays: settings.workingDays };
     if (periodId === "today") return reportRange("today");
-    if (periodId === "week") return reportRange("week");
+    if (periodId === "week") return reportRange("week", weekOpts);
     if (periodId === "month") return reportRange("month");
     if (periodId === "last_month") return reportRange("last_month");
     return reportRange("last_3_months");
-  }, [periodId]);
+  }, [periodId, settings.workingDays]);
 
   useEffect(() => {
     let cancelled = false;

@@ -17,6 +17,7 @@ import { useToast } from "../context/ToastContext";
 import { fetchAccessRights, fetchAllAccessRights, putAccessRights } from "../api/domain";
 import { formatDataReachSummary, getResourceOwnerDisplay } from "../utils/employeeHierarchy";
 import { matchesSearchQuery } from "../utils/textSearch";
+import { ThemeCheckbox } from "../components/ThemeCheckbox";
 
 function setsEqual(a: Set<string>, b: Set<string>): boolean {
   if (a.size !== b.size) return false;
@@ -218,11 +219,10 @@ export function AccessRights() {
               />
             </div>
             <label className="flex cursor-pointer items-center gap-2 text-[11px] text-muted-foreground">
-              <input
-                type="checkbox"
+              <ThemeCheckbox
                 checked={includeInactive}
-                onChange={(e) => setIncludeInactive(e.target.checked)}
-                className="rounded border-border"
+                onChange={() => setIncludeInactive((v) => !v)}
+                aria-label="Include inactive"
               />
               Include inactive
             </label>

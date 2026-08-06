@@ -7,6 +7,7 @@ import { PLANNER_ROWS } from "./planner";
 import { DEFAULT_SETTINGS } from "./settings";
 import { DEPARTMENTS, type Department } from "./setup";
 import { getDirectReportIds } from "../utils/employeeHierarchy";
+import { workingWeekBounds } from "../utils/workingWeek";
 
 export type CompetencyKind = "technical" | "behavioural";
 export type DepartmentConfigStatus = "set" | "partial" | "not_set";
@@ -405,9 +406,10 @@ export function parseIsoDate(iso: string): Date {
   return new Date(iso + "T12:00:00");
 }
 
-export function formatWeekLabel(weekStart: string): string {
-  const start = parseIsoDate(weekStart);
-  const end = parseIsoDate(addDays(weekStart, 6));
+export function formatWeekLabel(weekStart: string, workingDays?: string[]): string {
+  const { start: startIso, end: endIso } = workingWeekBounds(weekStart, workingDays);
+  const start = parseIsoDate(startIso);
+  const end = parseIsoDate(endIso);
   const fmt = (d: Date) =>
     d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   const year = end.getFullYear();
@@ -437,14 +439,14 @@ export function isDateInWeek(date: string, weekStart: string): boolean {
   return date >= weekStart && date <= end;
 }
 
-export function getReviewWeeks(): ReviewWeekOption[] {
+export function getReviewWeeks(workingDays?: string[]): ReviewWeekOption[] {
   const current = getCurrentWeekStart();
   const offsets = [-3, -2, -1, 0, 1];
   return offsets.map((n) => {
     const weekStart = addWeeks(current, n);
     return {
       weekStart,
-      label: formatWeekLabel(weekStart),
+      label: formatWeekLabel(weekStart, workingDays),
       isCurrent: weekStart === current,
     };
   });
@@ -877,7 +879,11 @@ export function getFrozenSnapshot(submissionId: string): WeeklyCheckInSubmission
   return readSubmissions().find((s) => s.id === submissionId);
 }
 
-export function getEmployeeHistory(employeeId: string, weekCount = 8): EmployeeHistory {
+export function getEmployeeHistory(
+  employeeId: string,
+  weekCount = 8,
+  workingDays?: string[]
+): EmployeeHistory {
   const emp = EMPLOYEES.find((e) => e.id === employeeId)!;
   const dept = getDepartmentByEmployee(employeeId);
   const comps = dept ? getCompetenciesForDepartment(dept.id) : [];
@@ -899,7 +905,7 @@ export function getEmployeeHistory(employeeId: string, weekCount = 8): EmployeeH
     const sub = submissions.find((s) => s.weekStart === weekStart);
     return {
       weekStart,
-      weekLabel: formatWeekLabel(weekStart).split(",")[0] ?? weekStart,
+      weekLabel: formatWeekLabel(weekStart, workingDays).split(",")[0] ?? weekStart,
       submissionId: sub?.id,
       weeklyStatus: sub?.weeklyStatus,
       confidence: sub?.confidence,
@@ -914,7 +920,7 @@ export function getEmployeeHistory(employeeId: string, weekCount = 8): EmployeeH
     .filter((s) => s.actionType && s.actionType !== "None")
     .map((s) => ({
       weekStart: s.weekStart,
-      weekLabel: formatWeekLabel(s.weekStart).split(",")[0] ?? s.weekStart,
+      weekLabel: formatWeekLabel(s.weekStart, workingDays).split(",")[0] ?? s.weekStart,
       actionType: s.actionType,
       actionNotes: s.actionNotes,
       outcome: s.actionOutcome,

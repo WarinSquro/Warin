@@ -1,5 +1,7 @@
+import { useMemo } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { getReviewWeeks, type ReviewWeekOption } from "../data/weeklyCheckIn";
+import { useSettings } from "../context/SettingsContext";
 
 interface WeeklyCheckInWeekPickerProps {
   weekStart: string;
@@ -10,8 +12,14 @@ interface WeeklyCheckInWeekPickerProps {
 export function WeeklyCheckInWeekPicker({
   weekStart,
   onChange,
-  weeks = getReviewWeeks(),
+  weeks: weeksProp,
 }: WeeklyCheckInWeekPickerProps) {
+  const { settings } = useSettings();
+  const weeksFromSettings = useMemo(
+    () => getReviewWeeks(settings.workingDays),
+    [settings.workingDays]
+  );
+  const weeks = weeksProp ?? weeksFromSettings;
   const idx = weeks.findIndex((w) => w.weekStart === weekStart);
 
   const goPrev = () => {

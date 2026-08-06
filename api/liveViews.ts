@@ -7,6 +7,7 @@ import type { Project } from "../data/projects";
 import type { AvailRow, RollingOffPerson } from "../data/availability";
 import type { Band, UtilRow } from "../data/utilization";
 import type { DeploymentRow, DeploymentStatus } from "../data/deploymentReport";
+import { workingWeekBounds } from "../utils/workingWeek";
 import type {
   PerformanceHistory,
   PerformanceHistoryMonth,
@@ -59,7 +60,8 @@ export function addDaysISO(iso: string, days: number): string {
 }
 
 export function reportRange(
-  period: "today" | "week" | "month" | "last_month" | "last_3_months"
+  period: "today" | "week" | "month" | "last_month" | "last_3_months",
+  opts?: { workingDays?: string[] }
 ): { from: string; to: string; label: string } {
   const today = toLocalISO();
   const mon = mondayISO();
@@ -69,14 +71,14 @@ export function reportRange(
     return { from: today, to: today, label: `Today (${fmtDay(today)})` };
   }
   if (period === "week") {
-    const fri = addDaysISO(mon, 4);
-    const a = new Date(`${mon}T12:00:00`);
-    const b = new Date(`${fri}T12:00:00`);
+    const { start, end } = workingWeekBounds(mon, opts?.workingDays);
+    const a = new Date(`${start}T12:00:00`);
+    const b = new Date(`${end}T12:00:00`);
     const span =
       a.getMonth() === b.getMonth()
-        ? `${fmtDay(mon)} – ${b.getDate()}`
-        : `${fmtDay(mon)} – ${fmtDay(fri)}`;
-    return { from: mon, to: fri, label: `This week (${span})` };
+        ? `${fmtDay(start)} – ${b.getDate()}`
+        : `${fmtDay(start)} – ${fmtDay(end)}`;
+    return { from: start, to: end, label: `This week (${span})` };
   }
   if (period === "month") {
     const d = new Date();
@@ -1039,7 +1041,8 @@ export function buildLiveWeeklyEvidence(
   weekStart: string,
   allocations: ApiAllocation[],
   confirmations: ApiConfirmation[],
-  weekCapacity = 40
+  weekCapacity = 40,
+  workingDays?: string[]
 ): {
   planningAccuracy: number | null;
   planningDeviationCount: number;
@@ -1053,21 +1056,25 @@ export function buildLiveWeeklyEvidence(
   capturedAt: string;
   noOperationalData?: boolean;
 } {
-  const weekEnd = addDaysISO(weekStart, 4);
+  const { start: weekFrom, end: weekEnd } = workingWeekBounds(weekStart, workingDays);
   const mineAlloc = allocations.filter((a) => a.employeeHrmsId === employeeHrmsId);
   const mineConf = confirmations.filter(
     (c) =>
       c.employeeHrmsId === employeeHrmsId &&
-      c.workDate >= weekStart &&
-      c.workDate <= addDaysISO(weekStart, 6)
+      c.workDate >= weekFrom &&
+      c.workDate <= weekEnd
   );
 
   let hours = 0;
   const projects = new Set<string>();
+  const workingSet = new Set(
+    (workingDays?.length ? workingDays : ["Mon", "Tue", "Wed", "Thu", "Fri"]).map(String)
+  );
+  const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
   for (const a of mineAlloc) {
-    for (let d = weekStart; d <= weekEnd; d = addDaysISO(d, 1)) {
-      const dow = new Date(`${d}T12:00:00`).getDay();
-      if (dow < 1 || dow > 5) continue;
+    for (let d = weekFrom; d <= weekEnd; d = addDaysISO(d, 1)) {
+      const label = DOW[new Date(`${d}T12:00:00`).getDay()]!;
+      if (!workingSet.has(label)) continue;
       if (d < a.startDate.slice(0, 10) || d > a.endDate.slice(0, 10)) continue;
       hours += a.hoursPerDay;
       projects.add(a.projectName);
@@ -1090,7 +1097,7 @@ export function buildLiveWeeklyEvidence(
     }
   }
 
-  const weekdays = 5;
+  const weekdays = workingSet.size || 5;
   const confirmationDiscipline =
     weekdays > 0 ? Math.round((mineConf.length / weekdays) * 100) : null;
   const planningAccuracy =

@@ -6,7 +6,6 @@ import { FilterMultiSelect } from "../components/FilterMultiSelect";
 import { MetricChip } from "../components/MetricChip";
 import {
   DEPLOYMENT_STATUSES,
-  REPORT_PERIODS,
   computeDeploymentTotals,
   deploymentDepartments,
   deploymentProjects,
@@ -24,6 +23,7 @@ import type {
   DeploymentStatus,
   ReportPeriodId,
 } from "../data/deploymentReport";
+import { deploymentPeriodOptions } from "../utils/reportPeriods";
 import { useEmployees } from "../context/EmployeesContext";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
@@ -67,11 +67,16 @@ export function ResourceDeploymentReport() {
   const [allocations, setAllocations] = useState<ApiAllocation[]>([]);
   const [confirmations, setConfirmations] = useState<ApiConfirmation[]>([]);
 
+  const REPORT_PERIODS = useMemo(
+    () => deploymentPeriodOptions(new Date(), settings.workingDays),
+    [settings.workingDays]
+  );
+
   const range = useMemo(() => {
     if (periodId === "today") return reportRange("today");
-    if (periodId === "week") return reportRange("week");
+    if (periodId === "week") return reportRange("week", { workingDays: settings.workingDays });
     return reportRange("month");
-  }, [periodId]);
+  }, [periodId, settings.workingDays]);
 
   useEffect(() => {
     let cancelled = false;
