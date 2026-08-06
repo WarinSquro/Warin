@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  Logger,
   NotFoundException,
   Param,
   Post,
@@ -11,6 +12,8 @@ import {
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { HashingService } from "@oneview/security";
+import { MailService } from "@oneview/mail";
+import { randomInt } from "node:crypto";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { RequirePermissions } from "../auth/guards";
 
@@ -18,7 +21,23 @@ function ser<T>(v: T): T {
   return JSON.parse(JSON.stringify(v, (_k, x) => (typeof x === "bigint" ? x.toString() : x))) as T;
 }
 
+/** Legacy default when SMTP welcome flow is not enabled */
 const DEFAULT_PIN = "12345";
+
+const WEAK_PINS = new Set(["00000", "11111", "22222", "33333", "44444", "55555", "66666", "77777", "88888", "99999", "12345", "54321", "01234", "98765"]);
+
+function isWeakPin(pin: string) {
+  return WEAK_PINS.has(pin) || /^(\d)\1{4}$/.test(pin);
+}
+
+/** Cryptographically random 5-digit PIN; excludes trivial patterns. Never log the result. */
+function generateSecurePin(): string {
+  for (let i = 0; i < 64; i++) {
+    const pin = String(randomInt(0, 100_000)).padStart(5, "0");
+    if (!isWeakPin(pin)) return pin;
+  }
+  return String(randomInt(10_000, 100_000));
+}
 
 type EmpBody = {
   hrmsId: string;
@@ -34,9 +53,12 @@ type EmpBody = {
 @ApiBearerAuth()
 @Controller("employees")
 export class EmployeesController {
+  private readonly logger = new Logger(EmployeesController.name);
+
   constructor(
     private readonly prisma: PrismaService,
-    private readonly hashing: HashingService
+    private readonly hashing: HashingService,
+    private readonly mail: MailService
   ) {}
 
   private mapRow(e: {
@@ -77,6 +99,83 @@ export class EmployeesController {
         OR: /^\d+$/.test(id) ? [{ id: BigInt(id) }, { hrmsId: id }] : [{ hrmsId: id }],
       },
     });
+  }
+
+  /** Welcome PIN email only when SMTP is saved and Test Connection succeeded. */
+  private async isWelcomeEmailEnabled(): Promise<boolean> {
+    if (!this.mail.isProductConfigured()) return false;
+    const row = await this.prisma.smtpSettings.findFirst({
+      where: { code: "default", isDeleted: false },
+    });
+    return Boolean(row?.isConfigured && row?.connectionVerified);
+  }
+
+  private async sendWelcomePinEmail(params: {
+    employeeId: bigint;
+    name: string;
+    email: string;
+    hrmsId: string;
+    plainPin: string;
+  }): Promise<{ sent: boolean; message: string }> {
+    const appUrl = (process.env.APP_PUBLIC_URL ?? "http://127.0.0.1:5173").replace(/\/$/, "");
+    const loginUrl = `${appUrl}/login`;
+    const text = [
+      `Hi ${params.name},`,
+      "",
+      "Welcome to Warin.",
+      "",
+      `Your user ID (HRMS): ${params.hrmsId}`,
+      `Login email: ${params.email}`,
+      `Temporary PIN: ${params.plainPin}`,
+      "",
+      `Sign in at: ${loginUrl}`,
+      "",
+      "You must change this temporary PIN on your first login before using the application.",
+      "",
+      "If you did not expect this account, contact your administrator.",
+    ].join("\n");
+    const html = `
+      <p>Hi ${params.name},</p>
+      <p>Welcome to <strong>Warin</strong>.</p>
+      <p><strong>User ID (HRMS):</strong> ${params.hrmsId}<br/>
+      <strong>Login email:</strong> ${params.email}<br/>
+      <strong>Temporary PIN:</strong> ${params.plainPin}</p>
+      <p><a href="${loginUrl}">Sign in to Warin</a></p>
+      <p style="color:#666;font-size:13px">You must change this temporary PIN on your first login before using the application.</p>
+    `;
+    try {
+      await this.mail.send({
+        to: params.email,
+        subject: "Welcome to Warin — your temporary PIN",
+        text,
+        html,
+        template: "welcome-pin",
+        context: { name: params.name, hrmsId: params.hrmsId, loginUrl },
+      });
+      await this.prisma.welcomePinEmailLog.create({
+        data: {
+          employeeId: params.employeeId,
+          toEmail: params.email,
+          status: "sent",
+        },
+      });
+      return { sent: true, message: `Welcome email with temporary PIN sent to ${params.email}.` };
+    } catch (e) {
+      const detail = e instanceof Error ? e.message : "Mail send failed";
+      this.logger.warn(`Welcome PIN email failed for employee ${params.employeeId}: ${detail}`);
+      await this.prisma.welcomePinEmailLog.create({
+        data: {
+          employeeId: params.employeeId,
+          toEmail: params.email,
+          status: "failed",
+          errorMessage: detail.slice(0, 500),
+        },
+      });
+      return {
+        sent: false,
+        message: `Employee created, but welcome email failed: ${detail}`,
+      };
+    }
   }
 
   @Get()
@@ -156,7 +255,10 @@ export class EmployeesController {
         })
       : [];
 
-    const pinHash = await this.hashing.hash(DEFAULT_PIN);
+    const welcomeEnabled = await this.isWelcomeEmailEnabled();
+    const plainPin = welcomeEnabled ? generateSecurePin() : DEFAULT_PIN;
+    const mustChangePin = welcomeEnabled;
+    const pinHash = await this.hashing.hash(plainPin);
     const status = body.status === "inactive" ? "inactive" : "active";
 
     const created = await this.prisma.employee.create({
@@ -165,6 +267,7 @@ export class EmployeesController {
         name,
         email,
         pinHash,
+        mustChangePin,
         departmentId: dept.id,
         resourceOwnerId,
         status,
@@ -180,7 +283,34 @@ export class EmployeesController {
       },
     });
 
-    return ser(this.mapRow(created));
+    let welcomeEmailSent = false;
+    let welcomeEmailSkipped = !welcomeEnabled;
+    let welcomeEmailMessage: string | undefined;
+
+    if (welcomeEnabled) {
+      const result = await this.sendWelcomePinEmail({
+        employeeId: created.id,
+        name: created.name,
+        email: created.email,
+        hrmsId: created.hrmsId,
+        plainPin,
+      });
+      welcomeEmailSent = result.sent;
+      welcomeEmailSkipped = false;
+      welcomeEmailMessage = result.message;
+    } else {
+      welcomeEmailMessage =
+        "SMTP is not configured or Test Connection has not succeeded — welcome email was not sent. Employee uses the standard registration PIN.";
+    }
+
+    // Never include plainPin in the API response
+    return ser({
+      ...this.mapRow(created),
+      welcomeEmailSent,
+      welcomeEmailSkipped,
+      welcomeEmailMessage,
+      mustChangePin,
+    });
   }
 
   @Put(":id")

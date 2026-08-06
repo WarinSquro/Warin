@@ -112,6 +112,7 @@ export type LoginResponse = {
     isSuperAdmin: boolean;
     permissionKeys: string[];
     departmentName?: string | null;
+    mustChangePin?: boolean;
   };
 };
 

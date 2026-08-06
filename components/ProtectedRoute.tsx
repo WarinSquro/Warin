@@ -13,11 +13,16 @@ export function ProtectedRoute({
   permissionKey,
   superAdminOnly,
 }: ProtectedRouteProps) {
-  const { isAuthenticated, isSuperAdmin, allowedKeys, getDefaultLandingRoute } = useAuth();
+  const { isAuthenticated, isSuperAdmin, allowedKeys, getDefaultLandingRoute, mustChangePin } =
+    useAuth();
   const location = useLocation();
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  }
+
+  if (mustChangePin && location.pathname !== "/change-pin") {
+    return <Navigate to="/change-pin" replace />;
   }
 
   if (location.pathname === "/access-denied" || location.pathname === "/account") {

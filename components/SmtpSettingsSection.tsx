@@ -32,6 +32,8 @@ const emptyForm = (): SmtpSettings => ({
   passwordSet: false,
   authRequired: true,
   isConfigured: false,
+  connectionVerified: false,
+  lastConnectionTestAt: null,
 });
 
 function toPayload(form: SmtpSettings): SmtpSettingsPayload {
@@ -105,6 +107,8 @@ export function SmtpSettingsSection() {
     setMessage(null);
     try {
       const res = await testSmtpConnection(toPayload(form));
+      const refreshed = await fetchSmtpSettings();
+      setForm({ ...refreshed, password: form.password });
       toast.success(res.message);
     } catch (e) {
       setMessage({ type: "err", text: e instanceof Error ? e.message : "Connection test failed." });
@@ -118,6 +122,8 @@ export function SmtpSettingsSection() {
     setMessage(null);
     try {
       const res = await sendSmtpTestEmail({ ...toPayload(form), to: testTo.trim() });
+      const refreshed = await fetchSmtpSettings();
+      setForm({ ...refreshed, password: form.password });
       toast.success(res.message);
     } catch (e) {
       setMessage({ type: "err", text: e instanceof Error ? e.message : "Test email failed." });
@@ -143,19 +149,30 @@ export function SmtpSettingsSection() {
             SMTP Settings
           </div>
           <div className="mt-0.5 text-[12px] leading-snug text-muted-foreground">
-            Outbound email for Forgot PIN, notifications, and other mail features. Password is
-            encrypted at rest and never shown again.
+            Outbound email for Forgot PIN, welcome PIN, notifications, and other mail features.
+            Password is encrypted at rest and never shown again.
           </div>
         </div>
-        <div
-          className={`flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium ${
-            form.isConfigured
-              ? "bg-success-soft text-success-fg"
-              : "bg-warning-soft text-warning"
-          }`}
-        >
-          <ShieldCheck className="h-3.5 w-3.5" />
-          {form.isConfigured ? "Configured" : "Not configured"}
+        <div className="flex flex-col items-end gap-1">
+          <div
+            className={`flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium ${
+              form.isConfigured
+                ? "bg-success-soft text-success-fg"
+                : "bg-warning-soft text-warning"
+            }`}
+          >
+            <ShieldCheck className="h-3.5 w-3.5" />
+            {form.isConfigured ? "Configured" : "Not configured"}
+          </div>
+          <div
+            className={`text-[10px] font-medium ${
+              form.connectionVerified ? "text-success-fg" : "text-muted-foreground"
+            }`}
+          >
+            {form.connectionVerified
+              ? "Connection tested — welcome emails enabled"
+              : "Test connection to enable welcome PIN emails"}
+          </div>
         </div>
       </div>
 

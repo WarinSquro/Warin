@@ -264,14 +264,33 @@ export type EmployeeWriteBody = {
   status?: "active" | "inactive";
 };
 
-export async function createEmployee(body: EmployeeWriteBody): Promise<Employee> {
+export type CreateEmployeeResult = Employee & {
+  welcomeEmailSent?: boolean;
+  welcomeEmailSkipped?: boolean;
+  welcomeEmailMessage?: string;
+  mustChangePin?: boolean;
+};
+
+export async function createEmployee(body: EmployeeWriteBody): Promise<CreateEmployeeResult> {
   const row = await apiFetch<
-    ApiEmployee & { resourceOwnerHrmsId?: string | null }
+    ApiEmployee & {
+      resourceOwnerHrmsId?: string | null;
+      welcomeEmailSent?: boolean;
+      welcomeEmailSkipped?: boolean;
+      welcomeEmailMessage?: string;
+      mustChangePin?: boolean;
+    }
   >("/employees", {
     method: "POST",
     body: JSON.stringify(body),
   });
-  return mapEmployeeRow(row);
+  return {
+    ...mapEmployeeRow(row),
+    welcomeEmailSent: row.welcomeEmailSent,
+    welcomeEmailSkipped: row.welcomeEmailSkipped,
+    welcomeEmailMessage: row.welcomeEmailMessage,
+    mustChangePin: row.mustChangePin,
+  };
 }
 
 export async function updateEmployee(
@@ -584,6 +603,8 @@ export type SmtpSettings = {
   passwordSet: boolean;
   authRequired: boolean;
   isConfigured: boolean;
+  connectionVerified?: boolean;
+  lastConnectionTestAt?: string | null;
 };
 
 export type SmtpSettingsPayload = {

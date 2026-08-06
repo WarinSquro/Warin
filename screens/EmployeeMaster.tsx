@@ -159,11 +159,22 @@ export function EmployeeMaster() {
           skills: emp.skills,
           resourceOwnerHrmsId: emp.resourceOwnerId ?? null,
           status: emp.status,
+        }).then((created) => {
+          toast.created();
+          if (created.welcomeEmailSent) {
+            toast.success(created.welcomeEmailMessage ?? "Welcome email with temporary PIN sent.");
+          } else if (created.welcomeEmailSkipped) {
+            toast.info(
+              created.welcomeEmailMessage ??
+                "SMTP not configured or not tested — welcome email was not sent."
+            );
+          } else if (created.welcomeEmailMessage) {
+            toast.warning(created.welcomeEmailMessage);
+          }
         });
         initEmptyEmployeeRights(emp.id);
         await refresh();
         setDrawerOpen(false);
-        toast.created();
       }
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Failed to save employee");

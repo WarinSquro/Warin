@@ -32,6 +32,20 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-06 08:35 IST
+
+**Prompt:**  
+> User Registration Enhancement – Automatic PIN Email & First Login Password Change (SMTP-gated welcome email; force PIN change on first login).
+
+**Output:**  
+- **Schema / migration** `20260806033000_welcome_pin_first_login`: `employees.must_change_pin`, `first_login_completed_at`; `smtp_settings.connection_verified` + `last_connection_test_at`; `welcome_pin_email_logs` (no plaintext PIN).  
+- **SMTP:** successful Test Connection / test email sets `connection_verified`; saving material SMTP changes clears it. UI badge shows welcome-email readiness.  
+- **Employee create:** if SMTP configured + verified → random non-weak 5-digit PIN (hashed), `mustChangePin=true`, welcome email with login URL + temp PIN, audit log; else keep legacy PIN `12345` / no email + admin info toast. PIN never returned in API.  
+- **Auth:** `login`/`me` return `mustChangePin`; `changePin`/`resetPin` clear flag + set `first_login_completed_at`.  
+- **UI:** `/change-pin` (`ChangePinRequired`); `ProtectedRoute` + AuthContext gate; Employee Master toasts for sent/skipped/failed welcome email.  
+- **Docs:** `scripts/generate-table-structure-xlsx.ts` + regenerated workbook; this prompt-log entry.  
+- **Note:** Local `prisma migrate deploy` needs Postgres up (`127.0.0.1:15432`); apply on Docker/EC2 before API restart.
+
 ### 2026-08-05 23:50 IST
 
 **Prompt:**  

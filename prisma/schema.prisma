@@ -79,6 +79,9 @@ model Employee {
   name            String
   email           String     @unique
   pinHash         String     @map("pin_hash")
+  /** True until user changes temporary PIN after welcome email / first login */
+  mustChangePin   Boolean    @default(false) @map("must_change_pin")
+  firstLoginCompletedAt DateTime? @map("first_login_completed_at")
   departmentId    BigInt?    @map("department_id")
   resourceOwnerId BigInt?    @map("resource_owner_id")
   status          EmpStatus  @default(active)
@@ -99,6 +102,7 @@ model Employee {
   skills             EmployeeSkill[]
   permissions        EmployeePermission[]
   pinResetTokens     PinResetToken[]
+  welcomePinEmails   WelcomePinEmailLog[]
   allocations              Allocation[]
   workConfirmations        WorkConfirmation[]
   confirmationProductivityDays ConfirmationProductivityDay[]
@@ -588,6 +592,9 @@ model SmtpSettings {
   passwordEncrypted  String?          @map("password_encrypted")
   authRequired       Boolean          @default(true) @map("auth_required")
   isConfigured       Boolean          @default(false) @map("is_configured")
+  /** Set true after successful Test SMTP Connection / test email; cleared when SMTP settings change */
+  connectionVerified Boolean          @default(false) @map("connection_verified")
+  lastConnectionTestAt DateTime?      @map("last_connection_test_at")
   isActive           Boolean          @default(true) @map("is_active")
   isDeleted          Boolean          @default(false) @map("is_deleted")
   deletedAt          DateTime?        @map("deleted_at")
@@ -598,6 +605,22 @@ model SmtpSettings {
   version            Int              @default(1)
 
   @@map("smtp_settings")
+}
+
+/** Audit log for welcome temporary-PIN emails (never stores plaintext PIN). */
+model WelcomePinEmailLog {
+  id           BigInt    @id @default(autoincrement())
+  employeeId   BigInt    @map("employee_id")
+  toEmail      String    @map("to_email")
+  status       String    // sent | failed
+  errorMessage String?   @map("error_message")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([createdAt])
+  @@map("welcome_pin_email_logs")
 }
 
 model PinResetToken {

@@ -69,6 +69,7 @@ export class AuthService {
         departmentId: employee.departmentId?.toString() ?? null,
         departmentName: employee.department?.name ?? null,
         permissionKeys: employee.isSuperAdmin ? permissionKeys : employee.permissions.map((p) => p.key),
+        mustChangePin: employee.mustChangePin,
       },
     });
   }
@@ -138,6 +139,7 @@ export class AuthService {
       departmentName: employee.department?.name ?? null,
       skills: employee.skills.map((s) => s.skill.name),
       permissionKeys: employee.isSuperAdmin ? ["*"] : employee.permissions.map((p) => p.key),
+      mustChangePin: employee.mustChangePin,
     });
   }
 
@@ -213,13 +215,20 @@ export class AuthService {
     if (!row) throw new UnauthorizedException("Invalid or expired reset token");
     const pinHash = await this.hashing.hash(pin);
     await this.prisma.$transaction([
-      this.prisma.employee.update({ where: { id: row.employeeId }, data: { pinHash } }),
+      this.prisma.employee.update({
+        where: { id: row.employeeId },
+        data: {
+          pinHash,
+          mustChangePin: false,
+          firstLoginCompletedAt: new Date(),
+        },
+      }),
       this.prisma.pinResetToken.update({ where: { id: row.id }, data: { usedAt: new Date() } }),
     ]);
     return { message: "PIN updated successfully." };
   }
 
-  /** Authenticated user changes their own PIN (Account Settings). */
+  /** Authenticated user changes their own PIN (Account Settings / first login). */
   async changePin(employeeId: string, currentPin: string, newPin: string) {
     if (currentPin === newPin) {
       throw new BadRequestException("New PIN must be different from the current PIN");
@@ -240,8 +249,12 @@ export class AuthService {
     const pinHash = await this.hashing.hash(newPin);
     await this.prisma.employee.update({
       where: { id: employee.id },
-      data: { pinHash },
+      data: {
+        pinHash,
+        mustChangePin: false,
+        firstLoginCompletedAt: employee.firstLoginCompletedAt ?? new Date(),
+      },
     });
-    return { ok: true, message: "PIN updated successfully." };
+    return { ok: true, message: "PIN updated successfully.", mustChangePin: false };
   }
 }

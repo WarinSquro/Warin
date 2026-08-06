@@ -30,6 +30,9 @@ export type SmtpSettingsDto = {
   passwordSet: boolean;
   authRequired: boolean;
   isConfigured: boolean;
+  /** True after a successful Test Connection / test email */
+  connectionVerified: boolean;
+  lastConnectionTestAt: string | null;
 };
 
 export type SmtpSettingsUpdateDto = {
@@ -175,6 +178,8 @@ export class SmtpSettingsService implements OnModuleInit {
       passwordSet: Boolean(row.passwordEncrypted),
       authRequired: row.authRequired,
       isConfigured: row.isConfigured,
+      connectionVerified: row.connectionVerified,
+      lastConnectionTestAt: row.lastConnectionTestAt?.toISOString() ?? null,
     };
   }
 
@@ -222,7 +227,18 @@ export class SmtpSettingsService implements OnModuleInit {
       hasPassword: dto.authRequired ? hasPassword : true,
     });
 
-    const updated = await this.prisma.smtpSettings.update({
+    // Any material settings change invalidates the last connection test.
+    const settingsChanged =
+      row.host !== dto.host.trim() ||
+      row.port !== dto.port ||
+      row.securityType !== (dto.securityType as PrismaSmtpSecurity) ||
+      row.senderName !== dto.senderName.trim() ||
+      row.senderEmail !== dto.senderEmail.trim().toLowerCase() ||
+      row.username !== (dto.username ?? "").trim() ||
+      row.authRequired !== dto.authRequired ||
+      Boolean(incoming);
+
+    await this.prisma.smtpSettings.update({
       where: { id: row.id },
       data: {
         host: dto.host.trim(),
@@ -234,6 +250,9 @@ export class SmtpSettingsService implements OnModuleInit {
         passwordEncrypted,
         authRequired: dto.authRequired,
         isConfigured,
+        ...(settingsChanged
+          ? { connectionVerified: false, lastConnectionTestAt: null }
+          : {}),
         modifiedBy: actorId ?? null,
         version: { increment: 1 },
       },
@@ -262,12 +281,25 @@ export class SmtpSettingsService implements OnModuleInit {
     };
   }
 
+  private async markConnectionVerified() {
+    const row = await this.ensureRow();
+    await this.prisma.smtpSettings.update({
+      where: { id: row.id },
+      data: {
+        connectionVerified: true,
+        lastConnectionTestAt: new Date(),
+        version: { increment: 1 },
+      },
+    });
+  }
+
   async testConnection(dto: SmtpSettingsUpdateDto): Promise<{ ok: true; message: string }> {
     const row = await this.ensureRow();
     this.validateUpdate(dto, Boolean(row.passwordEncrypted));
     const cfg = this.mergeDraft(dto, row.passwordEncrypted);
     try {
       await this.mail.verifyConnection(cfg);
+      await this.markConnectionVerified();
       return { ok: true, message: "SMTP connection successful." };
     } catch (e) {
       if (e instanceof SmtpNotConfiguredError) {
@@ -296,6 +328,7 @@ export class SmtpSettingsService implements OnModuleInit {
         html: "<p>This is a test email from <strong>Warin SMTP Settings</strong>.</p><p>Your configuration works.</p>",
         template: "smtp-test",
       });
+      await this.markConnectionVerified();
       return { ok: true, message: `Test email sent to ${to}.` };
     } catch (e) {
       if (e instanceof SmtpNotConfiguredError) {

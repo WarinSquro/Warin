@@ -26,7 +26,9 @@ const rows: Row[] = [
   { tableNo: 1, tableName: "employees", fieldNo: 1, fieldName: "id", dataType: "TEXT / VARCHAR", size: "50", defaultValue: "—", remarks: "HRMS employee ID (business key)", rule: "PK; Required; Unique; Format e.g. EMP-1042; Never change after create" },
   { tableNo: 1, tableName: "employees", fieldNo: 2, fieldName: "name", dataType: "TEXT / VARCHAR", size: "200", defaultValue: "—", remarks: "Display name (single field, no designation)", rule: "Required; Trim whitespace" },
   { tableNo: 1, tableName: "employees", fieldNo: 3, fieldName: "email", dataType: "TEXT / VARCHAR", size: "255", defaultValue: "—", remarks: "Work email used for login", rule: "Required; Unique; Lowercase; Valid email format" },
-  { tableNo: 1, tableName: "employees", fieldNo: 4, fieldName: "pin_hash", dataType: "TEXT / VARCHAR", size: "255", defaultValue: "—", remarks: "Bcrypt/argon2 hash of 5-digit PIN — never store plaintext", rule: "Required; Never return in API; Auth verify only via hash compare" },
+  { tableNo: 1, tableName: "employees", fieldNo: 4, fieldName: "pin_hash", dataType: "TEXT / VARCHAR", size: "255", defaultValue: "—", remarks: "argon2 hash of 5-digit PIN — never store plaintext", rule: "Required; Never return in API; Auth verify only via hash compare" },
+  { tableNo: 1, tableName: "employees", fieldNo: 12, fieldName: "must_change_pin", dataType: "BOOLEAN", size: "—", defaultValue: "false", remarks: "True until first-login PIN change after welcome email", rule: "Set true when temp PIN emailed; cleared on change-pin / reset-pin" },
+  { tableNo: 1, tableName: "employees", fieldNo: 13, fieldName: "first_login_completed_at", dataType: "TIMESTAMP", size: "—", defaultValue: "NULL", remarks: "When temporary PIN was replaced", rule: "Optional; Set on successful first PIN change" },
   { tableNo: 1, tableName: "employees", fieldNo: 5, fieldName: "department_id", dataType: "TEXT / VARCHAR", size: "50", defaultValue: "NULL", remarks: "FK → departments.id", rule: "Optional; FK; Indexed; Must exist if set" },
   { tableNo: 1, tableName: "employees", fieldNo: 6, fieldName: "resource_owner_id", dataType: "TEXT / VARCHAR", size: "50", defaultValue: "NULL", remarks: "Self-FK → employees.id (manager / RO)", rule: "Optional; FK self; Indexed; Must not create cycles in app logic" },
   { tableNo: 1, tableName: "employees", fieldNo: 7, fieldName: "status", dataType: "ENUM", size: "active | inactive", defaultValue: "active", remarks: "Disable never delete (preserve history)", rule: "Required; Enum EmpStatus; Soft-disable only" },
@@ -130,10 +132,22 @@ const rows: Row[] = [
   { tableNo: 12, tableName: "company_off_days", fieldNo: 2, fieldName: "date", dataType: "DATE", size: "—", defaultValue: "—", remarks: "Calendar date of off day", rule: "Required; Unique; DATE" },
   { tableNo: 12, tableName: "company_off_days", fieldNo: 3, fieldName: "label", dataType: "TEXT / VARCHAR", size: "200", defaultValue: "—", remarks: "Holiday name", rule: "Required" },
   { tableNo: 12, tableName: "company_off_days", fieldNo: 4, fieldName: "created_at", dataType: "TIMESTAMP", size: "—", defaultValue: "now()", remarks: "Row create time", rule: "System-set" },
+
+  // T13 smtp_settings (extra columns for welcome-email gate)
+  { tableNo: 13, tableName: "smtp_settings", fieldNo: 1, fieldName: "connection_verified", dataType: "BOOLEAN", size: "—", defaultValue: "false", remarks: "True after successful Test SMTP Connection", rule: "Required for welcome PIN emails; cleared when SMTP settings change" },
+  { tableNo: 13, tableName: "smtp_settings", fieldNo: 2, fieldName: "last_connection_test_at", dataType: "TIMESTAMP", size: "—", defaultValue: "NULL", remarks: "When connection was last verified", rule: "Optional" },
+
+  // T14 welcome_pin_email_logs
+  { tableNo: 14, tableName: "welcome_pin_email_logs", fieldNo: 1, fieldName: "id", dataType: "BIGINT", size: "—", defaultValue: "auto", remarks: "Log PK", rule: "PK" },
+  { tableNo: 14, tableName: "welcome_pin_email_logs", fieldNo: 2, fieldName: "employee_id", dataType: "BIGINT", size: "—", defaultValue: "—", remarks: "FK → employees.id", rule: "Required; FK; Cascade delete" },
+  { tableNo: 14, tableName: "welcome_pin_email_logs", fieldNo: 3, fieldName: "to_email", dataType: "TEXT", size: "—", defaultValue: "—", remarks: "Recipient email", rule: "Required; Never store plaintext PIN" },
+  { tableNo: 14, tableName: "welcome_pin_email_logs", fieldNo: 4, fieldName: "status", dataType: "TEXT", size: "sent | failed", defaultValue: "—", remarks: "Delivery outcome", rule: "Required" },
+  { tableNo: 14, tableName: "welcome_pin_email_logs", fieldNo: 5, fieldName: "error_message", dataType: "TEXT", size: "—", defaultValue: "NULL", remarks: "Failure detail if any", rule: "Optional; No PIN in message" },
+  { tableNo: 14, tableName: "welcome_pin_email_logs", fieldNo: 6, fieldName: "created_at", dataType: "TIMESTAMP", size: "—", defaultValue: "now()", remarks: "When email was attempted", rule: "System-set" },
 ];
 
 const tableIndex = [
-  { no: 1, name: "employees", purpose: "People + login (PIN hash) + super-admin flag" },
+  { no: 1, name: "employees", purpose: "People + login (PIN hash) + super-admin flag + must_change_pin" },
   { no: 2, name: "departments", purpose: "Organization master" },
   { no: 3, name: "skills", purpose: "Skill master" },
   { no: 4, name: "employee_skills", purpose: "Employee ↔ Skill many-to-many" },
@@ -145,6 +159,8 @@ const tableIndex = [
   { no: 10, name: "project_demand_lines", purpose: "Structured resource demand rows" },
   { no: 11, name: "app_settings", purpose: "System parameters (singleton)" },
   { no: 12, name: "company_off_days", purpose: "Company holidays / off days" },
+  { no: 13, name: "smtp_settings", purpose: "Product SMTP + connection_verified gate for welcome email" },
+  { no: 14, name: "welcome_pin_email_logs", purpose: "Audit of welcome temporary-PIN emails (no plaintext PIN)" },
 ];
 
 const enums = [
@@ -262,7 +278,10 @@ async function main() {
     ["Login identity", "employees.email (unique, lowercase)"],
     ["PIN storage", "employees.pin_hash only — never plaintext PIN column"],
     ["PIN format (app)", "Exactly 5 digits (UI); hash with bcrypt/argon2 at write time"],
-    ["Demo seed PIN", "12345 for all seeded users (dev only)"],
+    ["First login", "employees.must_change_pin; cleared on change-pin / reset-pin"],
+    ["Welcome email gate", "smtp_settings.is_configured AND connection_verified"],
+    ["Welcome email log", "welcome_pin_email_logs — never store plaintext PIN"],
+    ["Demo seed PIN", "12345 for all seeded users (dev only); used when SMTP welcome disabled"],
     ["Super admin", "employees.is_super_admin = true (e.g. admin@acme.io)"],
     ["Page access", "employee_permissions.key must match data/navConfig.ts keys"],
     ["Not in schema yet", "Planner allocations, confirmations, reports snapshots, weekly check-in"],

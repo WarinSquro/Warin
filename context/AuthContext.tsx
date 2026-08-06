@@ -23,6 +23,7 @@ type SessionUser = {
   isSuperAdmin: boolean;
   permissionKeys: string[];
   departmentName?: string | null;
+  mustChangePin?: boolean;
 };
 
 interface AuthContextValue {
@@ -31,9 +32,12 @@ interface AuthContextValue {
   isSuperAdmin: boolean;
   allowedKeys: Set<string>;
   isAuthenticated: boolean;
+  /** True when login requires forced PIN change before app access */
+  mustChangePin: boolean;
   /** Prefer signInWithPin for production API auth */
   signIn: (email: string) => void;
   signInWithPin: (email: string, pin: string) => Promise<string>;
+  clearMustChangePin: () => void;
   signOut: () => void;
   getDefaultLandingRoute: () => string;
   refreshAllowedKeys: () => void;
@@ -61,6 +65,11 @@ function loadUser(): SessionUser | null {
   }
 }
 
+function persistUser(su: SessionUser) {
+  sessionStorage.setItem(USER_KEY, JSON.stringify(su));
+  sessionStorage.setItem(SESSION_KEY, su.email);
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [sessionEmail, setSessionEmail] = useState<string | null>(() => {
     try {
@@ -85,11 +94,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           isSuperAdmin: u.isSuperAdmin,
           permissionKeys: u.permissionKeys ?? [],
           departmentName: u.departmentName,
+          mustChangePin: Boolean(u.mustChangePin),
         };
         setUser(su);
         setSessionEmail(su.email);
-        sessionStorage.setItem(USER_KEY, JSON.stringify(su));
-        sessionStorage.setItem(SESSION_KEY, su.email);
+        persistUser(su);
       })
       .catch(() => {
         clearTokens();
@@ -99,6 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   const isSuperAdmin = user?.isSuperAdmin === true;
+  const mustChangePin = Boolean(user?.mustChangePin);
 
   const currentEmployee = useMemo(() => (user ? toEmployee(user) : null), [user]);
 
@@ -132,16 +142,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isSuperAdmin: res.user.isSuperAdmin,
       permissionKeys: res.user.permissionKeys ?? [],
       departmentName: res.user.departmentName,
+      mustChangePin: Boolean(res.user.mustChangePin),
     };
     setUser(su);
     setSessionEmail(su.email);
     setKeysVersion((v) => v + 1);
-    sessionStorage.setItem(USER_KEY, JSON.stringify(su));
-    sessionStorage.setItem(SESSION_KEY, su.email);
-    const keys = su.isSuperAdmin || su.permissionKeys.includes("*")
-      ? new Set(getSuperAdminAssignableKeys())
-      : new Set(su.permissionKeys);
+    persistUser(su);
+    if (su.mustChangePin) return "/change-pin";
+    const keys =
+      su.isSuperAdmin || su.permissionKeys.includes("*")
+        ? new Set(getSuperAdminAssignableKeys())
+        : new Set(su.permissionKeys);
     return getFirstAllowedRoute(keys, su.isSuperAdmin) ?? "/access-denied";
+  }, []);
+
+  const clearMustChangePin = useCallback(() => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, mustChangePin: false };
+      try {
+        persistUser(next);
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
   }, []);
 
   const signOut = useCallback(() => {
@@ -167,9 +192,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const getDefaultLandingRoute = useCallback(() => {
+    if (mustChangePin) return "/change-pin";
     const route = getFirstAllowedRoute(allowedKeys, isSuperAdmin);
     return route ?? "/access-denied";
-  }, [allowedKeys, isSuperAdmin]);
+  }, [allowedKeys, isSuperAdmin, mustChangePin]);
 
   const value = useMemo(
     (): AuthContextValue => ({
@@ -178,8 +204,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isSuperAdmin,
       allowedKeys,
       isAuthenticated: Boolean(user && sessionEmail),
+      mustChangePin,
       signIn,
       signInWithPin,
+      clearMustChangePin,
       signOut,
       getDefaultLandingRoute,
       refreshAllowedKeys,
@@ -189,8 +217,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       currentEmployee,
       isSuperAdmin,
       allowedKeys,
+      mustChangePin,
       signIn,
       signInWithPin,
+      clearMustChangePin,
       signOut,
       getDefaultLandingRoute,
       refreshAllowedKeys,

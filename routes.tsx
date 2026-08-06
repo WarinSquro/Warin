@@ -25,13 +25,15 @@ import { WeeklyCheckInHistory } from "./screens/WeeklyCheckInHistory";
 import { WeeklyCheckInConfig } from "./screens/WeeklyCheckInConfig";
 import { KpiFramework } from "./screens/KpiFramework";
 import { KpiResults } from "./screens/KpiResults";
+import { ChangePinRequired } from "./screens/ChangePinRequired";
 import { AccessRights } from "./screens/AccessRights";
 import { AccessDenied } from "./screens/AccessDenied";
 import { AccountSettings } from "./screens/AccountSettings";
 
 function DefaultRedirect() {
-  const { isAuthenticated, getDefaultLandingRoute } = useAuth();
+  const { isAuthenticated, getDefaultLandingRoute, mustChangePin } = useAuth();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (mustChangePin) return <Navigate to="/change-pin" replace />;
   return <Navigate to={getDefaultLandingRoute()} replace />;
 }
 
@@ -108,6 +110,7 @@ export function AppRoutes() {
       <Route path="/login" element={<Login />} />
       <Route path="/forgot-pin" element={<ForgotPin />} />
       <Route path="/reset-pin" element={<ResetPin />} />
+      <Route path="/change-pin" element={<ChangePinRequired />} />
       <Route path="/*" element={<AppShellRoutes />} />
     </Routes>
   );
