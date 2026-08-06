@@ -295,6 +295,7 @@ export function ResourcePerformanceReport() {
         summary.totalAvailableCapacityHrs,
       ],
       orientation: "landscape",
+      dateFormat: settings.dateFormat,
     };
   };
 

@@ -138,7 +138,7 @@ export class SettingsController {
       orderBy: { date: "asc" },
     });
     const prev = snapshotFromDb(beforeSettings, beforeOffDays);
-    const payload = payloadFromBody(body, prev.companyOffDays);
+    const payload = payloadFromBody(body, prev.companyOffDays, prev.dateFormat);
 
     const employee = await this.prisma.employee.findFirst({
       where: { id: BigInt(req.user.sub), isDeleted: false },

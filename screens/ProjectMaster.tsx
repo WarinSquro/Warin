@@ -14,6 +14,8 @@ import { useMasters } from "../context/MastersContext";
 import { useToast } from "../context/ToastContext";
 import { useFocusFirstField } from "../hooks/useFocusFirstField";
 import { matchesSearchQuery } from "../utils/textSearch";
+import { formatAppDate } from "../utils/formatAppDate";
+import { useAppDateFormat } from "../hooks/useAppDateFormat";
 
 type Tab = "active" | "inactive";
 type ProjectSortKey = "project" | "customer" | "kickoff" | "timeline" | "milestones" | "demand";
@@ -86,10 +88,9 @@ function TypeBadge({ type }: { type: Project["type"] }) {
   );
 }
 
-function fmtDate(iso: string) {
+function fmtDate(iso: string, pattern = "dd/MM/yyyy") {
   if (!iso) return "—";
-  const d = new Date(iso);
-  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" });
+  return formatAppDate(iso, pattern as "dd/MM/yyyy" | "MM/dd/yyyy" | "yyyy-MM-dd" | "dd-MMM-yyyy");
 }
 
 // ─── row ────────────────────────────────────────────────────────────────────
@@ -105,6 +106,7 @@ function ProjectRow({
   onEdit: () => void;
   onToggle: () => void;
 }) {
+  const { formatDate } = useAppDateFormat();
   const inactive = p.status === "inactive";
   const noMilestones = p.milestones.length === 0;
 
@@ -138,13 +140,13 @@ function ProjectRow({
       </div>
 
       {/* KICKOFF */}
-      <div className="w-[100px] text-[12px] text-foreground">{fmtDate(p.kickoffDate)}</div>
+      <div className="w-[100px] text-[12px] text-foreground">{formatDate(p.kickoffDate)}</div>
 
       {/* TIMELINE */}
       <div className="w-[160px] text-[12px] text-foreground">
-        <span>{fmtDate(p.startDate)}</span>
+        <span>{formatDate(p.startDate)}</span>
         <span className="mx-1 text-muted-foreground">–</span>
-        <span>{fmtDate(p.endDate)}</span>
+        <span>{formatDate(p.endDate)}</span>
       </div>
 
       {/* MILESTONES */}

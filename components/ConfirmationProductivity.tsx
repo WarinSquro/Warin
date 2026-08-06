@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Pause, Play, Square } from "lucide-react";
+import { useSettings } from "../context/SettingsContext";
+import { formatAppDate } from "../utils/formatAppDate";
 import {
   WORKDAY_ACTIONS,
   type DayProductivity,
@@ -25,34 +27,46 @@ export function WorkdayTimelinePanel({
   onStamp,
   disabled = false,
   disabledReason,
+  selectedDate,
+  dateLabel,
 }: {
   marks: DayProductivity["workday"];
   onStamp: (key: WorkdayMarkKey) => void;
   /** When true (e.g. company holiday), all actions stay disabled. */
   disabled?: boolean;
   disabledReason?: string;
+  /** ISO date shown in the timeline header (from calendar selection). */
+  selectedDate?: string;
+  dateLabel?: string;
 }) {
+  const { settings } = useSettings();
+  const dateFmt = settings.dateFormat ?? "dd/MM/yyyy";
   const { officeMs, lunchMs, productiveMs } = workdayDurationMs(marks);
   const allowed = disabled ? [] : allowedWorkdayActionKeys(marks);
   const lunchSkipped = isLunchSkipped(marks);
   const lunchTaken = Boolean(marks.lunchOut && marks.lunchIn);
+  const heading =
+    dateLabel ||
+    formatAppDate(selectedDate || todayIsoLocal(), dateFmt);
 
   return (
     <div
       className={`rounded-lg border border-border bg-surface p-3 shadow-sm ${
         disabled ? "opacity-70" : ""
       }`}
+      title={disabled && disabledReason ? disabledReason : undefined}
+      aria-disabled={disabled || undefined}
     >
       <div className="mb-1 flex items-baseline justify-between gap-2">
         <div className="text-[12px] font-semibold text-foreground">Workday Timeline</div>
         <div className="text-[11px] text-muted-foreground">
-          {disabled ? disabledReason || "Unavailable" : "Today"}
+          {heading}
         </div>
       </div>
-      <div className="mb-2.5 text-[11px] leading-snug text-muted-foreground">
+      <div className="mb-2 text-[11px] leading-snug text-muted-foreground">
         Lunch is optional. After Day Start you can take lunch or check out directly.
       </div>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-1.5">
         {WORKDAY_ACTIONS.map(({ key, label }) => {
           const stamped = !!marks[key];
           const isLunchStep = key === "lunchOut" || key === "lunchIn";
@@ -75,7 +89,7 @@ export function WorkdayTimelinePanel({
                 if (disabled || !canStampWorkdayAction(marks, key)) return;
                 onStamp(key);
               }}
-              className={`relative rounded-md border px-2.5 py-2.5 pb-6 text-left transition-colors ${
+              className={`relative rounded-md border px-2 py-1.5 pb-5 text-left transition-colors ${
                 stamped
                   ? "cursor-default border-border-soft bg-surface-alt"
                   : skipped
@@ -260,6 +274,8 @@ export function ConfirmationDayCalendar({
   liveWorkHours: number;
   liveFocusMs: number;
 }) {
+  const { settings } = useSettings();
+  const dateFmt = settings.dateFormat ?? "dd/MM/yyyy";
   const selected = useMemo(() => new Date(`${selectedDate}T12:00:00`), [selectedDate]);
   const [viewYear, setViewYear] = useState(selected.getFullYear());
   const [viewMonth, setViewMonth] = useState(selected.getMonth());
@@ -346,7 +362,7 @@ export function ConfirmationDayCalendar({
       </div>
       <div className="mt-3 space-y-1.5 border-t border-border-soft pt-2.5">
         <div className="text-[12px] font-semibold text-foreground">
-          {selectedDate === todayIsoLocal() ? "Today" : formatDayHeading(selectedDate)}
+          {formatAppDate(selectedDate, dateFmt)}
         </div>
         <div className="flex items-center justify-between text-[11px]">
           <span className="text-muted-foreground">Total (Planned/Unplan.) Work Hours</span>
@@ -370,12 +386,6 @@ function formatHoursLabel(hours: number): string {
   const h = Math.floor(hours);
   const m = Math.round((hours - h) * 60);
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-}
-
-function formatDayHeading(iso: string): string {
-  const d = new Date(`${iso}T12:00:00`);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }
 
 function todayIsoLocal() {

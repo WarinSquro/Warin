@@ -32,6 +32,49 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-06 15:50 IST
+
+**Prompt:**  
+> KPI Results — make first 3 summary cards clickable (Total KPIs → All, Pending → Pending, Completed → Completed).
+
+**Output:**  
+- `SummaryCard` supports optional `onClick` / `active`; Total / Pending / Completed set the same `statusTab` as the All / Pending / Completed segmented control. Final Achievement unchanged.
+
+### 2026-08-06 15:40 IST
+
+**Prompt:**  
+> Confirmation > Team Compliance > Deviation Feed — show Date of deviation instead of time for each employee.
+
+**Output:**  
+- API team compliance deviation feed now returns `workDate` (ISO) instead of submission `time`.  
+- `DeviationEntry` / client types updated; UI formats with Settings date format via `useAppDateFormat`.  
+- Mock `DEVIATION_FEED` updated accordingly.
+
+### 2026-08-06 15:30 IST
+
+**Prompt:**  
+> UI/UX: remove “Default” from Date Format dropdown; all Date & Time = Settings date format + 12h `hh:mm AM/PM`; Workday Timeline header always shows selected calendar date (no “Select today’s date to stamp”).
+
+**Output:**  
+- Settings dropdown options are format values only; example shows datetime (`formatAppDateTime`).  
+- Added `formatAppTime12h` / `formatAppDateTime` (`utils/formatAppDate.ts`); hook exposes `formatDateTime`.  
+- Applied to Settings audit, My Workspace refresh, Weekly Check-In submitted/snapshot, KPI Results updated-on, Work Confirmation submitted-at, report PDF “Generated” timestamps (via `dateFormat` on export input).  
+- Workday Timeline header always renders selected date in Settings format; removed instructional stamp text from header path. Calendar summary date uses Settings format too.  
+- Prompt log updated.
+
+### 2026-08-06 13:40 IST
+
+**Prompt:**  
+> UI/UX & Functional Enhancements: (1) Settings → Date Format (dd/MM/yyyy default) applied globally; (2) Weekly Check-In previous-week default, “Your Assessment” dropdowns, history excludes current week; (3) System Parameters Review & Save dynamic impact message; (4) Work Confirmation timeline selected date + shorter Day Start/Lunch/Day End buttons; (5) Confirmation Discipline card never shows Administrator / no RO fallback.
+
+**Output:**  
+- **Date format:** `app_settings.date_format` + migration `20260806090000_app_settings_date_format`; Settings UI card; API payload/snapshot/apply; `utils/formatAppDate.ts`, `hooks/useAppDateFormat.ts`; wired Settings/Work Confirmation/Project Master/Daily Work Report (+ exports) and related helpers. Excel `01_Table_Fields` patched via `scripts/patch-date-format-xlsx.mjs`. `npx prisma migrate deploy` applied (also pending welcome-PIN migration).
+- **Weekly Check-In:** Queue/Workspace default `addWeeks(getCurrentWeekStart(), -1)`; panel title **Your Assessment**; Status/Confidence/Recognition → native selects; history builders exclude current week.
+- **System Parameters:** `utils/settingsImpact.ts` + live util rows in ImpactModal; dynamic summary / empty-impact copy (removed hard-coded “8 people”).
+- **Work Confirmation:** Timeline shows selected calendar date (`dateLabel`); always visible; stamp disabled off today; button padding reduced (`py-1.5` / tighter gaps).
+- **Confirmation Discipline:** `getWorstConfirmationDisciplineEmployees` excludes EMP-0001/Administrator and rows without an assigned RO.
+- Validation: migrate OK; frontend `tsc` only pre-existing test typing issue unrelated to this change.
+
 ### 2026-08-06 08:35 IST
 
 **Prompt:**  

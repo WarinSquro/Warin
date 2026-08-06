@@ -4,7 +4,7 @@ import type { Project, ProjectType, MilestoneKind } from "../data/projects";
 import type { Activity, ActivityMilestone, Department, Skill, SetupStatus } from "../data/setup";
 import type { SettingsState } from "../data/settings";
 import { DEFAULT_SETTINGS } from "../data/settings";
-import { formatAuditWhen, type SettingsAuditEntry } from "../utils/settingsAudit";
+import { type SettingsAuditEntry } from "../utils/settingsAudit";
 
 function isoDate(v: string | Date | null | undefined): string {
   if (!v) return "";
@@ -103,6 +103,7 @@ type ApiSettingsResponse = {
     workingHoursPerDay: number;
     workingDays: string[];
     demandPriority: string[];
+    dateFormat?: string;
   } | null;
   companyOffDays: { id: string; date: string; label: string }[];
 };
@@ -203,6 +204,14 @@ export function mapApiProject(p: ApiProject): Project {
   };
 }
 
+function normalizeDateFormat(
+  raw: string | undefined
+): SettingsState["dateFormat"] {
+  const allowed = new Set(["dd/MM/yyyy", "MM/dd/yyyy", "yyyy-MM-dd", "dd-MMM-yyyy"]);
+  if (raw && allowed.has(raw)) return raw as SettingsState["dateFormat"];
+  return DEFAULT_SETTINGS.dateFormat;
+}
+
 export function mapApiSettings(res: ApiSettingsResponse): SettingsState {
   const s = res.settings;
   if (!s) return { ...DEFAULT_SETTINGS, companyOffDays: [] };
@@ -218,6 +227,7 @@ export function mapApiSettings(res: ApiSettingsResponse): SettingsState {
     workingHoursPerDay: s.workingHoursPerDay,
     workingDays: s.workingDays,
     demandPriority: s.demandPriority,
+    dateFormat: normalizeDateFormat(s.dateFormat),
     companyOffDays: (res.companyOffDays ?? []).map((d) => ({
       id: String(d.id),
       date: isoDate(d.date),
@@ -530,6 +540,7 @@ export async function putSettings(body: {
   overallocationLimit: number;
   workingHoursPerDay: number;
   workingDays: string[];
+  dateFormat: string;
   companyOffDays: { date: string; label: string }[];
 }) {
   return apiFetch<ApiSettingsResponse>("/settings", {
@@ -546,7 +557,7 @@ export async function fetchSettingsAudit(limit = 100): Promise<SettingsAuditEntr
     id: e.id,
     who: e.who,
     what: e.what,
-    when: formatAuditWhen(e.createdAt),
+    when: e.createdAt,
   }));
 }
 
@@ -574,6 +585,7 @@ export async function createSettingsSchedule(
     overallocationLimit: number;
     workingHoursPerDay: number;
     workingDays: string[];
+    dateFormat: string;
     companyOffDays: { date: string; label: string }[];
     effectiveDate: string;
   }
@@ -786,7 +798,7 @@ export type TeamComplianceResponse = {
     planned: number;
     actual: number;
     reason: string;
-    time: string;
+    workDate: string;
   }[];
 };
 

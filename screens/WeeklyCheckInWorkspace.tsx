@@ -39,13 +39,15 @@ import {
   submitWeeklyCheckInApi,
 } from "../api/domain";
 import { useFocusFirstField } from "../hooks/useFocusFirstField";
+import { useAppDateFormat } from "../hooks/useAppDateFormat";
 
 export function WeeklyCheckInWorkspace() {
   const { employeeId = "" } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
-  const weekStart = searchParams.get("week") ?? getCurrentWeekStart();
+  const weekStart = searchParams.get("week") ?? addWeeks(getCurrentWeekStart(), -1);
   const navigate = useNavigate();
   const toast = useToast();
+  const { formatDateTime } = useAppDateFormat();
   const { currentEmployee, isSuperAdmin } = useAuth();
   const { employees, loading: employeesLoading } = useEmployees();
   const { departments } = useMasters();
@@ -329,7 +331,7 @@ export function WeeklyCheckInWorkspace() {
 
           <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
             <h2 className="flex-shrink-0 border-b border-border-soft px-4 py-3 text-[12px] font-medium text-muted-foreground">
-              Review
+              Your Assessment
             </h2>
             <div ref={(el) => { reviewFocusRef.current = el; reviewScrollRef.current = el; }} className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4">
               {techComps.length === 0 && behComps.length === 0 ? (
@@ -361,58 +363,70 @@ export function WeeklyCheckInWorkspace() {
               )}
 
               <div className="space-y-3">
-                <WeeklyCheckInStatusPicker
-                  value={weeklyStatus}
-                  onChange={setWeeklyStatus}
-                  disabled={viewOnly}
-                />
-                <WeeklyConfidencePicker
-                  value={confidence}
-                  onChange={setConfidence}
-                  disabled={viewOnly}
-                />
-                <WeeklyRecognitionPicker
-                  value={recognition}
-                  onChange={setRecognition}
-                  disabled={viewOnly}
-                />
+                <div>
+                  <label className="mb-1.5 block text-[12px] font-semibold text-foreground">Weekly Status</label>
+                  <WeeklyCheckInStatusPicker
+                    value={weeklyStatus}
+                    onChange={setWeeklyStatus}
+                    disabled={viewOnly}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-[12px] font-semibold text-foreground">Confidence</label>
+                  <WeeklyConfidencePicker
+                    value={confidence}
+                    onChange={setConfidence}
+                    disabled={viewOnly}
+                  />
+                </div>
+                <div>
+                  <div className="mb-1.5 flex items-center justify-between gap-2">
+                    <label className="text-[12px] font-semibold text-foreground">
+                      RO Remarks <span className="font-normal text-danger">*</span>
+                    </label>
+                    <span className="text-[11px] text-muted-foreground">
+                      {Math.min(roRemarks.length, 100)}/100
+                    </span>
+                  </div>
+                  <textarea
+                    value={roRemarks}
+                    disabled={viewOnly}
+                    maxLength={100}
+                    onChange={(e) => setRoRemarks(e.target.value)}
+                    rows={4}
+                    placeholder="Coaching observations based on evidence..."
+                    className="w-full rounded-md border border-border bg-surface px-3 py-2 text-[12px] text-foreground outline-none focus:border-accent-line disabled:bg-surface-alt"
+                  />
+                  <div className="mt-1 text-[10px] text-muted-foreground">
+                    Min {MIN_REMARKS_LENGTH} characters
+                  </div>
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-[12px] font-semibold text-foreground">Recognition</label>
+                  <WeeklyRecognitionPicker
+                    value={recognition}
+                    onChange={setRecognition}
+                    disabled={viewOnly}
+                  />
+                </div>
               </div>
 
               <div>
-                <label className="mb-1 block text-[11px] font-medium text-muted">
-                  RO remarks <span className="text-danger">*</span>
-                  <span className="ml-1 font-normal text-muted-foreground">
-                    (min {MIN_REMARKS_LENGTH})
-                  </span>
-                </label>
-                <textarea
-                  value={roRemarks}
+                <label className="mb-1 block text-[12px] font-semibold text-foreground">Action Type</label>
+                <select
+                  value={actionType}
                   disabled={viewOnly}
-                  onChange={(e) => setRoRemarks(e.target.value)}
-                  rows={4}
-                  className="w-full rounded-md border border-border bg-surface px-3 py-2 text-[12px] text-foreground outline-none focus:border-accent-line disabled:bg-surface-alt"
-                />
-                <div className="mt-1 text-[10px] text-muted-foreground">{roRemarks.trim().length} chars</div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1 block text-[11px] font-medium text-muted">Action type</label>
-                  <select
-                    value={actionType}
-                    disabled={viewOnly}
-                    onChange={(e) => setActionType(e.target.value)}
-                    className="w-full rounded-md border border-border bg-surface px-2.5 py-2 text-[12px] text-foreground outline-none focus:border-accent-line disabled:bg-surface-alt"
-                  >
-                    {actionTypes.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                  onChange={(e) => setActionType(e.target.value)}
+                  className="w-full rounded-md border border-border bg-surface px-2.5 py-2 text-[12px] text-foreground outline-none focus:border-accent-line disabled:bg-surface-alt"
+                >
+                  {actionTypes.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
                 {actionType !== "None" && (
-                  <div className="col-span-2">
+                  <div className="mt-3">
                     <label className="mb-1 block text-[11px] font-medium text-muted">
                       Action notes (min {MIN_REMARKS_LENGTH})
                     </label>
@@ -447,7 +461,7 @@ export function WeeklyCheckInWorkspace() {
               )}
               {viewOnly && (
                 <div className="rounded-md border border-success-border bg-success-soft px-3 py-2 text-center text-[12px] text-success">
-                  Submitted {new Date(existing!.submittedAt).toLocaleString()}
+                  Submitted {formatDateTime(existing!.submittedAt)}
                 </div>
               )}
             </div>

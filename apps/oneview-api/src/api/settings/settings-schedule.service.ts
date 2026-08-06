@@ -22,6 +22,7 @@ export type SettingsPayload = {
   overallocationLimit: number;
   workingHoursPerDay: number;
   workingDays: string[];
+  dateFormat: string;
   companyOffDays: { date: string; label: string }[];
 };
 
@@ -35,8 +36,16 @@ export type SettingsSnapshot = {
   overallocationLimit: number;
   workingHoursPerDay: number;
   workingDays: string[];
+  dateFormat: string;
   companyOffDays: { date: string; label: string }[];
 };
+
+const DATE_FORMATS = new Set(["dd/MM/yyyy", "MM/dd/yyyy", "yyyy-MM-dd", "dd-MMM-yyyy"]);
+
+function normalizeDateFormat(raw: unknown, fallback = "dd/MM/yyyy"): string {
+  const v = typeof raw === "string" ? raw.trim() : "";
+  return DATE_FORMATS.has(v) ? v : fallback;
+}
 
 export function parseDate(iso: string): Date {
   return new Date(`${iso.slice(0, 10)}T00:00:00.000Z`);
@@ -72,11 +81,16 @@ export function snapshotFromDb(settings: AppSettings, offDays: CompanyOffDay[]):
     overallocationLimit: settings.overallocationLimit,
     workingHoursPerDay: settings.workingHoursPerDay,
     workingDays: [...settings.workingDays],
+    dateFormat: normalizeDateFormat(settings.dateFormat),
     companyOffDays: offDays.map((d) => ({ date: dateKey(d.date), label: d.label })),
   };
 }
 
-export function payloadFromBody(body: Record<string, unknown>, fallbackOffDays: { date: string; label: string }[]): SettingsPayload {
+export function payloadFromBody(
+  body: Record<string, unknown>,
+  fallbackOffDays: { date: string; label: string }[],
+  fallbackDateFormat = "dd/MM/yyyy"
+): SettingsPayload {
   const capacityBasis =
     body.capacityBasis === "total" || body.capacityBasis === "billable"
       ? body.capacityBasis
@@ -99,6 +113,7 @@ export function payloadFromBody(body: Record<string, unknown>, fallbackOffDays: 
     workingDays: Array.isArray(body.workingDays)
       ? (body.workingDays as string[])
       : ["Mon", "Tue", "Wed", "Thu", "Fri"],
+    dateFormat: normalizeDateFormat(body.dateFormat, fallbackDateFormat),
     companyOffDays,
   };
 }
@@ -133,6 +148,9 @@ export function describeSettingsChanges(prev: SettingsSnapshot, next: SettingsSn
   }
   if (prev.workingDays.join(",") !== next.workingDays.join(",")) {
     changes.push(`Working days ${prev.workingDays.join(", ")} → ${next.workingDays.join(", ")}`);
+  }
+  if (prev.dateFormat !== next.dateFormat) {
+    changes.push(`Date format ${prev.dateFormat} → ${next.dateFormat}`);
   }
 
   const prevOff = new Map(prev.companyOffDays.map((d) => [d.date, d.label]));
@@ -212,6 +230,7 @@ export class SettingsScheduleService {
         overallocationLimit: payload.overallocationLimit,
         workingHoursPerDay: payload.workingHoursPerDay,
         workingDays: payload.workingDays,
+        dateFormat: payload.dateFormat,
         ...(modifiedBy != null ? { modifiedBy } : {}),
         version: { increment: 1 },
       },
@@ -293,7 +312,7 @@ export class SettingsScheduleService {
       orderBy: { date: "asc" },
     });
     const prev = snapshotFromDb(beforeSettings, beforeOffDays);
-    const payload = payloadFromBody(body, prev.companyOffDays);
+    const payload = payloadFromBody(body, prev.companyOffDays, prev.dateFormat);
     const next: SettingsSnapshot = { ...payload };
     const changes = describeSettingsChanges(prev, next);
     if (changes.length === 0) {

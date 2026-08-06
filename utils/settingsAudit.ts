@@ -1,19 +1,20 @@
 // System Parameters change history — durable via API / Postgres (FR-616).
-import type { CompanyOffDay, SettingsState } from "../data/settings";
+import type { CompanyOffDay, DateFormatPattern, SettingsState } from "../data/settings";
+import { formatAppDateTime } from "./formatAppDate";
 
 export interface SettingsAuditEntry {
   id: string;
   who: string;
   what: string;
+  /** ISO timestamp from API — format for display with Settings date format. */
   when: string;
 }
 
-export function formatAuditWhen(isoOrDate: string | Date): string {
-  const d = typeof isoOrDate === "string" ? new Date(isoOrDate) : isoOrDate;
-  if (Number.isNaN(d.getTime())) return String(isoOrDate);
-  const date = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-  const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-  return `${date} · ${time}`;
+export function formatAuditWhen(
+  isoOrDate: string | Date,
+  pattern: DateFormatPattern = "dd/MM/yyyy"
+): string {
+  return formatAppDateTime(isoOrDate, pattern);
 }
 
 function offDaySetLabel(days: CompanyOffDay[]): Map<string, string> {
@@ -50,6 +51,9 @@ export function describeSettingsChanges(prev: SettingsState, next: SettingsState
   }
   if (prev.workingDays.join(",") !== next.workingDays.join(",")) {
     changes.push(`Working days ${prev.workingDays.join(", ")} → ${next.workingDays.join(", ")}`);
+  }
+  if (prev.dateFormat !== next.dateFormat) {
+    changes.push(`Date format ${prev.dateFormat} → ${next.dateFormat}`);
   }
 
   const prevOff = offDaySetLabel(prev.companyOffDays);

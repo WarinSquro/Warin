@@ -19,23 +19,18 @@ export function WeeklyCheckInStatusPicker({
 }: WeeklyCheckInStatusPickerProps) {
   const options: WeeklyStatus[] = ["On Track", "Watch", "Intervention Required"];
   return (
-    <div className="flex flex-wrap gap-2">
+    <select
+      value={value}
+      disabled={disabled}
+      onChange={(e) => onChange(e.target.value as WeeklyStatus)}
+      className="w-full cursor-pointer rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line disabled:cursor-not-allowed disabled:opacity-60"
+    >
       {options.map((opt) => (
-        <button
-          key={opt}
-          type="button"
-          disabled={disabled}
-          onClick={() => onChange(opt)}
-          className={`rounded-md border px-3 py-1.5 text-[12px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
-            value === opt
-              ? STATUS_STYLES[opt]
-              : "border-border bg-surface text-muted-foreground hover:bg-surface-alt"
-          }`}
-        >
+        <option key={opt} value={opt}>
           {opt}
-        </button>
+        </option>
       ))}
-    </div>
+    </select>
   );
 }
 
@@ -124,28 +119,21 @@ interface ConfidencePickerProps {
   disabled?: boolean;
 }
 
-const SEGMENT_SELECTED = "border-primary bg-primary text-primary-foreground";
-const SEGMENT_IDLE =
-  "border-border bg-surface text-muted-foreground hover:bg-surface-alt";
-
 export function WeeklyConfidencePicker({ value, onChange, disabled }: ConfidencePickerProps) {
   const options = ["High", "Medium", "Low"] as const;
   return (
-    <div className="flex flex-wrap gap-2">
+    <select
+      value={value}
+      disabled={disabled}
+      onChange={(e) => onChange(e.target.value as "High" | "Medium" | "Low")}
+      className="w-full cursor-pointer rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line disabled:cursor-not-allowed disabled:opacity-60"
+    >
       {options.map((opt) => (
-        <button
-          key={opt}
-          type="button"
-          disabled={disabled}
-          onClick={() => onChange(opt)}
-          className={`rounded-md border px-3 py-1.5 text-[12px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
-            value === opt ? SEGMENT_SELECTED : SEGMENT_IDLE
-          }`}
-        >
+        <option key={opt} value={opt}>
           {opt}
-        </button>
+        </option>
       ))}
-    </div>
+    </select>
   );
 }
 
@@ -158,20 +146,17 @@ interface RecognitionPickerProps {
 export function WeeklyRecognitionPicker({ value, onChange, disabled }: RecognitionPickerProps) {
   const options = ["None", "Appreciate", "Appreciate Publicly"] as const;
   return (
-    <div className="flex flex-wrap gap-2">
+    <select
+      value={value}
+      disabled={disabled}
+      onChange={(e) => onChange(e.target.value as "None" | "Appreciate" | "Appreciate Publicly")}
+      className="w-full cursor-pointer rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line disabled:cursor-not-allowed disabled:opacity-60"
+    >
       {options.map((opt) => (
-        <button
-          key={opt}
-          type="button"
-          disabled={disabled}
-          onClick={() => onChange(opt)}
-          className={`rounded-md border px-3 py-1.5 text-[12px] disabled:cursor-not-allowed disabled:opacity-60 ${
-            value === opt ? SEGMENT_SELECTED : SEGMENT_IDLE
-          }`}
-        >
+        <option key={opt} value={opt}>
           {opt}
-        </button>
+        </option>
       ))}
-    </div>
+    </select>
   );
 }

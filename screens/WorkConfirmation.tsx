@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Check, Plus, X, CheckCircle2, Bell } from "lucide-react";
+import { formatAppDate, formatAppDateTime } from "../utils/formatAppDate";
+import { useAppDateFormat } from "../hooks/useAppDateFormat";
 import {
   DEVIATION_REASONS,
   MISS_POSTING_REASONS,
@@ -120,7 +122,9 @@ type Mode = "mine" | "team";
 export function WorkConfirmation() {
   const [mode, setMode] = useState<Mode>("mine");
   const today = todayISO();
-  const todayLabel = formatPlanDate(today);
+  const { settings } = useSettings();
+  const dateFmt = settings.dateFormat ?? "dd/MM/yyyy";
+  const todayLabel = formatPlanDate(today, dateFmt);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -164,6 +168,7 @@ function initLineStates(lines: PlannedLine[]): Record<string, LineState> {
 function EmployeeConfirm() {
   const { currentEmployee } = useAuth();
   const { settings } = useSettings();
+  const dateFmt = settings.dateFormat ?? "dd/MM/yyyy";
   const toast = useToast();
   const today = todayISO();
   const [activeLines, setActiveLines] = useState<PlannedLine[]>(EMPTY_LINES);
@@ -474,7 +479,7 @@ function EmployeeConfirm() {
           setStates(hydrated.states);
           setUnplanned(hydrated.unplanned);
           setSubmitted(true);
-          setSubmittedAtLabel(existing.submittedAtLabel);
+          setSubmittedAtLabel(formatAppDateTime(existing.submittedAt, dateFmt));
           setPlanHeading("Your plan for today");
           setMissedPosting(existing.isMissedPosting);
           setMissReason(existing.missReason ?? "");
@@ -547,10 +552,10 @@ function EmployeeConfirm() {
         setUnplanned(hydrated.unplanned);
         // Stay in edit mode — do not bounce to the confirmed summary screen.
         setSubmitted(false);
-        setSubmittedAtLabel(existing.submittedAtLabel);
+        setSubmittedAtLabel(formatAppDateTime(existing.submittedAt, dateFmt));
         setFetchedMissDate(missDate);
         setCalendarDate(missDate);
-        setPlanHeading(`Your plan for ${formatPlanDate(missDate)}`);
+        setPlanHeading(`Your plan for ${formatPlanDate(missDate, dateFmt)}`);
         return;
       }
       const lines = await loadPlanForDate(missDate);
@@ -565,7 +570,7 @@ function EmployeeConfirm() {
       setSubmittedAtLabel("");
       setFetchedMissDate(missDate);
       setCalendarDate(missDate);
-      setPlanHeading(`Your plan for ${formatPlanDate(missDate)}`);
+      setPlanHeading(`Your plan for ${formatPlanDate(missDate, dateFmt)}`);
     } catch (e) {
       setFetchError(e instanceof Error ? e.message : "Failed to load plan");
     }
@@ -649,7 +654,7 @@ function EmployeeConfirm() {
         lines,
       });
       setSubmitted(true);
-      setSubmittedAtLabel(saved.submittedAtLabel);
+      setSubmittedAtLabel(formatAppDateTime(saved.submittedAt, dateFmt));
       toast.created();
       const hours = computeConfirmationWorkHours(activeLines, states, unplanned);
       persistDay(workDate, {
@@ -668,14 +673,16 @@ function EmployeeConfirm() {
 
   const productivitySidebar = (
     <aside className="flex w-full flex-shrink-0 flex-col gap-3 lg:w-[300px]">
-      {isTodayWorkDate && (
-        <WorkdayTimelinePanel
-          marks={todayProd.workday}
-          onStamp={stampWorkday}
-          disabled={!workingCalendar.ok}
-          disabledReason={workingCalendar.reason ?? "Unavailable"}
-        />
-      )}
+      <WorkdayTimelinePanel
+        marks={getDayProductivity(prodStore, calendarDate).workday}
+        onStamp={stampWorkday}
+        disabled={!canUseProductivity || calendarDate !== workDate}
+        disabledReason={
+          !workingCalendar.ok ? workingCalendar.reason ?? "Unavailable" : undefined
+        }
+        selectedDate={calendarDate}
+        dateLabel={formatAppDate(calendarDate, dateFmt)}
+      />
       <ConfirmationDayCalendar
         selectedDate={calendarDate}
         onSelectDate={setCalendarDate}
@@ -695,7 +702,7 @@ function EmployeeConfirm() {
             <div className="flex flex-col items-center rounded-lg border border-success-border bg-success-soft/50 px-6 py-8 text-center">
               <CheckCircle2 className="h-10 w-10 text-success" />
               <div className="mt-3 text-[16px] font-semibold text-foreground">
-                {fetchedMissDate ? `Plan confirmed for ${formatPlanDate(fetchedMissDate)}` : "Today's plan confirmed"}
+                {fetchedMissDate ? `Plan confirmed for ${formatPlanDate(fetchedMissDate, dateFmt)}` : "Today's plan confirmed"}
               </div>
               <div className="mt-1 text-[12px] text-muted-foreground">
                 Submitted at {submittedAtLabel || "—"} ·{" "}
@@ -720,7 +727,7 @@ function EmployeeConfirm() {
                           {l.activity} · {l.plannedHours}h planned
                         </div>
                         <div className="text-[11px] text-muted-foreground">
-                          Allocated On · {formatPlanDate(l.allocatedOn)}
+                          Allocated On · {formatPlanDate(l.allocatedOn, dateFmt)}
                         </div>
                         {l.tasks.length > 0 && (
                           <div className="mt-1.5 flex flex-wrap gap-1">
@@ -853,7 +860,7 @@ function EmployeeConfirm() {
                   {fetchError && <span className="text-[11px] text-danger">{fetchError}</span>}
                   {fetchedMissDate && !fetchError && (
                     <span className="text-[11px] text-success">
-                      Loaded plan for {formatPlanDate(fetchedMissDate)}
+                      Loaded plan for {formatPlanDate(fetchedMissDate, dateFmt)}
                     </span>
                   )}
                 </div>
@@ -1009,6 +1016,8 @@ function LineRow({
   onFocusStartPause?: (allocationId: string) => void;
   onFocusStop?: (allocationId: string) => void;
 }) {
+  const { settings } = useSettings();
+  const dateFmt = settings.dateFormat ?? "dd/MM/yyyy";
   const st = state ?? { mode: "planned" as const, actual: line.plannedHours, reason: "" };
   const dev = st.mode === "deviation";
   return (
@@ -1022,7 +1031,7 @@ function LineRow({
             {line.activity} · {line.plannedHours}h planned
           </div>
           <div className="text-[11px] text-muted-foreground">
-            Allocated On · {formatPlanDate(line.allocatedOn)}
+            Allocated On · {formatPlanDate(line.allocatedOn, dateFmt)}
           </div>
           {onFocusStartPause && onFocusStop && (
             <AllocationFocusTimer
@@ -1373,6 +1382,7 @@ function ComplianceRowView({
 }
 
 function DeviationRow({ d }: { d: DeviationEntry }) {
+  const { formatDate } = useAppDateFormat();
   const dir = d.actual < d.planned;
   return (
     <div className="flex items-start gap-2.5 border-b border-border-soft px-4 py-3 last:border-b-0">
@@ -1382,7 +1392,7 @@ function DeviationRow({ d }: { d: DeviationEntry }) {
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between">
           <div className="text-[12px] font-medium text-foreground">{d.name}</div>
-          <div className="text-[10px] text-muted-foreground">{d.time}</div>
+          <div className="text-[10px] text-muted-foreground">{formatDate(d.workDate)}</div>
         </div>
         <div className="text-[11px] text-muted-foreground">{d.line}</div>
         <div className="mt-1 text-[11px]">

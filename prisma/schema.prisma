@@ -515,6 +515,8 @@ model AppSettings {
   workingHoursPerDay  Float         @map("working_hours_per_day")
   workingDays         String[]      @map("working_days")
   demandPriority      String[]      @map("demand_priority")
+  /** App-wide display pattern: dd/MM/yyyy | MM/dd/yyyy | yyyy-MM-dd | dd-MMM-yyyy */
+  dateFormat          String        @default("dd/MM/yyyy") @map("date_format")
   isActive            Boolean       @default(true) @map("is_active")
   isDeleted           Boolean       @default(false) @map("is_deleted")
   deletedAt           DateTime?     @map("deleted_at")

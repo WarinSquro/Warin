@@ -332,6 +332,7 @@ async function main() {
       workingHoursPerDay: 8.5,
       workingDays: ["Mon", "Tue", "Wed", "Thu", "Fri"],
       demandPriority: ["Critical", "High", "Medium", "Low"],
+      dateFormat: "dd/MM/yyyy",
     },
   });
 

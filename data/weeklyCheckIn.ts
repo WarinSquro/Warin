@@ -888,8 +888,9 @@ export function getEmployeeHistory(employeeId: string, weekCount = 8): EmployeeH
   }));
 
   const current = getCurrentWeekStart();
+  const lastCompleted = addWeeks(current, -1);
   const weekStarts = Array.from({ length: weekCount }, (_, i) =>
-    addWeeks(current, i - weekCount + 1)
+    addWeeks(lastCompleted, i - weekCount + 1)
   );
 
   const submissions = readSubmissions().filter((s) => s.employeeId === employeeId);

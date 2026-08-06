@@ -287,6 +287,7 @@ export function ResourceDeploymentReport() {
       filterLines,
       totalsRow,
       orientation: "landscape",
+      dateFormat: settings.dateFormat,
     };
   };
 

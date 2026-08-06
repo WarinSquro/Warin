@@ -386,6 +386,7 @@ export function ProjectExecutionReport() {
         "",
       ],
       orientation: "landscape",
+      dateFormat: settings.dateFormat,
     };
   };
 

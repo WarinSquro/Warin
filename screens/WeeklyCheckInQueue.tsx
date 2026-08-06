@@ -10,6 +10,7 @@ import {
   formatQueueOpenAction,
   formatReviewStatus,
   getCurrentWeekStart,
+  addWeeks,
   sortQueueRows,
   type QueueRow,
   type QueueSortKey,
@@ -28,7 +29,7 @@ export function WeeklyCheckInQueue() {
   const { currentEmployee } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const weekStart = searchParams.get("week") ?? getCurrentWeekStart();
+  const weekStart = searchParams.get("week") ?? addWeeks(getCurrentWeekStart(), -1);
   const [filter, setFilter] = useState<FilterTab>("all");
   const [search, setSearch] = useState("");
   const { sortKey, sortDir, handleSort } = useColumnSort<QueueSortKey>("reviewStatus", "asc");

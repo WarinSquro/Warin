@@ -1,3 +1,6 @@
+import type { DateFormatPattern } from "../data/settings";
+import { formatAppDate } from "./formatAppDate";
+
 // Small date helpers shared by screens that need a dynamic "today" reference
 // instead of a hardcoded ISO string (see docs/prompt-log.md — hardcoded date fix).
 
@@ -22,4 +25,12 @@ export function addDaysISO(iso: string, days: number): string {
 /** Default effective date for "schedule for later" style pickers: today + 1 day. */
 export function tomorrowISO(): string {
   return addDaysISO(todayISO(), 1);
+}
+
+/** Format an ISO date using Settings → Date Format (default dd/MM/yyyy). */
+export function formatDisplayDate(
+  iso: string | null | undefined,
+  pattern: DateFormatPattern = "dd/MM/yyyy"
+): string {
+  return formatAppDate(iso, pattern);
 }

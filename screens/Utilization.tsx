@@ -194,6 +194,7 @@ export function Utilization() {
         "",
       ],
       orientation: "landscape",
+      dateFormat: settings.dateFormat,
     };
   };
 

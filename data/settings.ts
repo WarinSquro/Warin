@@ -21,7 +21,11 @@ export interface SettingsState {
   workingDays: string[];
   demandPriority: string[]; // ordered
   companyOffDays: CompanyOffDay[];
+  /** Display pattern for dates across the app */
+  dateFormat: DateFormatPattern;
 }
+
+export type DateFormatPattern = "dd/MM/yyyy" | "MM/dd/yyyy" | "yyyy-MM-dd" | "dd-MMM-yyyy";
 
 export interface CompanyOffDay {
   id: string;
@@ -37,6 +41,7 @@ export const DEFAULT_SETTINGS: SettingsState = {
   workingHoursPerDay: 8.5,
   workingDays: ["Mon", "Tue", "Wed", "Thu", "Fri"],
   demandPriority: ["Critical", "High", "Medium", "Low"],
+  dateFormat: "dd/MM/yyyy",
   companyOffDays: [
     { id: "off1", date: "2026-01-01", label: "New Year's Day" },
     { id: "off2", date: "2026-01-26", label: "Republic Day" },

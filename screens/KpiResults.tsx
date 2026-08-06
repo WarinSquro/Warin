@@ -14,6 +14,7 @@ import { useToast } from "../context/ToastContext";
 import { useAuth } from "../context/AuthContext";
 import { useFocusFirstField } from "../hooks/useFocusFirstField";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
+import { useAppDateFormat } from "../hooks/useAppDateFormat";
 
 const CYCLES: AssessmentCycle[] = ["Q1", "Q2", "Q3", "Q4"];
 const fieldClass =
@@ -40,6 +41,7 @@ function emptySummary(): ApiKpiResultsSummary {
 
 export function KpiResults() {
   const toast = useToast();
+  const { formatDateTime } = useAppDateFormat();
   const { currentEmployee, isSuperAdmin } = useAuth();
   const { employees } = useEmployees();
   const { departments } = useMasters();
@@ -169,9 +171,26 @@ export function KpiResults() {
         {error && <div className="mb-3 text-[12px] text-danger">{error}</div>}
 
         <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-          <SummaryCard label="Total KPIs" value={String(summary.total)} />
-          <SummaryCard label="Pending" value={String(pendingCount)} valueClass="text-warning" />
-          <SummaryCard label="Completed" value={String(completedCount)} valueClass="text-success" />
+          <SummaryCard
+            label="Total KPIs"
+            value={String(summary.total)}
+            active={statusTab === "all"}
+            onClick={() => setStatusTab("all")}
+          />
+          <SummaryCard
+            label="Pending"
+            value={String(pendingCount)}
+            valueClass="text-warning"
+            active={statusTab === "pending_result"}
+            onClick={() => setStatusTab("pending_result")}
+          />
+          <SummaryCard
+            label="Completed"
+            value={String(completedCount)}
+            valueClass="text-success"
+            active={statusTab === "completed"}
+            onClick={() => setStatusTab("completed")}
+          />
           <SummaryCard
             label="Final Achievement"
             value={
@@ -351,13 +370,7 @@ export function KpiResults() {
                         <StatusChip status={row.status} />
                       </td>
                       <td className="px-3 py-2.5 text-muted-foreground">
-                        {row.resultUpdatedAt
-                          ? new Date(row.resultUpdatedAt).toLocaleDateString("en-US", {
-                              month: "short",
-                              day: "numeric",
-                              year: "numeric",
-                            })
-                          : "—"}
+                        {row.resultUpdatedAt ? formatDateTime(row.resultUpdatedAt) : "—"}
                       </td>
                     </tr>
                   ))}
@@ -585,14 +598,35 @@ function SummaryCard({
   value,
   valueClass,
   hint,
+  active,
+  onClick,
 }: {
   label: string;
   value: string;
   valueClass?: string;
   hint?: string;
+  active?: boolean;
+  onClick?: () => void;
 }) {
+  const interactive = typeof onClick === "function";
+  const className = `rounded-lg border bg-surface px-4 py-3 text-left shadow-sm ${
+    active ? "border-accent-line ring-1 ring-accent-line" : "border-border"
+  } ${interactive ? "cursor-pointer transition hover:border-primary/40 hover:shadow-md" : ""}`;
+
+  if (interactive) {
+    return (
+      <button type="button" onClick={onClick} className={className}>
+        <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
+        <div className={`mt-1 text-[22px] font-semibold tracking-tight ${valueClass ?? "text-foreground"}`}>
+          {value}
+        </div>
+        {hint && <div className="mt-0.5 text-[11px] text-muted-foreground">{hint}</div>}
+      </button>
+    );
+  }
+
   return (
-    <div className="rounded-lg border border-border bg-surface px-4 py-3 shadow-sm">
+    <div className={className}>
       <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className={`mt-1 text-[22px] font-semibold tracking-tight ${valueClass ?? "text-foreground"}`}>
         {value}

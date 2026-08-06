@@ -29,6 +29,7 @@ import { useEmployees } from "../context/EmployeesContext";
 import { useMasters } from "../context/MastersContext";
 import { fetchWeeklyCheckInConfig, fetchWeeklySubmissions } from "../api/domain";
 import { mapApiWeeklySubmission } from "../api/liveViews";
+import { useAppDateFormat } from "../hooks/useAppDateFormat";
 
 const HISTORY_WEEK_COUNT = 8;
 
@@ -80,8 +81,9 @@ export function WeeklyCheckInHistory() {
 
   const history = useMemo((): EmployeeHistory => {
     const current = getCurrentWeekStart();
+    const lastCompleted = addWeeks(current, -1);
     const weekStarts = Array.from({ length: HISTORY_WEEK_COUNT }, (_, i) =>
-      addWeeks(current, i - HISTORY_WEEK_COUNT + 1)
+      addWeeks(lastCompleted, i - HISTORY_WEEK_COUNT + 1)
     );
     const weeks = weekStarts.map((weekStart) => {
       const sub = submissions.find((s) => s.weekStart === weekStart);
@@ -434,6 +436,7 @@ function SnapshotDrawer({
   submission: WeeklyCheckInSubmission;
   onClose: () => void;
 }) {
+  const { formatDateTime } = useAppDateFormat();
   return (
     <div className="fixed inset-0 z-40">
       <div onClick={onClose} className="absolute inset-0 bg-brand/30" />
@@ -451,10 +454,7 @@ function SnapshotDrawer({
             </div>
             <div className="mt-0.5 text-[11px] text-muted-foreground">
               Reviewed by {getSubmitterName(submission.submittedByEmployeeId)} ·{" "}
-              {new Date(submission.submittedAt).toLocaleString("en-US", {
-                dateStyle: "medium",
-                timeStyle: "short",
-              })}
+              {formatDateTime(submission.submittedAt)}
             </div>
           </div>
           <button type="button" onClick={onClose} className="shrink-0 text-muted-foreground hover:text-foreground">

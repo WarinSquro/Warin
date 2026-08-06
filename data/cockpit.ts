@@ -18,6 +18,8 @@ import {
 } from "../api/liveViews";
 import type { ProjectHealth, ExecutionStatus, ExecutionRow } from "./executionReport";
 import { computeExecutionSummary, getExecutionRowsForPeriod } from "./executionReport";
+import type { DateFormatPattern } from "./settings";
+import { formatAppDateTime } from "../utils/formatAppDate";
 import type { PerformanceRow } from "./performanceReport";
 import { computePerformanceSummary, getPerformanceRowsForPeriod } from "./performanceReport";
 import type { Employee } from "./employees";
@@ -429,7 +431,15 @@ export function getWorstConfirmationDisciplineEmployees(
       (r) =>
         !r.leaveException &&
         r.confirmationDiscipline != null &&
-        (departments == null || departments.includes(r.department))
+        (departments == null || departments.includes(r.department)) &&
+        // Never surface the system Administrator account in this card.
+        r.employeeId !== "EMP-0001" &&
+        r.employeeName.trim().toLowerCase() !== "administrator" &&
+        // Only include people who have an assigned Resource Owner (no Administrator substitute).
+        Boolean(r.resourceOwnerId?.trim()) &&
+        r.resourceOwnerName.trim() !== "" &&
+        r.resourceOwnerName.trim() !== "—" &&
+        r.resourceOwnerName.trim().toLowerCase() !== "administrator"
     )
     .sort((a, b) => (a.confirmationDiscipline ?? 0) - (b.confirmationDiscipline ?? 0))
     .slice(0, limit)
@@ -778,12 +788,9 @@ export function getPlanningConflicts(roleId: CockpitRoleId): PlanningConflictRow
   return getCockpitData(roleId).planningConflicts;
 }
 
-export function formatCockpitRefreshTime(date = new Date()): string {
-  return date.toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+export function formatCockpitRefreshTime(
+  date = new Date(),
+  pattern: DateFormatPattern = "dd/MM/yyyy"
+): string {
+  return formatAppDateTime(date, pattern);
 }

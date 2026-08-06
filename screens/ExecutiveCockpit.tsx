@@ -45,8 +45,8 @@ export function ExecutiveCockpit() {
   const { departments, refresh: refreshMasters } = useMasters();
   const { projects, refresh: refreshProjects } = useProjects();
   const { settings } = useSettings();
-
-  const [refreshedAt, setRefreshedAt] = useState(() => formatCockpitRefreshTime());
+  const dateFmt = settings.dateFormat ?? "dd/MM/yyyy";
+  const [refreshedAt, setRefreshedAt] = useState(() => formatCockpitRefreshTime(new Date(), dateFmt));
   const [refreshToast, setRefreshToast] = useState<string | null>(null);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -127,7 +127,7 @@ export function ExecutiveCockpit() {
     setRefreshError(null);
     try {
       await Promise.all([refreshEmployees(), refreshMasters(), refreshProjects(), loadOps()]);
-      setRefreshedAt(formatCockpitRefreshTime());
+      setRefreshedAt(formatCockpitRefreshTime(new Date(), dateFmt));
       setRefreshToast("Data refreshed");
       window.setTimeout(() => setRefreshToast(null), 2000);
     } catch (e) {

@@ -4,7 +4,9 @@ import { CONFIRMATION_TODAY } from "./confirmation";
 import { EMPLOYEES, resourceOwnerName, type Employee } from "./employees";
 import { PROJECTS, type MilestoneKind, type ProjectType } from "./projects";
 import { projectTypeLabel } from "./setup";
+import type { DateFormatPattern } from "./settings";
 import { matchesSearchQuery } from "../utils/textSearch";
+import { formatAppDate } from "../utils/formatAppDate";
 
 export type DailyWorkPeriodId = "week" | "today" | "month" | "last_month" | "last_3_months";
 
@@ -437,9 +439,8 @@ export function dailyWorkProjects(rows: DailyWorkRow[]): string[] {
   return [...new Set(names)].sort();
 }
 
-export function formatWorkDate(iso: string): string {
-  const d = new Date(iso + "T12:00:00");
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+export function formatWorkDate(iso: string, pattern: DateFormatPattern = "dd/MM/yyyy"): string {
+  return formatAppDate(iso, pattern);
 }
 
 export function formatProjectTypeDisplay(type: ProjectType | undefined): string {

@@ -856,7 +856,7 @@ export class ConfirmationsController {
             planned: l.plannedHours,
             actual: l.actualHours,
             reason: l.reason || (l.kind === "unplanned" ? "Unplanned work" : "—"),
-            time: formatTime(c.submittedAt),
+            workDate: isoDate(c.workDate),
           }))
       );
 

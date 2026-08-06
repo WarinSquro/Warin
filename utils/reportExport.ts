@@ -2,6 +2,8 @@
 import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import type { DateFormatPattern } from "../data/settings";
+import { formatAppDateTime } from "./formatAppDate";
 
 export type ExportCell = string | number | null | undefined;
 
@@ -26,6 +28,8 @@ export interface ReportExportInput {
   /** Optional totals/summary row (same length as columns) */
   totalsRow?: ExportCell[];
   orientation?: "portrait" | "landscape";
+  /** Settings → Date Format for the Generated timestamp */
+  dateFormat?: DateFormatPattern;
 }
 
 function todayISODate(): string {
@@ -36,16 +40,8 @@ function todayISODate(): string {
   return `${y}-${m}-${day}`;
 }
 
-function formatGeneratedAt(d = new Date()): string {
-  return d.toLocaleString("en-IN", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-  });
+function formatGeneratedAt(d = new Date(), pattern: DateFormatPattern = "dd/MM/yyyy"): string {
+  return formatAppDateTime(d, pattern);
 }
 
 function sanitizeSheetName(name: string): string {
@@ -124,7 +120,7 @@ export function exportReportPdf(input: ReportExportInput): void {
   const margin = 0.6;
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-  const generatedAt = formatGeneratedAt();
+  const generatedAt = formatGeneratedAt(new Date(), input.dateFormat ?? "dd/MM/yyyy");
 
   const head = [input.columns.map((c) => c.header)];
   const body = input.rows.map((row) => row.map(cellToPdf));

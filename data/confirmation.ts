@@ -1,6 +1,9 @@
 // Work Confirmation — daily, one-click against the plan. Employees confirm "as planned"
 // or report deviations (auto-accepted + logged). Managers monitor compliance, no approvals.
 
+import type { DateFormatPattern } from "./settings";
+import { formatAppDateWithWeekday } from "../utils/formatAppDate";
+
 export interface PlannedLine {
   id: string;
   project: string;
@@ -137,9 +140,8 @@ export function planForDate(_date: string): PlannedLine[] | null {
   return null;
 }
 
-export function formatPlanDate(iso: string) {
-  const d = new Date(`${iso}T12:00:00`);
-  return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+export function formatPlanDate(iso: string, pattern: DateFormatPattern = "dd/MM/yyyy") {
+  return formatAppDateWithWeekday(iso, pattern);
 }
 
 export const DEVIATION_REASONS = [
@@ -197,11 +199,12 @@ export interface DeviationEntry {
   planned: number;
   actual: number;
   reason: string;
-  time: string;
+  /** ISO YYYY-MM-DD — work date of the deviation */
+  workDate: string;
 }
 
 export const DEVIATION_FEED: DeviationEntry[] = [
-  { id: "d1", name: "Arjun Mehta", initials: "AM", line: "Project Atlas · Development", planned: 8, actual: 4, reason: "Blocked / waiting on input", time: "10:05 AM" },
-  { id: "d2", name: "Tara Gupta", initials: "TG", line: "Project Falcon · Automation", planned: 6, actual: 8, reason: "Reprioritized to another task", time: "9:55 AM" },
-  { id: "d3", name: "Kiran Bose", initials: "KB", line: "Support queue", planned: 8, actual: 5, reason: "On partial leave", time: "9:30 AM" },
+  { id: "d1", name: "Arjun Mehta", initials: "AM", line: "Project Atlas · Development", planned: 8, actual: 4, reason: "Blocked / waiting on input", workDate: "2026-01-06" },
+  { id: "d2", name: "Tara Gupta", initials: "TG", line: "Project Falcon · Automation", planned: 6, actual: 8, reason: "Reprioritized to another task", workDate: "2026-01-06" },
+  { id: "d3", name: "Kiran Bose", initials: "KB", line: "Support queue", planned: 8, actual: 5, reason: "On partial leave", workDate: "2026-01-06" },
 ];

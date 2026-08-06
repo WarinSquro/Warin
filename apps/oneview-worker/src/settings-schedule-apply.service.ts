@@ -15,6 +15,7 @@ type SettingsPayload = {
   overallocationLimit: number;
   workingHoursPerDay: number;
   workingDays: string[];
+  dateFormat?: string;
   companyOffDays: { date: string; label: string }[];
 };
 
@@ -98,6 +99,7 @@ export class SettingsScheduleApplyService implements OnModuleInit {
             overallocationLimit: payload.overallocationLimit,
             workingHoursPerDay: payload.workingHoursPerDay,
             workingDays: payload.workingDays,
+            ...(payload.dateFormat ? { dateFormat: payload.dateFormat } : {}),
             ...(row.createdById != null ? { modifiedBy: row.createdById } : {}),
             version: { increment: 1 },
           },

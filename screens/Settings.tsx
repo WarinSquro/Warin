@@ -1,24 +1,28 @@
 import { useEffect, useState } from "react";
 import { CalendarClock, History, AlertTriangle, X, ArrowRight } from "lucide-react";
-import { ALL_DAYS } from "../data/settings";
-import type { SettingsState, ImpactRow, CompanyOffDay } from "../data/settings";
+import { ALL_DAYS, DEFAULT_SETTINGS } from "../data/settings";
+import type { SettingsState, ImpactRow, CompanyOffDay, DateFormatPattern } from "../data/settings";
 import { useSettings } from "../context/SettingsContext";
 import {
   cancelSettingsSchedule,
   createSettingsSchedule,
+  fetchAllocations,
+  fetchEmployees,
   fetchSettingsAudit,
   fetchSettingsSchedules,
   putSettings,
   type SettingsSchedule,
 } from "../api/domain";
+import { buildUtilRowsFromEmployees, mondayISO } from "../api/liveViews";
 import { tomorrowISO } from "../utils/date";
+import { DATE_FORMAT_OPTIONS, formatAppDate, formatAppDateTime } from "../utils/formatAppDate";
+import { computeSettingsBandImpact } from "../utils/settingsImpact";
 import { useFocusFirstField } from "../hooks/useFocusFirstField";
 import type { SettingsAuditEntry } from "../utils/settingsAudit";
 import { SmtpSettingsSection } from "../components/SmtpSettingsSection";
 import { useToast } from "../context/ToastContext";
 import { ConfirmDeleteDialog } from "../components/ConfirmDeleteDialog";
-
-const IMPACT_PREVIEW: ImpactRow[] = [];
+import { useAppDateFormat } from "../hooks/useAppDateFormat";
 
 function settingsPutBody(s: SettingsState, companyOffDays = s.companyOffDays) {
   return {
@@ -31,6 +35,7 @@ function settingsPutBody(s: SettingsState, companyOffDays = s.companyOffDays) {
     overallocationLimit: s.overallocationLimit,
     workingHoursPerDay: s.workingHoursPerDay,
     workingDays: s.workingDays,
+    dateFormat: s.dateFormat,
     companyOffDays: companyOffDays.map((d) => ({ date: d.date, label: d.label })),
   };
 }
@@ -46,6 +51,12 @@ export function Settings() {
   const [auditLog, setAuditLog] = useState<SettingsAuditEntry[]>([]);
   const [scheduled, setScheduled] = useState<SettingsSchedule[]>([]);
   const [pendingCancelScheduleId, setPendingCancelScheduleId] = useState<string | null>(null);
+  /** Last persisted snapshot — used for Review & Save band-impact preview. */
+  const [committedBands, setCommittedBands] = useState(s.bands);
+
+  useEffect(() => {
+    if (!dirty) setCommittedBands(s.bands);
+  }, [s.bands, dirty]);
 
   const reloadAuditAndSchedules = async () => {
     const [entries, schedules] = await Promise.all([
@@ -293,6 +304,26 @@ export function Settings() {
             <div className="text-[11px] text-muted-foreground">Weekly capacity per person: <b className="text-foreground">{s.workingHoursPerDay * s.workingDays.length}h</b> ({s.workingDays.length} days × {s.workingHoursPerDay}h)</div>
           </Card>
 
+          <Card title="Date Format" desc="How dates are shown across tables, forms, reports, calendars, and exports.">
+            <div className="max-w-xs">
+              <label className="mb-1.5 block text-[12px] font-medium text-foreground">Display format</label>
+              <select
+                value={s.dateFormat ?? DEFAULT_SETTINGS.dateFormat}
+                onChange={(e) => patch({ dateFormat: e.target.value as DateFormatPattern })}
+                className="w-full cursor-pointer rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line"
+              >
+                {DATE_FORMAT_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <div className="mt-2 text-[11px] text-muted-foreground">
+                Example: {formatAppDateTime(`${tomorrowISO()}T15:45:00`, s.dateFormat ?? DEFAULT_SETTINGS.dateFormat)}
+              </div>
+            </div>
+          </Card>
+
           {/* Demand priorities */}
           <Card title="Demand priority order" desc="How open demand is ranked in the Planner and dashboards.">
             <div className="flex items-center gap-2">
@@ -329,6 +360,8 @@ export function Settings() {
 
       {confirmOpen && (
         <ImpactModal
+          draft={s}
+          committedBands={committedBands}
           onClose={() => setConfirmOpen(false)}
           onSave={(when, scheduledDate) => {
             void handleSave(when, scheduledDate);
@@ -339,6 +372,7 @@ export function Settings() {
       {calendarOpen && (
         <CompanyCalendarModal
           offDays={s.companyOffDays}
+          dateFormat={s.dateFormat}
           saving={saving}
           error={saveError}
           onClose={() => setCalendarOpen(false)}
@@ -361,29 +395,78 @@ export function Settings() {
   );
 }
 
-function formatScheduleDate(iso: string) {
+function formatScheduleDate(iso: string, pattern: DateFormatPattern) {
   if (!iso) return "Select date";
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  return formatAppDate(iso, pattern);
 }
 
 function ImpactModal({
+  draft,
+  committedBands,
   onClose,
   onSave,
   saving,
 }: {
+  draft: SettingsState;
+  committedBands: SettingsState["bands"];
   onClose: () => void;
   onSave: (when: "now" | "future", scheduledDate: string) => void;
   saving?: boolean;
 }) {
   const [when, setWhen] = useState<"now" | "future">("now");
   const [scheduledDate, setScheduledDate] = useState(tomorrowISO());
+  const [impactRows, setImpactRows] = useState<ImpactRow[]>([]);
+  const [impactSummary, setImpactSummary] = useState("Calculating impact…");
+  const [impactLoading, setImpactLoading] = useState(true);
   const focusRef = useFocusFirstField<HTMLDivElement>(when === "future");
   const minDate = tomorrowISO();
+
+  useEffect(() => {
+    let cancelled = false;
+    setImpactLoading(true);
+    void (async () => {
+      try {
+        const [employees, allocations] = await Promise.all([
+          fetchEmployees(),
+          fetchAllocations({ from: mondayISO(), to: mondayISO() }),
+        ]);
+        if (cancelled) return;
+        const weekCapacity = draft.workingHoursPerDay * draft.workingDays.length;
+        const rows = buildUtilRowsFromEmployees(
+          employees,
+          weekCapacity,
+          allocations,
+          draft.companyOffDays.map((d) => d.date)
+        );
+        const impact = computeSettingsBandImpact(
+          rows.map((r) => r.pct),
+          committedBands,
+          draft.bands
+        );
+        setImpactRows(impact.rows);
+        setImpactSummary(impact.summary);
+      } catch {
+        if (!cancelled) {
+          setImpactRows([]);
+          setImpactSummary(
+            "Could not load live utilization — band impact could not be calculated. You can still save."
+          );
+        }
+      } finally {
+        if (!cancelled) setImpactLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    committedBands,
+    draft.bands,
+    draft.companyOffDays,
+    draft.workingDays.length,
+    draft.workingHoursPerDay,
+  ]);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
       <div onClick={onClose} className="absolute inset-0 bg-brand/40" />
@@ -396,18 +479,22 @@ function ImpactModal({
         <div className="flex flex-col gap-4 px-5 py-4">
           <div className="flex items-start gap-2.5 rounded-md border border-warning-border bg-warning-soft/50 px-3.5 py-2.5">
             <AlertTriangle className="h-4 w-4 flex-shrink-0 text-warning" />
-            <div className="text-[12px] text-foreground">Raising the optimal floor reclassifies <b>8 people</b> from Optimal into Idle. No hours change — only how they're labelled.</div>
+            <div className="text-[12px] text-foreground">
+              {impactLoading ? "Calculating impact…" : impactSummary}
+            </div>
           </div>
 
           <div>
             <div className="mb-2 text-[12px] font-semibold text-foreground">People per band</div>
             <div className="overflow-hidden rounded-md border border-border-soft">
-              {IMPACT_PREVIEW.length === 0 ? (
+              {impactLoading ? (
+                <div className="py-4 text-center text-[12px] text-muted-foreground">Loading live utilization…</div>
+              ) : impactRows.length === 0 ? (
                 <div className="py-4 text-center text-[12px] text-muted-foreground">
-                  No band-shift preview · live utilization not calculated yet
+                  No band-shift preview available
                 </div>
               ) : (
-                IMPACT_PREVIEW.map((r) => <ImpactRowView key={r.band} r={r} />)
+                impactRows.map((r) => <ImpactRowView key={r.band} r={r} />)
               )}
             </div>
           </div>
@@ -420,7 +507,7 @@ function ImpactModal({
                 active={when === "future"}
                 onClick={() => setWhen("future")}
                 label="Schedule for later"
-                hint={formatScheduleDate(scheduledDate)}
+                hint={formatScheduleDate(scheduledDate, draft.dateFormat)}
               />
             </div>
             {when === "future" && (
@@ -462,24 +549,24 @@ function ImpactModal({
   );
 }
 
-function formatOffDayDate(iso: string) {
+function formatOffDayDate(iso: string, pattern: DateFormatPattern) {
+  const formatted = formatAppDate(iso, pattern);
+  if (formatted === "—") return iso;
   const [y, m, d] = iso.split("-").map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  const weekday = new Date(y, m - 1, d).toLocaleDateString("en-US", { weekday: "short" });
+  return `${weekday}, ${formatted}`;
 }
 
 function CompanyCalendarModal({
   offDays,
+  dateFormat,
   saving,
   error: persistError,
   onClose,
   onChange,
 }: {
   offDays: CompanyOffDay[];
+  dateFormat: DateFormatPattern;
   saving?: boolean;
   error?: string;
   onClose: () => void;
@@ -550,7 +637,9 @@ function CompanyCalendarModal({
                   >
                     <div className="min-w-0">
                       <div className="text-[12px] font-medium text-foreground">{day.label}</div>
-                      <div className="text-[11px] text-muted-foreground">{formatOffDayDate(day.date)}</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {formatOffDayDate(day.date, dateFormat)}
+                      </div>
                     </div>
                     <button
                       type="button"
@@ -710,10 +799,13 @@ function ImpactRowView({ r }: { r: ImpactRow }) {
 }
 
 function AuditRow({ a }: { a: SettingsAuditEntry }) {
+  const { formatDateTime } = useAppDateFormat();
   return (
     <div className="border-b border-border-soft px-4 py-3 last:border-b-0">
       <div className="text-[12px] text-foreground">{a.what}</div>
-      <div className="mt-0.5 text-[11px] text-muted-foreground">{a.who} · {a.when}</div>
+      <div className="mt-0.5 text-[11px] text-muted-foreground">
+        {a.who} · {formatDateTime(a.when)}
+      </div>
     </div>
   );
 }

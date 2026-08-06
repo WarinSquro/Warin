@@ -6,6 +6,7 @@ import { ReportPagination } from "../components/ReportPagination";
 import { ReportColumnPicker } from "../components/ReportColumnPicker";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+import { useAppDateFormat } from "../hooks/useAppDateFormat";
 import { getVisibleEmployeeIds } from "../utils/employeeHierarchy";
 import { scopeEmployeesForViewer } from "../utils/reportVisibility";
 import { milestoneKindLabel } from "../data/projects";
@@ -47,7 +48,11 @@ import { runReportExport, summarizeFilter } from "../utils/reportExport";
 import type { ExportCell, ReportExportInput } from "../utils/reportExport";
 import { formatHours } from "../utils/formatHours";
 
-function cellValue(row: DailyWorkRow, colId: DailyWorkSortKey): string {
+function cellValue(
+  row: DailyWorkRow,
+  colId: DailyWorkSortKey,
+  datePattern: "dd/MM/yyyy" | "MM/dd/yyyy" | "yyyy-MM-dd" | "dd-MMM-yyyy" = "dd/MM/yyyy"
+): string {
   if (row.planKind === "Unplanned") {
     switch (colId) {
       case "employeeName":
@@ -57,7 +62,7 @@ function cellValue(row: DailyWorkRow, colId: DailyWorkSortKey): string {
       case "resourceOwner":
         return row.resourceOwnerName;
       case "workDate":
-        return formatWorkDate(row.workDate);
+        return formatWorkDate(row.workDate, datePattern);
       case "tasks":
         return (row.tasks ?? []).join(", ");
       case "actualHrs":
@@ -77,7 +82,7 @@ function cellValue(row: DailyWorkRow, colId: DailyWorkSortKey): string {
     case "resourceOwner":
       return row.resourceOwnerName;
     case "workDate":
-      return formatWorkDate(row.workDate);
+      return formatWorkDate(row.workDate, datePattern);
     case "project":
       return row.projectName ?? "—";
     case "projectType":
@@ -97,7 +102,7 @@ function cellValue(row: DailyWorkRow, colId: DailyWorkSortKey): string {
     case "confirmation":
       return row.confirmation;
     case "confirmedOn":
-      return row.confirmedOn ? formatWorkDate(row.confirmedOn) : "—";
+      return row.confirmedOn ? formatWorkDate(row.confirmedOn, datePattern) : "—";
     case "delayReason":
       return row.delayReason ?? "—";
     case "deviationReason":
@@ -112,18 +117,23 @@ function cellValue(row: DailyWorkRow, colId: DailyWorkSortKey): string {
 }
 
 /** Export cell — keep hours as numbers; dates as display strings matching the grid. */
-function exportCellValue(row: DailyWorkRow, colId: DailyWorkSortKey): ExportCell {
+function exportCellValue(
+  row: DailyWorkRow,
+  colId: DailyWorkSortKey,
+  datePattern: "dd/MM/yyyy" | "MM/dd/yyyy" | "yyyy-MM-dd" | "dd-MMM-yyyy" = "dd/MM/yyyy"
+): ExportCell {
   if (colId === "plannedHrs") {
     if (row.planKind === "Unplanned") return null;
     return row.plannedHours ?? null;
   }
   if (colId === "actualHrs") return row.actualHours ?? null;
-  const text = cellValue(row, colId);
+  const text = cellValue(row, colId, datePattern);
   return text === "—" ? null : text;
 }
 
 export function DailyWorkReport() {
   const { currentEmployee, isSuperAdmin } = useAuth();
+  const { dateFormat } = useAppDateFormat();
   const { employees } = useEmployees();
   const { projects: liveProjects } = useProjects();
   const [periodId, setPeriodId] = useState<DailyWorkPeriodId>("week");
@@ -323,9 +333,10 @@ export function DailyWorkReport() {
         header: c.label,
         align: c.id === "plannedHrs" || c.id === "actualHrs" ? ("right" as const) : ("left" as const),
       })),
-      rows: sorted.map((row) => cols.map((c) => exportCellValue(row, c.id))),
+      rows: sorted.map((row) => cols.map((c) => exportCellValue(row, c.id, dateFormat))),
       filterLines,
       orientation: cols.length > 8 ? "landscape" : "portrait",
+      dateFormat,
     };
   };
 
@@ -469,7 +480,7 @@ export function DailyWorkReport() {
                     style={{ gridTemplateColumns: gridTemplate }}
                   >
                     {visibleColDefs.map((col) => {
-                      const value = cellValue(row, col.id);
+                      const value = cellValue(row, col.id, dateFormat);
                       const isConfirmation = col.id === "confirmation";
                       const isNumeric = col.id === "plannedHrs" || col.id === "actualHrs";
                       return (
