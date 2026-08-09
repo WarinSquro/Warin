@@ -113,7 +113,7 @@ export function mapApiEmployee(e: ApiEmployee): Employee {
     id: e.hrmsId,
     name: e.name,
     email: e.email,
-    department: e.departmentName ?? "—",
+    department: e.departmentName ?? "ΓÇö",
     skills: e.skills ?? [],
     resourceOwnerId: e.resourceOwnerName
       ? undefined
@@ -139,7 +139,7 @@ export function mapApiDepartment(d: ApiDepartment, memberCount = 0): Department 
     id: d.code,
     dbId: d.id,
     name: d.name,
-    head: d.headName ?? "—",
+    head: d.headName ?? "ΓÇö",
     memberCount: d._count?.employees ?? memberCount,
     status: d.status,
   };
@@ -246,7 +246,7 @@ function mapEmployeeRow(
     id: e.hrmsId,
     name: e.name,
     email: e.email,
-    department: e.departmentName ?? "—",
+    department: e.departmentName ?? "ΓÇö",
     skills: e.skills ?? [],
     resourceOwnerId: e.resourceOwnerHrmsId ?? e.resourceOwner?.hrmsId ?? undefined,
     status: e.status,
@@ -514,7 +514,7 @@ export async function fetchAccessRights(hrmsId: string): Promise<string[]> {
   return res.permissionKeys ?? [];
 }
 
-/** Bulk permission keys for all employees (HRMS id → keys). Prefer over N× fetchAccessRights for list counts. */
+/** Bulk permission keys for all employees (HRMS id ΓåÆ keys). Prefer over N├ù fetchAccessRights for list counts. */
 export async function fetchAllAccessRights(): Promise<Record<string, string[]>> {
   const res = await apiFetch<{ rights: Record<string, string[]> }>("/access-rights");
   return res.rights ?? {};
@@ -913,7 +913,14 @@ export type ApiWeeklyCheckInConfig = {
   actionTypes: string[];
   competenciesByDepartment: Record<
     string,
-    { id: string; departmentId: string; kind: "technical" | "behavioural"; label: string; sequence: number }[]
+    {
+      id: string;
+      departmentId: string;
+      kind: "technical" | "behavioural";
+      label: string;
+      remark?: string;
+      sequence: number;
+    }[]
   >;
 };
 
@@ -1000,6 +1007,7 @@ export async function putWeeklyCheckInConfig(body: {
     departmentId: string;
     kind: "technical" | "behavioural";
     label: string;
+    remark?: string;
     sequence: number;
   }[];
 }): Promise<ApiWeeklyCheckInConfig> {
@@ -1045,7 +1053,7 @@ export async function fetchWeeklyQueue(weekStart: string): Promise<{
   return apiFetch(`/weekly-check-in/queue?weekStart=${encodeURIComponent(weekStart)}`);
 }
 
-// ─── KPI Framework ───────────────────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ KPI Framework ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 export type AssessmentCycle = "Q1" | "Q2" | "Q3" | "Q4";
 export type KpiRowStatus = "draft" | "pending_result" | "completed";

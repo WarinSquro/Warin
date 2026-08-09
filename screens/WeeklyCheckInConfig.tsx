@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ChevronDown, ChevronUp, Copy, Plus, Trash2 } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Copy, Pencil, Plus, Trash2, X } from "lucide-react";
 import {
   addCompetency,
   copyCompetenciesFromDepartment,
@@ -9,6 +9,7 @@ import {
   rankingChipClass,
   removeCompetency,
   saveWeeklyCheckInConfig,
+  updateCompetency,
   updateRankingTitle,
 } from "../data/weeklyCheckIn";
 import type { CompetencyKind, DepartmentConfigStatus } from "../data/weeklyCheckIn";
@@ -25,6 +26,9 @@ const STATUS_CHIP: Record<DepartmentConfigStatus, { label: string; className: st
   not_set: { label: "Not set", className: "border-danger-border bg-danger-soft text-danger" },
 };
 
+const inputClass =
+  "rounded-md border border-border bg-surface px-2.5 py-1.5 text-[12px] outline-none focus:border-accent-line";
+
 export function WeeklyCheckInConfig() {
   const { departments } = useMasters();
   const toast = useToast();
@@ -32,8 +36,12 @@ export function WeeklyCheckInConfig() {
   const [selectedDeptId, setSelectedDeptId] = useState("");
   const [config, setConfig] = useState(() => getWeeklyCheckInConfig());
   const [newLabel, setNewLabel] = useState("");
+  const [newRemark, setNewRemark] = useState("");
   const [newKind, setNewKind] = useState<CompetencyKind>("technical");
   const [copyFromId, setCopyFromId] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editLabel, setEditLabel] = useState("");
+  const [editRemark, setEditRemark] = useState("");
   const [editingRank, setEditingRank] = useState<number | null>(null);
   const [rankDraft, setRankDraft] = useState("");
   const [loading, setLoading] = useState(true);
@@ -59,8 +67,19 @@ export function WeeklyCheckInConfig() {
     void fetchWeeklyCheckInConfig()
       .then((apiConfig) => {
         if (cancelled) return;
+        const byDept: ReturnType<typeof getWeeklyCheckInConfig>["competenciesByDepartment"] = {};
+        for (const [deptId, list] of Object.entries(apiConfig.competenciesByDepartment)) {
+          byDept[deptId] = list.map((c) => ({
+            id: c.id,
+            departmentId: c.departmentId,
+            kind: c.kind,
+            label: c.label,
+            remark: c.remark ?? "",
+            sequence: c.sequence,
+          }));
+        }
         saveWeeklyCheckInConfig({
-          competenciesByDepartment: apiConfig.competenciesByDepartment as never,
+          competenciesByDepartment: byDept,
           rankingLevels: apiConfig.rankingLevels as never,
           actionTypes: apiConfig.actionTypes,
         });
@@ -96,6 +115,7 @@ export function WeeklyCheckInConfig() {
             departmentId: c.departmentId,
             kind: c.kind,
             label: c.label,
+            remark: c.remark ?? "",
             sequence: c.sequence,
           })),
       });
@@ -117,17 +137,48 @@ export function WeeklyCheckInConfig() {
     if (ok && notify === "deleted") toast.deleted();
   };
 
-  const handleAdd = () => {
-    if (!newLabel.trim()) return;
-    const result = addCompetency(selectedDeptId, newKind, newLabel);
-    if (!result.ok) return;
+  const handleAdd = (kind: CompetencyKind) => {
+    const label = newKind === kind ? newLabel : "";
+    const remark = newKind === kind ? newRemark : "";
+    if (!label.trim()) return;
+    const result = addCompetency(selectedDeptId, kind, label, remark);
+    if (!result.ok) {
+      toast.error(result.error ?? "Failed to add competency");
+      return;
+    }
     setNewLabel("");
+    setNewRemark("");
+    setEditingId(null);
     void refresh("created");
+  };
+
+  const startEdit = (id: string, label: string, remark: string) => {
+    setEditingId(id);
+    setEditLabel(label);
+    setEditRemark(remark ?? "");
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditLabel("");
+    setEditRemark("");
+  };
+
+  const saveEdit = () => {
+    if (!editingId) return;
+    const result = updateCompetency(editingId, editLabel, editRemark);
+    if (!result.ok) {
+      toast.error(result.error ?? "Failed to update competency");
+      return;
+    }
+    cancelEdit();
+    void refresh("updated");
   };
 
   const handleCopy = () => {
     if (!copyFromId || copyFromId === selectedDeptId) return;
     copyCompetenciesFromDepartment(copyFromId, selectedDeptId);
+    cancelEdit();
     void refresh("created");
   };
 
@@ -139,6 +190,7 @@ export function WeeklyCheckInConfig() {
 
   const confirmDeleteCompetency = () => {
     if (!pendingDelete) return;
+    if (editingId === pendingDelete.id) cancelEdit();
     removeCompetency(pendingDelete.id);
     setPendingDelete(null);
     void refresh("deleted");
@@ -153,47 +205,116 @@ export function WeeklyCheckInConfig() {
         </span>
       </div>
       <div className="space-y-2">
-        {list.map((c) => (
-          <div
-            key={c.id}
-            className="flex items-center gap-2 rounded-md border border-border-soft bg-surface-alt/70 px-2.5 py-2"
-          >
-            <span className="flex h-6 w-6 items-center justify-center rounded bg-surface text-[11px] font-semibold text-muted-foreground">
-              {c.sequence}
-            </span>
-            <span className="flex-1 text-[12px] text-foreground">{c.label}</span>
-            <button
-              type="button"
-              onClick={() => {
-                moveCompetency(c.id, "up");
-                void refresh("updated");
-              }}
-              className="rounded p-1 text-muted-foreground hover:bg-surface"
-              aria-label="Move up"
+        {list.map((c) => {
+          const isEditing = editingId === c.id;
+          return (
+            <div
+              key={c.id}
+              className="flex items-center gap-2 rounded-md border border-border-soft bg-surface-alt/70 px-2.5 py-2"
             >
-              <ChevronUp className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                moveCompetency(c.id, "down");
-                void refresh("updated");
-              }}
-              className="rounded p-1 text-muted-foreground hover:bg-surface"
-              aria-label="Move down"
-            >
-              <ChevronDown className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setPendingDelete({ id: c.id, label: c.label, kind: c.kind })}
-              className="rounded p-1 text-danger hover:bg-danger-soft/30"
-              aria-label="Remove"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        ))}
+              <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-surface text-[11px] font-semibold text-muted-foreground">
+                {c.sequence}
+              </span>
+              {isEditing ? (
+                <>
+                  <input
+                    autoFocus
+                    value={editLabel}
+                    onChange={(e) => setEditLabel(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") saveEdit();
+                      if (e.key === "Escape") cancelEdit();
+                    }}
+                    placeholder={`${kind} competency`}
+                    className={`w-[25%] min-w-0 flex-shrink-0 ${inputClass}`}
+                    aria-label="Competency name"
+                  />
+                  <input
+                    value={editRemark}
+                    onChange={(e) => setEditRemark(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") saveEdit();
+                      if (e.key === "Escape") cancelEdit();
+                    }}
+                    placeholder="Remark"
+                    className={`min-w-0 flex-[3] ${inputClass}`}
+                    aria-label="Remark"
+                  />
+                  <button
+                    type="button"
+                    onClick={saveEdit}
+                    disabled={saving || !editLabel.trim()}
+                    className="rounded p-1 text-success hover:bg-success-soft disabled:opacity-40"
+                    aria-label="Save"
+                  >
+                    <Check className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={cancelEdit}
+                    className="rounded p-1 text-muted-foreground hover:bg-surface"
+                    aria-label="Cancel"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span
+                    className="w-[25%] min-w-0 flex-shrink-0 truncate text-[12px] font-medium text-foreground"
+                    title={c.label}
+                  >
+                    {c.label}
+                  </span>
+                  <span
+                    className="min-w-0 flex-[3] truncate text-[12px] text-muted-foreground"
+                    title={c.remark || undefined}
+                  >
+                    {c.remark || "—"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => startEdit(c.id, c.label, c.remark ?? "")}
+                    className="rounded p-1 text-muted-foreground hover:bg-surface hover:text-primary"
+                    aria-label="Edit"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      moveCompetency(c.id, "up");
+                      void refresh("updated");
+                    }}
+                    className="rounded p-1 text-muted-foreground hover:bg-surface"
+                    aria-label="Move up"
+                  >
+                    <ChevronUp className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      moveCompetency(c.id, "down");
+                      void refresh("updated");
+                    }}
+                    className="rounded p-1 text-muted-foreground hover:bg-surface"
+                    aria-label="Move down"
+                  >
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPendingDelete({ id: c.id, label: c.label, kind: c.kind })}
+                    className="rounded p-1 text-danger hover:bg-danger-soft/30"
+                    aria-label="Remove"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </>
+              )}
+            </div>
+          );
+        })}
       </div>
       {list.length < 5 && (
         <div className="mt-3 flex gap-2">
@@ -203,17 +324,42 @@ export function WeeklyCheckInConfig() {
               setNewKind(kind);
               setNewLabel(e.target.value);
             }}
-            onFocus={() => setNewKind(kind)}
+            onFocus={() => {
+              if (newKind !== kind) {
+                setNewKind(kind);
+                setNewLabel("");
+                setNewRemark("");
+              }
+            }}
             placeholder={`Add ${kind} competency…`}
-            className="flex-1 rounded-md border border-border bg-surface px-2.5 py-1.5 text-[12px] outline-none focus:border-accent-line"
+            className={`w-[25%] min-w-0 flex-shrink-0 ${inputClass}`}
+            aria-label={`Add ${kind} competency`}
+          />
+          <input
+            value={newKind === kind ? newRemark : ""}
+            onChange={(e) => {
+              setNewKind(kind);
+              setNewRemark(e.target.value);
+            }}
+            onFocus={() => {
+              if (newKind !== kind) {
+                setNewKind(kind);
+                setNewLabel("");
+                setNewRemark("");
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleAdd(kind);
+            }}
+            placeholder="Add remark…"
+            className={`min-w-0 flex-[3] ${inputClass}`}
+            aria-label="Add remark"
           />
           <button
             type="button"
-            onClick={() => {
-              setNewKind(kind);
-              handleAdd();
-            }}
-            className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground"
+            onClick={() => handleAdd(kind)}
+            disabled={saving || newKind !== kind || !newLabel.trim()}
+            className="inline-flex flex-shrink-0 items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground disabled:opacity-40"
           >
             <Plus className="h-3.5 w-3.5" />
             Add
@@ -289,7 +435,10 @@ export function WeeklyCheckInConfig() {
                     <button
                       key={key}
                       type="button"
-                      onClick={() => setSelectedDeptId(key)}
+                      onClick={() => {
+                        setSelectedDeptId(key);
+                        cancelEdit();
+                      }}
                       className={`mb-0.5 flex w-full items-center justify-between rounded-md border-l-[3px] px-2.5 py-2 text-left text-[12px] ${
                         selected
                           ? "border-primary bg-highlight font-medium text-foreground"
@@ -308,7 +457,7 @@ export function WeeklyCheckInConfig() {
               </div>
             </aside>
 
-            <div className="min-h-0 flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="min-h-0 flex-1 overflow-y-auto space-y-4 p-4">
               <div className="flex flex-wrap items-center gap-2 rounded-md border border-border-soft bg-surface-alt/70 px-3 py-2">
                 <Copy className="h-3.5 w-3.5 text-muted-foreground" />
                 <span className="text-[12px] text-muted-foreground">Copy from department</span>
@@ -339,7 +488,7 @@ export function WeeklyCheckInConfig() {
               {renderCompList("behavioural", behComps, "Behavioural Competencies")}
               <p className="text-[11px] text-muted-foreground">
                 Fewer than five competencies per category is allowed — empty categories are skipped
-                during review.
+                during review. Remarks are for configuration guidance only.
               </p>
             </div>
           </div>
@@ -367,7 +516,7 @@ export function WeeklyCheckInConfig() {
                       onChange={(e) => setRankDraft(e.target.value)}
                       onBlur={() => saveRankTitle(level.value)}
                       onKeyDown={(e) => e.key === "Enter" && saveRankTitle(level.value)}
-                      className="flex-1 rounded-md border border-border bg-surface px-2 py-1 text-[12px] outline-none focus:border-accent-line"
+                      className={`flex-1 ${inputClass}`}
                     />
                   ) : (
                     <span className="flex-1 text-[13px] font-medium text-foreground">
@@ -397,9 +546,8 @@ export function WeeklyCheckInConfig() {
       <ConfirmDeleteDialog
         open={!!pendingDelete}
         confirming={saving}
-        onCancel={() => {
-          if (!saving) setPendingDelete(null);
-        }}
+        itemLabel={pendingDelete ? `${pendingDelete.label} (${pendingDelete.kind})` : undefined}
+        onCancel={() => setPendingDelete(null)}
         onConfirm={confirmDeleteCompetency}
       />
     </div>

@@ -141,6 +141,7 @@ type ConfigBody = {
     departmentId: string;
     kind: CompetencyKind;
     label: string;
+    remark?: string;
     sequence: number;
   }[];
 };
@@ -328,7 +329,7 @@ export class WeeklyCheckInController {
     });
     const byDept: Record<
       string,
-      { id: string; departmentId: string; kind: string; label: string; sequence: number }[]
+      { id: string; departmentId: string; kind: string; label: string; remark: string; sequence: number }[]
     > = {};
     for (const c of comps) {
       const deptKey = c.departmentId.toString();
@@ -338,6 +339,7 @@ export class WeeklyCheckInController {
         departmentId: deptKey,
         kind: c.kind,
         label: c.label,
+        remark: c.remark ?? "",
         sequence: c.sequence,
       });
       byDept[deptKey] = list;
@@ -379,6 +381,7 @@ export class WeeklyCheckInController {
               departmentId,
               kind: c.kind,
               label: c.label,
+              remark: (c.remark ?? "").trim(),
               sequence: c.sequence,
               isDeleted: false,
               isActive: true,
@@ -393,6 +396,7 @@ export class WeeklyCheckInController {
               departmentId,
               kind: c.kind,
               label: c.label,
+              remark: (c.remark ?? "").trim(),
               sequence: c.sequence,
             },
           });

@@ -1,4 +1,4 @@
-// Warin production schema — BIGINT identity PKs + business keys + audit columns.
+// Warin production schema ΓÇö BIGINT identity PKs + business keys + audit columns.
 
 generator client {
   provider = "prisma-client-js"
@@ -675,6 +675,7 @@ model WeeklyCheckInCompetency {
   departmentId BigInt         @map("department_id")
   kind         CompetencyKind
   label        String
+  remark       String         @default("")
   sequence     Int
   isActive     Boolean        @default(true) @map("is_active")
   isDeleted    Boolean        @default(false) @map("is_deleted")
