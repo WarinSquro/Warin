@@ -1,4 +1,4 @@
-// Warin production schema ΓÇö BIGINT identity PKs + business keys + audit columns.
+// Warin production schema — BIGINT identity PKs + business keys + audit columns.
 
 generator client {
   provider = "prisma-client-js"
