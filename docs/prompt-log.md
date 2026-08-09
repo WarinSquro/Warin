@@ -32,6 +32,571 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-09 22:00 IST
+
+**Prompt:**  
+> Company calendar Label character limit should be 50 only (was 200).
+
+**Output:**  
+- `screens/Settings.tsx` — `OFF_DAY_LABEL_MAX = 50` (maxLength + counter).
+- `scripts/generate-table-structure-xlsx.ts` + `docs/OneView_Table_Structure.xlsx` — `company_off_days.label` size **50**.
+
+---
+
+### 2026-08-09 21:49 IST
+
+**Prompt:**  
+> Reset — if the user made no changes, do not open the confirmation message box.
+
+**Output:**  
+- `screens/Settings.tsx`: Reset confirm only when `dirty`, working-calendar dirty, or date-format dirty; otherwise no dialog (no-op).
+
+---
+
+### 2026-08-09 21:47 IST
+
+**Prompt:**  
+> Settings Reset button — show confirmation before resetting data.
+
+**Output:**  
+- **Root cause:** Reset called `refresh()` immediately with no confirm step.
+- **Files:** `screens/Settings.tsx` — Reset opens confirm dialog; Cancel dismisses; confirm reloads from server and clears dirty/error.
+- **Result:** Reset requires explicit confirmation.
+
+---
+
+### 2026-08-09 21:45 IST
+
+**Prompt:**  
+> Impact modal “Save & apply” — remove arrow (not our general button pattern).
+
+**Output:**  
+- `screens/Settings.tsx` `ImpactModal`: removed `ArrowRight` from Save & apply / Schedule change button (kept arrow only on impact before→after rows).
+
+---
+
+### 2026-08-09 21:40 IST
+
+**Prompt:**  
+> SMTP Settings — asterisk (*) for all mandatory fields.
+
+**Output:**  
+- **Files:** `components/SmtpSettingsSection.tsx` — `Field` supports `required`; `*` on Host, Port, Security Type, Authentication Required, Sender Name, Sender Email; Username when auth on; Password when auth on and not yet saved.
+- **Result:** Mandatory SMTP fields show red asterisks.
+
+---
+
+### 2026-08-09 21:38 IST
+
+**Prompt:**  
+> Sender Email Address — entered text must be in email format.
+
+**Output:**  
+- **Root cause:** UI relied on `type="email"` / API only; save/test could still submit invalid values until the API rejected them.
+- **Files:** `components/SmtpSettingsSection.tsx` — client check `user@domain` (same regex as API); blocks Save / Test connection / Send test email; red border + toast/message on invalid; test recipient uses the same format gate.
+- **Result:** Invalid sender email cannot proceed from the form.
+
+---
+
+### 2026-08-09 21:36 IST
+
+**Prompt:**  
+> SMTP Port should not more than 65536 and never negative.
+
+**Output:**  
+- **Root cause:** Port input/`toPayload` accepted any number; API allowed 1–65535 only.
+- **Files:** `components/SmtpSettingsSection.tsx` — clamp port to **0–65536** on change/blur/payload; `apps/oneview-api/src/api/settings/smtp-settings.service.ts` — same bounds on save/test.
+- **Result:** Negatives and values above 65536 cannot be set.
+
+---
+
+### 2026-08-09 21:30 IST
+
+**Prompt:**  
+> Company calendar modal: asterisks on mandatory fields; cannot add holidays for past dates (disable past in calendar); Label text box character value should be fixed.
+
+**Output:**  
+- **Root cause:** Date/`Label` had no required markers; date input had no `min`; label had no max length (workbook size is 200).
+- **Files:** `screens/Settings.tsx` (`CompanyCalendarModal`) — `*` on Date & Label; `min={todayISO()}` + reject past on change/add; Label `maxLength={200}` with counter `n/200`.
+- **Validation:** lint clean on `Settings.tsx`.
+- **Testing:** past dates disabled in picker; typed past rejected; label stops at 200 chars.
+- **Result:** Company calendar add-off-day rules applied.
+
+---
+
+### 2026-08-09 21:20 IST
+
+**Prompt:**  
+> Working calendar + System Parameters inputs: (1) Idle/Optimal clear→type must not become `01`; (2) Hours per day not ≤0 and not >24 (entry + up/down); (3) hours max 2 digits before decimal, 1 after; (4) cannot deselect all working days — show validation; (5) asterisks on all mandatory fields on this page.
+
+**Output:**  
+- **Recovery:** `screens/Settings.tsx` was briefly overwritten; restored from Cursor local history (`History/3ee4c50a/SW7u.tsx`, 2026-08-07) then re-applied band + calendar rules.
+- **Root cause (01):** `type="number"` + committing `0` on clear left a leading zero for the next digit.
+- **Files:** `screens/Settings.tsx` — `NumField` now `type="text"` with integer draft (strip leading zeros) and decimal mode (`maxIntDigits`/`maxFracDigits`); Hours `min=0.1` `max=24` step `0.1`; ArrowUp/Down clamped; `toggleDay` blocks last-day removal with toast “Select at least one working day.”; `*` on Idle/Optimal, planning bands, Hours, Working days, Display format; utilization Idle&lt;Optimal + metric 0–100 order restored.
+- **Validation:** no linter issues on `Settings.tsx`.
+- **Testing:** manual — clear Idle then type `1` → `1`; Hours reject `0`/`25`; `8.55` blocked; last working day toast; asterisks visible.
+- **Result:** Working calendar and band field rules implemented as requested.
+
+---
+
+### 2026-08-09 21:10 IST
+
+**Prompt:**  
+> Planning & confirmation bands: no negatives; allow 0%; max 100%; integers; Excellent ≥ Good ≥ Needs Attention; remove Critical copy; same clear-then-type fix (integer draft).
+
+**Output:**  
+- Metric band fields use `integer` + min/max; `patchMetricBandsDirty` clamps 0–100 and keeps Needs Attention ≤ Good ≤ Excellent.
+- Card desc/summary no longer mention Critical / “below Critical”.
+
+---
+
+**Prompt:**  
+> Utilization bands: no decimals; clearing then typing must not show “01” (empty should not force 0 mid-edit).
+
+**Output:**  
+- `NumField` `integer` mode: digits only (blocks `.`/`e`), draft text while focused so Backspace can clear without committing `0`; commit/clamp on blur. Idle below & Optimal up to use `integer`.
+
+---
+
+**Prompt:**  
+> Utilization bands: Idle below and Optimal up to cannot be the same.
+
+**Output:**  
+- Enforced **Idle &lt; Optimal**: Idle max = Optimal−1; Optimal min = Idle+1 (and ≥ 1). Lowering Optimal below Idle pulls Idle to Optimal−1.
+
+---
+
+**Prompt:**  
+> Utilization bands bug: Idle below and Optimal up to cannot both be set to 0.
+
+**Output:**  
+- **Root cause:** Optimal was clamped with `min(idleBelow)`, so it could not reach 0 while Idle was higher.
+- **Fix:** Optimal may go to 0; when Optimal drops below Idle, Idle is pulled down to match. Both can be `0`. Optimal input `min={0}`.
+
+---
+
+**Prompt:**  
+> Utilization Bands: Idle below cannot be &lt; 0 or &gt; Optimal up to (manual entry or spinner).
+
+**Output:**  
+- `screens/Settings.tsx`: `NumField` supports `min`/`max` + clamp on change/blur; Idle below `min=0` `max=optimalTo`; Optimal up to `min=idleBelow`. `patchBands` enforces the same invariant.
+
+---
+
+**Prompt:**  
+> Bulk upload: duplicate email should be blocked at the start — one employee was uploaded before the duplicate was detected.
+
+**Output:**  
+- **Root cause:** Within-file email uniqueness was not validated; import ran row-by-row so the first create succeeded then the API rejected the duplicate.
+- **Fix:** `parseEmployeeWorkbook` flags duplicate emails (and emails owned by another existing employee); duplicate emails in the file return `fileError` and **block import** (toast + no creates). `runImport` preflight re-checks before any API calls. Template instructions updated.
+
+---
+
+**Prompt:**  
+> Activities must not be disabled while mapped to any project.
+
+**Output:**  
+- **API:** `updateActivity` rejects `inactive` when non-deleted allocations exist on non-deleted projects. GET activities includes allocation `_count` for UI guard.
+- **UI:** `toggleActivity` early toast when `projectCount > 0`; API errors toasted.
+- Message: “Activity is mapped to one or more projects and cannot be disabled.” Hot-patched masters controller.
+
+---
+
+**Prompt:**  
+> Org · Skills · Activities: Department and Skill must not be disabled while mapped to any employee.
+
+**Output:**  
+- **API:** `updateDepartment` / `updateSkill` reject `inactive` when non-deleted employees are linked (dept FK / `employee_skills`). Message: “…mapped to one or more employees and cannot be disabled.”
+- **UI:** `SetupMasters` Disable early-checks `memberCount` / `peopleCount` and shows `toast.error`; API error also toasted.
+- Hot-patched `oneview-api` masters controller.
+
+---
+
+**Prompt:**  
+> Change PIN: first validate Current PIN (toast “Current PIN do not match.”); if OK then check New PIN vs Confirm New PIN.
+
+**Output:**  
+- Order: verify Current PIN → then New vs Confirm → then change. Wrong current toast: **“Current PIN do not match.”**
+- API: `POST /auth/verify-pin`; `changePin` uses same message; client `verifyPinApi` + updated `AccountSettings` submit flow. Hot-patched `oneview-api`.
+
+---
+
+**Prompt:**  
+> Change PIN messages should display as toast (not inline).
+
+**Output:**  
+- `screens/AccountSettings.tsx` — removed inline `pinError` text; validation/API failures call `toast.error(...)` (bottom-right, 3s, ×). Red field borders via `pinErrorFields` kept. Success still uses `toast.updated()`.
+
+---
+
+**Prompt:**  
+> Account Settings Change PIN: required asterisks; Show/Hide PIN; red border on invalid fields; validate Current PIN before “new ≠ current”; fix mismatch copy to “New PIN and Confirm New PIN do not match.”
+
+**Output:**  
+- **UI (`screens/AccountSettings.tsx`):** `*` on all three PIN labels; per-field eye Show/Hide; invalid fields get `border-danger`; mismatch message updated; removed client-side `newPin === currentPin` check (must verify Current PIN via API first); maps API errors to field highlights.
+- **API (`auth.service.ts`):** Verify Current PIN **first** → `BadRequestException("Invalid Current PIN")` (400, not 401); then enforce new ≠ current. Hot-patched running `oneview-api`.
+- **Validation:** Wrong current `11111` with new `11111` → Invalid Current PIN; correct current with same new → New PIN must be different…
+
+---
+
+**Prompt:**  
+> Weekly Check-In Config shows “An unexpected error occurred” — fix
+
+**Output:**  
+- **Root cause:** Controller was hot-patched with `remark` writes, but the Docker API image still had an old Prisma Client / schema without `WeeklyCheckInCompetency.remark`. PUT failed with Prisma validation → production 500 `"An unexpected error occurred"` (shown in config header).
+- **Fix:** Copied updated `prisma/schema.prisma` into `oneview-api`, ran `npx prisma generate`, restarted container.
+- **Validation:** `PUT /weekly-check-in/config` with remarks → **200**; response includes `remark` (e.g. `"Remark 1"`).
+
+---
+
+**Prompt:**  
+> Weekly Check-In Config: add “Add Remark” field (competency 25% / remark 75%); add edit for Technical and Behavioural competencies; competencies only — no other screens.
+
+**Output:**  
+- **UI:** `screens/WeeklyCheckInConfig.tsx` — add row has competency (25%) + remark (75%) + Add; list shows label/remark; pencil opens inline edit (same widths) with ✓ / ✕; applies to both Technical and Behavioural.
+- **Data:** `DepartmentCompetency.remark`; `addCompetency(..., remark)`, `updateCompetency(id, label, remark)`; localStorage normalize missing remark.
+- **API/DB:** Prisma `WeeklyCheckInCompetency.remark` (default `""`); migration `20260807193000_wci_competency_remark`; GET/PUT config round-trips remark. Hot-patched running `oneview-api`.
+- **Workbook:** documented `weekly_check_in_competencies` (incl. `remark`) in `docs/OneView_Table_Structure.xlsx`.
+- **Scope:** Check-in workspace / other screens unchanged (remarks stay config-only).
+
+---
+
+**Prompt:**  
+> unexpected error - fix (Add activity “Bug Fixing” showed “An unexpected error occurred”)
+
+**Output:**  
+- **Root cause:** DB unique on `activities.name` was live, but the API container was still on an older image without the duplicate pre-check. Prisma `P2002` fell through `AllExceptionsFilter` as production 500 `"An unexpected error occurred"` → toast showed that text.
+- **Fix:** Recreated `oneview-api` on latest image; patched running dist with (1) createActivity duplicate / soft-delete revive + P2002 → `BadRequestException("Activity already exists")`, (2) filter maps Prisma `P2002`/`P2025` to 400/404 with clear messages.
+- **Files:** `apps/oneview-api/src/api/masters/masters.controller.ts`, `apps/oneview-api/src/infrastructure/filters/all-exceptions.filter.ts`; hot-copied into container + restart.
+- **Validation:** `POST /api/v1/masters/activities` with name `Bug Fixing` → **400** `{"error":{"code":"VALIDATION_ERROR","message":"Activity already exists"}}`. UI toast shows that message (bottom-right, 3s, ×).
+
+---
+
+### 2026-08-07 16:55 IST
+
+**Prompt:**  
+> Setup Masters inline “Department already exists” (and all error/other messages) should be toast bottom-right (3s, X). Apply for Departments, Skills, Activities. Never store duplicate masters (Activities had duplicates).
+
+**Output:**  
+- **Root cause:** Setup Masters used an inline danger banner for save failures; Activities had no case-insensitive duplicate guard and DB lacked `activities.name` unique (duplicate “Bug Fixing” rows).
+- **UI:** `screens/SetupMasters.tsx` already routes create/update/toggle errors via `toast.error` (shared `ToastContext` / bottom-right / 3s / ×). Removed Employee Master center-bottom `saveError` banner → `toast.error` in `screens/EmployeeMaster.tsx`.
+- **API:** `masters.controller.ts` — case-insensitive duplicate checks + revive for departments, skills, activities; activity update name clash; create throws “Activity already exists”.
+- **DB:** Migration `prisma/migrations/20260807163000_activity_name_unique` soft-deletes extra case-insensitive name dupes (kept id 13, renamed/soft-deleted id 24) and adds `activities_name_key`. Deployed via `npx prisma migrate deploy`. Schema already had `Activity.name @unique`. Workbook `docs/OneView_Table_Structure.xlsx` — `activities.name` Rule → `Required; Unique`.
+- **Deploy:** `docker compose build api` + `up -d api` (in progress / completed this turn).
+- **Validation:** No remaining inline `saveError` banner on Setup Masters; DB unique index present; only one active “Bug Fixing”.
+
+---
+
+**Prompt:**  
+> Default show Timeline (and similar) on a single line; only stack/wrap when user selects extra Columns.
+
+**Output:**  
+- Default view: Timeline `start – end` one line; Created/Updated use single-line date-time.
+- When any audit column is visible: Timeline and Created/Updated stack to two lines.
+- Restored `defaultProjectVisibleColumns` after insert.
+
+### 2026-08-07 16:26 IST
+
+**Prompt:**  
+> When no space, word-wrap Created/Updated: show time on next line (like Timeline).
+
+**Output:**  
+- `ProjectMaster` Created/Updated cells stack date then time; Timeline stacks start / end on two lines.
+
+### 2026-08-07 16:14 IST
+
+**Prompt:**  
+> Keep column widths so default columns fit screen width; keep ACTION disabled in Columns dropdown.
+
+**Output:**  
+- Default PROJECT…DEMAND+ACTION use `fr` tracks + full-width grid (no `min-w-max`) so they fill the card without horizontal scroll.
+- `ReportColumnPicker`: `locked` option — ACTION checked, disabled, cannot toggle; always re-added on change/reset.
+
+### 2026-08-07 16:06 IST
+
+**Prompt:**  
+> Projects dual scrollbars unprofessional. Put all current columns in Columns dropdown; add 4 audit columns there (default off). Match Reports → Daily Work Detail.
+
+**Output:**  
+- Rebuilt Projects list like Daily Work: one `overflow` pane, sticky header + rows share the same horizontal/vertical scroll (no separate header scrollbar).
+- `ReportColumnPicker` lists all columns (PROJECT…ACTION + Created/Updated date & by); defaults = previous six + ACTION; audit four `defaultVisible: false`.
+- Grid uses shared `gridTemplateColumns` from visible column widths.
+
+### 2026-08-07 15:56 IST
+
+**Prompt:**  
+> Projects toolbar: move search left; add Columns dropdown (Daily Work style) for Project created date & time, Updated date & time, Created by, Updated by.
+
+**Output:**  
+- **UI:** `ProjectMaster` — search beside Active/Inactive; `ReportColumnPicker` with 4 optional cols (default off, `allowEmpty`); table shows selected audit columns + horizontal scroll.
+- **API:** projects list/get return `createdAt`/`modifiedAt`/`createdByName`/`modifiedByName`; create/update set `createdBy`/`modifiedBy` from JWT.
+- **Client:** `mapApiProject` + `Project` type fields; `ReportColumnPicker` `allowEmpty`.
+- Rebuilt API container successfully.
+
+### 2026-08-07 15:28 IST
+
+**Prompt:**  
+> Fix Vite error: `return` outside of function in `ProjectMaster.tsx` (1139).
+
+**Output:**  
+- Restored accidentally removed `export function ProjectMaster() {` after ProjectDrawer lightbox edit. File parses cleanly again.
+
+### 2026-08-07 15:26 IST
+
+**Prompt:**  
+> View link — click to open image in same window (not new tab).
+
+**Output:**  
+- `screens/ProjectMaster.tsx` — View opens an in-app lightbox overlay (same window) with filename header and close (X / backdrop click).
+
+### 2026-08-07 15:23 IST
+
+**Prompt:**  
+> Put View link before Remove on Email snap to open and view the attached image.
+
+**Output:**  
+- `screens/ProjectMaster.tsx` — added primary **View** link before **Remove**; opens full-size image in a new tab (toast if pop-up blocked). Shown only when preview data URL is available.
+
+### 2026-08-07 15:10 IST
+
+**Prompt:**  
+> Attach/save work in edit, but re-opening edit shows empty Email snap — check properly before updating.
+
+**Output:**  
+- **Investigation (no guess):** Queried Postgres — `PRJ-009` (POC, Manish Mehta) has `approved_by_snap = NULL`. Running API image had **0** references to `approvedBySnap` in compiled `projects.controller.js` (container ~44h old). Frontend was sending the field; old API ignored it → save toast OK, nothing stored → edit empty.
+- **Local source already correct** (create/update persist + mapApiProject + drawer decode). Rebuilt API: `docker compose up -d --build api` — new image reports 4× `approvedBySnap`; container healthy.
+- Hardening: `ProjectDrawer` `key={editing?.id ?? "new-project"}` so edit always remounts from project props.
+- **User action:** Re-attach image on PRJ-009 → Save once → re-open edit; preview should return. (Prior saves wrote NULL.)
+
+### 2026-08-07 14:38 IST
+
+**Prompt:**  
+> Email snap image not uploaded while edit/attach — fix.
+
+**Output:**  
+- **Root cause:** File input used Tailwind `hidden` (`display: none`), which often prevents the OS file picker from opening when the drop-zone is clicked; failed type checks also failed silently.
+- **Fix:** `ProjectMaster` — button opens file input via ref; input uses `sr-only` (not `display:none`); accept mime+extensions; toast on bad file / read error; reset input value for re-select. `useFocusFirstField` skips `type=file`.
+- **Validation:** Edit POC → Attach image → preview should show immediately; Save persists snap (API already wired).
+
+### 2026-08-07 14:30 IST
+
+**Prompt:**  
+> When editing a POC project, attached email-snap image is not visible / not available to view again — check and correct.
+
+**Output:**  
+- **Root cause:** UI saved only the filename into local state; API create/update never wrote `approvedBySnap`; client `mapApiProject` / write body omitted it; edit always started with `approvalSnapPreview = null`.
+- **Fix:**
+  - `utils/approvalSnap.ts` — encode/decode JSON `{ name, dataUrl }` (also legacy filename / raw data URL).
+  - Persist snap on create/update in `projects.controller.ts`; map in `api/domain.ts`; include in `toWriteBody` / drawer save.
+  - Drawer restores preview from stored data URL; legacy filename-only shows “re-attach” hint.
+  - API JSON body limit raised to 5mb in `main.ts` for data-URL payloads.
+- **Note:** Existing POC rows that only stored a filename need one re-attach to store a viewable image. Restart API after deploy.
+
+### 2026-08-07 13:11 IST
+
+**Prompt:**  
+> If field value wider than cell (shows …), show full text on hover — apply entire app and document.
+
+**Output:**  
+- **Root cause:** Truncated labels (e.g. project name) had no overflow tooltip.
+- **Fix (app-wide):** `TruncateHoverTitles` mounted in `App.tsx` — on hover of `.truncate`, sets native `title` only when overflowing; preserves intentional different titles.
+- **Helper:** `components/TruncateText.tsx` for new UI.
+- **Docs/rules:** `docs/ui-truncate-tooltips.md`; updated `docs/change-implementation-standards.md`, `.cursor/rules/oneview-ui.mdc`, `AGENTS.md`, skill `reference.md`.
+- **Project row:** `min-w-0` on name button flex so truncate measures correctly.
+
+### 2026-08-07 13:00 IST
+
+**Prompt:**  
+> Remove “· FR-147 portfolio” hint next to Project health in ProjectDrawer.
+
+**Output:**  
+- Removed `hint="FR-147 portfolio"` from Project health `Field` in `screens/ProjectMaster.tsx`.
+
+### 2026-08-07 12:56 IST
+
+**Prompt:**  
+> Add project: changing Type resets Milestone details. Edit project: disable Project ID, Type, Name, Customer, +Add customer, PO Number, Kickoff/Start/End dates; keep Milestones, Health, Resource Demand editable.
+
+**Output:**  
+- **Root cause:** Type change only cleared catalog pick (`msCatalogId`), not added milestone lines; edit only locked Project ID.
+- **Fix:** `screens/ProjectMaster.tsx` — on Type change clear `milestones` + draft pickers; `coreLocked` disables identity/commercial/timeline fields and hides +Add customer on edit.
+- **Validation:** Create → change Type → milestone list empty; Edit → listed fields disabled, milestones/health/demand still work.
+
+### 2026-08-07 12:42 IST
+
+**Prompt:**  
+> “Project code already exists” shows at wrong place and does not auto-remove — use the shared toast (bottom-right, 3s, X) for errors/other messages.
+
+**Output:**  
+- **Root cause:** `ProjectMaster` used custom `saveError` fixed center-bottom banner with no dismiss timer.
+- **Fix:** Removed `saveError` UI/state; save + status failures call `toast.error(...)` via existing `ToastContext` / `ToastViewport`.
+- **File:** `screens/ProjectMaster.tsx`
+
+### 2026-08-07 12:33 IST
+
+**Prompt:**  
+> Resource demand “Select skills” — user cannot add the same resource demand multiple times; once a skill is added, remove/disable it from the dropdown.
+
+**Output:**  
+- **Root cause:** `ProjectDrawer` always passed full `activeSkillNames` into `FilterMultiSelect`; no uniqueness check on add.
+- **Fix:** `screens/ProjectMaster.tsx` — exclude skills already on `demandLines` from the dropdown; strip them from draft selection; `addDemandLine` ignores already-used skills; Add disabled when no skills left.
+- **Validation:** Add skill A → A gone from list; remove line → A returns; cannot Add duplicate via draft.
+
+### 2026-08-07 12:22 IST
+
+**Prompt:**  
+> Validate ImpactModal “People per band” values (Idle 59→59, Optimal 0→0, Overloaded 0→0) — are they correct?
+
+**Output:**  
+- **Verdict:** Before→after equality + “only classification thresholds were reviewed” is correct when nobody is reclassified (unchanged bands, or change that doesn’t cross anyone’s %). Absolute **59 / 0 / 0** was **not trustworthy**.
+- **Root cause:** `ImpactModal` called `fetchAllocations({ from: monday, to: monday })`, so allocations that only cover Tue–Fri were omitted → undercounted hours → most people looked Idle. Capacity also ignored company off-days (`hours × days.length` vs `weekCapacityHours`).
+- **Fix:** `screens/Settings.tsx` — fetch Mon–Fri range; use `weekCapacityHours` + off-day dates like Utilization.
+- **Validation:** Reopen Review impact; counts should align with Utilization for the current week under committed vs draft bands. Identical before/after still expected if draft bands ≈ committed bands.
+
+### 2026-08-07 12:15 IST
+
+**Prompt:**  
+> Demand priority order card — remove Save button (not required).
+
+**Output:**  
+- Removed Save button, reorder controls, and related demand-priority save state/handlers from `screens/Settings.tsx`. Card is display-only again.
+
+### 2026-08-07 12:09 IST
+
+**Prompt:**  
+> Working calendar card Save must not impact Review & Save.
+
+**Output:**  
+- Hours/days edits use `patchSettings` only (no Review & Save `dirty`).
+- Card Save merges hours/days onto latest API settings snapshot; own `savingWorkingCalendar` flag; does not clear Review & Save draft.
+
+### 2026-08-07 11:59 IST
+
+**Prompt:**  
+> Settings Demand priority order card — individual Save; not impacting Review & Save.
+
+**Output:**  
+- Wired `demandPriority` through settings PUT/schedule apply + audit diff.
+- Card: reorder with ←/→; Save persists order via latest API snapshot (same pattern as Date Format); does not set Review & Save `dirty`.
+
+### 2026-08-07 11:52 IST
+
+**Prompt:**  
+> Settings Date Format card — individual Save button; must not impact Review & Save.
+
+**Output:**  
+- Date format edits use `patchSettings` only (no `dirty` / Review & Save).
+- Card Save loads latest settings from API, writes `dateFormat` only onto that snapshot, reloads audit; does not clear Review & Save draft state.
+- Own loading flag (`savingDateFormat`) for the button.
+
+### 2026-08-07 11:48 IST
+
+**Prompt:**  
+> Settings Working calendar card — put individual Save button for this card.
+
+**Output:**  
+- `screens/Settings.tsx`: Working calendar card has its own Save (enabled when hours/days differ from last persisted); persists via existing `persistSettings`, toast + loading/disabled to prevent double-submit.
+
+### 2026-08-07 11:39 IST
+
+**Prompt:**  
+> Deviation feed date still shows “—” after previous fix.
+
+**Output:**  
+- Root cause: `formatDate` got empty `workDate`/`addedAt` (API omitted dates or client sliced empty string → “—”).
+- Client now falls back to compliance `asOf`/today when mapping deviations; extracts `YYYY-MM-DD` from datetime strings.
+- API `addedAt` hardened when `submittedAt` missing.
+- Soft-refresh UI after change; restart API if response still lacks `workDate`/`addedAt`.
+
+### 2026-08-07 11:25 IST
+
+**Prompt:**  
+> Deviation feed row — show deviation added date (was “—”).
+
+**Output:**  
+- API team compliance deviation feed now includes `addedAt` (confirmation `submittedAt` date) plus `workDate`.
+- `DeviationRow` shows `formatDate(addedAt || workDate)`; client maps/normalizes those fields.
+- Types updated in `data/confirmation.ts` and `api/domain.ts`.
+
+### 2026-08-07 11:15 IST
+
+**Prompt:**  
+> Work Confirmation Workday Timeline — remove “Lunch is optional…” helper text.
+
+**Output:**  
+- Removed the helper `div` from `WorkdayTimelinePanel` in `components/ConfirmationProductivity.tsx`.
+
+### 2026-08-07 11:13 IST
+
+**Prompt:**  
+> Weekly Check-In Recognition — show as horizontal buttons (not dropdown).
+
+**Output:**  
+- `WeeklyRecognitionPicker` in `components/WeeklyCheckInStatusPicker.tsx`: horizontal None / Appreciate / Appreciate Publicly buttons.
+
+### 2026-08-07 11:11 IST
+
+**Prompt:**  
+> Weekly Check-In — remove “Min 100 characters” hint under RO Remarks.
+
+**Output:**  
+- Removed the hint `div` from `screens/WeeklyCheckInWorkspace.tsx` (validation still uses `MIN_REMARKS_LENGTH`).
+
+### 2026-08-07 11:09 IST
+
+**Prompt:**  
+> Weekly Check-In Confidence — show as horizontal buttons (not dropdown).
+
+**Output:**  
+- `WeeklyConfidencePicker` in `components/WeeklyCheckInStatusPicker.tsx`: horizontal High / Medium / Low buttons with confidence tone styles when selected.
+
+### 2026-08-07 11:07 IST
+
+**Prompt:**  
+> Weekly Check-In Weekly Status — show as horizontal buttons (not dropdown).
+
+**Output:**  
+- `components/WeeklyCheckInStatusPicker.tsx`: `WeeklyCheckInStatusPicker` is a horizontal button group (On Track / Watch / Intervention Required) using existing status tone styles when selected.
+
+### 2026-08-07 10:38 IST
+
+**Prompt:**  
+> Weekly Check-In week picker — default always previous week; dropdown only current + last 4 weeks (no future).
+
+**Output:**  
+- `data/weeklyCheckIn.ts`: `getReviewWeeks` offsets `[-4…0]`; added `getDefaultReviewWeekStart` / `getReviewWeekStarts` / `resolveReviewWeekStart`.
+- Queue + Workspace use `resolveReviewWeekStart` and replace invalid/missing URL week with previous week.
+- **Result:** Default = T-1; options = T through T-4 only.
+
+### 2026-08-07 10:33 IST
+
+**Prompt:**  
+> My Workspace Team Load — Resource Owner must not appear in the list (selected Aarav Shah row).
+
+**Output:**  
+- **Root cause:** `buildLiveCockpitSnapshot` built Team Load from full scoped subtree, including mid-level Resource Owners.
+- **Fix:** `data/cockpit.ts` — Team Load rows exclude anyone who is `resourceOwnerId` for an active employee (plus Administrator / EMP-0001). Dept health / other cockpit scope unchanged.
+- **Result:** Team Load shows individual contributors only.
+
+### 2026-08-07 10:26 IST
+
+**Prompt:**  
+> Weekly Check-In queue resource subtitle — display only department (not “React · DevOps”).
+
+**Output:**  
+- `screens/WeeklyCheckInQueue.tsx`: subtitle shows `row.department` only (removed role prefix).
+
+### 2026-08-06 21:00 IST
+
+**Prompt:**  
+> After EC2 pull + SPA build + API rebuild + `prisma migrate deploy`, employees disappeared and screens show errors. Live environment.
+
+**Output:**  
+- **Root cause:** `docker compose exec api npx prisma migrate deploy` ran with WORKDIR `/app/apps/oneview-api` → Prisma schema not found → pending migrations (`date_format`, `must_change_pin`, SMTP verify columns) never applied → new API queries fail → UI empty/errors. Data almost certainly still in Postgres.
+- **Fix (on EC2, no seed):**  
+  `docker compose exec api npx prisma migrate deploy --schema=/app/prisma/schema.prisma` then `docker compose restart api worker`. Verify with `SELECT COUNT(*) FROM employees WHERE is_deleted = false;`.
+- Updated `docs/aws-ec2-deploy-checklist.md` with correct migrate `--schema` path and no-seed warning.
+
 ### 2026-08-06 17:11 IST
 
 **Prompt:**  

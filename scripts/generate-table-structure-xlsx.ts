@@ -130,7 +130,7 @@ const rows: Row[] = [
   // T12 company_off_days
   { tableNo: 12, tableName: "company_off_days", fieldNo: 1, fieldName: "id", dataType: "TEXT / VARCHAR", size: "50", defaultValue: "—", remarks: "Holiday / off-day key", rule: "PK; Required" },
   { tableNo: 12, tableName: "company_off_days", fieldNo: 2, fieldName: "date", dataType: "DATE", size: "—", defaultValue: "—", remarks: "Calendar date of off day", rule: "Required; Unique; DATE" },
-  { tableNo: 12, tableName: "company_off_days", fieldNo: 3, fieldName: "label", dataType: "TEXT / VARCHAR", size: "200", defaultValue: "—", remarks: "Holiday name", rule: "Required" },
+  { tableNo: 12, tableName: "company_off_days", fieldNo: 3, fieldName: "label", dataType: "TEXT / VARCHAR", size: "50", defaultValue: "—", remarks: "Holiday name", rule: "Required; Max 50 chars" },
   { tableNo: 12, tableName: "company_off_days", fieldNo: 4, fieldName: "created_at", dataType: "TIMESTAMP", size: "—", defaultValue: "now()", remarks: "Row create time", rule: "System-set" },
 
   // T13 smtp_settings (extra columns for welcome-email gate)

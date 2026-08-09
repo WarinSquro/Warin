@@ -185,8 +185,8 @@ export class SmtpSettingsService implements OnModuleInit {
 
   private validateUpdate(dto: SmtpSettingsUpdateDto, passwordSet: boolean) {
     if (!dto.host?.trim()) throw new BadRequestException("SMTP Host is required.");
-    if (!dto.port || dto.port < 1 || dto.port > 65535) {
-      throw new BadRequestException("SMTP Port must be between 1 and 65535.");
+    if (!Number.isFinite(dto.port) || dto.port < 0 || dto.port > 65536) {
+      throw new BadRequestException("SMTP Port must be between 0 and 65536.");
     }
     const allowed: SmtpSecurityType[] = ["none", "ssl", "tls", "starttls"];
     if (!allowed.includes(dto.securityType)) {

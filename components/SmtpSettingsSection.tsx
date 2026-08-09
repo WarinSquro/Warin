@@ -18,6 +18,22 @@ const SECURITY_OPTIONS: { value: SmtpSecurityType; label: string }[] = [
   { value: "starttls", label: "STARTTLS" },
 ];
 
+/** Inclusive bounds per product rule (never negative; not above 65536). */
+const SMTP_PORT_MIN = 0;
+const SMTP_PORT_MAX = 65536;
+
+/** Same pattern as API `smtp-settings.service` sender email check. */
+const EMAIL_FORMAT = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function isValidEmail(value: string): boolean {
+  return EMAIL_FORMAT.test(value.trim());
+}
+
+function clampSmtpPort(raw: number): number {
+  if (!Number.isFinite(raw)) return 587;
+  return Math.min(SMTP_PORT_MAX, Math.max(SMTP_PORT_MIN, Math.trunc(raw)));
+}
+
 const fieldClass =
   "w-full rounded-md border border-border bg-surface px-3 py-1.5 text-[13px] text-foreground outline-none";
 
@@ -39,7 +55,7 @@ const emptyForm = (): SmtpSettings => ({
 function toPayload(form: SmtpSettings): SmtpSettingsPayload {
   return {
     host: form.host.trim(),
-    port: Number(form.port) || 587,
+    port: clampSmtpPort(Number(form.port)),
     securityType: form.securityType,
     senderName: form.senderName.trim(),
     senderEmail: form.senderEmail.trim(),
@@ -59,10 +75,25 @@ export function SmtpSettingsSection() {
   const [showPassword, setShowPassword] = useState(false);
   const [testTo, setTestTo] = useState("");
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [senderEmailInvalid, setSenderEmailInvalid] = useState(false);
 
   const patch = (p: Partial<SmtpSettings>) => {
     setForm((prev) => ({ ...prev, ...p }));
     setMessage(null);
+    if (p.senderEmail !== undefined) setSenderEmailInvalid(false);
+  };
+
+  const validateSenderEmail = (): boolean => {
+    const ok = isValidEmail(form.senderEmail);
+    setSenderEmailInvalid(!ok);
+    if (!ok) {
+      const text = form.senderEmail.trim()
+        ? "Sender Email Address must be a valid email format."
+        : "Sender Email Address is required.";
+      setMessage({ type: "err", text });
+      toast.error(text);
+    }
+    return ok;
   };
 
   useEffect(() => {
@@ -89,6 +120,7 @@ export function SmtpSettingsSection() {
   }, []);
 
   const save = async () => {
+    if (!validateSenderEmail()) return;
     setSaving(true);
     setMessage(null);
     try {
@@ -103,6 +135,7 @@ export function SmtpSettingsSection() {
   };
 
   const testConn = async () => {
+    if (!validateSenderEmail()) return;
     setTesting(true);
     setMessage(null);
     try {
@@ -118,6 +151,13 @@ export function SmtpSettingsSection() {
   };
 
   const sendTest = async () => {
+    if (!validateSenderEmail()) return;
+    if (!isValidEmail(testTo)) {
+      const text = "Test recipient must be a valid email format.";
+      setMessage({ type: "err", text });
+      toast.error(text);
+      return;
+    }
     setSending(true);
     setMessage(null);
     try {
@@ -177,7 +217,7 @@ export function SmtpSettingsSection() {
       </div>
 
       <div className="mt-3.5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label="SMTP Host">
+        <Field label="SMTP Host" required>
           <input
             value={form.host}
             onChange={(e) => patch({ host: e.target.value })}
@@ -186,17 +226,28 @@ export function SmtpSettingsSection() {
             autoComplete="off"
           />
         </Field>
-        <Field label="SMTP Port">
+        <Field label="SMTP Port" required>
           <input
             type="number"
-            min={1}
-            max={65535}
+            min={SMTP_PORT_MIN}
+            max={SMTP_PORT_MAX}
+            step={1}
             value={form.port}
-            onChange={(e) => patch({ port: Number(e.target.value) })}
+            onChange={(e) => {
+              const raw = e.target.value;
+              if (raw === "") {
+                patch({ port: SMTP_PORT_MIN });
+                return;
+              }
+              const n = Number(raw);
+              if (!Number.isFinite(n)) return;
+              patch({ port: clampSmtpPort(n) });
+            }}
+            onBlur={() => patch({ port: clampSmtpPort(Number(form.port)) })}
             className={fieldClass}
           />
         </Field>
-        <Field label="Security Type">
+        <Field label="Security Type" required>
           <select
             value={form.securityType}
             onChange={(e) => patch({ securityType: e.target.value as SmtpSecurityType })}
@@ -209,7 +260,7 @@ export function SmtpSettingsSection() {
             ))}
           </select>
         </Field>
-        <Field label="Authentication Required">
+        <Field label="Authentication Required" required>
           <select
             value={form.authRequired ? "yes" : "no"}
             onChange={(e) => patch({ authRequired: e.target.value === "yes" })}
@@ -219,7 +270,7 @@ export function SmtpSettingsSection() {
             <option value="no">No</option>
           </select>
         </Field>
-        <Field label="Sender Name">
+        <Field label="Sender Name" required>
           <input
             value={form.senderName}
             onChange={(e) => patch({ senderName: e.target.value })}
@@ -227,18 +278,24 @@ export function SmtpSettingsSection() {
             className={fieldClass}
           />
         </Field>
-        <Field label="Sender Email Address">
+        <Field label="Sender Email Address" required>
           <input
             type="email"
             value={form.senderEmail}
             onChange={(e) => patch({ senderEmail: e.target.value })}
+            onBlur={() => {
+              if (form.senderEmail.trim() && !isValidEmail(form.senderEmail)) {
+                setSenderEmailInvalid(true);
+              }
+            }}
             placeholder="noreply@company.com"
-            className={fieldClass}
+            className={`${fieldClass} ${senderEmailInvalid ? "border-danger" : ""}`}
+            aria-invalid={senderEmailInvalid}
           />
         </Field>
         {form.authRequired && (
           <>
-            <Field label="Username">
+            <Field label="Username" required>
               <input
                 value={form.username}
                 onChange={(e) => patch({ username: e.target.value })}
@@ -246,7 +303,10 @@ export function SmtpSettingsSection() {
                 autoComplete="off"
               />
             </Field>
-            <Field label={form.passwordSet ? "Password (leave blank to keep current)" : "Password"}>
+            <Field
+              label={form.passwordSet ? "Password (leave blank to keep current)" : "Password"}
+              required={!form.passwordSet}
+            >
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}
@@ -304,10 +364,10 @@ export function SmtpSettingsSection() {
           />
           <button
             type="button"
-            disabled={sending || !testTo.includes("@")}
+            disabled={sending || !isValidEmail(testTo)}
             onClick={() => void sendTest()}
             className={`rounded-md px-3.5 py-1.5 text-[12px] font-medium ${
-              testTo.includes("@") && !sending
+              isValidEmail(testTo) && !sending
                 ? "border border-border text-foreground hover:bg-surface"
                 : "cursor-not-allowed bg-surface text-muted-foreground"
             }`}
@@ -332,10 +392,21 @@ export function SmtpSettingsSection() {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  required,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  children: React.ReactNode;
+}) {
   return (
     <label className="block">
-      <span className="mb-1 block text-[12px] font-medium text-foreground">{label}</span>
+      <span className="mb-1 block text-[12px] font-medium text-foreground">
+        {label}
+        {required ? <span className="text-danger"> *</span> : null}
+      </span>
       {children}
     </label>
   );
