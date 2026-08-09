@@ -1,4 +1,4 @@
-// Weekly Check-In (Module 14) ΓÇö config, evidence, submissions, queue & history.
+// Weekly Check-In (Module 14) — config, evidence, submissions, queue & history.
 
 import { getDailyWorkRowsForPeriod } from "./dailyWorkReport";
 import { EMPLOYEES, type Employee } from "./employees";
@@ -21,7 +21,7 @@ export interface DepartmentCompetency {
   departmentId: string;
   kind: CompetencyKind;
   label: string;
-  /** Optional guidance text shown on config. */
+  /** Optional guidance text shown on config (and available for future UX). */
   remark: string;
   sequence: number;
 }
@@ -268,7 +268,7 @@ function writeConfig(config: WeeklyCheckInConfig): void {
   }
 }
 
-/** RO submits after the review week closes ΓÇö Sunday ~6:30 PM IST. */
+/** RO submits after the review week closes — Sunday ~6:30 PM IST. */
 function submittedAtForWeek(weekStart: string): string {
   return `${addDays(weekStart, 6)}T13:00:00.000Z`;
 }
@@ -452,7 +452,7 @@ export function formatWeekLabel(weekStart: string, workingDays?: string[]): stri
   const fmt = (d: Date) =>
     d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   const year = end.getFullYear();
-  return `${fmt(start)} ΓÇô ${fmt(end)}, ${year}`;
+  return `${fmt(start)} – ${fmt(end)}, ${year}`;
 }
 
 export function addDays(iso: string, days: number): string {
@@ -478,17 +478,30 @@ export function isDateInWeek(date: string, weekStart: string): boolean {
   return date >= weekStart && date <= end;
 }
 
+export function getDefaultReviewWeekStart(): string {
+  return addWeeks(getCurrentWeekStart(), -1);
+}
+
+/** Current week (T) plus the previous four weeks (T-1 … T-4). No future weeks. */
+export function getReviewWeekStarts(): string[] {
+  const current = getCurrentWeekStart();
+  return [-4, -3, -2, -1, 0].map((n) => addWeeks(current, n));
+}
+
+/** Prefer URL week when it is in the review window; otherwise previous week. */
+export function resolveReviewWeekStart(weekParam: string | null | undefined): string {
+  const allowed = new Set(getReviewWeekStarts());
+  if (weekParam && allowed.has(weekParam)) return weekParam;
+  return getDefaultReviewWeekStart();
+}
+
 export function getReviewWeeks(workingDays?: string[]): ReviewWeekOption[] {
   const current = getCurrentWeekStart();
-  const offsets = [-3, -2, -1, 0, 1];
-  return offsets.map((n) => {
-    const weekStart = addWeeks(current, n);
-    return {
-      weekStart,
-      label: formatWeekLabel(weekStart, workingDays),
-      isCurrent: weekStart === current,
-    };
-  });
+  return getReviewWeekStarts().map((weekStart) => ({
+    weekStart,
+    label: formatWeekLabel(weekStart, workingDays),
+    isCurrent: weekStart === current,
+  }));
 }
 
 /** Rolling Monday of the current week (local calendar). */
@@ -641,7 +654,7 @@ export function formatQueueOpenAction(row: QueueRow): {
           ? "Schedule Training"
           : row.openActionType;
     const note = row.openActionNotes
-      ? ` ┬╖ ${row.openActionNotes.replace(/\s+/g, " ").trim()}`
+      ? ` · ${row.openActionNotes.replace(/\s+/g, " ").trim()}`
       : "";
     return { text: `${label}${note}`, tone: "warning" };
   }
@@ -649,7 +662,7 @@ export function formatQueueOpenAction(row: QueueRow): {
   if (row.prevRecognition && row.prevRecognition !== "None") {
     if (row.prevActionCompleted) {
       return {
-        text: `${row.prevRecognition} ┬╖ completed last week`,
+        text: `${row.prevRecognition} · completed last week`,
         tone: "success",
       };
     }
@@ -657,7 +670,7 @@ export function formatQueueOpenAction(row: QueueRow): {
     return { text: `Continue ${base}`, tone: "muted" };
   }
 
-  return { text: "ΓÇö", tone: "muted" };
+  return { text: "—", tone: "muted" };
 }
 
 export function formatReviewStatus(row: QueueRow): { label: string; tone: "pending" | "completed" } {
@@ -667,7 +680,7 @@ export function formatReviewStatus(row: QueueRow): { label: string; tone: "pendi
   const day = row.submittedAt
     ? new Date(row.submittedAt).toLocaleDateString("en-US", { weekday: "short" })
     : "";
-  return { label: day ? `Completed ┬╖ ${day}` : "Completed", tone: "completed" };
+  return { label: day ? `Completed · ${day}` : "Completed", tone: "completed" };
 }
 
 export type QueueSortKey =
@@ -808,7 +821,7 @@ export function getQueueSummary(reviewerId: string, weekStart: string) {
 export function validateSubmission(
   draft: WeeklyCheckInDraft,
   existingSubmission?: WeeklyCheckInSubmission,
-  /** Live department PK (or code) used as competenciesByDepartment key ΓÇö prefer dbId from Masters. */
+  /** Live department PK (or code) used as competenciesByDepartment key — prefer dbId from Masters. */
   departmentConfigId?: string
 ): ValidationResult {
   const errors: string[] = [];
@@ -830,7 +843,7 @@ export function validateSubmission(
   const status = getDepartmentConfigStatus(deptKey);
   if (status === "not_set") {
     errors.push(
-      "No competency template exists for this department. Ask an administrator to configure competencies under Setup ΓåÆ Weekly Check-In Config."
+      "No competency template exists for this department. Ask an administrator to configure competencies under Setup → Weekly Check-In Config."
     );
     return { valid: false, errors };
   }
@@ -980,7 +993,7 @@ export function rankingLevelForValue(value: number): RankingLevel | undefined {
   return readConfig().rankingLevels.find((l) => l.value === value);
 }
 
-/** Tailwind classes for ranking chips ΓÇö matches MetricChip / status token palette. */
+/** Tailwind classes for ranking chips — matches MetricChip / status token palette. */
 export function rankingChipClass(level: RankingLevel, selected = true): string {
   if (!selected) return "border-border bg-surface text-muted-foreground hover:bg-surface-alt";
 

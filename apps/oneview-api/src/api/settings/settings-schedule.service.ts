@@ -24,6 +24,7 @@ export type SettingsPayload = {
   workingHoursPerDay: number;
   workingDays: string[];
   dateFormat: string;
+  demandPriority: string[];
   companyOffDays: { date: string; label: string }[];
 };
 
@@ -38,6 +39,7 @@ export type SettingsSnapshot = {
   workingHoursPerDay: number;
   workingDays: string[];
   dateFormat: string;
+  demandPriority: string[];
   companyOffDays: { date: string; label: string }[];
 };
 
@@ -71,6 +73,14 @@ export function formatEffectiveLabel(iso: string): string {
   });
 }
 
+const DEFAULT_DEMAND_PRIORITY = ["Critical", "High", "Medium", "Low"];
+
+function normalizeDemandPriority(raw: unknown, fallback = DEFAULT_DEMAND_PRIORITY): string[] {
+  if (!Array.isArray(raw) || raw.length === 0) return [...fallback];
+  const cleaned = raw.map((x) => String(x).trim()).filter(Boolean);
+  return cleaned.length > 0 ? cleaned : [...fallback];
+}
+
 export function snapshotFromDb(settings: AppSettings, offDays: CompanyOffDay[]): SettingsSnapshot {
   return {
     idleBelow: settings.idleBelow,
@@ -83,6 +93,7 @@ export function snapshotFromDb(settings: AppSettings, offDays: CompanyOffDay[]):
     workingHoursPerDay: settings.workingHoursPerDay,
     workingDays: [...settings.workingDays],
     dateFormat: normalizeDateFormat(settings.dateFormat),
+    demandPriority: normalizeDemandPriority(settings.demandPriority),
     companyOffDays: offDays.map((d) => ({ date: dateKey(d.date), label: d.label })),
   };
 }
@@ -90,7 +101,8 @@ export function snapshotFromDb(settings: AppSettings, offDays: CompanyOffDay[]):
 export function payloadFromBody(
   body: Record<string, unknown>,
   fallbackOffDays: { date: string; label: string }[],
-  fallbackDateFormat = "dd/MM/yyyy"
+  fallbackDateFormat = "dd/MM/yyyy",
+  fallbackDemandPriority: string[] = DEFAULT_DEMAND_PRIORITY
 ): SettingsPayload {
   const capacityBasis =
     body.capacityBasis === "total" || body.capacityBasis === "billable"
@@ -115,6 +127,7 @@ export function payloadFromBody(
       ? (body.workingDays as string[])
       : ["Mon", "Tue", "Wed", "Thu", "Fri"],
     dateFormat: normalizeDateFormat(body.dateFormat, fallbackDateFormat),
+    demandPriority: normalizeDemandPriority(body.demandPriority, fallbackDemandPriority),
     companyOffDays,
   };
 }
@@ -152,6 +165,11 @@ export function describeSettingsChanges(prev: SettingsSnapshot, next: SettingsSn
   }
   if (prev.dateFormat !== next.dateFormat) {
     changes.push(`Date format ${prev.dateFormat} → ${next.dateFormat}`);
+  }
+  if (prev.demandPriority.join(",") !== next.demandPriority.join(",")) {
+    changes.push(
+      `Demand priority ${prev.demandPriority.join(" → ")} → ${next.demandPriority.join(" → ")}`
+    );
   }
 
   const prevOff = new Map(prev.companyOffDays.map((d) => [d.date, d.label]));
@@ -235,6 +253,7 @@ export class SettingsScheduleService {
         workingHoursPerDay: payload.workingHoursPerDay,
         workingDays: payload.workingDays,
         dateFormat: payload.dateFormat,
+        demandPriority: payload.demandPriority,
         ...(modifiedBy != null ? { modifiedBy } : {}),
         version: { increment: 1 },
       },
@@ -285,6 +304,9 @@ export class SettingsScheduleService {
         /* leave pending for next attempt */
       }
     }
+    if (applied > 0) {
+      void this.events.publish("settings", "update");
+    }
     return applied;
   }
 
@@ -317,7 +339,7 @@ export class SettingsScheduleService {
       orderBy: { date: "asc" },
     });
     const prev = snapshotFromDb(beforeSettings, beforeOffDays);
-    const payload = payloadFromBody(body, prev.companyOffDays, prev.dateFormat);
+    const payload = payloadFromBody(body, prev.companyOffDays, prev.dateFormat, prev.demandPriority);
     const next: SettingsSnapshot = { ...payload };
     const changes = describeSettingsChanges(prev, next);
     if (changes.length === 0) {
