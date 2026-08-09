@@ -11,6 +11,7 @@ import {
   type CompanyOffDay,
 } from "@prisma/client";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
+import { DomainEventsService } from "../realtime/domain-events.service";
 
 export type SettingsPayload = {
   idleBelow: number;
@@ -167,7 +168,10 @@ export function describeSettingsChanges(prev: SettingsSnapshot, next: SettingsSn
 
 @Injectable()
 export class SettingsScheduleService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly events: DomainEventsService
+  ) {}
 
   async syncCompanyOffDays(
     tx: Prisma.TransactionClient,
@@ -236,6 +240,7 @@ export class SettingsScheduleService {
       },
     });
     await this.syncCompanyOffDays(tx, payload.companyOffDays);
+    void this.events.publish("settings", "update");
   }
 
   /** Apply all due pending schedules (effective_date <= today UTC). Returns count applied. */

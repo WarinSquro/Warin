@@ -17,6 +17,7 @@ import {
 } from "../api/domain";
 import { ConfirmDeleteDialog } from "../components/ConfirmDeleteDialog";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
+import { useSharedDataSync } from "../hooks/useSharedDataSync";
 import { useEmployees } from "../context/EmployeesContext";
 import { useMasters } from "../context/MastersContext";
 import { useToast } from "../context/ToastContext";
@@ -185,6 +186,24 @@ export function KpiFramework() {
   useEffect(() => {
     if (seg === "framework") void loadFramework();
   }, [seg, loadFramework]);
+
+  const syncKpi = useCallback(async () => {
+    await loadMasters();
+    if (seg !== "framework" || !resourceId) return;
+    try {
+      const rows = await fetchKpiFramework({
+        calendarYear: year,
+        assessmentCycle: cycle,
+        employeeHrmsId: resourceId,
+        departmentId: deptId || undefined,
+      });
+      setItems(rows);
+    } catch {
+      /* keep current rows; avoid spinner flash on background sync */
+    }
+  }, [loadMasters, seg, resourceId, year, cycle, deptId]);
+
+  useSharedDataSync(true, syncKpi, { resources: ["kpi"] });
 
   const masterList =
     masterTab === "categories" ? categories : masterTab === "methods" ? methods : units;

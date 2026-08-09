@@ -15,6 +15,7 @@ import type { CompetencyKind, Prisma } from "@prisma/client";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import type { JwtPayload } from "../auth/jwt.strategy";
 import { RequirePermissions } from "../auth/guards";
+import { EmitDataChange } from "../realtime/emit-data-change.decorator";
 
 function ser<T>(v: T): T {
   return JSON.parse(JSON.stringify(v, (_k, x) => (typeof x === "bigint" ? x.toString() : x))) as T;
@@ -353,6 +354,7 @@ export class WeeklyCheckInController {
 
   @Put("config")
   @RequirePermissions("my_team.weekly_check_in", "masters.weekly_check_in")
+  @EmitDataChange("weekly-check-in", "update")
   async putConfig(@Body() body: ConfigBody) {
     await this.ensureSettings();
     await this.prisma.weeklyCheckInSettings.update({
@@ -457,6 +459,7 @@ export class WeeklyCheckInController {
 
   @Post("submissions")
   @RequirePermissions("my_team.weekly_check_in")
+  @EmitDataChange("weekly-check-in", "update")
   async submit(@Req() req: { user: JwtPayload }, @Body() body: SubmitBody) {
     const submitter = await this.empByHrms(req.user.hrmsId);
     const employee = await this.empByHrms(body.employeeHrmsId);

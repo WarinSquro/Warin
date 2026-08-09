@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { RefreshCw } from "lucide-react";
 import { CockpitDailyCard } from "../components/CockpitDailyCard";
@@ -26,6 +26,7 @@ import {
   type ApiConfirmation,
 } from "../api/domain";
 import { addDaysISO, mondayISO } from "../api/liveViews";
+import { useSharedDataSync } from "../hooks/useSharedDataSync";
 
 /** Fetch window: 7 prior weeks + current week + next 2 weeks (daily availability). */
 function cockpitOpsRange() {
@@ -57,40 +58,28 @@ export function ExecutiveCockpit() {
   const weekCapacity = Math.round(settings.workingHoursPerDay * settings.workingDays.length);
   const hoursPerDay = settings.workingHoursPerDay || 8;
 
-  const loadOps = async () => {
+  const loadOps = useCallback(async () => {
     const range = cockpitOpsRange();
-    const [a, c] = await Promise.all([
-      fetchAllocations({ from: range.from, to: range.to }),
-      fetchConfirmations({ from: range.from, to: range.to }),
-    ]);
-    setAllocations(a);
-    setConfirmations(c);
-    setOpsLoaded(true);
-  };
+    try {
+      const [a, c] = await Promise.all([
+        fetchAllocations({ from: range.from, to: range.to }),
+        fetchConfirmations({ from: range.from, to: range.to }),
+      ]);
+      setAllocations(a);
+      setConfirmations(c);
+      setOpsLoaded(true);
+    } catch {
+      setAllocations([]);
+      setConfirmations([]);
+      setOpsLoaded(true);
+    }
+  }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    const range = cockpitOpsRange();
-    void Promise.all([
-      fetchAllocations({ from: range.from, to: range.to }),
-      fetchConfirmations({ from: range.from, to: range.to }),
-    ])
-      .then(([a, c]) => {
-        if (cancelled) return;
-        setAllocations(a);
-        setConfirmations(c);
-        setOpsLoaded(true);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setAllocations([]);
-        setConfirmations([]);
-        setOpsLoaded(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [weekCapacity]);
+    void loadOps();
+  }, [loadOps, weekCapacity]);
+
+  useSharedDataSync(true, loadOps, { resources: ["allocations", "confirmations", "projects", "employees"] });
 
   const data = useMemo(
     () =>

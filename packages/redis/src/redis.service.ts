@@ -26,6 +26,19 @@ export class RedisService implements OnModuleDestroy {
     await this.client.del(key);
   }
 
+  /** Publish on the command connection (safe alongside get/set). */
+  async publish(channel: string, message: string): Promise<number> {
+    return this.client.publish(channel, message);
+  }
+
+  /**
+   * Dedicated subscriber connection — ioredis requires a separate client
+   * once `subscribe` is used (command connection must stay free for cache/BullMQ).
+   */
+  createSubscriber(): Redis {
+    return this.client.duplicate();
+  }
+
   async onModuleDestroy() {
     await this.client.quit();
   }

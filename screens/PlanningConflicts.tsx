@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ChevronRight } from "lucide-react";
 import { buildPlanningConflictsFromLive } from "../api/cockpitDaily";
@@ -8,6 +8,7 @@ import { workingWeekEnd } from "../utils/workingWeek";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import { usePlanningEmployees } from "../hooks/usePlanningEmployees";
 import { useSettings } from "../context/SettingsContext";
+import { useSharedDataSync } from "../hooks/useSharedDataSync";
 import type { PlanningConflictRow } from "../data/cockpit";
 
 type ConflictSortKey = "employee" | "type" | "projects" | "detail";
@@ -24,23 +25,22 @@ export function PlanningConflicts() {
   const weekFrom = mondayISO();
   const weekTo = workingWeekEnd(weekFrom, settings.workingDays);
 
-  useEffect(() => {
-    let cancelled = false;
-    void fetchAllocations({ from: weekFrom, to: weekTo })
-      .then((rows) => {
-        if (cancelled) return;
-        setAllocations(rows);
-        setLoaded(true);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setAllocations([]);
-        setLoaded(true);
-      });
-    return () => {
-      cancelled = true;
-    };
+  const load = useCallback(async () => {
+    try {
+      const rows = await fetchAllocations({ from: weekFrom, to: weekTo });
+      setAllocations(rows);
+      setLoaded(true);
+    } catch {
+      setAllocations([]);
+      setLoaded(true);
+    }
   }, [weekFrom, weekTo]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  useSharedDataSync(true, load, { resources: ["allocations"] });
 
   const conflicts: PlanningConflictRow[] = useMemo(() => {
     if (!loaded) return [];

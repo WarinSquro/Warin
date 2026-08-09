@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { FileSpreadsheet, FileText, Search } from "lucide-react";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import { FilterMultiSelect } from "../components/FilterMultiSelect";
@@ -8,6 +8,7 @@ import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { useSettings } from "../context/SettingsContext";
 import { useAppDateFormat } from "../hooks/useAppDateFormat";
+import { useSharedDataSync } from "../hooks/useSharedDataSync";
 import { getVisibleEmployeeIds } from "../utils/employeeHierarchy";
 import { scopeEmployeesForViewer } from "../utils/reportVisibility";
 import { dailyWorkPeriodOptions } from "../utils/reportPeriods";
@@ -163,27 +164,25 @@ export function DailyWorkReport() {
     return reportRange("last_3_months");
   }, [periodId, settings.workingDays]);
 
-  useEffect(() => {
-    let cancelled = false;
-    void Promise.all([
-      fetchAllocations({ from: range.from, to: range.to }),
-      fetchConfirmations({ from: range.from, to: range.to }),
-    ])
-      .then(([a, c]) => {
-        if (cancelled) return;
-        setAllocations(a);
-        setApiConfirmations(c);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setAllocations([]);
-          setApiConfirmations([]);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
+  const load = useCallback(async () => {
+    try {
+      const [a, c] = await Promise.all([
+        fetchAllocations({ from: range.from, to: range.to }),
+        fetchConfirmations({ from: range.from, to: range.to }),
+      ]);
+      setAllocations(a);
+      setApiConfirmations(c);
+    } catch {
+      setAllocations([]);
+      setApiConfirmations([]);
+    }
   }, [range.from, range.to]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  useSharedDataSync(true, load, { resources: ["allocations", "confirmations", "projects", "employees"] });
 
   const periodRows = useMemo(
     () =>

@@ -18,6 +18,7 @@ import { AllocationsModule } from "./api/allocations/allocations.module";
 import { ConfirmationsModule } from "./api/confirmations/confirmations.module";
 import { WeeklyCheckInModule } from "./api/weekly-check-in/weekly-check-in.module";
 import { KpiModule } from "./api/kpi/kpi.module";
+import { RealtimeModule } from "./api/realtime/realtime.module";
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { KpiModule } from "./api/kpi/kpi.module";
       },
     }),
     PrismaModule,
+    RealtimeModule,
     AuthModule,
     MastersModule,
     EmployeesModule,

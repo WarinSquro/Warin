@@ -7,6 +7,7 @@ import { AuthProvider } from "./context/AuthContext";
 import { EmployeesProvider } from "./context/EmployeesContext";
 import { MastersProvider } from "./context/MastersContext";
 import { ToastProvider } from "./context/ToastContext";
+import { RealtimeSyncBridge } from "./components/RealtimeSyncBridge";
 import { AppRoutes } from "./routes";
 
 export default function App() {
@@ -14,6 +15,7 @@ export default function App() {
     <BrowserRouter>
       <ToastProvider>
         <AuthProvider>
+          <RealtimeSyncBridge />
           <SettingsProvider>
             <EmployeesProvider>
               <MastersProvider>

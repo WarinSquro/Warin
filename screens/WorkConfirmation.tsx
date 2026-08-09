@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Check, Plus, X, CheckCircle2, Bell } from "lucide-react";
 import { formatAppDate, formatAppDateTime } from "../utils/formatAppDate";
 import { useAppDateFormat } from "../hooks/useAppDateFormat";
+import { useSharedDataSync } from "../hooks/useSharedDataSync";
 import {
   DEVIATION_REASONS,
   MISS_POSTING_REASONS,
@@ -460,45 +461,42 @@ function EmployeeConfirm() {
     return linesFromAllocations(rows);
   };
 
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const [missCount, existing, lines] = await Promise.all([
-          fetchMissPostingCount(today.slice(0, 7)),
-          fetchMyConfirmation(today),
-          hrmsId
-            ? fetchAllocations({ employeeHrmsId: hrmsId, from: today, to: today }).then(linesFromAllocations)
-            : Promise.resolve([] as PlannedLine[]),
-        ]);
-        if (cancelled) return;
-        setMonthMissCount(missCount);
-        if (existing) {
-          const hydrated = hydrateFromConfirmation(existing);
-          setActiveLines(hydrated.lines);
-          setStates(hydrated.states);
-          setUnplanned(hydrated.unplanned);
-          setSubmitted(true);
-          setSubmittedAtLabel(formatAppDateTime(existing.submittedAt, dateFmt));
-          setPlanHeading("Your plan for today");
-          setMissedPosting(existing.isMissedPosting);
-          setMissReason(existing.missReason ?? "");
-        } else {
-          setActiveLines(lines);
-          setStates(initLineStates(lines));
-          setSubmitted(false);
-        }
-      } catch {
-        if (!cancelled) {
-          setActiveLines(EMPTY_LINES);
-          setStates(initLineStates(EMPTY_LINES));
-        }
+  const loadMyDay = useCallback(async () => {
+    try {
+      const [missCount, existing, lines] = await Promise.all([
+        fetchMissPostingCount(today.slice(0, 7)),
+        fetchMyConfirmation(today),
+        hrmsId
+          ? fetchAllocations({ employeeHrmsId: hrmsId, from: today, to: today }).then(linesFromAllocations)
+          : Promise.resolve([] as PlannedLine[]),
+      ]);
+      setMonthMissCount(missCount);
+      if (existing) {
+        const hydrated = hydrateFromConfirmation(existing);
+        setActiveLines(hydrated.lines);
+        setStates(hydrated.states);
+        setUnplanned(hydrated.unplanned);
+        setSubmitted(true);
+        setSubmittedAtLabel(formatAppDateTime(existing.submittedAt, dateFmt));
+        setPlanHeading("Your plan for today");
+        setMissedPosting(existing.isMissedPosting);
+        setMissReason(existing.missReason ?? "");
+      } else {
+        setActiveLines(lines);
+        setStates(initLineStates(lines));
+        setSubmitted(false);
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [hrmsId, today]);
+    } catch {
+      setActiveLines(EMPTY_LINES);
+      setStates(initLineStates(EMPTY_LINES));
+    }
+  }, [hrmsId, today, dateFmt]);
+
+  useEffect(() => {
+    void loadMyDay();
+  }, [loadMyDay]);
+
+  useSharedDataSync(submitted, loadMyDay, { resources: ["confirmations"] });
 
   /** Reload today's plan lines while staying in edit mode (never bounce to submitted view). */
   const loadTodayPlanForEdit = async () => {
@@ -1172,32 +1170,51 @@ function ManagerCompliance() {
     handleSort: handleComplianceSort,
   } = useColumnSort<"member" | "today">("member");
 
-  useEffect(() => {
-    let cancelled = false;
-    void fetchTeamCompliance({ asOf: today })
-      .then((res) => {
-        if (cancelled) return;
-        setKpis(res.kpis);
-        setRows(
-          res.rows.map((r) => ({
-            id: r.id,
-            name: r.name,
-            initials: r.initials,
-            role: r.role,
-            week: r.week as DayStatus[],
-            todayLabel: r.todayLabel,
-          }))
-        );
-        setDeviations(res.deviations);
-        setError("");
-      })
-      .catch((e) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load team compliance");
-      });
-    return () => {
-      cancelled = true;
-    };
+  const loadTeam = useCallback(async () => {
+    try {
+      const res = await fetchTeamCompliance({ asOf: today });
+      setKpis(res.kpis);
+      setRows(
+        res.rows.map((r) => ({
+          id: r.id,
+          name: r.name,
+          initials: r.initials,
+          role: r.role,
+          week: r.week as DayStatus[],
+          todayLabel: r.todayLabel,
+        }))
+      );
+      setDeviations(
+        res.deviations.map((d) => {
+          const fallback = (res.asOf || today).slice(0, 10);
+          const workRaw = String(d.workDate ?? "").trim();
+          const addedRaw = String(d.addedAt ?? "").trim();
+          const workDate = (workRaw.match(/^(\d{4}-\d{2}-\d{2})/)?.[1] || fallback) as string;
+          const addedAt = (addedRaw.match(/^(\d{4}-\d{2}-\d{2})/)?.[1] || workDate) as string;
+          return {
+            id: d.id,
+            name: d.name,
+            initials: d.initials,
+            line: d.line,
+            planned: d.planned,
+            actual: d.actual,
+            reason: d.reason,
+            workDate,
+            addedAt,
+          };
+        })
+      );
+      setError("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load team compliance");
+    }
   }, [today]);
+
+  useEffect(() => {
+    void loadTeam();
+  }, [loadTeam]);
+
+  useSharedDataSync(true, loadTeam, { resources: ["confirmations"] });
 
   const todayIndex = useMemo(() => {
     const d = new Date(`${today}T12:00:00`);
@@ -1384,15 +1401,16 @@ function ComplianceRowView({
 function DeviationRow({ d }: { d: DeviationEntry }) {
   const { formatDate } = useAppDateFormat();
   const dir = d.actual < d.planned;
+  const dateLabel = formatDate(d.addedAt || d.workDate);
   return (
     <div className="flex items-start gap-2.5 border-b border-border-soft px-4 py-3 last:border-b-0">
       <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-warning-soft text-[10px] font-semibold text-warning">
         {d.initials}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between">
-          <div className="text-[12px] font-medium text-foreground">{d.name}</div>
-          <div className="text-[10px] text-muted-foreground">{formatDate(d.workDate)}</div>
+        <div className="flex items-center justify-between gap-2">
+          <div className="truncate text-[12px] font-medium text-foreground">{d.name}</div>
+          <div className="shrink-0 text-[10px] tabular-nums text-muted-foreground">{dateLabel}</div>
         </div>
         <div className="text-[11px] text-muted-foreground">{d.line}</div>
         <div className="mt-1 text-[11px]">

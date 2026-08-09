@@ -24,6 +24,7 @@ import { StorageService } from "@oneview/storage";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import type { JwtPayload } from "../auth/jwt.strategy";
 import { RequirePermissions } from "../auth/guards";
+import { EmitDataChange } from "../realtime/emit-data-change.decorator";
 import {
   CYCLE_MONTHS,
   isCycleExpired,
@@ -229,6 +230,7 @@ export class KpiController {
 
   @Post("masters/:kind")
   @RequirePermissions("masters.kpi_framework")
+  @EmitDataChange("kpi", "create")
   async createMaster(@Param("kind") kind: string, @Body() body: { name?: string }) {
     const k = this.parseMasterKind(kind);
     const name = body.name?.trim();
@@ -287,6 +289,7 @@ export class KpiController {
 
   @Put("masters/:kind/:id")
   @RequirePermissions("masters.kpi_framework")
+  @EmitDataChange("kpi", "update")
   async updateMaster(
     @Param("kind") kind: string,
     @Param("id") id: string,
@@ -377,6 +380,7 @@ export class KpiController {
 
   @Post("framework")
   @RequirePermissions("masters.kpi_framework")
+  @EmitDataChange("kpi", "create")
   async createFrameworkItem(
     @Body()
     body: {
@@ -453,6 +457,7 @@ export class KpiController {
 
   @Put("framework/:id")
   @RequirePermissions("masters.kpi_framework")
+  @EmitDataChange("kpi", "update")
   async updateFrameworkItem(
     @Param("id") id: string,
     @Body()
@@ -513,6 +518,7 @@ export class KpiController {
 
   @Delete("framework/:id")
   @RequirePermissions("masters.kpi_framework")
+  @EmitDataChange("kpi", "delete")
   async deleteFrameworkItem(@Param("id") id: string) {
     const existing = await this.prisma.kpiFrameworkItem.findFirst({
       where: { id: BigInt(id), isDeleted: false },
@@ -530,6 +536,7 @@ export class KpiController {
 
   @Post("framework/copy")
   @RequirePermissions("masters.kpi_framework")
+  @EmitDataChange("kpi", "create")
   async copyFramework(
     @Body()
     body: {
@@ -694,6 +701,7 @@ export class KpiController {
 
   @Put("results/:id")
   @RequirePermissions("my_team.kpi_results")
+  @EmitDataChange("kpi", "update")
   async saveResult(
     @Req() req: { user: JwtPayload },
     @Param("id") id: string,

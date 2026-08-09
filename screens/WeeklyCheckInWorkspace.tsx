@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, History } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
@@ -19,7 +19,7 @@ import {
   addWeeks,
   formatWeekLabel,
   getCompetenciesForDepartment,
-  getCurrentWeekStart,
+  resolveReviewWeekStart,
   getWeeklyCheckInConfig,
   saveWeeklyCheckInConfig,
   validateSubmission,
@@ -40,11 +40,12 @@ import {
 } from "../api/domain";
 import { useFocusFirstField } from "../hooks/useFocusFirstField";
 import { useAppDateFormat } from "../hooks/useAppDateFormat";
+import { useSharedDataSync } from "../hooks/useSharedDataSync";
 
 export function WeeklyCheckInWorkspace() {
   const { employeeId = "" } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
-  const weekStart = searchParams.get("week") ?? addWeeks(getCurrentWeekStart(), -1);
+  const weekStart = resolveReviewWeekStart(searchParams.get("week"));
   const navigate = useNavigate();
   const toast = useToast();
   const { formatDateTime } = useAppDateFormat();
@@ -53,6 +54,13 @@ export function WeeklyCheckInWorkspace() {
   const { departments } = useMasters();
   const { settings } = useSettings();
   const weekCapacity = Math.round(settings.workingHoursPerDay * settings.workingDays.length) || 40;
+
+  useEffect(() => {
+    const raw = searchParams.get("week");
+    if (raw !== weekStart) {
+      setSearchParams({ week: weekStart }, { replace: true });
+    }
+  }, [searchParams, setSearchParams, weekStart]);
 
   // Route param and Employee.id are both HRMS ids (queue returns hrmsId as employeeId).
   const employee = employees.find((e) => e.id === employeeId);
@@ -105,14 +113,14 @@ export function WeeklyCheckInWorkspace() {
     !!employee &&
     (isSuperAdmin || employee.resourceOwnerId === reviewerId);
 
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      setLoading(true);
-      setLoadError(null);
+  const loadWorkspace = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (!opts?.silent) {
+        setLoading(true);
+        setLoadError(null);
+      }
       try {
         const config = await fetchWeeklyCheckInConfig();
-        if (cancelled) return;
         saveWeeklyCheckInConfig({
           competenciesByDepartment: config.competenciesByDepartment as never,
           rankingLevels: config.rankingLevels as never,
@@ -127,7 +135,6 @@ export function WeeklyCheckInWorkspace() {
           fetchAllocations({ from: weekStart, to: addWeeks(weekStart, 1) }),
           fetchConfirmations({ from: weekStart, to: addWeeks(weekStart, 1) }),
         ]);
-        if (cancelled) return;
 
         const mapped = cur ? mapApiWeeklySubmission(cur) : null;
         const prevMapped = prev ? mapApiWeeklySubmission(prev) : null;
@@ -168,20 +175,23 @@ export function WeeklyCheckInWorkspace() {
             )
           );
         }
+        setLoadError(null);
       } catch (e) {
-        if (!cancelled) {
-          setExisting(null);
-          setEvidence(null);
-          setLoadError(e instanceof Error ? e.message : "Could not load check-in data.");
-        }
+        setExisting(null);
+        setEvidence(null);
+        setLoadError(e instanceof Error ? e.message : "Could not load check-in data.");
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!opts?.silent) setLoading(false);
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [employeeId, weekStart, weekCapacity, settings.workingDays]);
+    },
+    [employeeId, weekStart, weekCapacity, settings.workingDays]
+  );
+
+  useEffect(() => {
+    void loadWorkspace();
+  }, [loadWorkspace]);
+
+  useSharedDataSync(viewOnly, () => loadWorkspace({ silent: true }), { resources: ["weekly-check-in"] });
 
   if (!currentEmployee) {
     return (
@@ -404,9 +414,6 @@ export function WeeklyCheckInWorkspace() {
                     placeholder="Coaching observations based on evidence..."
                     className="w-full rounded-md border border-border bg-surface px-3 py-2 text-[12px] text-foreground outline-none focus:border-accent-line disabled:bg-surface-alt"
                   />
-                  <div className="mt-1 text-[10px] text-muted-foreground">
-                    Min {MIN_REMARKS_LENGTH} characters
-                  </div>
                 </div>
                 <div>
                   <label className="mb-1.5 block text-[12px] font-semibold text-foreground">Recognition</label>

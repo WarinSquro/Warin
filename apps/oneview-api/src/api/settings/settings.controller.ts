@@ -13,6 +13,7 @@ import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { RequirePermissions } from "../auth/guards";
 import type { JwtPayload } from "../auth/jwt.strategy";
+import { EmitDataChange } from "../realtime/emit-data-change.decorator";
 import {
   dateKey,
   describeSettingsChanges,
@@ -106,6 +107,7 @@ export class SettingsController {
 
   @Post("schedule")
   @RequirePermissions("settings")
+  @EmitDataChange("settings", "create")
   async createSchedule(@Req() req: { user: JwtPayload }, @Body() body: Record<string, unknown>) {
     const schedule = await this.schedules.createSchedule(body, req.user);
     return ser({ schedule: mapSchedule(schedule) });
@@ -113,6 +115,7 @@ export class SettingsController {
 
   @Post("schedule/apply-due")
   @RequirePermissions("settings")
+  @EmitDataChange("settings", "update")
   async applyDue() {
     const applied = await this.schedules.applyDueSchedules("System");
     return { applied };
@@ -120,6 +123,7 @@ export class SettingsController {
 
   @Delete("schedule/:id")
   @RequirePermissions("settings")
+  @EmitDataChange("settings", "delete")
   async cancelSchedule(@Req() req: { user: JwtPayload }, @Param("id") id: string) {
     const schedule = await this.schedules.cancelSchedule(id, req.user);
     return ser({ schedule: mapSchedule(schedule) });
@@ -127,6 +131,7 @@ export class SettingsController {
 
   @Put()
   @RequirePermissions("settings")
+  @EmitDataChange("settings", "update")
   async put(@Req() req: { user: JwtPayload }, @Body() body: Record<string, unknown>) {
     await this.schedules.applyDueSchedules();
 
@@ -138,7 +143,7 @@ export class SettingsController {
       orderBy: { date: "asc" },
     });
     const prev = snapshotFromDb(beforeSettings, beforeOffDays);
-    const payload = payloadFromBody(body, prev.companyOffDays, prev.dateFormat);
+    const payload = payloadFromBody(body, prev.companyOffDays, prev.dateFormat, prev.demandPriority);
 
     const employee = await this.prisma.employee.findFirst({
       where: { id: BigInt(req.user.sub), isDeleted: false },

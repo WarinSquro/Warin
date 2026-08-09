@@ -16,6 +16,7 @@ import { MailService } from "@oneview/mail";
 import { randomInt } from "node:crypto";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { RequirePermissions } from "../auth/guards";
+import { EmitDataChange } from "../realtime/emit-data-change.decorator";
 
 function ser<T>(v: T): T {
   return JSON.parse(JSON.stringify(v, (_k, x) => (typeof x === "bigint" ? x.toString() : x))) as T;
@@ -221,6 +222,7 @@ export class EmployeesController {
 
   @Post()
   @RequirePermissions("employees")
+  @EmitDataChange("employees", "create")
   async create(@Body() body: EmpBody) {
     const hrmsId = body.hrmsId?.trim();
     const name = body.name?.trim();
@@ -315,6 +317,7 @@ export class EmployeesController {
 
   @Put(":id")
   @RequirePermissions("employees")
+  @EmitDataChange("employees", "update")
   async update(@Param("id") id: string, @Body() body: Partial<EmpBody>) {
     const emp = await this.findEmp(id);
     if (!emp) throw new NotFoundException("Employee not found");

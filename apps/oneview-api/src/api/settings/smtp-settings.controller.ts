@@ -2,6 +2,7 @@ import { Body, Controller, Get, Post, Put, Req } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { RequirePermissions } from "../auth/guards";
 import type { JwtPayload } from "../auth/jwt.strategy";
+import { EmitDataChange } from "../realtime/emit-data-change.decorator";
 import {
   SmtpSettingsService,
   type SmtpSettingsUpdateDto,
@@ -21,6 +22,7 @@ export class SmtpSettingsController {
 
   @Put()
   @RequirePermissions("settings")
+  @EmitDataChange("settings", "update")
   update(@Body() body: SmtpSettingsUpdateDto, @Req() req: { user: JwtPayload }) {
     const actorId = req.user?.sub ? BigInt(req.user.sub) : undefined;
     return this.smtp.update(body, actorId);

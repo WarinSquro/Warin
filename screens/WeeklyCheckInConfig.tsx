@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Check, ChevronDown, ChevronUp, Copy, Pencil, Plus, Trash2, X } from "lucide-react";
 import {
   addCompetency,
@@ -17,6 +17,7 @@ import { useMasters } from "../context/MastersContext";
 import { useToast } from "../context/ToastContext";
 import { ConfirmDeleteDialog } from "../components/ConfirmDeleteDialog";
 import { fetchWeeklyCheckInConfig, putWeeklyCheckInConfig } from "../api/domain";
+import { useSharedDataSync } from "../hooks/useSharedDataSync";
 
 type Segment = "competencies" | "ranking";
 
@@ -61,41 +62,40 @@ export function WeeklyCheckInConfig() {
     if (!selectedDeptId && activeDepts[0]) setSelectedDeptId(deptKey(activeDepts[0]));
   }, [activeDepts, selectedDeptId]);
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    void fetchWeeklyCheckInConfig()
-      .then((apiConfig) => {
-        if (cancelled) return;
-        const byDept: ReturnType<typeof getWeeklyCheckInConfig>["competenciesByDepartment"] = {};
-        for (const [deptId, list] of Object.entries(apiConfig.competenciesByDepartment)) {
-          byDept[deptId] = list.map((c) => ({
-            id: c.id,
-            departmentId: c.departmentId,
-            kind: c.kind,
-            label: c.label,
-            remark: c.remark ?? "",
-            sequence: c.sequence,
-          }));
-        }
-        saveWeeklyCheckInConfig({
-          competenciesByDepartment: byDept,
-          rankingLevels: apiConfig.rankingLevels as never,
-          actionTypes: apiConfig.actionTypes,
-        });
-        setConfig(getWeeklyCheckInConfig());
-        setLoadError("");
-      })
-      .catch((e) => {
-        if (!cancelled) setLoadError(e instanceof Error ? e.message : "Failed to load configuration");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+  const loadConfig = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
+    try {
+      const apiConfig = await fetchWeeklyCheckInConfig();
+      const byDept: ReturnType<typeof getWeeklyCheckInConfig>["competenciesByDepartment"] = {};
+      for (const [deptId, list] of Object.entries(apiConfig.competenciesByDepartment)) {
+        byDept[deptId] = list.map((c) => ({
+          id: c.id,
+          departmentId: c.departmentId,
+          kind: c.kind,
+          label: c.label,
+          remark: c.remark ?? "",
+          sequence: c.sequence,
+        }));
+      }
+      saveWeeklyCheckInConfig({
+        competenciesByDepartment: byDept,
+        rankingLevels: apiConfig.rankingLevels as never,
+        actionTypes: apiConfig.actionTypes,
       });
-    return () => {
-      cancelled = true;
-    };
+      setConfig(getWeeklyCheckInConfig());
+      setLoadError("");
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : "Failed to load configuration");
+    } finally {
+      if (!opts?.silent) setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadConfig();
+  }, [loadConfig]);
+
+  useSharedDataSync(!editingId && !editingRank, () => loadConfig({ silent: true }), { resources: ["weekly-check-in"] });
 
   const deptComps = config.competenciesByDepartment[selectedDeptId] ?? [];
   const techComps = deptComps.filter((c) => c.kind === "technical").sort((a, b) => a.sequence - b.sequence);

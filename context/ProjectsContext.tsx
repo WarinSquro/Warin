@@ -9,6 +9,7 @@ import {
 import type { Project } from "../data/projects";
 import { fetchProjects } from "../api/domain";
 import { useAuth } from "./AuthContext";
+import { useSharedDataSync } from "../hooks/useSharedDataSync";
 
 interface ProjectsContextValue {
   projects: Project[];
@@ -26,8 +27,8 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     setError(null);
     try {
       setProjects(await fetchProjects());
@@ -35,17 +36,21 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       // Keep last-known projects — do not wipe UI on transient/auth failures.
       setError(e instanceof Error ? e.message : "Failed to load projects");
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }, []);
+
+  const refresh = useCallback(() => load(), [load]);
 
   useEffect(() => {
     if (!isAuthenticated) {
       setProjects([]);
       return;
     }
-    void refresh();
-  }, [isAuthenticated, refresh]);
+    void load();
+  }, [isAuthenticated, load]);
+
+  useSharedDataSync(isAuthenticated, () => load({ silent: true }), { resources: ["projects"] });
 
   return (
     <ProjectsContext.Provider value={{ projects, setProjects, loading, error, refresh }}>

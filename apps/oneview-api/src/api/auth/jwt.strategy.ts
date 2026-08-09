@@ -14,7 +14,11 @@ export type JwtPayload = {
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor() {
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: ExtractJwt.fromExtractors([
+        ExtractJwt.fromAuthHeaderAsBearerToken(),
+        // EventSource cannot set Authorization; SSE uses ?access_token=
+        ExtractJwt.fromUrlQueryParameter("access_token"),
+      ]),
       ignoreExpiration: false,
       secretOrKey: process.env.JWT_SECRET ?? "warin-dev-jwt-secret-change-me",
     });

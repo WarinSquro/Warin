@@ -15,6 +15,7 @@ import { useAuth } from "../context/AuthContext";
 import { useFocusFirstField } from "../hooks/useFocusFirstField";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import { useAppDateFormat } from "../hooks/useAppDateFormat";
+import { useSharedDataSync } from "../hooks/useSharedDataSync";
 
 const CYCLES: AssessmentCycle[] = ["Q1", "Q2", "Q3", "Q4"];
 const fieldClass =
@@ -86,8 +87,8 @@ export function KpiResults() {
     return list;
   }, [employees, isSuperAdmin, currentEmployee, deptId, activeDepts]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     setError("");
     try {
       // Always load unfiltered scope so summary / tab counts stay stable.
@@ -105,13 +106,15 @@ export function KpiResults() {
       setItems([]);
       setSummary(emptySummary());
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }, [year, cycle, resourceId, deptId]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useSharedDataSync(!selected, () => load({ silent: true }), { resources: ["kpi"] });
 
   const pendingCount = summary.pending;
   const completedCount = summary.completed;

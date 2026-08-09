@@ -14,6 +14,7 @@ import {
   fetchSkills,
 } from "../api/domain";
 import { useAuth } from "./AuthContext";
+import { useSharedDataSync } from "../hooks/useSharedDataSync";
 
 interface MastersContextValue {
   departments: Department[];
@@ -40,8 +41,8 @@ export function MastersProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     setError(null);
     try {
       // Settle independently — managers with WCI (but not full masters) still get departments.
@@ -66,9 +67,11 @@ export function MastersProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load masters");
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }, []);
+
+  const refresh = useCallback(() => load(), [load]);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -78,8 +81,10 @@ export function MastersProvider({ children }: { children: ReactNode }) {
       setActivityMilestones([]);
       return;
     }
-    void refresh();
-  }, [isAuthenticated, refresh]);
+    void load();
+  }, [isAuthenticated, load]);
+
+  useSharedDataSync(isAuthenticated, () => load({ silent: true }), { resources: ["masters"] });
 
   return (
     <MastersContext.Provider

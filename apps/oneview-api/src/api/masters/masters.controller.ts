@@ -13,6 +13,7 @@ import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import type { MilestoneKind, ProjectType, SetupStatus } from "@prisma/client";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { RequirePermissions } from "../auth/guards";
+import { EmitDataChange } from "../realtime/emit-data-change.decorator";
 
 function ser<T>(v: T): T {
   return JSON.parse(JSON.stringify(v, (_k, x) => (typeof x === "bigint" ? x.toString() : x))) as T;
@@ -52,6 +53,7 @@ export class MastersController {
 
   @Post("customers")
   @RequirePermissions("projects", "masters")
+  @EmitDataChange("masters", "create")
   async createCustomer(@Body() body: { name?: string; code?: string }) {
     const name = body.name?.trim();
     if (!name) throw new BadRequestException("name is required");
@@ -104,6 +106,7 @@ export class MastersController {
 
   @Post("departments")
   @RequirePermissions("masters.departments", "masters")
+  @EmitDataChange("masters", "create")
   async createDepartment(@Body() body: { name?: string; code?: string; headName?: string }) {
     const name = body.name?.trim();
     if (!name) throw new BadRequestException("name is required");
@@ -143,6 +146,7 @@ export class MastersController {
 
   @Put("departments/:code")
   @RequirePermissions("masters.departments", "masters")
+  @EmitDataChange("masters", "update")
   async updateDepartment(
     @Param("code") code: string,
     @Body() body: { name?: string; headName?: string; status?: SetupStatus }
@@ -192,6 +196,7 @@ export class MastersController {
 
   @Post("skill-categories")
   @RequirePermissions("masters.skills", "masters")
+  @EmitDataChange("masters", "create")
   async createSkillCategory(@Body() body: { name?: string; code?: string }) {
     const name = body.name?.trim();
     if (!name) throw new BadRequestException("name is required");
@@ -250,6 +255,7 @@ export class MastersController {
 
   @Post("skills")
   @RequirePermissions("masters.skills", "masters")
+  @EmitDataChange("masters", "create")
   async createSkill(
     @Body() body: { name?: string; categoryId?: string | number; category?: string; code?: string }
   ) {
@@ -303,6 +309,7 @@ export class MastersController {
 
   @Put("skills/:code")
   @RequirePermissions("masters.skills", "masters")
+  @EmitDataChange("masters", "update")
   async updateSkill(
     @Param("code") code: string,
     @Body()
@@ -396,6 +403,7 @@ export class MastersController {
 
   @Post("activities")
   @RequirePermissions("masters.activities", "masters")
+  @EmitDataChange("masters", "create")
   async createActivity(
     @Body()
     body: {
@@ -434,6 +442,7 @@ export class MastersController {
 
   @Put("activities/:code")
   @RequirePermissions("masters.activities", "masters")
+  @EmitDataChange("masters", "update")
   async updateActivity(
     @Param("code") code: string,
     @Body()
@@ -492,6 +501,7 @@ export class MastersController {
 
   @Post("activity-milestones")
   @RequirePermissions("masters.activities", "masters")
+  @EmitDataChange("masters", "create")
   async createActivityMilestone(
     @Body()
     body: {

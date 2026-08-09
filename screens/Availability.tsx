@@ -11,6 +11,7 @@ import { FilterMultiSelect } from "../components/FilterMultiSelect";
 import { MinFreeHoursSelect } from "../components/MinFreeHoursSelect";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import { usePlanningEmployees } from "../hooks/usePlanningEmployees";
+import { useSharedDataSync } from "../hooks/useSharedDataSync";
 import { useMasters } from "../context/MastersContext";
 import { useSettings } from "../context/SettingsContext";
 import { useToast } from "../context/ToastContext";
@@ -364,6 +365,8 @@ export function Availability() {
   const [selectedDepts, setSelectedDepts] = useState<string[]>([]);
   const [minFreeHours, setMinFreeHours] = useState(0);
   const { sortKey, sortDir, handleSort } = useColumnSort<AvailSortKey>("freeHours", "desc");
+
+  useSharedDataSync(!drawerOpen, reloadAllocations, { resources: ["allocations"] });
 
   useEffect(() => {
     if (availDepartments.length) setSelectedDepts((p) => (p.length ? p : [...availDepartments]));

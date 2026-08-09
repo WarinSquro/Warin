@@ -20,6 +20,7 @@ import {
   assertCanPlanForEmployee,
   immediateReportEmployeeIds,
 } from "../auth/resource-scope";
+import { EmitDataChange } from "../realtime/emit-data-change.decorator";
 
 function ser<T>(v: T): T {
   return JSON.parse(JSON.stringify(v, (_k, x) => (typeof x === "bigint" ? x.toString() : x))) as T;
@@ -381,6 +382,7 @@ export class ConfirmationsController {
 
   @Put("me/productivity")
   @RequirePermissions("confirmations")
+  @EmitDataChange("confirmations", "update")
   async upsertProductivity(
     @Req() req: { user: JwtPayload },
     @Body() body: ProductivityUpsertBody
@@ -565,6 +567,7 @@ export class ConfirmationsController {
 
   @Post()
   @RequirePermissions("confirmations")
+  @EmitDataChange("confirmations", "update")
   async submit(@Req() req: { user: JwtPayload }, @Body() body: SubmitBody) {
     const emp = await this.employeeFromJwt(req.user);
     const workDate = parseDate(body.workDate);
@@ -673,6 +676,7 @@ export class ConfirmationsController {
 
   @Post("remind")
   @RequirePermissions("confirmations")
+  @EmitDataChange("confirmations", "update")
   async remind(@Req() req: { user: JwtPayload }, @Body() body: RemindBody) {
     const hrmsId = body.employeeHrmsId?.trim();
     if (!hrmsId) throw new BadRequestException("employeeHrmsId is required");
@@ -878,6 +882,7 @@ export class ConfirmationsController {
             actual: l.actualHours,
             reason: l.reason || (l.kind === "unplanned" ? "Unplanned work" : "—"),
             workDate: isoDate(c.workDate),
+            addedAt: c.submittedAt ? isoDate(c.submittedAt) : isoDate(c.workDate),
           }))
       );
 

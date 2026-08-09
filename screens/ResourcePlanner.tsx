@@ -33,6 +33,7 @@ import { DepartmentSelect } from "../components/DepartmentSelect";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import { useProjects } from "../context/ProjectsContext";
 import { usePlanningEmployees } from "../hooks/usePlanningEmployees";
+import { useSharedDataSync } from "../hooks/useSharedDataSync";
 import { useMasters } from "../context/MastersContext";
 import { useSettings } from "../context/SettingsContext";
 import { useToast } from "../context/ToastContext";
@@ -283,6 +284,8 @@ export function ResourcePlanner() {
   useEffect(() => {
     void reloadAllocations();
   }, [reloadAllocations]);
+
+  useSharedDataSync(!drawerOpen, reloadAllocations, { resources: ["allocations"] });
 
   useEffect(() => {
     setPlannerRows(

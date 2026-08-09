@@ -32,6 +32,126 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-10 00:05 IST
+
+**Prompt:**  
+> Please start with next phase
+
+**Output:**  
+- **Phase 2 cross-user freshness (SSE + Redis pub/sub)** implemented; Phase-1 poll/visibility kept as fallback.
+- `@oneview/redis`: `publish()` + `createSubscriber()` (duplicate connection).
+- Nest `RealtimeModule` (`@Global`): `DomainEventsService` (Redis channel `oneview:data-changed`), `GET /api/v1/events/stream` SSE, `DataChangeInterceptor` + `@EmitDataChange` on domain mutations; JWT accepts `?access_token=` for EventSource.
+- SPA: `api/realtimeStream.ts` + `RealtimeSyncBridge`; `useSharedDataSync` gains `resources` + debounced SSE refresh; contexts/screens map resource buckets.
+- Verified: `npm run packages:build:redis` + `npm run api:build` OK.
+- Not committed.
+
+---
+
+### 2026-08-09 23:55 IST
+
+**Prompt:**  
+> Update all screen-level `useSharedDataSync(...)` calls under screens to pass a `resources` option so Phase-2 SSE can trigger silent reload. Contexts are already done. Minimal diff only. Do not commit. Return files changed.
+
+**Output:**  
+- Added `resources` third-arg options to all 18 `useSharedDataSync` calls across 17 screen files (mapping: allocations / weekly-check-in / confirmations / access-rights / kpi / multi-resource for reports+cockpit). Kept existing enabled args (`!drawerOpen`, `!dirty`, etc.).
+- Files: Utilization, PlanningConflicts, ResourcePlanner, Availability, WeeklyCheckInQueue, WeeklyCheckInHistory, WeeklyCheckInConfig, WeeklyCheckInWorkspace, WorkConfirmation (×2), AccessRights, KpiFramework, KpiResults, ResourceDeploymentReport, ResourcePerformanceReport, ProjectExecutionReport, DailyWorkReport, ExecutiveCockpit.
+- No commit.
+
+---
+
+### 2026-08-09 23:52 IST
+
+**Prompt:**  
+> Add `@EmitDataChange(resource, action)` to every successful mutation handler in listed Nest controllers; wire DomainEventsService into settings-schedule.service and import RealtimeModule in settings.module. Minimal diffs only.
+
+**Output:**  
+- Annotated mutation handlers with `@EmitDataChange` in: employees, masters, projects, confirmations, weekly-check-in, settings, smtp-settings, access-rights, kpi controllers.
+- `settings-schedule.service.ts`: inject `DomainEventsService`; publish `"settings"/"update"` after `applyPayload` and after `applyDueSchedules` when count > 0.
+- `RealtimeModule` made `@Global()` (SettingsModule does not need to re-import).
+- No business-logic changes.
+
+---
+
+### 2026-08-09 23:45 IST
+
+**Prompt:**  
+> We need to do this for entire master, transactions…
+
+**Output:**  
+- Extended Phase-1 cross-user freshness (`useSharedDataSync`: visibility/focus + 45s poll) beyond shared contexts to masters + transactional screens.
+- **Contexts (masters lists):** `EmployeesContext`, `MastersContext`, `ProjectsContext` (poll); `SettingsContext` (visibility only).
+- **Transactions / ops / reports:** WeeklyCheckInQueue, WeeklyCheckInHistory, WeeklyCheckInConfig (guard editing), WeeklyCheckInWorkspace (viewOnly only), WorkConfirmation (submitted / team), Utilization, PlanningConflicts, ResourcePlanner & Availability (`!drawerOpen`), ExecutiveCockpit, ResourceDeployment/Performance/ProjectExecution/DailyWork reports, AccessRights (`!dirty`), KpiFramework, KpiResults (`!selected`).
+- Silent reloads (no full-page spinner). Not committed.
+
+---
+
+### 2026-08-09 23:40 IST
+
+**Prompt:**  
+> Wire `useSharedDataSync` into listed OneView screens (Utilization through KpiResults). Minimal diff; do not commit.
+
+**Output:**  
+- Wired `hooks/useSharedDataSync` into 16 screens with silent reload callbacks where needed.
+- Sync guards: `!drawerOpen` (planner/availability), `!dirty` (AccessRights), `!editingId && !editingRank` (WCI config), `viewOnly` (WCI workspace), `submitted` (EmployeeConfirm), always (ManagerCompliance/team + reports/cockpit/util/conflicts), KPI results when `!selected`.
+- Not committed (per request).
+
+---
+
+### 2026-08-09 23:35 IST
+
+**Prompt:**  
+> Start Phase-1 cross-user freshness (refetch on tab visibility + light poll) for the whole app shared data.
+
+**Output:**  
+- Added `hooks/useSharedDataSync.ts` — visibility/focus refetch + optional interval (default 45s); skips when tab hidden; in-flight guard.
+- Wired silent refresh into `EmployeesContext`, `MastersContext`, `ProjectsContext` (poll + visibility).
+- `SettingsContext` — visibility/focus only (no interval) to reduce overwrite risk while editing System Parameters.
+- Initial load still shows loading; background sync does not toggle loading spinner.
+
+---
+
+### 2026-08-09 23:25 IST
+
+**Prompt:**  
+> Competency guide modal — keep both tables’ column widths the same; if Remark is long, use a wider dialog up to a limit.
+
+**Output:**  
+- `CompetencyGuideModal`: single `table-fixed` with shared `#` / Competency / Remark columns for Technical + Behavioural sections; modal `max-w-[720px]`; remarks wrap with `break-words`.
+
+---
+
+### 2026-08-09 23:20 IST
+
+**Prompt:**  
+> Weekly Check-In Assessment — info icon on Competency header; click opens view-only popup of Technical & Behavioural competencies (tabular); X to close.
+
+**Output:**  
+- `components/WeeklyCheckInCompetencyRating.tsx` — Info icon beside Competency; modal tables `#` / Competency / Remark; close via X or backdrop.
+
+---
+
+### 2026-08-09 22:50 IST
+
+**Prompt:**  
+> Commit & push Weekly Check-In competency Remark so live can pull/migrate/deploy.
+
+**Output:**  
+- Added `WeeklyCheckInCompetency.remark` (Prisma + migration `20260807193000_wci_competency_remark`).
+- API GET/PUT config round-trips `remark`; Config UI shows remark column + edit; data helpers updated.
+- Unrelated local WIP left unstaged.
+
+---
+
+### 2026-08-09 22:25 IST
+
+**Prompt:**  
+> Company calendar — scrollbar only for entered holiday list; Add off day Date/Label stay fixed on screen.
+
+**Output:**  
+- `screens/Settings.tsx` `CompanyCalendarModal`: body no longer scrolls as a whole; Off days list is `flex-1 min-h-0 overflow-y-auto`; Add off day form is `flex-shrink-0` below the list.
+
+---
+
 ### 2026-08-09 22:00 IST
 
 **Prompt:**  

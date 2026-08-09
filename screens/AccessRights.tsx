@@ -15,6 +15,7 @@ import { useAuth } from "../context/AuthContext";
 import { useEmployees } from "../context/EmployeesContext";
 import { useToast } from "../context/ToastContext";
 import { fetchAccessRights, fetchAllAccessRights, putAccessRights } from "../api/domain";
+import { useSharedDataSync } from "../hooks/useSharedDataSync";
 import { formatDataReachSummary, getResourceOwnerDisplay } from "../utils/employeeHierarchy";
 import { matchesSearchQuery } from "../utils/textSearch";
 import { ThemeCheckbox } from "../components/ThemeCheckbox";
@@ -98,23 +99,22 @@ export function AccessRights() {
 
   // Load all employees' permission keys once so sidebar counts are correct on
   // first paint (avoids N+1 and React Strict Mode cancel/skip races).
-  useEffect(() => {
+  const reloadRightsCache = useCallback(async () => {
     if (employees.length === 0) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const rights = await fetchAllAccessRights();
-        if (cancelled) return;
-        // Prefer any already-cached / freshly saved entries over the bulk snapshot.
-        setRightsCache((c) => ({ ...rights, ...c }));
-      } catch {
-        /* per-card loadEmployee still works */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    try {
+      const rights = await fetchAllAccessRights();
+      // Prefer any already-cached / freshly saved entries over the bulk snapshot.
+      setRightsCache((c) => ({ ...rights, ...c }));
+    } catch {
+      /* per-card loadEmployee still works */
+    }
   }, [employees]);
+
+  useEffect(() => {
+    void reloadRightsCache();
+  }, [reloadRightsCache]);
+
+  useSharedDataSync(!dirty, reloadRightsCache, { resources: ["access-rights"] });
 
   const selectEmployee = (emp: Employee) => {
     if (emp.id === selectedId) return;

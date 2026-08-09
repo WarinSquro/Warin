@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Put } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { RequirePermissions } from "../auth/guards";
+import { EmitDataChange } from "../realtime/emit-data-change.decorator";
 
 function ser<T>(v: T): T {
   return JSON.parse(JSON.stringify(v, (_k, x) => (typeof x === "bigint" ? x.toString() : x))) as T;
@@ -53,6 +54,7 @@ export class AccessRightsController {
 
   @Put(":employeeId")
   @RequirePermissions("access_rights")
+  @EmitDataChange("access-rights", "update")
   async put(@Param("employeeId") employeeId: string, @Body() body: { permissionKeys: string[] }) {
     const emp = await this.prisma.employee.findFirst({
       where: {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { FileSpreadsheet, FileText, Search } from "lucide-react";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
@@ -33,6 +33,7 @@ import {
   reportRange,
 } from "../api/liveViews";
 import { fetchAllocations, fetchConfirmations, type ApiAllocation, type ApiConfirmation } from "../api/domain";
+import { useSharedDataSync } from "../hooks/useSharedDataSync";
 import { runReportExport, summarizeFilter } from "../utils/reportExport";
 import type { ReportExportInput } from "../utils/reportExport";
 import { formatHoursLabel } from "../utils/formatHours";
@@ -78,27 +79,25 @@ export function ResourceDeploymentReport() {
     return reportRange("month");
   }, [periodId, settings.workingDays]);
 
-  useEffect(() => {
-    let cancelled = false;
-    void Promise.all([
-      fetchAllocations({ from: range.from, to: range.to }),
-      fetchConfirmations({ from: range.from, to: range.to }),
-    ])
-      .then(([a, c]) => {
-        if (cancelled) return;
-        setAllocations(a);
-        setConfirmations(c);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setAllocations([]);
-          setConfirmations([]);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
+  const load = useCallback(async () => {
+    try {
+      const [a, c] = await Promise.all([
+        fetchAllocations({ from: range.from, to: range.to }),
+        fetchConfirmations({ from: range.from, to: range.to }),
+      ]);
+      setAllocations(a);
+      setConfirmations(c);
+    } catch {
+      setAllocations([]);
+      setConfirmations([]);
+    }
   }, [range.from, range.to]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  useSharedDataSync(true, load, { resources: ["allocations", "confirmations", "projects", "employees"] });
 
   const periodRows = useMemo(
     () =>

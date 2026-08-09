@@ -13,6 +13,7 @@ import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import type { MilestoneKind, ProjectHealth, ProjectType } from "@prisma/client";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { RequirePermissions } from "../auth/guards";
+import { EmitDataChange } from "../realtime/emit-data-change.decorator";
 
 function ser<T>(v: T): T {
   return JSON.parse(JSON.stringify(v, (_k, x) => (typeof x === "bigint" ? x.toString() : x))) as T;
@@ -149,6 +150,7 @@ export class ProjectsController {
 
   @Post()
   @RequirePermissions("projects")
+  @EmitDataChange("projects", "create")
   async create(@Body() body: ProjectBody) {
     const projectCode = body.projectCode?.trim();
     const name = body.name?.trim();
@@ -212,6 +214,7 @@ export class ProjectsController {
 
   @Put(":id")
   @RequirePermissions("projects")
+  @EmitDataChange("projects", "update")
   async update(@Param("id") id: string, @Body() body: Partial<ProjectBody>) {
     const isNum = /^\d+$/.test(id);
     const existing = await this.prisma.project.findFirst({

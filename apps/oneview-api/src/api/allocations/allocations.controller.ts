@@ -16,6 +16,7 @@ import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { RequirePermissions } from "../auth/guards";
 import type { JwtPayload } from "../auth/jwt.strategy";
 import { assertCanPlanForEmployee } from "../auth/resource-scope";
+import { EmitDataChange } from "../realtime/emit-data-change.decorator";
 
 function ser<T>(v: T): T {
   return JSON.parse(JSON.stringify(v, (_k, x) => (typeof x === "bigint" ? x.toString() : x))) as T;
@@ -191,6 +192,7 @@ export class AllocationsController {
 
   @Post()
   @RequirePermissions("planner")
+  @EmitDataChange("allocations", "create")
   async create(@Req() req: { user: JwtPayload }, @Body() body: AllocBody) {
     const refs = await this.resolveRefs(body);
     await assertCanPlanForEmployee(this.prisma, req.user, refs.employee);
@@ -213,6 +215,7 @@ export class AllocationsController {
 
   @Put(":id")
   @RequirePermissions("planner")
+  @EmitDataChange("allocations", "update")
   async update(@Req() req: { user: JwtPayload }, @Param("id") id: string, @Body() body: AllocBody) {
     if (!/^\d+$/.test(id)) throw new NotFoundException("Allocation not found");
     const existing = await this.prisma.allocation.findFirst({
@@ -245,6 +248,7 @@ export class AllocationsController {
 
   @Delete(":id")
   @RequirePermissions("planner")
+  @EmitDataChange("allocations", "delete")
   async remove(@Req() req: { user: JwtPayload }, @Param("id") id: string) {
     if (!/^\d+$/.test(id)) throw new NotFoundException("Allocation not found");
     const existing = await this.prisma.allocation.findFirst({

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AlertCircle, Check, Search } from "lucide-react";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
@@ -9,8 +9,7 @@ import {
   disciplinePctClass,
   formatQueueOpenAction,
   formatReviewStatus,
-  getCurrentWeekStart,
-  addWeeks,
+  resolveReviewWeekStart,
   sortQueueRows,
   type QueueRow,
   type QueueSortKey,
@@ -18,6 +17,7 @@ import {
   type WeeklyStatus,
 } from "../data/weeklyCheckIn";
 import { fetchWeeklyQueue } from "../api/domain";
+import { useSharedDataSync } from "../hooks/useSharedDataSync";
 import { matchesSearchQuery } from "../utils/textSearch";
 
 type FilterTab = "all" | "pending" | "completed";
@@ -29,7 +29,7 @@ export function WeeklyCheckInQueue() {
   const { currentEmployee } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const weekStart = searchParams.get("week") ?? addWeeks(getCurrentWeekStart(), -1);
+  const weekStart = resolveReviewWeekStart(searchParams.get("week"));
   const [filter, setFilter] = useState<FilterTab>("all");
   const [search, setSearch] = useState("");
   const { sortKey, sortDir, handleSort } = useColumnSort<QueueSortKey>("reviewStatus", "asc");
@@ -37,44 +37,49 @@ export function WeeklyCheckInQueue() {
   const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
-    let cancelled = false;
-    void fetchWeeklyQueue(weekStart)
-      .then((res) => {
-        if (cancelled) return;
-        setRows(
-          res.rows.map((r) => ({
-            employeeId: r.employeeId,
-            employeeName: r.employeeName,
-            department: r.department,
-            role: r.role,
-            initials: r.initials,
-            status: r.status,
-            submissionId: r.submissionId,
-            lastWeekStatus: r.lastWeekStatus as WeeklyStatus | undefined,
-            confirmationDiscipline: r.confirmationDiscipline,
-            openActionType: r.openActionType,
-            openActionNotes: r.openActionNotes,
-            prevRecognition: r.prevRecognition as Recognition | undefined,
-            prevActionCompleted: r.prevActionCompleted,
-            submittedAt: r.submittedAt,
-            weeklyStatus: r.weeklyStatus as WeeklyStatus | undefined,
-            recognition: r.recognition as Recognition | undefined,
-            noPriorReview: r.noPriorReview,
-            noOperationalData: r.noOperationalData,
-          }))
-        );
-        setLoadError("");
-      })
-      .catch((e) => {
-        if (!cancelled) {
-          setRows([]);
-          setLoadError(e instanceof Error ? e.message : "Failed to load queue");
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
+    const raw = searchParams.get("week");
+    if (raw !== weekStart) {
+      setSearchParams({ week: weekStart }, { replace: true });
+    }
+  }, [searchParams, setSearchParams, weekStart]);
+
+  const loadQueue = useCallback(async () => {
+    try {
+      const res = await fetchWeeklyQueue(weekStart);
+      setRows(
+        res.rows.map((r) => ({
+          employeeId: r.employeeId,
+          employeeName: r.employeeName,
+          department: r.department,
+          role: r.role,
+          initials: r.initials,
+          status: r.status,
+          submissionId: r.submissionId,
+          lastWeekStatus: r.lastWeekStatus as WeeklyStatus | undefined,
+          confirmationDiscipline: r.confirmationDiscipline,
+          openActionType: r.openActionType,
+          openActionNotes: r.openActionNotes,
+          prevRecognition: r.prevRecognition as Recognition | undefined,
+          prevActionCompleted: r.prevActionCompleted,
+          submittedAt: r.submittedAt,
+          weeklyStatus: r.weeklyStatus as WeeklyStatus | undefined,
+          recognition: r.recognition as Recognition | undefined,
+          noPriorReview: r.noPriorReview,
+          noOperationalData: r.noOperationalData,
+        }))
+      );
+      setLoadError("");
+    } catch (e) {
+      setRows([]);
+      setLoadError(e instanceof Error ? e.message : "Failed to load queue");
+    }
   }, [weekStart]);
+
+  useEffect(() => {
+    void loadQueue();
+  }, [loadQueue]);
+
+  useSharedDataSync(true, loadQueue, { resources: ["weekly-check-in"] });
 
   const tabCounts = useMemo(
     () => ({
@@ -228,7 +233,7 @@ export function WeeklyCheckInQueue() {
                       <div className="min-w-0">
                         <div className="truncate text-[13px] font-medium text-foreground">{row.employeeName}</div>
                         <div className="truncate text-[11px] text-muted-foreground">
-                          {row.role} · {row.department}
+                          {row.department}
                         </div>
                       </div>
                     </div>

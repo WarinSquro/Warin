@@ -9,6 +9,7 @@ import {
 import type { Employee } from "../data/employees";
 import { fetchEmployees } from "../api/domain";
 import { useAuth } from "./AuthContext";
+import { useSharedDataSync } from "../hooks/useSharedDataSync";
 
 interface EmployeesContextValue {
   employees: Employee[];
@@ -26,8 +27,8 @@ export function EmployeesProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     setError(null);
     try {
       const rows = await fetchEmployees();
@@ -36,17 +37,21 @@ export function EmployeesProvider({ children }: { children: ReactNode }) {
       // Keep last-known employees — do not wipe UI on transient/auth failures.
       setError(e instanceof Error ? e.message : "Failed to load employees");
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }, []);
+
+  const refresh = useCallback(() => load(), [load]);
 
   useEffect(() => {
     if (!isAuthenticated) {
       setEmployees([]);
       return;
     }
-    void refresh();
-  }, [isAuthenticated, refresh]);
+    void load();
+  }, [isAuthenticated, load]);
+
+  useSharedDataSync(isAuthenticated, () => load({ silent: true }), { resources: ["employees"] });
 
   return (
     <EmployeesContext.Provider value={{ employees, setEmployees, loading, error, refresh }}>

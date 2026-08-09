@@ -10,6 +10,7 @@ import { DEFAULT_SETTINGS } from "../data/settings";
 import type { MetricBands, SettingsState } from "../data/settings";
 import { fetchSettings } from "../api/domain";
 import { useAuth } from "./AuthContext";
+import { useSharedDataSync } from "../hooks/useSharedDataSync";
 
 interface SettingsContextValue {
   settings: SettingsState;
@@ -27,21 +28,30 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<SettingsState>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(false);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     try {
       setSettings(await fetchSettings());
     } catch {
       /* keep defaults if settings API unavailable */
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }, []);
 
+  const refresh = useCallback(() => load(), [load]);
+
   useEffect(() => {
     if (!isAuthenticated) return;
-    void refresh();
-  }, [isAuthenticated, refresh]);
+    void load();
+  }, [isAuthenticated, load]);
+
+  // Visibility/focus only — avoid interval overwrite while an admin is editing System Parameters.
+  // SSE still refreshes when another user saves settings (same silent path).
+  useSharedDataSync(isAuthenticated, () => load({ silent: true }), {
+    intervalMs: false,
+    resources: ["settings"],
+  });
 
   const patchSettings = (patch: Partial<SettingsState>) => {
     setSettings((prev) => ({ ...prev, ...patch }));

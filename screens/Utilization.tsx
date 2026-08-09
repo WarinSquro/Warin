@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CalendarClock, X, ArrowRight, FileSpreadsheet, FileText } from "lucide-react";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
@@ -16,6 +16,7 @@ import { useToast } from "../context/ToastContext";
 import { buildUtilRowsFromEmployees, mondayISO } from "../api/liveViews";
 import { weekCapacityHours } from "../data/planner";
 import { fetchAllocations, fetchSettingsSchedules, type ApiAllocation, type SettingsSchedule } from "../api/domain";
+import { useSharedDataSync } from "../hooks/useSharedDataSync";
 import { runReportExport, summarizeFilter } from "../utils/reportExport";
 import type { ReportExportInput } from "../utils/reportExport";
 
@@ -58,12 +59,24 @@ export function Utilization() {
     Math.round(settings.workingHoursPerDay * settings.workingDays.length) ||
     40;
   const [allocations, setAllocations] = useState<ApiAllocation[]>([]);
+  const [pendingSchedule, setPendingSchedule] = useState<SettingsSchedule | null>(null);
+
+  const load = useCallback(async () => {
+    await Promise.all([
+      fetchAllocations()
+        .then(setAllocations)
+        .catch(() => setAllocations([])),
+      fetchSettingsSchedules()
+        .then((rows) => setPendingSchedule(rows[0] ?? null))
+        .catch(() => setPendingSchedule(null)),
+    ]);
+  }, []);
 
   useEffect(() => {
-    void fetchAllocations()
-      .then(setAllocations)
-      .catch(() => setAllocations([]));
-  }, []);
+    void load();
+  }, [load]);
+
+  useSharedDataSync(true, load, { resources: ["allocations"] });
 
   const utilRows = useMemo(
     () =>
@@ -82,14 +95,7 @@ export function Utilization() {
 
   const [seg, setSeg] = useState<Segment>("all");
   const [bannerDismissed, setBannerDismissed] = useState(false);
-  const [pendingSchedule, setPendingSchedule] = useState<SettingsSchedule | null>(null);
   const toast = useToast();
-
-  useEffect(() => {
-    void fetchSettingsSchedules()
-      .then((rows) => setPendingSchedule(rows[0] ?? null))
-      .catch(() => setPendingSchedule(null));
-  }, []);
   const [monthId, setMonthId] = useState(DEFAULT_UTIL_MONTH);
   const [selectedDepts, setSelectedDepts] = useState<string[]>([]);
   const { sortKey, sortDir, handleSort } = useColumnSort<UtilSortKey>("pct", "desc");

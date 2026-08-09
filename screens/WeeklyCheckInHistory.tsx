@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, X } from "lucide-react";
 import { WeeklyCheckInEvidencePanel } from "../components/WeeklyCheckInEvidencePanel";
@@ -31,6 +31,7 @@ import { useSettings } from "../context/SettingsContext";
 import { fetchWeeklyCheckInConfig, fetchWeeklySubmissions } from "../api/domain";
 import { mapApiWeeklySubmission } from "../api/liveViews";
 import { useAppDateFormat } from "../hooks/useAppDateFormat";
+import { useSharedDataSync } from "../hooks/useSharedDataSync";
 
 const HISTORY_WEEK_COUNT = 8;
 
@@ -52,12 +53,14 @@ export function WeeklyCheckInHistory() {
   const reviewerId = currentEmployee?.id ?? "";
   const isDirectReport = !!emp && (isSuperAdmin || emp.resourceOwnerId === reviewerId);
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    void Promise.all([fetchWeeklyCheckInConfig(), fetchWeeklySubmissions({ employeeHrmsId: employeeId })])
-      .then(([config, rows]) => {
-        if (cancelled) return;
+  const loadHistory = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (!opts?.silent) setLoading(true);
+      try {
+        const [config, rows] = await Promise.all([
+          fetchWeeklyCheckInConfig(),
+          fetchWeeklySubmissions({ employeeHrmsId: employeeId }),
+        ]);
         saveWeeklyCheckInConfig({
           competenciesByDepartment: config.competenciesByDepartment as never,
           rankingLevels: config.rankingLevels as never,
@@ -66,20 +69,21 @@ export function WeeklyCheckInHistory() {
         setConfigReady(true);
         setSubmissions(rows.map(mapApiWeeklySubmission));
         setLoadError("");
-      })
-      .catch((e) => {
-        if (!cancelled) {
-          setSubmissions([]);
-          setLoadError(e instanceof Error ? e.message : "Failed to load history");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [employeeId]);
+      } catch (e) {
+        setSubmissions([]);
+        setLoadError(e instanceof Error ? e.message : "Failed to load history");
+      } finally {
+        if (!opts?.silent) setLoading(false);
+      }
+    },
+    [employeeId]
+  );
+
+  useEffect(() => {
+    void loadHistory();
+  }, [loadHistory]);
+
+  useSharedDataSync(true, () => loadHistory({ silent: true }), { resources: ["weekly-check-in"] });
 
   const history = useMemo((): EmployeeHistory => {
     const current = getCurrentWeekStart();
