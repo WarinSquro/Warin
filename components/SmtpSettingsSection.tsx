@@ -10,6 +10,7 @@ import {
   type SmtpSettingsPayload,
 } from "../api/domain";
 import { useToast } from "../context/ToastContext";
+import { usePauseSharedDataSync } from "../hooks/useSharedDataSync";
 
 const SECURITY_OPTIONS: { value: SmtpSecurityType; label: string }[] = [
   { value: "none", label: "None" },
@@ -68,6 +69,7 @@ function toPayload(form: SmtpSettings): SmtpSettingsPayload {
 export function SmtpSettingsSection() {
   const toast = useToast();
   const [form, setForm] = useState<SmtpSettings>(emptyForm);
+  const [committed, setCommitted] = useState<SmtpSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -76,6 +78,34 @@ export function SmtpSettingsSection() {
   const [testTo, setTestTo] = useState("");
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [senderEmailInvalid, setSenderEmailInvalid] = useState(false);
+
+  const smtpDirty =
+    committed != null &&
+    (form.host !== committed.host ||
+      form.port !== committed.port ||
+      form.securityType !== committed.securityType ||
+      form.senderName !== committed.senderName ||
+      form.senderEmail !== committed.senderEmail ||
+      form.username !== committed.username ||
+      form.authRequired !== committed.authRequired ||
+      form.password.trim() !== "");
+
+  const requiredComplete =
+    Boolean(form.host.trim()) &&
+    Number.isFinite(form.port) &&
+    form.port >= SMTP_PORT_MIN &&
+    form.port <= SMTP_PORT_MAX &&
+    Boolean(form.securityType) &&
+    Boolean(form.senderName.trim()) &&
+    isValidEmail(form.senderEmail) &&
+    (!form.authRequired ||
+      (Boolean(form.username.trim()) &&
+        (Boolean(form.password.trim()) || form.passwordSet)));
+
+  /** Enable Save only when required fields are complete and something changed. */
+  const canSave = requiredComplete && smtpDirty;
+
+  usePauseSharedDataSync(smtpDirty);
 
   const patch = (p: Partial<SmtpSettings>) => {
     setForm((prev) => ({ ...prev, ...p }));
@@ -102,7 +132,11 @@ export function SmtpSettingsSection() {
       setLoading(true);
       try {
         const row = await fetchSmtpSettings();
-        if (!cancelled) setForm({ ...row, password: "" });
+        if (!cancelled) {
+          const next = { ...row, password: "" };
+          setForm(next);
+          setCommitted(next);
+        }
       } catch (e) {
         if (!cancelled) {
           setMessage({
@@ -125,7 +159,9 @@ export function SmtpSettingsSection() {
     setMessage(null);
     try {
       const saved = await putSmtpSettings(toPayload(form));
-      setForm({ ...saved, password: "" });
+      const next = { ...saved, password: "" };
+      setForm(next);
+      setCommitted(next);
       toast.updated();
     } catch (e) {
       setMessage({ type: "err", text: e instanceof Error ? e.message : "Save failed." });
@@ -193,25 +229,39 @@ export function SmtpSettingsSection() {
             Password is encrypted at rest and never shown again.
           </div>
         </div>
-        <div className="flex flex-col items-end gap-1">
-          <div
-            className={`flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium ${
-              form.isConfigured
-                ? "bg-success-soft text-success-fg"
-                : "bg-warning-soft text-warning"
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          <button
+            type="button"
+            disabled={saving || loading || !canSave}
+            onClick={() => void save()}
+            className={`cursor-pointer rounded-md px-3.5 py-1.5 text-[12px] font-medium disabled:cursor-not-allowed ${
+              canSave && !saving && !loading
+                ? "bg-primary text-primary-foreground hover:opacity-90"
+                : "bg-surface-alt text-muted-foreground"
             }`}
           >
-            <ShieldCheck className="h-3.5 w-3.5" />
-            {form.isConfigured ? "Configured" : "Not configured"}
-          </div>
-          <div
-            className={`text-[10px] font-medium ${
-              form.connectionVerified ? "text-success-fg" : "text-muted-foreground"
-            }`}
-          >
-            {form.connectionVerified
-              ? "Connection tested — welcome emails enabled"
-              : "Test connection to enable welcome PIN emails"}
+            {saving ? "Saving…" : "Save Settings"}
+          </button>
+          <div className="flex flex-col items-end gap-1">
+            <div
+              className={`flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium ${
+                form.isConfigured
+                  ? "bg-success-soft text-success-fg"
+                  : "bg-warning-soft text-warning"
+              }`}
+            >
+              <ShieldCheck className="h-3.5 w-3.5" />
+              {form.isConfigured ? "Configured" : "Not configured"}
+            </div>
+            <div
+              className={`text-[10px] font-medium ${
+                form.connectionVerified ? "text-success-fg" : "text-muted-foreground"
+              }`}
+            >
+              {form.connectionVerified
+                ? "Connection tested — welcome emails enabled"
+                : "Test connection to enable welcome PIN emails"}
+            </div>
           </div>
         </div>
       </div>
@@ -333,17 +383,9 @@ export function SmtpSettingsSection() {
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <button
           type="button"
-          disabled={saving}
-          onClick={() => void save()}
-          className="rounded-md bg-primary px-3.5 py-1.5 text-[12px] font-medium text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {saving ? "Saving…" : "Save Settings"}
-        </button>
-        <button
-          type="button"
           disabled={testing || saving}
           onClick={() => void testConn()}
-          className="rounded-md border border-border px-3.5 py-1.5 text-[12px] text-foreground hover:bg-surface-alt disabled:cursor-not-allowed disabled:opacity-60"
+          className="cursor-pointer rounded-md border border-border px-3.5 py-1.5 text-[12px] text-foreground hover:bg-surface-alt disabled:cursor-not-allowed disabled:opacity-60"
         >
           {testing ? "Testing…" : "Test SMTP Connection"}
         </button>

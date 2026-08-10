@@ -230,21 +230,16 @@ export class AuthService {
 
   /** Authenticated user changes their own PIN (Account Settings / first login). */
   async changePin(employeeId: string, currentPin: string, newPin: string) {
+    await this.verifyCurrentPin(employeeId, currentPin);
+
     if (currentPin === newPin) {
       throw new BadRequestException("New PIN must be different from the current PIN");
     }
+
     const employee = await this.prisma.employee.findFirst({
       where: { id: BigInt(employeeId), isDeleted: false, isActive: true },
     });
     if (!employee) throw new UnauthorizedException();
-
-    const ok = await this.hashing.verify(employee.pinHash, currentPin);
-    if (!ok) {
-      throw new UnauthorizedException({
-        error: "INVALID_PIN",
-        message: "Current PIN is incorrect",
-      });
-    }
 
     const pinHash = await this.hashing.hash(newPin);
     await this.prisma.employee.update({
@@ -256,5 +251,19 @@ export class AuthService {
       },
     });
     return { ok: true, message: "PIN updated successfully.", mustChangePin: false };
+  }
+
+  /** Verify the signed-in user's current PIN without changing it. */
+  async verifyCurrentPin(employeeId: string, pin: string) {
+    const employee = await this.prisma.employee.findFirst({
+      where: { id: BigInt(employeeId), isDeleted: false, isActive: true },
+    });
+    if (!employee) throw new UnauthorizedException();
+
+    const ok = await this.hashing.verify(employee.pinHash, pin);
+    if (!ok) {
+      throw new BadRequestException("Current PIN do not match.");
+    }
+    return { ok: true };
   }
 }

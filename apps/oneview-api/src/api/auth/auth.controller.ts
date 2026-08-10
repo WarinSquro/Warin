@@ -2,7 +2,7 @@ import { Body, Controller, Get, Post, Req, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { AuthService } from "./auth.service";
-import { ChangePinDto, ForgotPinDto, LoginDto, RefreshDto, ResetPinDto } from "./dto/auth.dto";
+import { ChangePinDto, ForgotPinDto, LoginDto, RefreshDto, ResetPinDto, VerifyPinDto } from "./dto/auth.dto";
 import { JwtAuthGuard, Public } from "./guards";
 import type { JwtPayload } from "./jwt.strategy";
 
@@ -48,6 +48,14 @@ export class AuthController {
   @Get("me")
   me(@Req() req: { user: JwtPayload }) {
     return this.auth.me(req.user.sub);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post("verify-pin")
+  verifyPin(@Req() req: { user: JwtPayload }, @Body() dto: VerifyPinDto) {
+    return this.auth.verifyCurrentPin(req.user.sub, dto.pin);
   }
 
   @ApiBearerAuth()

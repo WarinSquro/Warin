@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   DATA_CHANGED_EVENT,
   type DataChangedEvent,
@@ -18,6 +18,40 @@ type SyncOptions = {
   resources?: DataResource[];
 };
 
+/** Nested pause count — while > 0, all shared sync (poll / focus / SSE) is skipped. */
+let syncPauseCount = 0;
+const syncPauseListeners = new Set<() => void>();
+
+function notifySyncPauseListeners() {
+  syncPauseListeners.forEach((l) => l());
+}
+
+export function isSharedDataSyncPaused(): boolean {
+  return syncPauseCount > 0;
+}
+
+function acquireSharedDataSyncPause() {
+  syncPauseCount += 1;
+  notifySyncPauseListeners();
+}
+
+function releaseSharedDataSyncPause() {
+  syncPauseCount = Math.max(0, syncPauseCount - 1);
+  notifySyncPauseListeners();
+}
+
+/**
+ * While `paused` is true, suppress background shared-data refresh across the app
+ * (contexts + screens) so open masters/transaction forms are not overwritten.
+ */
+export function usePauseSharedDataSync(paused: boolean) {
+  useEffect(() => {
+    if (!paused) return;
+    acquireSharedDataSyncPause();
+    return () => releaseSharedDataSyncPause();
+  }, [paused]);
+}
+
 /**
  * Keeps shared list/context data fresher across users:
  * - Refetch when the tab becomes visible / window gains focus
@@ -25,6 +59,7 @@ type SyncOptions = {
  * - Optional SSE-driven refresh for matching `resources` (Phase 2)
  *
  * Callers should pass a silent refresh (no full-page loading spinner).
+ * Sync is skipped while any `usePauseSharedDataSync(true)` is active.
  */
 export function useSharedDataSync(
   enabled: boolean,
@@ -39,9 +74,19 @@ export function useSharedDataSync(
   onSyncRef.current = onSync;
   const inFlightRef = useRef(false);
   const debounceRef = useRef<number | undefined>(undefined);
+  const [pauseEpoch, setPauseEpoch] = useState(0);
+
+  useEffect(() => {
+    const onPauseChange = () => setPauseEpoch((n) => n + 1);
+    syncPauseListeners.add(onPauseChange);
+    return () => {
+      syncPauseListeners.delete(onPauseChange);
+    };
+  }, []);
 
   const run = useCallback(async () => {
     if (!enabled || inFlightRef.current) return;
+    if (isSharedDataSyncPaused()) return;
     if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
     inFlightRef.current = true;
     try {
@@ -51,7 +96,7 @@ export function useSharedDataSync(
     } finally {
       inFlightRef.current = false;
     }
-  }, [enabled]);
+  }, [enabled, pauseEpoch]);
 
   const runDebounced = useCallback(() => {
     if (debounceRef.current != null) window.clearTimeout(debounceRef.current);

@@ -147,3 +147,10 @@ export function changePinApi(currentPin: string, newPin: string) {
     body: JSON.stringify({ currentPin, newPin }),
   });
 }
+
+export function verifyPinApi(pin: string) {
+  return apiFetch<{ ok: boolean }>("/auth/verify-pin", {
+    method: "POST",
+    body: JSON.stringify({ pin }),
+  });
+}

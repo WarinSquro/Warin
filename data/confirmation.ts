@@ -201,10 +201,12 @@ export interface DeviationEntry {
   reason: string;
   /** ISO YYYY-MM-DD — work date of the deviation */
   workDate: string;
+  /** ISO YYYY-MM-DD — when the deviation was submitted / added */
+  addedAt?: string;
 }
 
 export const DEVIATION_FEED: DeviationEntry[] = [
-  { id: "d1", name: "Arjun Mehta", initials: "AM", line: "Project Atlas · Development", planned: 8, actual: 4, reason: "Blocked / waiting on input", workDate: "2026-01-06" },
-  { id: "d2", name: "Tara Gupta", initials: "TG", line: "Project Falcon · Automation", planned: 6, actual: 8, reason: "Reprioritized to another task", workDate: "2026-01-06" },
-  { id: "d3", name: "Kiran Bose", initials: "KB", line: "Support queue", planned: 8, actual: 5, reason: "On partial leave", workDate: "2026-01-06" },
+  { id: "d1", name: "Arjun Mehta", initials: "AM", line: "Project Atlas · Development", planned: 8, actual: 4, reason: "Blocked / waiting on input", workDate: "2026-01-06", addedAt: "2026-01-06" },
+  { id: "d2", name: "Tara Gupta", initials: "TG", line: "Project Falcon · Automation", planned: 6, actual: 8, reason: "Reprioritized to another task", workDate: "2026-01-06", addedAt: "2026-01-06" },
+  { id: "d3", name: "Kiran Bose", initials: "KB", line: "Support queue", planned: 8, actual: 5, reason: "On partial leave", workDate: "2026-01-06", addedAt: "2026-01-06" },
 ];

@@ -41,6 +41,8 @@ export interface Activity {
   milestoneId: string;
   billable: boolean;   // false = internal; excluded from utilization denominator
   status: SetupStatus;
+  /** Non-deleted allocations on non-deleted projects (setup Disable guard). */
+  projectCount?: number;
 }
 
 export function projectTypeLabel(type: ProjectType) {

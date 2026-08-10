@@ -257,10 +257,10 @@ export function workingOverlapDays(
   return count;
 }
 
-/** Weekly capacity in hours for a Mon–Fri week starting `weekStartIso`. */
+/** Weekly capacity in hours for a Mon–Sun week starting `weekStartIso` (counts Settings working days only). */
 export function weekCapacityHours(weekStartIso: string, opts: PlannerCalendarOpts = {}): number {
   const hpd = opts.workingHoursPerDay ?? 8;
-  const end = toISODate(addDays(parseISO(weekStartIso), 4));
+  const end = toISODate(addDays(parseISO(weekStartIso), 6));
   const days = workingOverlapDays(weekStartIso, end, weekStartIso, end, opts);
   const raw = days * hpd;
   return Math.round(raw * 10) / 10;
@@ -286,9 +286,9 @@ export function allocationEffectiveDate(
     return cell < today ? today : cell;
   }
   const monday = WEEK_START_ISO[cellIndex] ?? today;
-  const friday = toISODate(addDays(parseISO(monday), 4));
-  if (today >= monday && today <= friday) return today;
-  if (today > friday) return today;
+  const sunday = toISODate(addDays(parseISO(monday), 6));
+  if (today >= monday && today <= sunday) return today;
+  if (today > sunday) return today;
   return monday;
 }
 
@@ -511,7 +511,7 @@ export function buildPlannerRowsFromEmployees(
   const dayRangeStart = DAY_START_ISO[0]!;
   const dayRangeEnd = DAY_START_ISO[DAY_START_ISO.length - 1]!;
   const weekRangeStart = WEEK_START_ISO[0]!;
-  const weekRangeEnd = toISODate(addDays(parseISO(WEEK_START_ISO[WEEK_START_ISO.length - 1]!), 4));
+  const weekRangeEnd = toISODate(addDays(parseISO(WEEK_START_ISO[WEEK_START_ISO.length - 1]!), 6));
   const dayStripCapacity = Math.round(
     DAY_START_ISO.reduce((sum, iso) => sum + dayCapacityHours(iso, cal), 0) * 10
   ) / 10;
@@ -524,7 +524,7 @@ export function buildPlannerRowsFromEmployees(
     .map((e) => {
       const allocs = byEmp.get(e.id) ?? [];
       const weeks = WEEK_START_ISO.map((start) => {
-        const end = toISODate(addDays(parseISO(start), 4));
+        const end = toISODate(addDays(parseISO(start), 6));
         const weekCap = weekCapacityHours(start, cal);
         return buildCellFromAllocations(allocs, "week", start, end, weekCap, cal);
       });

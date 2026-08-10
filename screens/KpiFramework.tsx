@@ -17,7 +17,7 @@ import {
 } from "../api/domain";
 import { ConfirmDeleteDialog } from "../components/ConfirmDeleteDialog";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
-import { useSharedDataSync } from "../hooks/useSharedDataSync";
+import { useSharedDataSync, usePauseSharedDataSync } from "../hooks/useSharedDataSync";
 import { useEmployees } from "../context/EmployeesContext";
 import { useMasters } from "../context/MastersContext";
 import { useToast } from "../context/ToastContext";
@@ -50,6 +50,24 @@ const CYCLE_MONTHS: Record<AssessmentCycle, number[]> = {
   Q4: [10, 11, 12],
 };
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** All start–end month pairs within a cycle (start ≤ end). */
+function periodRangeOptions(months: number[]) {
+  const opts: { value: string; label: string; start: number; end: number }[] = [];
+  for (let i = 0; i < months.length; i++) {
+    for (let j = i; j < months.length; j++) {
+      const start = months[i]!;
+      const end = months[j]!;
+      opts.push({
+        start,
+        end,
+        value: `${start}-${end}`,
+        label: `${MONTH_NAMES[start - 1]} - ${MONTH_NAMES[end - 1]}`,
+      });
+    }
+  }
+  return opts;
+}
 
 const fieldClass =
   "w-full rounded-md border border-border bg-surface px-2 py-1.5 text-[12px] text-foreground outline-none";
@@ -97,6 +115,7 @@ export function KpiFramework() {
   }, [employees, deptId, activeDepts]);
 
   const months = CYCLE_MONTHS[cycle];
+  const periodOptions = useMemo(() => periodRangeOptions(months), [months]);
   const weightTotal = items.reduce((s, i) => s + Number(i.weightage || 0), 0);
   const weightOk = Math.abs(weightTotal - 100) < 0.01;
   const canEdit = items.every((i) => i.status === "draft") && !items.some((i) => i.cycleExpired);
@@ -204,6 +223,8 @@ export function KpiFramework() {
   }, [loadMasters, seg, resourceId, year, cycle, deptId]);
 
   useSharedDataSync(true, syncKpi, { resources: ["kpi"] });
+  /** Avoid overwriting in-progress KPI / master edits on poll / focus / SSE. */
+  usePauseSharedDataSync(true);
 
   const masterList =
     masterTab === "categories" ? categories : masterTab === "methods" ? methods : units;
@@ -458,7 +479,7 @@ export function KpiFramework() {
                   ))}
                 </select>
               </Filter>
-              <Filter label="Assessment Cycle">
+              <Filter label="Cycle">
                 <select
                   value={cycle}
                   onChange={(e) => setCycle(e.target.value as AssessmentCycle)}
@@ -597,7 +618,7 @@ export function KpiFramework() {
                             onSort={handleSort}
                           />
                         </th>
-                        <th className="px-3 py-2.5 font-medium">
+                        <th className="w-16 whitespace-nowrap px-3 py-2.5 font-medium">
                           <SortColHeader
                             label="Target"
                             col="target"
@@ -624,7 +645,7 @@ export function KpiFramework() {
                             onSort={handleSort}
                           />
                         </th>
-                        <th className="px-3 py-2.5 font-medium">
+                        <th className="w-16 whitespace-nowrap px-3 py-2.5 font-medium">
                           <SortColHeader
                             label="Weight %"
                             col="weight"
@@ -705,7 +726,7 @@ export function KpiFramework() {
                                 ))}
                               </select>
                             </td>
-                            <td className="px-3 py-2">
+                            <td className="w-16 px-3 py-2">
                               <input
                                 type="number"
                                 disabled={locked}
@@ -715,7 +736,7 @@ export function KpiFramework() {
                                   if (Number.isFinite(v) && v !== row.target)
                                     void patchRow(row.id, { target: v });
                                 }}
-                                className={fieldClass}
+                                className="w-14 rounded-md border border-border bg-surface px-1.5 py-1.5 text-[12px] text-foreground outline-none"
                               />
                             </td>
                             <td className="px-3 py-2">
@@ -734,51 +755,27 @@ export function KpiFramework() {
                               </select>
                             </td>
                             <td className="px-3 py-2">
-                              <div className="flex items-center gap-1">
-                                <select
-                                  disabled={locked}
-                                  value={row.periodStartMonth}
-                                  onChange={(e) =>
-                                    void patchRow(row.id, {
-                                      periodStartMonth: Number(e.target.value),
-                                      periodEndMonth: Math.max(
-                                        Number(e.target.value),
-                                        row.periodEndMonth
-                                      ),
-                                    })
-                                  }
-                                  className={fieldClass}
-                                >
-                                  {months.map((m) => (
-                                    <option key={m} value={m}>
-                                      {MONTH_NAMES[m - 1]}
-                                    </option>
-                                  ))}
-                                </select>
-                                <span className="text-muted-foreground">–</span>
-                                <select
-                                  disabled={locked}
-                                  value={row.periodEndMonth}
-                                  onChange={(e) =>
-                                    void patchRow(row.id, {
-                                      periodEndMonth: Number(e.target.value),
-                                      periodStartMonth: Math.min(
-                                        row.periodStartMonth,
-                                        Number(e.target.value)
-                                      ),
-                                    })
-                                  }
-                                  className={fieldClass}
-                                >
-                                  {months.map((m) => (
-                                    <option key={m} value={m}>
-                                      {MONTH_NAMES[m - 1]}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
+                              <select
+                                disabled={locked}
+                                value={`${row.periodStartMonth}-${row.periodEndMonth}`}
+                                onChange={(e) => {
+                                  const [start, end] = e.target.value.split("-").map(Number);
+                                  if (!Number.isFinite(start) || !Number.isFinite(end)) return;
+                                  void patchRow(row.id, {
+                                    periodStartMonth: start,
+                                    periodEndMonth: end,
+                                  });
+                                }}
+                                className={fieldClass}
+                              >
+                                {periodOptions.map((opt) => (
+                                  <option key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                  </option>
+                                ))}
+                              </select>
                             </td>
-                            <td className="px-3 py-2">
+                            <td className="w-16 px-3 py-2">
                               <input
                                 type="number"
                                 disabled={locked}
@@ -788,7 +785,7 @@ export function KpiFramework() {
                                   if (Number.isFinite(v) && v !== row.weightage)
                                     void patchRow(row.id, { weightage: v });
                                 }}
-                                className={fieldClass}
+                                className="w-14 rounded-md border border-border bg-surface px-1.5 py-1.5 text-[12px] text-foreground outline-none"
                               />
                             </td>
                             <td className="px-3 py-2">

@@ -22,6 +22,7 @@ import { useEmployees } from "../context/EmployeesContext";
 import { useMasters } from "../context/MastersContext";
 import { useToast } from "../context/ToastContext";
 import { useFocusFirstField } from "../hooks/useFocusFirstField";
+import { usePauseSharedDataSync } from "../hooks/useSharedDataSync";
 import {
   downloadEmployeeUploadTemplate,
   parseEmployeeWorkbook,
@@ -47,8 +48,9 @@ export function EmployeeMaster() {
   const [editing, setEditing] = useState<Employee | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  usePauseSharedDataSync(drawerOpen || uploadOpen);
 
   const { sortKey, sortDir, handleSort } = useColumnSort<EmployeeSortKey>("name");
 
@@ -112,12 +114,10 @@ export function EmployeeMaster() {
   }, [flashId, sorted]);
 
   const openNew = () => {
-    setSaveError(null);
     setEditing(null);
     setDrawerOpen(true);
   };
   const openEdit = (e: Employee) => {
-    setSaveError(null);
     setEditing(e);
     setDrawerOpen(true);
   };
@@ -130,13 +130,12 @@ export function EmployeeMaster() {
       await refresh();
       toast.updated();
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : "Failed to update status");
+      toast.error(err instanceof Error ? err.message : "Failed to update status");
     }
   };
 
   const saveEmployee = async (emp: Employee) => {
     setSaving(true);
-    setSaveError(null);
     try {
       if (editing) {
         await updateEmployee(emp.id, {
@@ -177,7 +176,7 @@ export function EmployeeMaster() {
         setDrawerOpen(false);
       }
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : "Failed to save employee");
+      toast.error(err instanceof Error ? err.message : "Failed to save employee");
     } finally {
       setSaving(false);
     }
@@ -274,12 +273,6 @@ export function EmployeeMaster() {
           </div>
         </div>
       </div>
-
-      {saveError && (
-        <div className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-md border border-danger/30 bg-surface px-4 py-2 text-[12px] text-danger shadow-lg">
-          {saveError}
-        </div>
-      )}
 
       {drawerOpen && (
         <EmployeeDrawer
@@ -463,6 +456,10 @@ function UploadModal({ onClose }: { onClose: () => void }) {
     [departments]
   );
   const existingIds = useMemo(() => new Set(employees.map((e) => e.id)), [employees]);
+  const existingEmployees = useMemo(
+    () => employees.map((e) => ({ hrmsId: e.id, email: e.email })),
+    [employees]
+  );
 
   const [stage, setStage] = useState<UploadStage>("select");
   const [fileName, setFileName] = useState("");
@@ -482,9 +479,12 @@ function UploadModal({ onClose }: { onClose: () => void }) {
     if (!file) return;
     setFileName(file.name);
     setFileError(null);
-    const parsed = await parseEmployeeWorkbook(file, activeDepartmentNames);
+    const parsed = await parseEmployeeWorkbook(file, activeDepartmentNames, existingEmployees);
     if (parsed.fileError) {
       setFileError(parsed.fileError);
+      setRows([]);
+      setStage("select");
+      toast.error(parsed.fileError);
       return;
     }
     setRows(parsed.rows);
@@ -499,6 +499,35 @@ function UploadModal({ onClose }: { onClose: () => void }) {
   };
 
   const runImport = async () => {
+    // Preflight: never start row-by-row import if emails collide (within batch or vs existing).
+    const emailToHrms = new Map<string, string>();
+    for (const e of existingEmployees) {
+      const key = e.email.trim().toLowerCase();
+      if (key) emailToHrms.set(key, e.hrmsId);
+    }
+    const batchEmails = new Map<string, number>();
+    for (const row of validRows) {
+      const key = row.email.trim().toLowerCase();
+      if (!key) continue;
+      batchEmails.set(key, (batchEmails.get(key) ?? 0) + 1);
+    }
+    for (const [email, count] of batchEmails) {
+      if (count > 1) {
+        toast.error(
+          "Duplicate Email found in the file. Fix or remove duplicate emails before importing — no employees were uploaded."
+        );
+        setStage("preview");
+        return;
+      }
+      const owner = emailToHrms.get(email);
+      const row = validRows.find((r) => r.email.trim().toLowerCase() === email);
+      if (owner && row && owner !== row.hrmsId) {
+        toast.error("Email already used by another employee. Fix the file before importing — no employees were uploaded.");
+        setStage("preview");
+        return;
+      }
+    }
+
     setStage("importing");
     const results: ImportOutcome[] = [];
     let created = 0;
@@ -605,7 +634,8 @@ function UploadModal({ onClose }: { onClose: () => void }) {
               </button>
             </div>
             <div className="text-[11px] leading-relaxed text-muted-foreground">
-              Employee ID is the unique key. Duplicate IDs within the file, missing mandatory fields, or unknown departments are reported as errors and skipped — the rest still import.
+              Employee ID and Email must be unique. Duplicate emails in the file block the entire
+              import before any employee is created. Other row errors are reported and skipped.
             </div>
           </div>
         )}

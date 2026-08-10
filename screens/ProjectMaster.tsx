@@ -3,6 +3,10 @@ import { useSearchParams } from "react-router-dom";
 import { Plus, Search, X, AlertTriangle, Calendar, Trash2, Upload } from "lucide-react";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import { FilterMultiSelect } from "../components/FilterMultiSelect";
+import {
+  ReportColumnPicker,
+  type ReportColumnOption,
+} from "../components/ReportColumnPicker";
 import { createCustomer, createProject, fetchCustomers, updateProject } from "../api/domain";
 import { useProjects } from "../context/ProjectsContext";
 import { milestoneKindLabel, formatResourceDemand } from "../data/projects";
@@ -16,9 +20,105 @@ import { useFocusFirstField } from "../hooks/useFocusFirstField";
 import { matchesSearchQuery } from "../utils/textSearch";
 import { formatAppDate } from "../utils/formatAppDate";
 import { useAppDateFormat } from "../hooks/useAppDateFormat";
+import { usePauseSharedDataSync } from "../hooks/useSharedDataSync";
+import {
+  decodeApprovalSnap,
+  encodeApprovalSnap,
+} from "../utils/approvalSnap";
 
 type Tab = "active" | "inactive";
-type ProjectSortKey = "project" | "customer" | "kickoff" | "timeline" | "milestones" | "demand";
+type ProjectColId =
+  | "project"
+  | "customer"
+  | "kickoff"
+  | "timeline"
+  | "milestones"
+  | "demand"
+  | "createdAt"
+  | "modifiedAt"
+  | "createdBy"
+  | "modifiedBy"
+  | "action";
+type ProjectSortKey = Extract<
+  ProjectColId,
+  "project" | "customer" | "kickoff" | "timeline" | "milestones" | "demand"
+>;
+
+type ProjectColumnDef = ReportColumnOption & {
+  id: ProjectColId;
+  width: string;
+  sortable?: boolean;
+};
+
+/** All list columns — picker + grid (Daily Work Detail pattern). */
+const PROJECT_COLUMNS: ProjectColumnDef[] = [
+  // fr tracks fill the card width by default (no forced horizontal scroll).
+  { id: "project", label: "PROJECT", defaultVisible: true, width: "minmax(0,1.55fr)", sortable: true },
+  { id: "customer", label: "CUSTOMER", defaultVisible: true, width: "minmax(0,1.05fr)", sortable: true },
+  { id: "kickoff", label: "KICKOFF", defaultVisible: true, width: "minmax(0,0.72fr)", sortable: true },
+  { id: "timeline", label: "TIMELINE", defaultVisible: true, width: "minmax(0,1.1fr)", sortable: true },
+  { id: "milestones", label: "MILESTONES", defaultVisible: true, width: "minmax(0,1.25fr)", sortable: true },
+  { id: "demand", label: "DEMAND", defaultVisible: true, width: "minmax(0,1.05fr)", sortable: true },
+  {
+    id: "createdAt",
+    label: "Project created date & time",
+    defaultVisible: false,
+    width: "minmax(9rem,0.95fr)",
+  },
+  {
+    id: "modifiedAt",
+    label: "Updated date & time",
+    defaultVisible: false,
+    width: "minmax(9rem,0.95fr)",
+  },
+  { id: "createdBy", label: "Created by", defaultVisible: false, width: "minmax(7rem,0.85fr)" },
+  { id: "modifiedBy", label: "Updated by", defaultVisible: false, width: "minmax(7rem,0.85fr)" },
+  {
+    id: "action",
+    label: "ACTION",
+    defaultVisible: true,
+    locked: true,
+    width: "5.5rem",
+  },
+];
+
+const PROJECT_AUDIT_COL_IDS = new Set<ProjectColId>([
+  "createdAt",
+  "modifiedAt",
+  "createdBy",
+  "modifiedBy",
+]);
+
+function defaultProjectVisibleColumns(): Set<string> {
+  return new Set(PROJECT_COLUMNS.filter((c) => c.defaultVisible || c.locked).map((c) => c.id));
+}
+
+function projectHasExtraColumns(visibleCols: ProjectColumnDef[]): boolean {
+  return visibleCols.some((c) => PROJECT_AUDIT_COL_IDS.has(c.id));
+}
+
+function ensureLockedProjectColumns(visible: Set<string>): Set<string> {
+  const next = new Set(visible);
+  for (const col of PROJECT_COLUMNS) {
+    if (col.locked) next.add(col.id);
+  }
+  return next;
+}
+
+function projectHeaderLabel(col: ProjectColumnDef): string {
+  switch (col.id) {
+    case "createdAt":
+      return "CREATED";
+    case "modifiedAt":
+      return "UPDATED";
+    case "createdBy":
+      return "CREATED BY";
+    case "modifiedBy":
+      return "UPDATED BY";
+    default:
+      return col.label;
+  }
+}
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -95,104 +195,184 @@ function fmtDate(iso: string, pattern = "dd/MM/yyyy") {
 
 // ─── row ────────────────────────────────────────────────────────────────────
 
+function ProjectCell({
+  colId,
+  p,
+  stackDates,
+  onEdit,
+  onToggle,
+}: {
+  colId: ProjectColId;
+  p: Project;
+  /** When true (extra Columns selected), date ranges / date-times wrap to two lines. */
+  stackDates: boolean;
+  onEdit: () => void;
+  onToggle: () => void;
+}) {
+  const { formatDate, formatTime, formatDateTime } = useAppDateFormat();
+  const inactive = p.status === "inactive";
+  const noMilestones = p.milestones.length === 0;
+
+  switch (colId) {
+    case "project":
+      return (
+        <div className="min-w-0">
+          <div className="flex min-w-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={onEdit}
+              className="min-w-0 truncate text-left text-[13px] font-medium text-foreground hover:text-primary"
+            >
+              {p.name}
+            </button>
+            <TypeBadge type={p.type} />
+          </div>
+          <div className="font-mono text-[11px] text-muted-foreground">{p.id}</div>
+        </div>
+      );
+    case "customer":
+      return (
+        <div className="min-w-0">
+          <div className="truncate text-[12px] text-foreground">{p.customer}</div>
+          {p.poNumber.trim() && (
+            <div className="truncate font-mono text-[11px] text-muted-foreground">{p.poNumber}</div>
+          )}
+        </div>
+      );
+    case "kickoff":
+      return <div className="text-[12px] text-foreground">{formatDate(p.kickoffDate)}</div>;
+    case "timeline":
+      return stackDates ? (
+        <div className="min-w-0 text-[12px] leading-snug text-foreground">
+          <div>{formatDate(p.startDate)}</div>
+          <div>
+            <span className="text-muted-foreground">– </span>
+            {formatDate(p.endDate)}
+          </div>
+        </div>
+      ) : (
+        <div className="truncate text-[12px] text-foreground">
+          <span>{formatDate(p.startDate)}</span>
+          <span className="mx-1 text-muted-foreground">–</span>
+          <span>{formatDate(p.endDate)}</span>
+        </div>
+      );
+    case "milestones":
+      return noMilestones ? (
+        <div className="flex items-center gap-1 text-[11px] text-warning">
+          <AlertTriangle className="h-3 w-3 flex-shrink-0" />
+          <span>No milestones — allocations blocked</span>
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-1">
+          {p.milestones.slice(0, 2).map((m) => (
+            <span
+              key={m.id}
+              className="rounded-sm bg-surface-alt px-1.5 py-0.5 text-[10px] text-muted"
+            >
+              {m.name}
+            </span>
+          ))}
+          {p.milestones.length > 2 && (
+            <span className="text-[10px] text-muted-foreground">+{p.milestones.length - 2}</span>
+          )}
+        </div>
+      );
+    case "demand":
+      return (
+        <div className="truncate text-[12px] text-muted-foreground">
+          {p.demand || <span className="text-muted">—</span>}
+        </div>
+      );
+    case "createdAt":
+      if (!p.createdAt) return <div className="text-[12px] text-muted">—</div>;
+      return stackDates ? (
+        <div className="min-w-0 text-[12px] leading-snug text-foreground">
+          <div>{formatDate(p.createdAt)}</div>
+          <div className="text-muted-foreground">{formatTime(p.createdAt)}</div>
+        </div>
+      ) : (
+        <div className="truncate text-[12px] text-foreground">{formatDateTime(p.createdAt)}</div>
+      );
+    case "modifiedAt":
+      if (!p.modifiedAt) return <div className="text-[12px] text-muted">—</div>;
+      return stackDates ? (
+        <div className="min-w-0 text-[12px] leading-snug text-foreground">
+          <div>{formatDate(p.modifiedAt)}</div>
+          <div className="text-muted-foreground">{formatTime(p.modifiedAt)}</div>
+        </div>
+      ) : (
+        <div className="truncate text-[12px] text-foreground">{formatDateTime(p.modifiedAt)}</div>
+      );
+    case "createdBy":
+      return (
+        <div className="truncate text-[12px] text-foreground">
+          {p.createdByName?.trim() || "—"}
+        </div>
+      );
+    case "modifiedBy":
+      return (
+        <div className="truncate text-[12px] text-foreground">
+          {p.modifiedByName?.trim() || "—"}
+        </div>
+      );
+    case "action":
+      return (
+        <div className="text-right">
+          <button
+            type="button"
+            onClick={onToggle}
+            className={`text-[11px] ${
+              inactive
+                ? "text-success hover:underline"
+                : "text-muted-foreground hover:text-danger hover:underline"
+            }`}
+          >
+            {inactive ? "Reactivate" : "Disable"}
+          </button>
+        </div>
+      );
+    default:
+      return null;
+  }
+}
+
 function ProjectRow({
   p,
   highlighted,
+  visibleCols,
+  gridTemplate,
   onEdit,
   onToggle,
 }: {
   p: Project;
   highlighted?: boolean;
+  visibleCols: ProjectColumnDef[];
+  gridTemplate: string;
   onEdit: () => void;
   onToggle: () => void;
 }) {
-  const { formatDate } = useAppDateFormat();
   const inactive = p.status === "inactive";
-  const noMilestones = p.milestones.length === 0;
+  const stackDates = projectHasExtraColumns(visibleCols);
 
   return (
     <div
       id={`project-row-${p.id}`}
-      className={`flex items-center border-b border-border-soft px-4 py-3 last:border-b-0 hover:bg-surface-alt ${
+      className={`grid w-full items-center gap-x-3 border-b border-border-soft px-4 py-3 last:border-b-0 hover:bg-surface-alt ${
         inactive ? "opacity-60" : ""
       } ${highlighted ? "bg-accent-soft ring-1 ring-inset ring-accent-line" : ""}`}
+      style={{ gridTemplateColumns: gridTemplate }}
     >
-      {/* PROJECT */}
-      <div className="w-[240px] min-w-0">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onEdit}
-            className="truncate text-[13px] font-medium text-foreground hover:text-primary"
-          >
-            {p.name}
-          </button>
-          <TypeBadge type={p.type} />
-        </div>
-        <div className="font-mono text-[11px] text-muted-foreground">{p.id}</div>
-      </div>
-
-      {/* CUSTOMER */}
-      <div className="w-[140px] min-w-0">
-        <div className="truncate text-[12px] text-foreground">{p.customer}</div>
-        {p.poNumber.trim() && (
-          <div className="truncate font-mono text-[11px] text-muted-foreground">{p.poNumber}</div>
-        )}
-      </div>
-
-      {/* KICKOFF */}
-      <div className="w-[100px] text-[12px] text-foreground">{formatDate(p.kickoffDate)}</div>
-
-      {/* TIMELINE */}
-      <div className="w-[160px] text-[12px] text-foreground">
-        <span>{formatDate(p.startDate)}</span>
-        <span className="mx-1 text-muted-foreground">–</span>
-        <span>{formatDate(p.endDate)}</span>
-      </div>
-
-      {/* MILESTONES */}
-      <div className="w-[180px]">
-        {noMilestones ? (
-          <div className="flex items-center gap-1 text-[11px] text-warning">
-            <AlertTriangle className="h-3 w-3 flex-shrink-0" />
-            <span>No milestones — allocations blocked</span>
-          </div>
-        ) : (
-          <div className="flex flex-wrap gap-1">
-            {p.milestones.slice(0, 2).map((m) => (
-              <span
-                key={m.id}
-                className="rounded-sm bg-surface-alt px-1.5 py-0.5 text-[10px] text-muted"
-              >
-                {m.name}
-              </span>
-            ))}
-            {p.milestones.length > 2 && (
-              <span className="text-[10px] text-muted-foreground">
-                +{p.milestones.length - 2}
-              </span>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* DEMAND */}
-      <div className="flex-1 text-[12px] text-muted-foreground">
-        {p.demand || <span className="text-muted">—</span>}
-      </div>
-
-      {/* ACTION */}
-      <div className="w-[90px] text-right">
-        <button
-          onClick={onToggle}
-          className={`text-[11px] ${
-            inactive
-              ? "text-success hover:underline"
-              : "text-muted-foreground hover:text-danger hover:underline"
-          }`}
-        >
-          {inactive ? "Reactivate" : "Disable"}
-        </button>
-      </div>
+      {visibleCols.map((col) => (
+        <ProjectCell
+          key={col.id}
+          colId={col.id}
+          p={p}
+          stackDates={stackDates}
+          onEdit={onEdit}
+          onToggle={onToggle}
+        />
+      ))}
     </div>
   );
 }
@@ -211,6 +391,11 @@ function ProjectDrawer({
   onSave: (project: Project) => void;
 }) {
   const isEdit = !!project;
+  /** On edit, identity / commercial / timeline fields are locked. */
+  const coreLocked = isEdit;
+  const coreInputClass = coreLocked
+    ? "cursor-not-allowed bg-surface-alt text-muted"
+    : "bg-surface text-foreground";
   const { skills: skillRows, activityMilestones } = useMasters();
 
   const [id, setId] = useState(project?.id ?? "");
@@ -223,8 +408,12 @@ function ProjectDrawer({
   const [poNumber, setPoNumber] = useState(project?.poNumber ?? "");
   const [approvedByName, setApprovedByName] = useState(project?.approvedByName ?? "");
   const [approvedByDate, setApprovedByDate] = useState(project?.approvedByDate ?? "");
-  const [approvalSnapName, setApprovalSnapName] = useState(project?.approvedBySnap ?? "");
-  const [approvalSnapPreview, setApprovalSnapPreview] = useState<string | null>(null);
+  const initialSnap = decodeApprovalSnap(project?.approvedBySnap);
+  const [approvalSnapName, setApprovalSnapName] = useState(initialSnap.name);
+  const [approvalSnapPreview, setApprovalSnapPreview] = useState<string | null>(
+    initialSnap.dataUrl
+  );
+  const [snapViewerOpen, setSnapViewerOpen] = useState(false);
   const [kickoffDate, setKickoffDate] = useState(project?.kickoffDate ?? "");
   const [startDate, setStartDate] = useState(project?.startDate ?? "");
   const [endDate, setEndDate] = useState(project?.endDate ?? "");
@@ -287,6 +476,24 @@ function ProjectDrawer({
     [skillRows]
   );
 
+  /** Skills already on a demand line cannot be added again. */
+  const usedDemandSkills = useMemo(
+    () => new Set(demandLines.flatMap((l) => l.skills)),
+    [demandLines]
+  );
+
+  const availableDemandSkills = useMemo(
+    () => activeSkillNames.filter((s) => !usedDemandSkills.has(s)),
+    [activeSkillNames, usedDemandSkills]
+  );
+
+  useEffect(() => {
+    setDemandSkillDraft((prev) => {
+      const next = prev.filter((s) => !usedDemandSkills.has(s));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [usedDemandSkills]);
+
   const skillCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const skill of skillRows) {
@@ -338,14 +545,15 @@ function ProjectDrawer({
     setMilestones((m) => m.filter((x) => x.id !== id));
 
   const addDemandLine = () => {
-    if (demandSkillDraft.length === 0) return;
+    const skills = demandSkillDraft.filter((s) => !usedDemandSkills.has(s));
+    if (skills.length === 0) return;
     const count = Number.parseInt(demandCountDraft, 10);
     if (!Number.isFinite(count) || count < 1) return;
     setDemandLines((lines) => [
       ...lines,
       {
         id: `rd-${Date.now()}`,
-        skills: [...demandSkillDraft],
+        skills,
         count,
       },
     ]);
@@ -356,17 +564,41 @@ function ProjectDrawer({
   const removeDemandLine = (lineId: string) =>
     setDemandLines((lines) => lines.filter((l) => l.id !== lineId));
 
+  const snapInputRef = useRef<HTMLInputElement>(null);
+
   const attachApprovalSnap = (file: File | null) => {
-    if (!file || !file.type.startsWith("image/")) return;
+    if (!file) return;
+    const byMime = file.type.startsWith("image/");
+    const byExt = /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(file.name);
+    if (!byMime && !byExt) {
+      toast.error("Please choose an image file (PNG, JPG, etc.)");
+      return;
+    }
     setApprovalSnapName(file.name);
     const reader = new FileReader();
-    reader.onload = () => setApprovalSnapPreview(reader.result as string);
+    reader.onerror = () => {
+      toast.error("Could not read image file");
+      setApprovalSnapName("");
+      setApprovalSnapPreview(null);
+    };
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result === "string" && result.startsWith("data:")) {
+        setApprovalSnapPreview(result);
+      } else {
+        toast.error("Could not read image file");
+        setApprovalSnapName("");
+        setApprovalSnapPreview(null);
+      }
+    };
     reader.readAsDataURL(file);
   };
 
   const clearApprovalSnap = () => {
     setApprovalSnapName("");
     setApprovalSnapPreview(null);
+    setSnapViewerOpen(false);
+    if (snapInputRef.current) snapInputRef.current.value = "";
   };
 
   const handleKickoffChange = (value: string) => {
@@ -394,7 +626,7 @@ function ProjectDrawer({
   const pocComplete =
     approvedByName.trim().length > 0 &&
     !!approvedByDate &&
-    !!approvalSnapName.trim();
+    (!!approvalSnapPreview || !!approvalSnapName.trim());
   const healthRemarksRequired = health === "amber" || health === "red";
   const canSave =
     !!id.trim() &&
@@ -416,7 +648,11 @@ function ProjectDrawer({
       type: projectType,
       approvedByName: pocRequired ? approvedByName.trim() : undefined,
       approvedByDate: pocRequired ? approvedByDate : undefined,
-      approvedBySnap: pocRequired ? approvalSnapName.trim() : undefined,
+      approvedBySnap: pocRequired
+        ? approvalSnapPreview
+          ? encodeApprovalSnap(approvalSnapName || "Email snap", approvalSnapPreview)
+          : approvalSnapName.trim() || undefined
+        : undefined,
       kickoffDate,
       startDate,
       endDate,
@@ -449,13 +685,9 @@ function ProjectDrawer({
             <Field label="Project ID" required hint={isEdit ? undefined : "Unique"}>
               <input
                 value={id}
-                disabled={isEdit}
+                disabled={coreLocked}
                 onChange={(e) => setId(e.target.value)}
-                className={`w-full rounded-md border border-border px-3 py-2 font-mono text-[13px] outline-none focus:border-accent-line ${
-                  isEdit
-                    ? "cursor-not-allowed bg-surface-alt text-muted"
-                    : "bg-surface text-foreground"
-                }`}
+                className={`w-full rounded-md border border-border px-3 py-2 font-mono text-[13px] outline-none focus:border-accent-line ${coreInputClass}`}
                 placeholder="PRJ-019"
               />
             </Field>
@@ -463,11 +695,19 @@ function ProjectDrawer({
             <Field label="Type" required>
               <select
                 value={projectType}
+                disabled={coreLocked}
                 onChange={(e) => {
                   setProjectType(e.target.value as Project["type"]);
+                  // Catalog milestones differ by type — clear any already-added lines.
+                  setMilestones([]);
                   setMsCatalogId("");
+                  setMsDate("");
                 }}
-                className="w-full rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line"
+                className={`w-full rounded-md border border-border px-3 py-2 text-[13px] outline-none focus:border-accent-line ${
+                  coreLocked
+                    ? "cursor-not-allowed bg-surface-alt text-muted"
+                    : "cursor-pointer bg-surface text-foreground"
+                }`}
               >
                 <option value="paid">Paid</option>
                 <option value="poc">POC</option>
@@ -479,8 +719,9 @@ function ProjectDrawer({
           <Field label="Project Name" required>
             <input
               value={name}
+              disabled={coreLocked}
               onChange={(e) => setName(e.target.value)}
-              className="w-full rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line"
+              className={`w-full rounded-md border border-border px-3 py-2 text-[13px] outline-none focus:border-accent-line ${coreInputClass}`}
               placeholder="e.g. Project Nova"
             />
           </Field>
@@ -489,8 +730,12 @@ function ProjectDrawer({
             <select
               value={customer}
               onChange={(e) => setCustomer(e.target.value)}
-              disabled={customersLoading || customerList.length === 0}
-              className="w-full cursor-pointer rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={coreLocked || customersLoading || customerList.length === 0}
+              className={`w-full rounded-md border border-border px-3 py-2 text-[13px] outline-none focus:border-accent-line disabled:cursor-not-allowed disabled:opacity-60 ${
+                coreLocked
+                  ? "bg-surface-alt text-muted"
+                  : "cursor-pointer bg-surface text-foreground"
+              }`}
             >
               {customersLoading && customerList.length === 0 ? (
                 <option value="">Loading customers…</option>
@@ -507,7 +752,8 @@ function ProjectDrawer({
             {customersError && (
               <p className="mt-1 text-[11px] text-danger">{customersError}</p>
             )}
-            {addingCustomer ? (
+            {!coreLocked &&
+              (addingCustomer ? (
               <div className="mt-2 flex gap-2">
                 <input
                   value={newCustomer}
@@ -548,7 +794,7 @@ function ProjectDrawer({
               >
                 + Add customer
               </button>
-            )}
+            ))}
           </Field>
 
           {pocRequired && (
@@ -573,36 +819,68 @@ function ProjectDrawer({
                   </Field>
                 </div>
                 <Field label="Email snap" required>
-                    <label className="flex cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-border bg-surface px-3 py-3 text-center transition-colors hover:bg-surface-alt">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => attachApprovalSnap(e.target.files?.[0] ?? null)}
-                      />
+                    <input
+                      ref={snapInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/jpg,image/gif,image/webp,image/bmp,.png,.jpg,.jpeg,.gif,.webp,.bmp"
+                      className="sr-only"
+                      tabIndex={-1}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] ?? null;
+                        attachApprovalSnap(file);
+                        // Allow re-selecting the same file later
+                        e.target.value = "";
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => snapInputRef.current?.click()}
+                      className="flex w-full cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-border bg-surface px-3 py-3 text-center transition-colors hover:bg-surface-alt"
+                    >
                       {approvalSnapPreview ? (
                         <img
                           src={approvalSnapPreview}
                           alt="Approval snap"
                           className="max-h-16 max-w-full rounded-sm object-contain"
                         />
+                      ) : approvalSnapName ? (
+                        <>
+                          <Upload className="mb-1 h-4 w-4 text-muted-foreground" />
+                          <span className="text-[11px] text-foreground">{approvalSnapName}</span>
+                          <span className="mt-0.5 text-[10px] text-muted-foreground">
+                            Preview unavailable — click to re-attach
+                          </span>
+                        </>
                       ) : (
                         <>
                           <Upload className="mb-1 h-4 w-4 text-muted-foreground" />
                           <span className="text-[11px] text-muted-foreground">Attach image</span>
                         </>
                       )}
-                    </label>
-                    {approvalSnapName && (
+                    </button>
+                    {(approvalSnapName || approvalSnapPreview) && (
                       <div className="mt-1.5 flex items-center justify-between gap-2">
-                        <span className="truncate text-[10px] text-muted-foreground">{approvalSnapName}</span>
-                        <button
-                          type="button"
-                          onClick={clearApprovalSnap}
-                          className="flex-shrink-0 text-[10px] text-danger hover:underline"
-                        >
-                          Remove
-                        </button>
+                        <span className="truncate text-[10px] text-muted-foreground">
+                          {approvalSnapName || "Email snap"}
+                        </span>
+                        <div className="flex shrink-0 items-center gap-2.5">
+                          {approvalSnapPreview && (
+                            <button
+                              type="button"
+                              onClick={() => setSnapViewerOpen(true)}
+                              className="cursor-pointer text-[10px] text-primary hover:underline"
+                            >
+                              View
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={clearApprovalSnap}
+                            className="cursor-pointer text-[10px] text-danger hover:underline"
+                          >
+                            Remove
+                          </button>
+                        </div>
                       </div>
                     )}
                   </Field>
@@ -614,8 +892,9 @@ function ProjectDrawer({
             <Field label="PO Number" required={poRequired}>
               <input
                 value={poNumber}
+                disabled={coreLocked}
                 onChange={(e) => setPoNumber(e.target.value)}
-                className="w-full rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line"
+                className={`w-full rounded-md border border-border px-3 py-2 text-[13px] outline-none focus:border-accent-line ${coreInputClass}`}
                 placeholder={poRequired ? "e.g. PO-2025-0012" : "Optional"}
               />
             </Field>
@@ -623,8 +902,9 @@ function ProjectDrawer({
               <input
                 type="date"
                 value={kickoffDate}
+                disabled={coreLocked}
                 onChange={(e) => handleKickoffChange(e.target.value)}
-                className="w-full rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line [color-scheme:light]"
+                className={`w-full rounded-md border border-border px-3 py-2 text-[13px] outline-none focus:border-accent-line [color-scheme:light] ${coreInputClass}`}
               />
             </Field>
             <Field label="Start date" required>
@@ -632,8 +912,9 @@ function ProjectDrawer({
                 type="date"
                 value={startDate}
                 min={startMin}
+                disabled={coreLocked}
                 onChange={(e) => handleStartChange(e.target.value)}
-                className="w-full rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line [color-scheme:light]"
+                className={`w-full rounded-md border border-border px-3 py-2 text-[13px] outline-none focus:border-accent-line [color-scheme:light] ${coreInputClass}`}
               />
               {kickoffDate && startDate && startDate < kickoffDate && (
                 <div className="mt-1 text-[11px] text-danger">Start date cannot be before kickoff.</div>
@@ -644,8 +925,9 @@ function ProjectDrawer({
                 type="date"
                 value={endDate}
                 min={endMin}
+                disabled={coreLocked}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="w-full rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line [color-scheme:light]"
+                className={`w-full rounded-md border border-border px-3 py-2 text-[13px] outline-none focus:border-accent-line [color-scheme:light] ${coreInputClass}`}
               />
               {startDate && endDate && endDate < startDate && (
                 <div className="mt-1 text-[11px] text-danger">End date cannot be before start date.</div>
@@ -723,7 +1005,7 @@ function ProjectDrawer({
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Project health" required hint="FR-147 portfolio">
+            <Field label="Project health" required>
               <select
                 value={health}
                 onChange={(e) => setHealth(e.target.value as ProjectHealth)}
@@ -789,7 +1071,7 @@ function ProjectDrawer({
             <div className="flex items-center gap-2">
               <div className="min-w-0 flex-1">
                 <FilterMultiSelect
-                  items={activeSkillNames}
+                  items={availableDemandSkills}
                   selected={demandSkillDraft}
                   onChange={setDemandSkillDraft}
                   counts={skillCounts}
@@ -812,6 +1094,7 @@ function ProjectDrawer({
                 type="button"
                 onClick={addDemandLine}
                 disabled={
+                  availableDemandSkills.length === 0 ||
                   demandSkillDraft.length === 0 ||
                   !Number.isFinite(Number.parseInt(demandCountDraft, 10)) ||
                   Number.parseInt(demandCountDraft, 10) < 1
@@ -842,6 +1125,37 @@ function ProjectDrawer({
           </button>
         </div>
       </div>
+
+      {snapViewerOpen && approvalSnapPreview && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-6">
+          <div
+            className="absolute inset-0 bg-brand/70"
+            onClick={() => setSnapViewerOpen(false)}
+          />
+          <div className="relative z-10 flex max-h-full max-w-full flex-col overflow-hidden rounded-xl bg-surface shadow-2xl">
+            <div className="flex flex-shrink-0 items-center justify-between gap-3 border-b border-border-soft px-4 py-3">
+              <div className="truncate text-[13px] font-medium text-foreground">
+                {approvalSnapName || "Email snap"}
+              </div>
+              <button
+                type="button"
+                onClick={() => setSnapViewerOpen(false)}
+                className="cursor-pointer text-muted-foreground hover:text-foreground"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="flex max-h-[min(80vh,720px)] items-center justify-center overflow-auto bg-surface-alt p-4">
+              <img
+                src={approvalSnapPreview}
+                alt={approvalSnapName || "Email snap"}
+                className="max-h-[min(75vh,680px)] max-w-full object-contain"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -860,10 +1174,23 @@ export function ProjectMaster() {
   const [q, setQ] = useState("");
   const [editing, setEditing] = useState<Project | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
+    () => defaultProjectVisibleColumns()
+  );
+
+  usePauseSharedDataSync(drawerOpen);
 
   const { sortKey, sortDir, handleSort } = useColumnSort<ProjectSortKey>("project");
+
+  const visibleColDefs = useMemo(
+    () => PROJECT_COLUMNS.filter((c) => visibleColumns.has(c.id)),
+    [visibleColumns]
+  );
+  const gridTemplate = useMemo(
+    () => visibleColDefs.map((c) => c.width).join(" "),
+    [visibleColDefs]
+  );
 
   const filtered = rows.filter(
     (p) =>
@@ -932,12 +1259,10 @@ export function ProjectMaster() {
   }, [flashId, sorted]);
 
   const openNew = () => {
-    setSaveError(null);
     setEditing(null);
     setDrawerOpen(true);
   };
   const openEdit = (p: Project) => {
-    setSaveError(null);
     setEditing(p);
     setDrawerOpen(true);
   };
@@ -950,7 +1275,7 @@ export function ProjectMaster() {
       await refresh();
       toast.updated();
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : "Failed to update status");
+      toast.error(err instanceof Error ? err.message : "Failed to update status");
     }
   };
 
@@ -962,6 +1287,7 @@ export function ProjectMaster() {
     type: saved.type,
     approvedByName: saved.approvedByName,
     approvedByDate: saved.approvedByDate,
+    approvedBySnap: saved.approvedBySnap ?? null,
     kickoffDate: saved.kickoffDate,
     startDate: saved.startDate,
     endDate: saved.endDate,
@@ -982,7 +1308,6 @@ export function ProjectMaster() {
 
   const saveProject = async (saved: Project) => {
     setSaving(true);
-    setSaveError(null);
     try {
       if (editing) {
         await updateProject(saved.id, toWriteBody(saved));
@@ -998,7 +1323,7 @@ export function ProjectMaster() {
         toast.created();
       }
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : "Failed to save project");
+      toast.error(err instanceof Error ? err.message : "Failed to save project");
     } finally {
       setSaving(false);
     }
@@ -1024,107 +1349,86 @@ export function ProjectMaster() {
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background p-5">
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-surface">
           {/* toolbar */}
-          <div className="flex flex-shrink-0 items-center justify-between border-b border-border-soft px-4 py-2.5">
-            <div className="flex gap-1">
-              <TabBtn active={tab === "active"} onClick={() => setTab("active")}>
-                Active {activeCount}
-              </TabBtn>
-              <TabBtn active={tab === "inactive"} onClick={() => setTab("inactive")}>
-                Inactive {inactiveCount}
-              </TabBtn>
-            </div>
-            <div className="flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5">
-              <Search className="pointer-events-none h-3.5 w-3.5 text-muted-foreground" />
-              <input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Search project or customer…"
-                className="w-52 bg-transparent text-[12px] text-foreground outline-none placeholder:text-muted-foreground"
-              />
-            </div>
-          </div>
-
-          {/* column headers */}
-          <div className="flex flex-shrink-0 border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold text-muted">
-            <SortColHeader
-              label="PROJECT"
-              col="project"
-              sortKey={sortKey}
-              sortDir={sortDir}
-              onSort={handleSort}
-              className="w-[240px]"
-            />
-            <SortColHeader
-              label="CUSTOMER"
-              col="customer"
-              sortKey={sortKey}
-              sortDir={sortDir}
-              onSort={handleSort}
-              className="w-[140px]"
-            />
-            <SortColHeader
-              label="KICKOFF"
-              col="kickoff"
-              sortKey={sortKey}
-              sortDir={sortDir}
-              onSort={handleSort}
-              className="w-[100px]"
-            />
-            <SortColHeader
-              label="TIMELINE"
-              col="timeline"
-              sortKey={sortKey}
-              sortDir={sortDir}
-              onSort={handleSort}
-              className="w-[160px]"
-            />
-            <SortColHeader
-              label="MILESTONES"
-              col="milestones"
-              sortKey={sortKey}
-              sortDir={sortDir}
-              onSort={handleSort}
-              className="w-[180px]"
-            />
-            <SortColHeader
-              label="DEMAND"
-              col="demand"
-              sortKey={sortKey}
-              sortDir={sortDir}
-              onSort={handleSort}
-              className="flex-1"
-            />
-            <div className="w-[90px] text-right">ACTION</div>
-          </div>
-
-          {/* rows */}
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-            {sorted.map((p) => (
-              <ProjectRow
-                key={p.id}
-                p={p}
-                highlighted={flashId === p.id}
-                onEdit={() => openEdit(p)}
-                onToggle={() => toggleStatus(p.id)}
-              />
-            ))}
-            {filtered.length === 0 && (
-              <div className="px-4 py-10 text-center text-[12px] text-muted-foreground">
-                No projects match.
+          <div className="flex flex-shrink-0 items-center justify-between gap-3 border-b border-border-soft px-4 py-2.5">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
+              <div className="flex gap-1">
+                <TabBtn active={tab === "active"} onClick={() => setTab("active")}>
+                  Active {activeCount}
+                </TabBtn>
+                <TabBtn active={tab === "inactive"} onClick={() => setTab("inactive")}>
+                  Inactive {inactiveCount}
+                </TabBtn>
               </div>
-            )}
+              <div className="flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5">
+                <Search className="pointer-events-none h-3.5 w-3.5 text-muted-foreground" />
+                <input
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="Search project or customer…"
+                  className="w-52 bg-transparent text-[12px] text-foreground outline-none placeholder:text-muted-foreground"
+                />
+              </div>
+            </div>
+            <ReportColumnPicker
+              columns={PROJECT_COLUMNS}
+              visible={visibleColumns}
+              onChange={(next) => setVisibleColumns(ensureLockedProjectColumns(next))}
+              onReset={() => setVisibleColumns(defaultProjectVisibleColumns())}
+            />
+          </div>
+
+          {/* single scroll: sticky header + rows (Daily Work Detail pattern) */}
+          <div className="min-h-0 flex-1 overflow-x-auto overflow-y-auto overscroll-contain">
+            <div className="w-full min-w-0">
+              <div
+                className="sticky top-0 z-10 grid w-full items-center gap-x-3 border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold text-muted"
+                style={{ gridTemplateColumns: gridTemplate }}
+              >
+                {visibleColDefs.map((col) =>
+                  col.sortable ? (
+                    <SortColHeader
+                      key={col.id}
+                      label={projectHeaderLabel(col)}
+                      col={col.id as ProjectSortKey}
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onSort={handleSort}
+                    />
+                  ) : (
+                    <div
+                      key={col.id}
+                      className={col.id === "action" ? "text-right" : undefined}
+                    >
+                      {projectHeaderLabel(col)}
+                    </div>
+                  )
+                )}
+              </div>
+
+              {sorted.map((p) => (
+                <ProjectRow
+                  key={p.id}
+                  p={p}
+                  highlighted={flashId === p.id}
+                  visibleCols={visibleColDefs}
+                  gridTemplate={gridTemplate}
+                  onEdit={() => openEdit(p)}
+                  onToggle={() => toggleStatus(p.id)}
+                />
+              ))}
+              {filtered.length === 0 && (
+                <div className="px-4 py-10 text-center text-[12px] text-muted-foreground">
+                  No projects match.
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
-      {saveError && (
-        <div className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-md border border-danger/30 bg-surface px-4 py-2 text-[12px] text-danger shadow-lg">
-          {saveError}
-        </div>
-      )}
-
       {drawerOpen && (
         <ProjectDrawer
+          key={editing?.id ?? "new-project"}
           project={editing}
           saving={saving}
           onClose={() => setDrawerOpen(false)}

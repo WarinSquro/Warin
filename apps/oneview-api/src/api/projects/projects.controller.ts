@@ -8,11 +8,13 @@ import {
   Post,
   Put,
   Query,
+  Req,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import type { MilestoneKind, ProjectHealth, ProjectType } from "@prisma/client";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { RequirePermissions } from "../auth/guards";
+import type { JwtPayload } from "../auth/jwt.strategy";
 import { EmitDataChange } from "../realtime/emit-data-change.decorator";
 
 function ser<T>(v: T): T {
@@ -33,6 +35,11 @@ function parseHealth(raw?: string | null): ProjectHealth {
   return "green";
 }
 
+function actorId(user?: JwtPayload): bigint | null {
+  if (!user?.sub || !/^\d+$/.test(user.sub)) return null;
+  return BigInt(user.sub);
+}
+
 type ProjectBody = {
   projectCode: string;
   name: string;
@@ -43,6 +50,8 @@ type ProjectBody = {
   type: ProjectType;
   approvedByName?: string;
   approvedByDate?: string;
+  /** Filename and/or data-URL JSON for POC email snap */
+  approvedBySnap?: string | null;
   kickoffDate: string;
   startDate: string;
   endDate: string;
@@ -54,6 +63,36 @@ type ProjectBody = {
   demandLines?: { skills: string[]; count: number }[];
 };
 
+type ProjectRow = {
+  id: bigint;
+  projectCode: string;
+  name: string;
+  customerId: bigint;
+  poNumber: string;
+  type: ProjectType;
+  approvedByName: string | null;
+  approvedByDate: Date | null;
+  approvedBySnap: string | null;
+  kickoffDate: Date;
+  startDate: Date;
+  endDate: Date;
+  demand: string;
+  health: ProjectHealth;
+  healthRemarks: string;
+  status: "active" | "inactive";
+  isActive: boolean;
+  isDeleted: boolean;
+  deletedAt: Date | null;
+  createdAt: Date;
+  modifiedAt: Date;
+  createdBy: bigint | null;
+  modifiedBy: bigint | null;
+  version: number;
+  customer: { id: bigint; name: string; code: string };
+  milestones: unknown[];
+  demandLines: unknown[];
+};
+
 @ApiTags("projects")
 @ApiBearerAuth()
 @Controller("projects")
@@ -61,42 +100,37 @@ export class ProjectsController {
   constructor(private readonly prisma: PrismaService) {}
 
   private mapProject(
-    row: {
-      id: bigint;
-      projectCode: string;
-      name: string;
-      customerId: bigint;
-      poNumber: string;
-      type: ProjectType;
-      approvedByName: string | null;
-      approvedByDate: Date | null;
-      approvedBySnap: string | null;
-      kickoffDate: Date;
-      startDate: Date;
-      endDate: Date;
-      demand: string;
-      health: ProjectHealth;
-      healthRemarks: string;
-      status: "active" | "inactive";
-      isActive: boolean;
-      isDeleted: boolean;
-      deletedAt: Date | null;
-      createdAt: Date;
-      modifiedAt: Date;
-      createdBy: bigint | null;
-      modifiedBy: bigint | null;
-      version: number;
-      customer: { id: bigint; name: string; code: string };
-      milestones: unknown[];
-      demandLines: unknown[];
-    }
+    row: ProjectRow,
+    nameById: Map<string, string> = new Map()
   ) {
     const { customer, ...rest } = row;
     return {
       ...rest,
       customerId: customer.id.toString(),
       customer: customer.name,
+      createdByName: row.createdBy
+        ? nameById.get(row.createdBy.toString()) ?? null
+        : null,
+      modifiedByName: row.modifiedBy
+        ? nameById.get(row.modifiedBy.toString()) ?? null
+        : null,
     };
+  }
+
+  private async actorNameMap(
+    rows: { createdBy: bigint | null; modifiedBy: bigint | null }[]
+  ): Promise<Map<string, string>> {
+    const ids = new Set<bigint>();
+    for (const r of rows) {
+      if (r.createdBy) ids.add(r.createdBy);
+      if (r.modifiedBy) ids.add(r.modifiedBy);
+    }
+    if (ids.size === 0) return new Map();
+    const emps = await this.prisma.employee.findMany({
+      where: { id: { in: [...ids] }, isDeleted: false },
+      select: { id: true, name: true },
+    });
+    return new Map(emps.map((e) => [e.id.toString(), e.name]));
   }
 
   private async resolveCustomerId(body: {
@@ -130,7 +164,8 @@ export class ProjectsController {
       include: { milestones: true, demandLines: true, customer: true },
       orderBy: { projectCode: "asc" },
     });
-    return ser(rows.map((r) => this.mapProject(r)));
+    const names = await this.actorNameMap(rows);
+    return ser(rows.map((r) => this.mapProject(r, names)));
   }
 
   @Get(":id")
@@ -145,13 +180,14 @@ export class ProjectsController {
       include: { milestones: true, demandLines: true, customer: true },
     });
     if (!row) throw new NotFoundException("Project not found");
-    return ser(this.mapProject(row));
+    const names = await this.actorNameMap([row]);
+    return ser(this.mapProject(row, names));
   }
 
   @Post()
   @RequirePermissions("projects")
   @EmitDataChange("projects", "create")
-  async create(@Body() body: ProjectBody) {
+  async create(@Req() req: { user: JwtPayload }, @Body() body: ProjectBody) {
     const projectCode = body.projectCode?.trim();
     const name = body.name?.trim();
     if (!projectCode || !name || !body.type) {
@@ -176,6 +212,7 @@ export class ProjectsController {
     if ((health === "amber" || health === "red") && !healthRemarks) {
       throw new BadRequestException("healthRemarks is required when health is Amber or Red");
     }
+    const actor = actorId(req.user);
     const row = await this.prisma.project.create({
       data: {
         projectCode,
@@ -185,6 +222,7 @@ export class ProjectsController {
         type: body.type,
         approvedByName: body.approvedByName?.trim() || null,
         approvedByDate: parseDate(body.approvedByDate),
+        approvedBySnap: body.approvedBySnap?.trim() || null,
         kickoffDate,
         startDate,
         endDate,
@@ -193,6 +231,8 @@ export class ProjectsController {
         healthRemarks,
         status,
         isActive: status === "active",
+        createdBy: actor,
+        modifiedBy: actor,
         milestones: {
           create: (body.milestones ?? []).map((m) => ({
             name: m.name,
@@ -209,13 +249,18 @@ export class ProjectsController {
       },
       include: { milestones: true, demandLines: true, customer: true },
     });
-    return ser(this.mapProject(row));
+    const names = await this.actorNameMap([row]);
+    return ser(this.mapProject(row, names));
   }
 
   @Put(":id")
   @RequirePermissions("projects")
   @EmitDataChange("projects", "update")
-  async update(@Param("id") id: string, @Body() body: Partial<ProjectBody>) {
+  async update(
+    @Req() req: { user: JwtPayload },
+    @Param("id") id: string,
+    @Body() body: Partial<ProjectBody>
+  ) {
     const isNum = /^\d+$/.test(id);
     const existing = await this.prisma.project.findFirst({
       where: {
@@ -268,6 +313,7 @@ export class ProjectsController {
       }
     }
 
+    const actor = actorId(req.user);
     const row = await this.prisma.project.update({
       where: { id: existing.id },
       data: {
@@ -283,6 +329,10 @@ export class ProjectsController {
           body.approvedByDate !== undefined
             ? parseDate(body.approvedByDate)
             : existing.approvedByDate,
+        approvedBySnap:
+          body.approvedBySnap !== undefined
+            ? body.approvedBySnap?.trim() || null
+            : existing.approvedBySnap,
         kickoffDate:
           body.kickoffDate !== undefined
             ? (parseDate(body.kickoffDate) ?? existing.kickoffDate)
@@ -300,10 +350,12 @@ export class ProjectsController {
         healthRemarks,
         status,
         isActive: status === "active",
+        modifiedBy: actor ?? existing.modifiedBy,
         version: { increment: 1 },
       },
       include: { milestones: true, demandLines: true, customer: true },
     });
-    return ser(this.mapProject(row));
+    const names = await this.actorNameMap([row]);
+    return ser(this.mapProject(row, names));
   }
 }

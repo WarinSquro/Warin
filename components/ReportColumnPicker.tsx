@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, Columns3 } from "lucide-react";
 
@@ -6,6 +6,8 @@ export interface ReportColumnOption {
   id: string;
   label: string;
   defaultVisible: boolean;
+  /** Shown checked and not toggleable (e.g. ACTION). */
+  locked?: boolean;
 }
 
 interface ReportColumnPickerProps {
@@ -13,6 +15,8 @@ interface ReportColumnPickerProps {
   visible: Set<string>;
   onChange: (visible: Set<string>) => void;
   onReset: () => void;
+  /** When true, all unlocked columns may be unchecked. */
+  allowEmpty?: boolean;
 }
 
 export function ReportColumnPicker({
@@ -20,6 +24,7 @@ export function ReportColumnPicker({
   visible,
   onChange,
   onReset,
+  allowEmpty = false,
 }: ReportColumnPickerProps) {
   const [open, setOpen] = useState(false);
   const [menuLayout, setMenuLayout] = useState<{ top: number; left: number; minWidth: number } | null>(
@@ -28,6 +33,11 @@ export function ReportColumnPicker({
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const lockedIds = useMemo(
+    () => new Set(columns.filter((c) => c.locked).map((c) => c.id)),
+    [columns]
+  );
 
   const updateMenuLayout = useCallback(() => {
     const trigger = triggerRef.current;
@@ -66,13 +76,16 @@ export function ReportColumnPicker({
   }, [open]);
 
   const toggle = (id: string) => {
+    if (lockedIds.has(id)) return;
     const next = new Set(visible);
     if (next.has(id)) {
-      if (next.size <= 1) return;
+      const unlockedVisible = [...next].filter((x) => !lockedIds.has(x));
+      if (!allowEmpty && unlockedVisible.length <= 1) return;
       next.delete(id);
     } else {
       next.add(id);
     }
+    for (const locked of lockedIds) next.add(locked);
     onChange(next);
   };
 
@@ -99,13 +112,17 @@ export function ReportColumnPicker({
               </button>
             </div>
             {columns.map((col) => {
-              const checked = visible.has(col.id);
+              const checked = visible.has(col.id) || !!col.locked;
+              const locked = !!col.locked;
               return (
                 <button
                   key={col.id}
                   type="button"
+                  disabled={locked}
                   onClick={() => toggle(col.id)}
-                  className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[12px] hover:bg-surface-alt"
+                  className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-[12px] ${
+                    locked ? "cursor-not-allowed opacity-55" : "hover:bg-surface-alt"
+                  }`}
                 >
                   <span
                     className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border ${

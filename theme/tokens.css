@@ -11,11 +11,11 @@
   --color-brand-active: #1E3F4C;
   --color-brand-border: #2A5363;
 
-  /* Auth / shell header canvas — login screen palette */
-  --color-auth-canvas: #F2F6F8;
-  --color-auth-canvas-from: #F2F6F8;
-  --color-auth-canvas-via: #EEF3F5;
-  --color-auth-canvas-to: #E4ECEF;
+  /* Auth canvas — match login wallpaper beige so edges never flash blue-grey */
+  --color-auth-canvas: #E5DED4;
+  --color-auth-canvas-from: #E5DED4;
+  --color-auth-canvas-via: #E8E1D7;
+  --color-auth-canvas-to: #E5DED4;
 
   /* Primary action */
   --color-primary: #152F39;

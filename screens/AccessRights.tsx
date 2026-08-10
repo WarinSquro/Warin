@@ -15,7 +15,7 @@ import { useAuth } from "../context/AuthContext";
 import { useEmployees } from "../context/EmployeesContext";
 import { useToast } from "../context/ToastContext";
 import { fetchAccessRights, fetchAllAccessRights, putAccessRights } from "../api/domain";
-import { useSharedDataSync } from "../hooks/useSharedDataSync";
+import { useSharedDataSync, usePauseSharedDataSync } from "../hooks/useSharedDataSync";
 import { formatDataReachSummary, getResourceOwnerDisplay } from "../utils/employeeHierarchy";
 import { matchesSearchQuery } from "../utils/textSearch";
 import { ThemeCheckbox } from "../components/ThemeCheckbox";
@@ -115,6 +115,7 @@ export function AccessRights() {
   }, [reloadRightsCache]);
 
   useSharedDataSync(!dirty, reloadRightsCache, { resources: ["access-rights"] });
+  usePauseSharedDataSync(dirty);
 
   const selectEmployee = (emp: Employee) => {
     if (emp.id === selectedId) return;

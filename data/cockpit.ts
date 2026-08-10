@@ -563,7 +563,18 @@ export function buildLiveCockpitSnapshot(
     ? input.departmentNames.filter((d) => depts!.includes(d))
     : input.departmentNames;
 
-  const teamLoad: TeamLoadRow[] = scoped.map((e) => {
+  /** HRMS ids that own at least one active report — ROs are not Team Load rows. */
+  const resourceOwnerIds = new Set(
+    active.map((e) => e.resourceOwnerId).filter((id): id is string => Boolean(id?.trim()))
+  );
+  const teamLoadPeople = scoped.filter(
+    (e) =>
+      e.id !== "EMP-0001" &&
+      e.name.trim().toLowerCase() !== "administrator" &&
+      !resourceOwnerIds.has(e.id)
+  );
+
+  const teamLoad: TeamLoadRow[] = teamLoadPeople.map((e) => {
     const parts = e.name.trim().split(/\s+/);
     const initials =
       parts.length >= 2

@@ -40,7 +40,7 @@ import {
 } from "../api/domain";
 import { useFocusFirstField } from "../hooks/useFocusFirstField";
 import { useAppDateFormat } from "../hooks/useAppDateFormat";
-import { useSharedDataSync } from "../hooks/useSharedDataSync";
+import { useSharedDataSync, usePauseSharedDataSync } from "../hooks/useSharedDataSync";
 
 export function WeeklyCheckInWorkspace() {
   const { employeeId = "" } = useParams();
@@ -192,6 +192,7 @@ export function WeeklyCheckInWorkspace() {
   }, [loadWorkspace]);
 
   useSharedDataSync(viewOnly, () => loadWorkspace({ silent: true }), { resources: ["weekly-check-in"] });
+  usePauseSharedDataSync(!viewOnly);
 
   if (!currentEmployee) {
     return (

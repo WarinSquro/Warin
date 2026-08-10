@@ -32,6 +32,376 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-10 17:20 IST
+
+**Prompt:**  
+> Reduce login wallpaper opacity by 30%
+
+**Output:**  
+- `AuthLayout` wallpaper: `opacity-70` (30% reduction).
+
+---
+
+### 2026-08-10 17:12 IST
+
+**Prompt:**  
+> Replace login wallpaper with attached 1919×941 image; fill screen; no stretch; fix right blank
+
+**Output:**  
+- Installed attached wallpaper as `public/wallpaper-auth.png` (attachment arrived as 1024×502 in assets; same composition).  
+- `AuthLayout`: `object-cover object-left` full viewport — fills height & width without distortion.  
+- Auth canvas tokens → beige `#E5DED4` so any edge matches the art (no blue-grey strip). Cache-bust `?v=2`.
+
+---
+
+### 2026-08-10 16:50 IST
+
+**Prompt:**  
+> Master/transaction entry-update screens refresh while waiting to Save — check and resolve
+
+**Output:**  
+- **Root cause:** `useSharedDataSync` (45s poll / focus / SSE) reloaded contexts & screen lists and overwrote in-progress edits (esp. Settings via `setSettings`, KPI via `setItems`).  
+- **Fix:** Added `usePauseSharedDataSync` + global pause gate in `hooks/useSharedDataSync.ts`. While paused, all shared sync is skipped.  
+- Wired pause for: Employee/Project/Setup masters (drawers), Settings + SMTP (dirty), KPI Framework/Results, Access Rights (dirty), Weekly Check-In workspace/config, Resource Planner & Availability (drawer), Work Confirmation (unsubmitted edit).
+
+---
+
+### 2026-08-10 16:17 IST
+
+**Prompt:**  
+> Set wallpaper height to screen height; keep original aspect ratio
+
+**Output:**  
+- `AuthLayout` wallpaper: `h-full w-auto` (height = viewport, width from aspect); left-aligned; full opacity. Root `overflow-hidden` clips excess width.
+
+---
+
+### 2026-08-10 16:15 IST
+
+**Prompt:**  
+> Why wallpaper only half page? Show full height & width (keep aspect, not faded)
+
+**Output:**  
+- **Root cause:** Image was confined to left column with `h-full w-auto`, so only ~half the page showed art.  
+- **Fix:** Full-bleed `absolute inset-0 h-full w-full object-cover object-left` (fills viewport both axes, aspect preserved, full opacity).
+
+---
+
+### 2026-08-10 16:08 IST
+
+**Prompt:**  
+> Auth left panel: new wallpaper; screen height; keep aspect ratio; not faded
+
+**Output:**  
+- Installed attached wallpaper as `public/wallpaper-auth.png` (cache-bust).  
+- `AuthLayout`: image in left column `h-full w-auto` (height = panel/screen, aspect preserved); removed `opacity-70` / `object-fill` so it is not faded or stretched.
+
+---
+
+### 2026-08-10 15:45 IST
+
+**Prompt:**  
+> Just revert (auth wallpaper changes)
+
+**Output:**  
+- Restored `components/AuthLayout.tsx` and `public/wallpaper-new.png` from git HEAD.  
+- Removed untracked `public/wallpaper-auth.png`.
+
+---
+
+### 2026-08-10 13:52 IST
+
+**Prompt:**  
+> Auth wallpaper: stretch to horizontal also
+
+**Output:**  
+- Wallpaper again full-bleed on the auth root (`absolute inset-0 h-full w-full object-fill`) so it stretches across full viewport width and height, not only the left column.
+
+---
+
+### 2026-08-10 13:48 IST
+
+**Prompt:**  
+> Auth left panel: stretch wallpaper to screen/panel size
+
+**Output:**  
+- `AuthLayout` left image: `absolute inset-0 h-full w-full object-fill opacity-70` so it fills the half-panel.
+
+---
+
+### 2026-08-10 13:45 IST
+
+**Prompt:**  
+> Auth wallpaper still shows old image, not the replaced one
+
+**Output:**  
+- Root cause: same `/wallpaper-new.png` URL likely browser-cached.  
+- Installed attached landscape wallpaper as `public/wallpaper-auth.png` (+ updated `wallpaper-new.png`).  
+- `AuthLayout` now loads `/wallpaper-auth.png` (cache-bust); still intrinsic size, opacity-70.
+
+---
+
+### 2026-08-10 13:20 IST
+
+**Prompt:**  
+> AuthLayout left panel: change to attached image; do not fit to size yet
+
+**Output:**  
+- Replaced `public/wallpaper-new.png` with attached portrait wallpaper.  
+- `AuthLayout`: image in left column only at intrinsic size (removed full-bleed `object-fill` stretch).
+
+---
+
+### 2026-08-10 13:12 IST
+
+**Prompt:**  
+> KpiFramework Period: one dropdown with all start–end month combinations (e.g. Jul-Jul … Sep-Sep for Q3)
+
+**Output:**  
+- Replaced dual month selects with single select of `periodRangeOptions(cycle months)`.  
+- Still patches `periodStartMonth` / `periodEndMonth`.
+
+---
+
+### 2026-08-10 13:08 IST
+
+**Prompt:**  
+> KpiFramework Weight % input: reduce width to header size
+
+**Output:**  
+- Weight % `th`/`td` constrained (`w-16`); input `w-14` instead of `w-full`.
+
+---
+
+### 2026-08-10 13:06 IST
+
+**Prompt:**  
+> KpiFramework Target input: reduce width to header size
+
+**Output:**  
+- Target `th`/`td` constrained (`w-16`); input `w-14` instead of `w-full`.
+
+---
+
+### 2026-08-10 13:04 IST
+
+**Prompt:**  
+> KpiResults filter label: rename "Assessment Cycle" to "Cycle"
+
+**Output:**  
+- `KpiResults.tsx`: Filter label `Assessment Cycle` → `Cycle`.
+
+---
+
+### 2026-08-10 13:03 IST
+
+**Prompt:**  
+> KpiFramework filter label: rename "Assessment Cycle" to "Cycle"
+
+**Output:**  
+- `KpiFramework.tsx`: Filter label `Assessment Cycle` → `Cycle`.
+
+---
+
+### 2026-08-10 13:02 IST
+
+**Prompt:**  
+> Team compliance week dots should align with M T W T F header
+
+**Output:**  
+- `WorkConfirmation` `ManagerCompliance` / `ComplianceRowView`: replaced `flex justify-between px-1` with `grid grid-cols-5 place-items-center` (same `w-[120px]`) so day letters and status dots share column centers.
+
+---
+
+### 2026-08-10 12:58 IST
+
+**Prompt:**  
+> Weekly Check-In week picker: no current (“This”) week; 5 items = last week through last 5 weeks only
+
+**Output:**  
+- `getReviewWeekStarts()`: `[-5,-4,-3,-2,-1]` (was `[-4…0]`). Default remains previous week. URL current-week param falls back via `resolveReviewWeekStart`.
+
+---
+
+### 2026-08-10 12:50 IST
+
+**Prompt:**  
+> Entire app: week display Mon–Sun (start Monday, end Sunday). Weekly Check-In e.g. Jul 13–19, Jul 20–26, Jul 27–Aug 2, Aug 3–9, Aug 10–16.
+
+**Output:**  
+- **Root cause:** `workingWeekBounds` used Settings working days (default Mon–Fri) for week span/labels.  
+- **Fix:** `utils/workingWeek.ts` always returns Monday → Sunday (+6). Call sites (Weekly Check-In labels, report “This week”, cockpit, planner week end, liveViews defaults, Settings impact week fetch, cockpitDaily) inherit Mon–Sun.  
+- Hardcoded week-end `+4` → `+6` where it meant calendar week end (`liveViews`, `planner`, `Settings`, `cockpitDaily`).  
+- Capacity still counts Settings working days only inside those windows.  
+- `tsc --noEmit` exit 0.
+
+---
+
+### 2026-08-10 12:32 IST
+
+**Prompt:**  
+> WeeklyCheckInConfig: show char limits in placeholders — competency (40 chars), What it evaluates (200 chars)
+
+**Output:**  
+- Placeholders: `Add {kind} competency (40 chars)…`, `Add what it evaluates (200 chars)…` (edit mode too).  
+- `maxLength={40}` / `{200}` on those inputs.
+
+---
+
+### 2026-08-10 12:27 IST
+
+**Prompt:**  
+> CompetencyGuideModal: rename "Remark" column header to "What it evaluates"
+
+**Output:**  
+- `WeeklyCheckInCompetencyRating.tsx` (`CompetencyGuideModal`): table header `Remark` → `What it evaluates`.
+
+---
+
+### 2026-08-10 12:25 IST
+
+**Prompt:**  
+> WeeklyCheckInConfig: use "What it evaluates" instead of "remark" on this page
+
+**Output:**  
+- `WeeklyCheckInConfig.tsx`: placeholders/aria-labels `Remark` / `Add remark…` → `What it evaluates` / `Add what it evaluates…`; footer copy updated.  
+- Internal `remark` field names unchanged (API/data).
+
+---
+
+### 2026-08-10 12:20 IST
+
+**Prompt:**  
+> SMTP: enable Save Settings only when all required fields are filled
+
+**Output:**  
+- `SmtpSettingsSection`: `requiredComplete` checks host/port/security/sender name/valid sender email; if auth on → username + password (or existing `passwordSet`).  
+- Save enables when `requiredComplete && smtpDirty`.
+
+---
+
+### 2026-08-10 12:15 IST
+
+**Prompt:**  
+> Remove header "Unsaved changes" for first 4 cards; show on each dirty card instead
+
+**Output:**  
+- Removed page-header unsaved hint for Review & Save cards.  
+- Each of the 4 cards shows **Unsaved changes** beside **Review & Save** when that card is dirty.
+
+---
+
+### 2026-08-10 12:05 IST
+
+**Prompt:**  
+> Working calendar: move Calendar to bottom-right; Save on right (title)
+
+**Output:**  
+- Title action: **Save** only (right).  
+- Bottom row: capacity text left, **Calendar** right.
+
+---
+
+### 2026-08-10 12:00 IST
+
+**Prompt:**  
+> Company calendar: Date+Label one line; 0/50 on Label * row; taller Off days; Hours per day max 15
+
+**Output:**  
+- `CompanyCalendarModal`: Date/Label row layout; counter beside `Label *`; Off days list `min-h-[14rem]`.  
+- Working calendar Hours per day `max={15}`.
+
+---
+
+### 2026-08-10 11:15 IST
+
+**Prompt:**  
+> All Review & Save / Save / Save Settings disabled by default; enable only for the card the user edited
+
+**Output:**  
+- **Root cause:** Committed baselines initialized from DEFAULT_SETTINGS before API hydrate → cards looked dirty incorrectly.  
+- Baseline now set after `loading` finishes; Save stays disabled until real edits.  
+- SMTP **Save Settings** gated on form dirty vs loaded snapshot.  
+- Clean silent refresh only rebases when no local edits.
+
+---
+
+### 2026-08-10 11:05 IST
+
+**Prompt:**  
+> Review & Save per card only; impact modal scoped to that card’s values + schedule
+
+**Output:**  
+- Per-card dirty: utilization / planning / capacity / overallocation vs committed snapshots.  
+- Only the edited card’s **Review & Save** enables.  
+- Impact modal shows card title, value diffs, utilization people-band impact only for Utilization; schedule Immediate / later unchanged.  
+- Save merges that section onto latest settings (preserves other cards’ unsaved drafts after refresh).
+
+---
+
+### 2026-08-10 10:55 IST
+
+**Prompt:**  
+> System Parameters: per-card Review & Save / Save on title row (right); Working calendar switch Save/Calendar; remove page header Reset + Review & Save
+
+**Output:**  
+- Removed header Reset / Review & Save (and reset confirm dialog).  
+- **Review & Save** on title row: Utilization, Planning & confirmation, Capacity basis, Overallocation.  
+- **Working calendar:** title actions `Save` then `Calendar` (switched); removed bottom Save.  
+- **Date Format** + **SMTP:** Save moved to title row (right).  
+- Header still shows unsaved/error hints only.
+
+---
+
+### 2026-08-10 10:45 IST
+
+**Prompt:**  
+> Planning & confirmation bands: Excellent > Good > Needs attention (strict)
+
+**Output:**  
+- **Root cause:** Fields allowed equality (`min={good}` / `max={excellent}`).  
+- **UI:** Strict mins/maxes (`good+1`, `needs+1` / `excellent-1`, `good-1`); `patchMetricBandsDirty` enforces Needs < Good < Excellent.  
+- **API:** `payloadFromBody` normalizes same strict order on save.
+
+---
+
+### 2026-08-10 10:42 IST
+
+**Prompt:**  
+> "Optimal up to" limit is max 125% (Utilization bands on Settings)
+
+**Output:**  
+- **Root cause:** `Optimal up to` NumField had no `max`; `patchBands` only enforced min/ Idle relationship.  
+- **UI:** `max={125}` on Optimal field; clamp in `patchBands` to 1…125.  
+- **API:** `payloadFromBody` clamps `optimalTo` to 1…125.  
+- Band preview already used 125 scale — unchanged.
+
+---
+
+### 2026-08-10 00:20 IST
+
+**Prompt:**  
+> EC2 deploy output — api build failed (demandPriority) + vite failed (resolveReviewWeekStart); SPA_OK printed anyway
+
+**Output:**  
+- Root cause: sync commit left `settings.controller` on 4-arg `demandPriority` while schedule service was stripped; queue/workspace imported `resolveReviewWeekStart` not on `main`.
+- Fix pushed `e6cebae`: restore demandPriority in `settings-schedule.service.ts`; add WCI week helpers in `data/weeklyCheckIn.ts`.
+- Note: prior `SPA_OK` was stale `index.html` after failed vite build — rebuild required.
+
+---
+
+### 2026-08-10 00:15 IST
+
+**Prompt:**  
+> EC2 Redis check output → if OK go further
+
+**Output:**  
+- Redis on EC2: healthy, `PONG`, API `REDIS_URL=redis://redis:6379`. Host `.env` `127.0.0.1:6379` is fine (Compose overrides for api). `PUBLISH` = 0 expected (Phase 2 not live yet).
+- Committed/pushed `254d247` — Phase-1 poll + Phase-2 Redis SSE (surgical; left unrelated WIP unstaged).
+- Next: EC2 pull + rebuild api + SPA publish (commands given to user).
+
+---
+
 ### 2026-08-10 00:05 IST
 
 **Prompt:**  

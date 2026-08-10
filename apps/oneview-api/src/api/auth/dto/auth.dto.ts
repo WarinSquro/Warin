@@ -50,3 +50,11 @@ export class ChangePinDto {
   @Matches(/^\d{5}$/)
   newPin!: string;
 }
+
+export class VerifyPinDto {
+  @ApiProperty({ example: "12345" })
+  @IsString()
+  @Length(5, 5)
+  @Matches(/^\d{5}$/)
+  pin!: string;
+}

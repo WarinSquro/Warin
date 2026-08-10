@@ -63,9 +63,6 @@ export function WorkdayTimelinePanel({
           {heading}
         </div>
       </div>
-      <div className="mb-2 text-[11px] leading-snug text-muted-foreground">
-        Lunch is optional. After Day Start you can take lunch or check out directly.
-      </div>
       <div className="grid grid-cols-2 gap-1.5">
         {WORKDAY_ACTIONS.map(({ key, label }) => {
           const stamped = !!marks[key];

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { KeyRound, LogOut, Shield } from "lucide-react";
-import { changePinApi } from "../api/client";
+import { Eye, EyeOff, KeyRound, LogOut, Shield } from "lucide-react";
+import { changePinApi, verifyPinApi } from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { PERMISSION_PAGES, type PermissionPage } from "../data/navConfig";
@@ -30,6 +30,8 @@ function assignedPageLabels(allowedKeys: Set<string>, isSuperAdmin: boolean): st
   return labels.sort((a, b) => a.localeCompare(b));
 }
 
+type PinFieldKey = "current" | "new" | "confirm";
+
 export function AccountSettings() {
   const navigate = useNavigate();
   const { currentEmployee, isSuperAdmin, allowedKeys, signOut, sessionEmail } = useAuth();
@@ -39,7 +41,7 @@ export function AccountSettings() {
   const [currentPin, setCurrentPin] = useState("");
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
-  const [pinError, setPinError] = useState("");
+  const [pinErrorFields, setPinErrorFields] = useState<Set<PinFieldKey>>(new Set());
   const [pinSaving, setPinSaving] = useState(false);
   const [logoutConfirm, setLogoutConfirm] = useState(false);
 
@@ -51,26 +53,54 @@ export function AccountSettings() {
   const pinReady =
     /^\d{5}$/.test(currentPin) && /^\d{5}$/.test(newPin) && /^\d{5}$/.test(confirmPin) && !pinSaving;
 
+  const clearPinErrors = () => {
+    setPinErrorFields(new Set());
+  };
+
+  const setFieldError = (message: string, fields: PinFieldKey[]) => {
+    setPinErrorFields(new Set(fields));
+    toast.error(message);
+  };
+
   const submitPin = async () => {
     if (!pinReady) return;
-    if (newPin !== confirmPin) {
-      setPinError("New PIN and confirmation do not match.");
-      return;
-    }
-    if (newPin === currentPin) {
-      setPinError("New PIN must be different from the current PIN.");
-      return;
-    }
     setPinSaving(true);
-    setPinError("");
+    clearPinErrors();
     try {
+      // 1) Current PIN must be validated first
+      try {
+        await verifyPinApi(currentPin);
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "Current PIN do not match.";
+        setFieldError(
+          /current pin do not match|invalid current pin|current pin is incorrect/i.test(message)
+            ? "Current PIN do not match."
+            : message,
+          ["current"]
+        );
+        return;
+      }
+
+      // 2) Then New PIN vs Confirm New PIN
+      if (newPin !== confirmPin) {
+        setFieldError("New PIN and Confirm New PIN do not match.", ["new", "confirm"]);
+        return;
+      }
+
       await changePinApi(currentPin, newPin);
       setCurrentPin("");
       setNewPin("");
       setConfirmPin("");
       toast.updated();
     } catch (e) {
-      setPinError(e instanceof Error ? e.message : "Could not update PIN.");
+      const message = e instanceof Error ? e.message : "Could not update PIN.";
+      if (/current pin do not match|invalid current pin|current pin is incorrect/i.test(message)) {
+        setFieldError("Current PIN do not match.", ["current"]);
+      } else if (/different from the current pin/i.test(message)) {
+        setFieldError("New PIN must be different from the current PIN.", ["new"]);
+      } else {
+        setFieldError(message, ["current", "new", "confirm"]);
+      }
     } finally {
       setPinSaving(false);
     }
@@ -109,28 +139,38 @@ export function AccountSettings() {
             <div ref={pinFormRef} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
               <PinField
                 label="Current PIN"
+                required
                 value={currentPin}
-                onChange={setCurrentPin}
+                invalid={pinErrorFields.has("current")}
+                onChange={(v) => {
+                  setCurrentPin(v);
+                  clearPinErrors();
+                }}
                 autoComplete="current-password"
               />
               <PinField
                 label="New PIN"
+                required
                 value={newPin}
-                onChange={setNewPin}
+                invalid={pinErrorFields.has("new")}
+                onChange={(v) => {
+                  setNewPin(v);
+                  clearPinErrors();
+                }}
                 autoComplete="new-password"
               />
               <PinField
                 label="Confirm new PIN"
+                required
                 value={confirmPin}
-                onChange={setConfirmPin}
+                invalid={pinErrorFields.has("confirm")}
+                onChange={(v) => {
+                  setConfirmPin(v);
+                  clearPinErrors();
+                }}
                 autoComplete="new-password"
               />
             </div>
-            {(pinError) && (
-              <div className={`mt-3 text-[12px] text-danger`}>
-                {pinError}
-              </div>
-            )}
             <div className="mt-4">
               <button
                 type="button"
@@ -138,7 +178,7 @@ export function AccountSettings() {
                 onClick={() => void submitPin()}
                 className={`rounded-md px-3.5 py-1.5 text-[12px] font-medium ${
                   pinReady
-                    ? "bg-primary text-primary-foreground hover:opacity-90"
+                    ? "cursor-pointer bg-primary text-primary-foreground hover:opacity-90"
                     : "cursor-not-allowed bg-surface-alt text-muted-foreground"
                 }`}
               >
@@ -177,7 +217,7 @@ export function AccountSettings() {
             <button
               type="button"
               onClick={() => setLogoutConfirm(true)}
-              className="mt-4 rounded-md border border-danger-border bg-danger-soft px-3.5 py-1.5 text-[12px] font-medium text-danger hover:opacity-90"
+              className="mt-4 cursor-pointer rounded-md border border-danger-border bg-danger-soft px-3.5 py-1.5 text-[12px] font-medium text-danger hover:opacity-90"
             >
               Log out
             </button>
@@ -201,7 +241,7 @@ export function AccountSettings() {
               <button
                 type="button"
                 onClick={() => setLogoutConfirm(false)}
-                className="flex-1 rounded-md border border-border py-2 text-[13px] text-foreground hover:bg-surface-alt"
+                className="flex-1 cursor-pointer rounded-md border border-border py-2 text-[13px] text-foreground hover:bg-surface-alt"
               >
                 Cancel
               </button>
@@ -212,7 +252,7 @@ export function AccountSettings() {
                   signOut();
                   navigate("/login", { replace: true });
                 }}
-                className="flex-1 rounded-md bg-danger py-2 text-[13px] font-medium text-white"
+                className="flex-1 cursor-pointer rounded-md bg-danger py-2 text-[13px] font-medium text-white"
               >
                 Log out
               </button>
@@ -238,24 +278,46 @@ function PinField({
   value,
   onChange,
   autoComplete,
+  required,
+  invalid,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   autoComplete?: string;
+  required?: boolean;
+  invalid?: boolean;
 }) {
+  const [showPin, setShowPin] = useState(false);
+
   return (
     <label className="block">
-      <span className="mb-1 block text-[12px] font-medium text-foreground">{label}</span>
-      <input
-        type="password"
-        inputMode="numeric"
-        autoComplete={autoComplete}
-        maxLength={5}
-        value={value}
-        onChange={(e) => onChange(e.target.value.replace(/\D/g, "").slice(0, 5))}
-        className="w-full rounded-md border border-border bg-surface px-3 py-2 text-[13px] tabular-nums tracking-widest text-foreground outline-none focus:border-primary"
-      />
+      <span className="mb-1 block text-[12px] font-medium text-foreground">
+        {label}
+        {required ? <span className="text-danger"> *</span> : null}
+      </span>
+      <div className="relative">
+        <input
+          type={showPin ? "text" : "password"}
+          inputMode="numeric"
+          autoComplete={autoComplete}
+          maxLength={5}
+          value={value}
+          onChange={(e) => onChange(e.target.value.replace(/\D/g, "").slice(0, 5))}
+          aria-invalid={invalid || undefined}
+          className={`w-full rounded-md border bg-surface py-2 pl-3 pr-10 text-[13px] tabular-nums tracking-widest text-foreground outline-none focus:border-primary ${
+            invalid ? "border-danger bg-danger-soft/30" : "border-border"
+          }`}
+        />
+        <button
+          type="button"
+          onClick={() => setShowPin((v) => !v)}
+          aria-label={showPin ? `Hide ${label}` : `Show ${label}`}
+          className="absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 cursor-pointer items-center justify-center rounded text-muted-foreground hover:text-foreground"
+        >
+          {showPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+        </button>
+      </div>
     </label>
   );
 }

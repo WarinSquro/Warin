@@ -15,7 +15,7 @@ import { useAuth } from "../context/AuthContext";
 import { useFocusFirstField } from "../hooks/useFocusFirstField";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import { useAppDateFormat } from "../hooks/useAppDateFormat";
-import { useSharedDataSync } from "../hooks/useSharedDataSync";
+import { useSharedDataSync, usePauseSharedDataSync } from "../hooks/useSharedDataSync";
 
 const CYCLES: AssessmentCycle[] = ["Q1", "Q2", "Q3", "Q4"];
 const fieldClass =
@@ -115,6 +115,7 @@ export function KpiResults() {
   }, [load]);
 
   useSharedDataSync(!selected, () => load({ silent: true }), { resources: ["kpi"] });
+  usePauseSharedDataSync(Boolean(selected));
 
   const pendingCount = summary.pending;
   const completedCount = summary.completed;
@@ -218,7 +219,7 @@ export function KpiResults() {
                 ))}
               </select>
             </Filter>
-            <Filter label="Assessment Cycle">
+            <Filter label="Cycle">
               <select
                 value={cycle}
                 onChange={(e) => setCycle(e.target.value as AssessmentCycle)}

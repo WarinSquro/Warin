@@ -5,18 +5,19 @@ export function AuthLayout({ children }: { children: ReactNode }) {
   return (
     <div className="auth-canvas-bg relative flex h-full w-full overflow-hidden">
       {/*
-        Wallpaper fills viewport (stretch to cover area); opacity-70 over soft auth canvas.
+        Fill viewport without stretching: object-cover keeps aspect ratio (may crop edges).
+        object-left keeps the block art on the left; form sits over the open beige area.
       */}
       <img
-        src="/wallpaper-new.png"
+        src="/wallpaper-auth.png?v=2"
         alt=""
-        className="pointer-events-none absolute inset-0 h-full w-full object-fill opacity-70 select-none"
+        className="pointer-events-none absolute inset-0 h-full w-full object-cover object-left opacity-70 select-none"
         draggable={false}
         aria-hidden
       />
 
       <div className="relative grid h-full w-full grid-cols-1 lg:grid-cols-2">
-        {/* Left half — wallpaper visual only */}
+        {/* Left half — wallpaper shows through */}
         <div className="relative hidden lg:block" aria-hidden />
 
         {/* Right half — sign-in stack centered */}

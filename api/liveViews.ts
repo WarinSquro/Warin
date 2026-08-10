@@ -136,7 +136,7 @@ export function bookedHoursByEmployee(
   weekStart = mondayISO(),
   companyOffDays?: string[]
 ): Map<string, { hours: number; primaryProject: string | null }> {
-  const weekEnd = addDaysISO(weekStart, 4);
+  const weekEnd = addDaysISO(weekStart, 6);
   return bookedHoursInRange(allocations, weekStart, weekEnd, companyOffDays);
 }
 
@@ -392,7 +392,7 @@ export function buildDeploymentRowsFromEmployees(
   allocations: ApiAllocation[] = [],
   confirmations: ApiConfirmation[] = [],
   rangeFrom = mondayISO(),
-  rangeTo = addDaysISO(mondayISO(), 4),
+  rangeTo = addDaysISO(mondayISO(), 6),
   calendar: DeploymentCalendarOpts = {}
 ): DeploymentRow[] {
   const nameById = new Map(allEmployees.map((e) => [e.id, e.name]));
@@ -505,7 +505,7 @@ export function buildPerformanceRowsFromEmployees(
   allocations: ApiAllocation[] = [],
   confirmations: ApiConfirmation[] = [],
   rangeFrom = mondayISO(),
-  rangeTo = addDaysISO(mondayISO(), 4)
+  rangeTo = addDaysISO(mondayISO(), 6)
 ): PerformanceRow[] {
   const nameById = new Map(employees.map((e) => [e.id, e.name]));
   const booked = bookedHoursInRange(allocations, rangeFrom, rangeTo);
@@ -566,7 +566,7 @@ export function buildExecutionRowsFromProjects(
   allocations: ApiAllocation[] = [],
   confirmations: ApiConfirmation[] = [],
   rangeFrom = mondayISO(),
-  rangeTo = addDaysISO(mondayISO(), 4)
+  rangeTo = addDaysISO(mondayISO(), 6)
 ): ExecutionRow[] {
   return projects
     .filter((p) => p.status === "active")
@@ -650,7 +650,7 @@ export function buildExecutionRosterFromLive(
   allocations: ApiAllocation[] = [],
   confirmations: ApiConfirmation[] = [],
   rangeFrom = mondayISO(),
-  rangeTo = addDaysISO(mondayISO(), 4),
+  rangeTo = addDaysISO(mondayISO(), 6),
   hoursPerDayCapacity = 8
 ): ExecutionRosterEntry[] {
   const empById = new Map(employees.map((e) => [e.id, e]));

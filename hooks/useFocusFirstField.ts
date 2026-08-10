@@ -9,7 +9,7 @@ function isFocusable(el: HTMLElement): boolean {
   if (el.hasAttribute("disabled")) return false;
   if (el.getAttribute("aria-hidden") === "true") return false;
   const input = el as HTMLInputElement;
-  if (input.type === "hidden" || input.readOnly) return false;
+  if (input.type === "hidden" || input.type === "file" || input.readOnly) return false;
   const style = window.getComputedStyle(el);
   if (style.display === "none" || style.visibility === "hidden") return false;
   const rect = el.getBoundingClientRect();

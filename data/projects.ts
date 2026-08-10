@@ -62,6 +62,12 @@ export interface Project {
   /** Required when health is amber or red (FR-147 / BR-025). */
   healthRemarks?: string;
   status: ProjectStatus;
+  /** ISO timestamp from API */
+  createdAt?: string;
+  /** ISO timestamp from API */
+  modifiedAt?: string;
+  createdByName?: string;
+  modifiedByName?: string;
 }
 
 export const CUSTOMERS = [

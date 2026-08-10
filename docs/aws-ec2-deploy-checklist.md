@@ -204,9 +204,20 @@ cd /opt/warin/app && git pull
 | Changed | On EC2 after `git pull` |
 |---------|-------------------------|
 | **SPA / React** (`screens/`, `components/`, `api/`, …) | Rebuild web + copy to host Nginx root (below) |
-| **API / packages / Prisma schema** | `docker compose up -d --build api worker` (and migrate if needed) |
+| **API / packages / Prisma schema** | `docker compose up -d --build api worker`, then migrate (below) |
 | **`docker-compose.yml` / nginx conf** | `docker compose up -d` and/or re-copy `host-ip.conf` + `sudo systemctl reload nginx` |
 | **Seed / data only** | `npm run db:seed` (or targeted SQL) — **do not** re-seed casually on real data |
+
+**Prisma migrate (required when `prisma/migrations/` changed):**  
+API container `WORKDIR` is `/app/apps/oneview-api`, so plain `npx prisma migrate deploy` fails with “Could not find Prisma Schema”. Always pass `--schema`:
+
+```bash
+cd /opt/warin/app
+docker compose exec api npx prisma migrate deploy --schema=/app/prisma/schema.prisma
+docker compose restart api worker
+```
+
+**Do not** run `npm run db:seed` on live QA/prod — it can wipe or overwrite operational data.
 
 **SPA publish (most UI fixes):**
 

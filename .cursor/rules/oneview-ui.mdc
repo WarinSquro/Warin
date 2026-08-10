@@ -11,6 +11,7 @@ alwaysApply: false
 - Brand is navy (`#001433` family). Do not introduce purple gradient themes, dark mode, or emoji UI unless asked.
 - Permission keys come from `data/navConfig.ts` (`PERMISSION_PAGES`). Guards, menus, and Access Rights must stay aligned.
 - Prefer existing shared widgets (report filters, badges, cockpit cards) over one-off duplicates.
+- **Truncated text:** Any UI using Tailwind `truncate` (ellipsis) must show the full value on hover. App-wide via `TruncateHoverTitles` in `App.tsx`; prefer `TruncateText` for new nodes. See `docs/ui-truncate-tooltips.md`.
 - Fonts: Inter (UI) + JetBrains Mono (mono). Do not switch to Inter-only redesigns that drop brand colors.
 - Auth screens use `.auth-canvas-bg` / `.auth-canvas-solid`.
 - Orphan screens (`ExecutiveDashboard`, `ManagerDashboard`, `Placeholder`) stay unrouted unless explicitly requested.

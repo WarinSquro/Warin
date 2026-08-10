@@ -68,6 +68,7 @@ type ApiActivity = {
   status: SetupStatus;
   milestone?: ApiActivityMilestone | null;
   activityMilestoneId?: string;
+  _count?: { allocations?: number };
 };
 
 type ApiProject = {
@@ -80,6 +81,7 @@ type ApiProject = {
   type: ProjectType;
   approvedByName: string | null;
   approvedByDate: string | null;
+  approvedBySnap: string | null;
   kickoffDate: string | null;
   startDate: string | null;
   endDate: string | null;
@@ -87,6 +89,10 @@ type ApiProject = {
   health?: "green" | "amber" | "red" | null;
   healthRemarks?: string | null;
   status: SetupStatus;
+  createdAt?: string | null;
+  modifiedAt?: string | null;
+  createdByName?: string | null;
+  modifiedByName?: string | null;
   milestones: { id: string; name: string; date: string }[];
   demandLines: { id: string; skills: string[]; count: number }[];
 };
@@ -172,6 +178,7 @@ export function mapApiActivity(a: ApiActivity): Activity {
     milestoneId: a.milestone?.code ?? "",
     billable: a.billable,
     status: a.status,
+    projectCount: a._count?.allocations ?? 0,
   };
 }
 
@@ -184,6 +191,7 @@ export function mapApiProject(p: ApiProject): Project {
     type: p.type,
     approvedByName: p.approvedByName ?? undefined,
     approvedByDate: isoDate(p.approvedByDate) || undefined,
+    approvedBySnap: p.approvedBySnap ?? undefined,
     kickoffDate: isoDate(p.kickoffDate),
     startDate: isoDate(p.startDate),
     endDate: isoDate(p.endDate),
@@ -201,6 +209,10 @@ export function mapApiProject(p: ApiProject): Project {
     health: p.health === "amber" || p.health === "red" || p.health === "green" ? p.health : "green",
     healthRemarks: p.healthRemarks ?? "",
     status: p.status,
+    createdAt: p.createdAt ?? undefined,
+    modifiedAt: p.modifiedAt ?? undefined,
+    createdByName: p.createdByName ?? undefined,
+    modifiedByName: p.modifiedByName ?? undefined,
   };
 }
 
@@ -474,6 +486,7 @@ export type ProjectWriteBody = {
   type: ProjectType;
   approvedByName?: string;
   approvedByDate?: string;
+  approvedBySnap?: string | null;
   kickoffDate: string;
   startDate: string;
   endDate: string;
@@ -541,6 +554,7 @@ export async function putSettings(body: {
   workingHoursPerDay: number;
   workingDays: string[];
   dateFormat: string;
+  demandPriority: string[];
   companyOffDays: { date: string; label: string }[];
 }) {
   return apiFetch<ApiSettingsResponse>("/settings", {
@@ -586,6 +600,7 @@ export async function createSettingsSchedule(
     workingHoursPerDay: number;
     workingDays: string[];
     dateFormat: string;
+    demandPriority: string[];
     companyOffDays: { date: string; label: string }[];
     effectiveDate: string;
   }
@@ -799,6 +814,7 @@ export type TeamComplianceResponse = {
     actual: number;
     reason: string;
     workDate: string;
+    addedAt?: string;
   }[];
 };
 

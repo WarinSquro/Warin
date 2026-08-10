@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CalendarClock, History, AlertTriangle, X, ArrowRight } from "lucide-react";
 import { ALL_DAYS, DEFAULT_SETTINGS } from "../data/settings";
 import type { SettingsState, ImpactRow, CompanyOffDay, DateFormatPattern } from "../data/settings";
@@ -25,6 +25,9 @@ import { SmtpSettingsSection } from "../components/SmtpSettingsSection";
 import { useToast } from "../context/ToastContext";
 import { ConfirmDeleteDialog } from "../components/ConfirmDeleteDialog";
 import { useAppDateFormat } from "../hooks/useAppDateFormat";
+import { usePauseSharedDataSync } from "../hooks/useSharedDataSync";
+
+type ReviewSection = "utilization" | "planning" | "capacity" | "overallocation";
 
 function settingsPutBody(s: SettingsState, companyOffDays = s.companyOffDays) {
   return {
@@ -44,54 +47,101 @@ function settingsPutBody(s: SettingsState, companyOffDays = s.companyOffDays) {
 }
 
 export function Settings() {
-  const { settings: s, setSettings, patchSettings, refresh } = useSettings();
+  const { settings: s, setSettings, patchSettings, refresh, loading } = useSettings();
   const toast = useToast();
-  const [dirty, setDirty] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [reviewSection, setReviewSection] = useState<ReviewSection | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [auditLog, setAuditLog] = useState<SettingsAuditEntry[]>([]);
   const [scheduled, setScheduled] = useState<SettingsSchedule[]>([]);
   const [pendingCancelScheduleId, setPendingCancelScheduleId] = useState<string | null>(null);
-  /** Last persisted snapshot — used for Review & Save band-impact preview. */
-  const [committedBands, setCommittedBands] = useState(s.bands);
-  const [committedWorking, setCommittedWorking] = useState({
-    workingHoursPerDay: s.workingHoursPerDay,
-    workingDays: [...s.workingDays],
-  });
-  const [savingWorkingCalendar, setSavingWorkingCalendar] = useState(false);
-  const [committedDateFormat, setCommittedDateFormat] = useState(
-    s.dateFormat ?? DEFAULT_SETTINGS.dateFormat
+  /** Last persisted snapshot per Review & Save card — null until settings hydrate from API. */
+  const [committedBands, setCommittedBands] = useState<SettingsState["bands"] | null>(null);
+  const [committedMetricBands, setCommittedMetricBands] = useState<SettingsState["metricBands"] | null>(
+    null
   );
+  const [committedCapacityBasis, setCommittedCapacityBasis] = useState<
+    SettingsState["capacityBasis"] | null
+  >(null);
+  const [committedOverallocationLimit, setCommittedOverallocationLimit] = useState<number | null>(
+    null
+  );
+  const [committedWorking, setCommittedWorking] = useState<{
+    workingHoursPerDay: number;
+    workingDays: string[];
+  } | null>(null);
+  const [savingWorkingCalendar, setSavingWorkingCalendar] = useState(false);
+  const [committedDateFormat, setCommittedDateFormat] = useState<string | null>(null);
   const [savingDateFormat, setSavingDateFormat] = useState(false);
+  const baselinedRef = useRef(false);
 
-  useEffect(() => {
-    if (!dirty) setCommittedBands(s.bands);
-  }, [s.bands, dirty]);
+  const utilizationDirty =
+    committedBands != null &&
+    (s.bands.idleBelow !== committedBands.idleBelow ||
+      s.bands.optimalTo !== committedBands.optimalTo);
+  const planningDirty =
+    committedMetricBands != null &&
+    (s.metricBands.excellent !== committedMetricBands.excellent ||
+      s.metricBands.good !== committedMetricBands.good ||
+      s.metricBands.needsAttention !== committedMetricBands.needsAttention);
+  const capacityDirty =
+    committedCapacityBasis != null && s.capacityBasis !== committedCapacityBasis;
+  const overallocationDirty =
+    committedOverallocationLimit != null &&
+    s.overallocationLimit !== committedOverallocationLimit;
 
   const workingCalendarDirty =
-    s.workingHoursPerDay !== committedWorking.workingHoursPerDay ||
-    [...s.workingDays].sort().join(",") !== [...committedWorking.workingDays].sort().join(",");
-
-  useEffect(() => {
-    if (!workingCalendarDirty) {
-      setCommittedWorking({
-        workingHoursPerDay: s.workingHoursPerDay,
-        workingDays: [...s.workingDays],
-      });
-    }
-  }, [s.workingHoursPerDay, s.workingDays, workingCalendarDirty]);
+    committedWorking != null &&
+    (s.workingHoursPerDay !== committedWorking.workingHoursPerDay ||
+      [...s.workingDays].sort().join(",") !== [...committedWorking.workingDays].sort().join(","));
 
   const dateFormatValue = s.dateFormat ?? DEFAULT_SETTINGS.dateFormat;
-  const dateFormatDirty = dateFormatValue !== committedDateFormat;
+  const dateFormatDirty =
+    committedDateFormat != null && dateFormatValue !== committedDateFormat;
 
+  const anyReviewDirty =
+    utilizationDirty || planningDirty || capacityDirty || overallocationDirty;
+
+  usePauseSharedDataSync(anyReviewDirty || workingCalendarDirty || dateFormatDirty);
+
+  const syncCommittedFrom = (src: SettingsState) => {
+    setCommittedBands({ ...src.bands });
+    setCommittedMetricBands({ ...src.metricBands });
+    setCommittedCapacityBasis(src.capacityBasis);
+    setCommittedOverallocationLimit(src.overallocationLimit);
+    setCommittedWorking({
+      workingHoursPerDay: src.workingHoursPerDay,
+      workingDays: [...src.workingDays],
+    });
+    setCommittedDateFormat(src.dateFormat ?? DEFAULT_SETTINGS.dateFormat);
+  };
+
+  // After API hydrate (and whenever a full load finishes), set baselines so Save stays disabled until edit.
   useEffect(() => {
-    if (!dateFormatDirty) {
-      setCommittedDateFormat(s.dateFormat ?? DEFAULT_SETTINGS.dateFormat);
+    if (loading) {
+      baselinedRef.current = false;
+      return;
     }
-  }, [s.dateFormat, dateFormatDirty]);
+    if (!baselinedRef.current) {
+      syncCommittedFrom(s);
+      baselinedRef.current = true;
+    }
+  }, [loading, s]);
+
+  // Silent SSE/focus refresh: adopt server values only when this page has no local edits.
+  useEffect(() => {
+    if (!baselinedRef.current || loading) return;
+    if (anyReviewDirty || workingCalendarDirty || dateFormatDirty) return;
+    syncCommittedFrom(s);
+  }, [
+    loading,
+    anyReviewDirty,
+    workingCalendarDirty,
+    dateFormatDirty,
+    s,
+  ]);
 
   const reloadAuditAndSchedules = async () => {
     const [entries, schedules] = await Promise.all([
@@ -128,16 +178,16 @@ export function Settings() {
 
   const patch = (p: Partial<SettingsState>) => {
     patchSettings(p);
-    setDirty(true);
   };
   const patchBands = (p: Partial<SettingsState["bands"]>) => {
     setSettings((prev) => {
       let idleBelow = prev.bands.idleBelow;
       let optimalTo = prev.bands.optimalTo;
+      const OPTIMAL_MAX = 125;
 
       if (p.optimalTo !== undefined && Number.isFinite(p.optimalTo)) {
-        // Optimal must stay strictly above Idle (and at least 1 so Idle can be 0).
-        optimalTo = Math.max(1, p.optimalTo);
+        // Optimal must stay strictly above Idle (and at least 1 so Idle can be 0); max matches band preview scale.
+        optimalTo = Math.max(1, Math.min(OPTIMAL_MAX, p.optimalTo));
         if (idleBelow >= optimalTo) idleBelow = Math.max(0, optimalTo - 1);
       }
       if (p.idleBelow !== undefined && Number.isFinite(p.idleBelow)) {
@@ -147,7 +197,6 @@ export function Settings() {
 
       return { ...prev, bands: { ...prev.bands, idleBelow, optimalTo } };
     });
-    setDirty(true);
   };
   const patchMetricBandsDirty = (p: Partial<SettingsState["metricBands"]>) => {
     setSettings((prev) => {
@@ -159,28 +208,33 @@ export function Settings() {
 
       if (p.excellent !== undefined && Number.isFinite(p.excellent)) {
         excellent = clampPct(p.excellent);
-        if (excellent < good) good = excellent;
-        if (good < needsAttention) needsAttention = good;
+        // Excellent must be strictly greater than Good.
+        if (excellent <= good) {
+          good = Math.max(0, excellent - 1);
+          if (good <= needsAttention) needsAttention = Math.max(0, good - 1);
+        }
       }
       if (p.good !== undefined && Number.isFinite(p.good)) {
         good = clampPct(p.good);
-        if (good > excellent) excellent = good;
-        if (good < needsAttention) needsAttention = good;
+        if (good >= excellent) excellent = Math.min(100, good + 1);
+        if (good <= needsAttention) needsAttention = Math.max(0, good - 1);
       }
       if (p.needsAttention !== undefined && Number.isFinite(p.needsAttention)) {
         needsAttention = clampPct(p.needsAttention);
-        if (needsAttention > good) good = needsAttention;
-        if (good > excellent) excellent = good;
+        if (needsAttention >= good) {
+          good = Math.min(100, needsAttention + 1);
+          if (good >= excellent) excellent = Math.min(100, good + 1);
+        }
       }
 
-      // Keep order: 0 ≤ Needs Attention ≤ Good ≤ Excellent ≤ 100
+      // Keep strict order: 0 ≤ Needs Attention < Good < Excellent ≤ 100
       needsAttention = clampPct(needsAttention);
-      good = Math.max(needsAttention, Math.min(100, good));
-      excellent = Math.max(good, Math.min(100, excellent));
+      good = Math.max(needsAttention + 1, Math.min(99, good));
+      excellent = Math.max(good + 1, Math.min(100, excellent));
+      needsAttention = Math.max(0, Math.min(good - 1, needsAttention));
 
       return { ...prev, metricBands: { excellent, good, needsAttention } };
     });
-    setDirty(true);
   };
   const toggleDay = (d: string) => {
     if (s.workingDays.includes(d)) {
@@ -202,28 +256,65 @@ export function Settings() {
     } catch {
       /* keep prior rail if audit refresh fails; settings already saved */
     }
-    setDirty(false);
     setSaveError("");
   };
 
+  const mergeSectionOnto = (base: SettingsState, section: ReviewSection): SettingsState => {
+    if (section === "utilization") return { ...base, bands: { ...s.bands } };
+    if (section === "planning") return { ...base, metricBands: { ...s.metricBands } };
+    if (section === "capacity") return { ...base, capacityBasis: s.capacityBasis };
+    return { ...base, overallocationLimit: s.overallocationLimit };
+  };
+
   const handleSave = async (when: "now" | "future", scheduledDate: string) => {
+    if (!reviewSection) return;
     setSaving(true);
     setSaveError("");
+    const section = reviewSection;
+    const draftSnapshot = {
+      bands: { ...s.bands },
+      metricBands: { ...s.metricBands },
+      capacityBasis: s.capacityBasis,
+      overallocationLimit: s.overallocationLimit,
+    };
+    const keep = {
+      utilization: utilizationDirty && section !== "utilization",
+      planning: planningDirty && section !== "planning",
+      capacity: capacityDirty && section !== "capacity",
+      overallocation: overallocationDirty && section !== "overallocation",
+    };
     try {
+      const latest = await fetchSettings();
+      const merged = mergeSectionOnto(latest, section);
       if (when === "future") {
         await createSettingsSchedule({
-          ...settingsPutBody(s),
+          ...settingsPutBody(merged),
           effectiveDate: scheduledDate,
         });
-        await refresh();
-        await reloadAuditAndSchedules();
-        setDirty(false);
         toast.created();
       } else {
-        await persistSettings(s);
+        await putSettings(settingsPutBody(merged));
         toast.updated();
       }
+      await refresh();
+      await reloadAuditAndSchedules();
+      // Restore other cards' unsaved drafts after refresh
+      const restore: Partial<SettingsState> = {};
+      if (keep.utilization) restore.bands = draftSnapshot.bands;
+      if (keep.planning) restore.metricBands = draftSnapshot.metricBands;
+      if (keep.capacity) restore.capacityBasis = draftSnapshot.capacityBasis;
+      if (keep.overallocation) restore.overallocationLimit = draftSnapshot.overallocationLimit;
+      if (Object.keys(restore).length) patchSettings(restore);
+      if (when === "now") {
+        if (section === "utilization") setCommittedBands(draftSnapshot.bands);
+        if (section === "planning") setCommittedMetricBands(draftSnapshot.metricBands);
+        if (section === "capacity") setCommittedCapacityBasis(draftSnapshot.capacityBasis);
+        if (section === "overallocation") {
+          setCommittedOverallocationLimit(draftSnapshot.overallocationLimit);
+        }
+      }
       setConfirmOpen(false);
+      setReviewSection(null);
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : "Save failed.");
     } finally {
@@ -252,7 +343,6 @@ export function Settings() {
   ) => {
     const next = { ...s, companyOffDays };
     patchSettings({ companyOffDays });
-    setDirty(true);
     setSaving(true);
     setSaveError("");
     try {
@@ -261,7 +351,6 @@ export function Settings() {
       if (notify === "deleted") toast.deleted();
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : "Could not save calendar.");
-      setDirty(true);
     } finally {
       setSaving(false);
     }
@@ -314,6 +403,29 @@ export function Settings() {
     }
   };
 
+  const reviewSaveAction = (section: ReviewSection, sectionDirty: boolean) => (
+    <div className="flex shrink-0 items-center gap-2.5">
+      {sectionDirty && !saveError ? (
+        <span className="text-[12px] text-warning">Unsaved changes</span>
+      ) : null}
+      <button
+        type="button"
+        disabled={!sectionDirty || saving}
+        onClick={() => {
+          setReviewSection(section);
+          setConfirmOpen(true);
+        }}
+        className={`shrink-0 cursor-pointer rounded-md px-3.5 py-1.5 text-[12px] font-medium ${
+          sectionDirty && !saving
+            ? "bg-primary text-primary-foreground hover:opacity-90"
+            : "cursor-not-allowed bg-surface-alt text-muted-foreground"
+        }`}
+      >
+        Review & Save
+      </button>
+    </div>
+  );
+
   return (
     <>
       <header className="flex h-14 flex-shrink-0 items-center justify-between border-b border-border bg-surface px-5">
@@ -322,21 +434,11 @@ export function Settings() {
           <div className="text-[12px] text-muted-foreground">Admin · applies org-wide · changes are effective-dated & logged</div>
         </div>
         <div className="flex items-center gap-2">
-          {saveError && <span className="max-w-[240px] truncate text-[12px] text-danger" title={saveError}>{saveError}</span>}
-          {dirty && !saveError && <span className="text-[12px] text-warning">Unsaved changes</span>}
-          <button
-            type="button"
-            onClick={() => {
-              if (!(dirty || workingCalendarDirty || dateFormatDirty)) return;
-              setResetConfirmOpen(true);
-            }}
-            className="cursor-pointer rounded-md border border-border px-3 py-1.5 text-[12px] text-foreground hover:bg-surface-alt"
-          >
-            Reset
-          </button>
-          <button disabled={!dirty || saving} onClick={() => setConfirmOpen(true)} className={`rounded-md px-3.5 py-1.5 text-[12px] font-medium ${dirty && !saving ? "bg-primary text-primary-foreground" : "cursor-not-allowed bg-surface-alt text-muted-foreground"}`}>
-            Review & save
-          </button>
+          {saveError && (
+            <span className="max-w-[280px] truncate text-[12px] text-danger" title={saveError}>
+              {saveError}
+            </span>
+          )}
         </div>
       </header>
 
@@ -360,7 +462,11 @@ export function Settings() {
           )}
 
           {/* Utilization bands */}
-          <Card title="Utilization bands" desc="Thresholds that classify people as idle, optimal, or overloaded across Utilization & dashboards.">
+          <Card
+            title="Utilization bands"
+            desc="Thresholds that classify people as idle, optimal, or overloaded across Utilization & dashboards."
+            action={reviewSaveAction("utilization", utilizationDirty)}
+          >
             <div className="flex items-end gap-6">
               <NumField
                 label="Idle below"
@@ -379,6 +485,7 @@ export function Settings() {
                 required
                 integer
                 min={s.bands.idleBelow + 1}
+                max={125}
                 onChange={(v) => patchBands({ optimalTo: v })}
               />
             </div>
@@ -389,6 +496,7 @@ export function Settings() {
           <Card
             title="Planning & confirmation bands"
             desc="Status chip thresholds on the Resource Deployment Report — Excellent, Good, Needs Attention."
+            action={reviewSaveAction("planning", planningDirty)}
           >
             <div className="flex flex-wrap items-end gap-6">
               <NumField
@@ -397,7 +505,7 @@ export function Settings() {
                 suffix="%"
                 required
                 integer
-                min={s.metricBands.good}
+                min={s.metricBands.good + 1}
                 max={100}
                 onChange={(v) => patchMetricBandsDirty({ excellent: v })}
               />
@@ -407,8 +515,8 @@ export function Settings() {
                 suffix="%"
                 required
                 integer
-                min={s.metricBands.needsAttention}
-                max={s.metricBands.excellent}
+                min={s.metricBands.needsAttention + 1}
+                max={s.metricBands.excellent - 1}
                 onChange={(v) => patchMetricBandsDirty({ good: v })}
               />
               <NumField
@@ -418,7 +526,7 @@ export function Settings() {
                 required
                 integer
                 min={0}
-                max={s.metricBands.good}
+                max={s.metricBands.good - 1}
                 onChange={(v) => patchMetricBandsDirty({ needsAttention: v })}
               />
             </div>
@@ -429,33 +537,68 @@ export function Settings() {
           </Card>
 
           {/* Capacity basis */}
-          <Card title="Capacity basis" desc="What utilization is measured against. Billable excludes internal/meeting activities so they don't misclassify people as idle.">
+          <Card
+            title="Capacity basis"
+            desc="What utilization is measured against. Billable excludes internal/meeting activities so they don't misclassify people as idle."
+            action={reviewSaveAction("capacity", capacityDirty)}
+          >
             <div className="flex gap-2">
-              <Segment active={s.capacityBasis === "billable"} onClick={() => patch({ capacityBasis: "billable" })} label="Billable / project-eligible" hint="Recommended" />
-              <Segment active={s.capacityBasis === "total"} onClick={() => patch({ capacityBasis: "total" })} label="Total hours" hint="All logged time" />
+              <Segment
+                active={s.capacityBasis === "billable"}
+                onClick={() => patch({ capacityBasis: "billable" })}
+                label="Billable / project-eligible"
+                hint="Recommended"
+              />
+              <Segment
+                active={s.capacityBasis === "total"}
+                onClick={() => patch({ capacityBasis: "total" })}
+                label="Total hours"
+                hint="All logged time"
+              />
             </div>
           </Card>
 
           {/* Overallocation limit */}
-          <Card title="Overallocation guardrail" desc="Allocations beyond capacity warn and require a reason. Beyond this ceiling, saving is hard-blocked.">
+          <Card
+            title="Overallocation guardrail"
+            desc="Allocations beyond capacity warn and require a reason. Beyond this ceiling, saving is hard-blocked."
+            action={reviewSaveAction("overallocation", overallocationDirty)}
+          >
             <div className="flex items-center gap-4">
-              <input type="range" min={100} max={150} step={5} value={s.overallocationLimit} onChange={(e) => patch({ overallocationLimit: Number(e.target.value) })} className="flex-1 accent-primary" />
-              <div className="w-20 rounded-md border border-border bg-surface px-3 py-1.5 text-center text-[13px] font-semibold text-foreground">{s.overallocationLimit}%</div>
+              <input
+                type="range"
+                min={100}
+                max={150}
+                step={5}
+                value={s.overallocationLimit}
+                onChange={(e) => patch({ overallocationLimit: Number(e.target.value) })}
+                className="flex-1 accent-primary"
+              />
+              <div className="w-20 rounded-md border border-border bg-surface px-3 py-1.5 text-center text-[13px] font-semibold text-foreground">
+                {s.overallocationLimit}%
+              </div>
             </div>
-            <div className="text-[11px] text-muted-foreground">100–{s.overallocationLimit}%: warn + reason (logged) · above {s.overallocationLimit}%: blocked</div>
+            <div className="text-[11px] text-muted-foreground">
+              100–{s.overallocationLimit}%: warn + reason (logged) · above {s.overallocationLimit}%: blocked
+            </div>
           </Card>
 
-          {/* Working calendar */}
+          {/* Working calendar — Save on title (right); Calendar bottom-right */}
           <Card
             title="Working calendar"
             desc="Defines capacity per person and which days count toward confirmation compliance."
             action={
               <button
                 type="button"
-                onClick={() => setCalendarOpen(true)}
-                className="flex-shrink-0 cursor-pointer rounded-md border border-accent-line bg-accent-soft px-3 py-1.5 text-[12px] font-medium text-primary hover:bg-accent-soft/80"
+                disabled={!workingCalendarDirty || savingWorkingCalendar}
+                onClick={() => void handleSaveWorkingCalendar()}
+                className={`cursor-pointer rounded-md px-3 py-1.5 text-[12px] font-medium disabled:cursor-not-allowed ${
+                  workingCalendarDirty && !savingWorkingCalendar
+                    ? "bg-primary text-primary-foreground hover:opacity-90"
+                    : "bg-surface-alt text-muted-foreground"
+                }`}
               >
-                Calendar
+                {savingWorkingCalendar ? "Saving…" : "Save"}
               </button>
             }
           >
@@ -467,7 +610,7 @@ export function Settings() {
                 required
                 step={0.1}
                 min={0.1}
-                max={24}
+                max={15}
                 maxIntDigits={2}
                 maxFracDigits={1}
                 onChange={(v) => patchSettings({ workingHoursPerDay: v })}
@@ -507,20 +650,32 @@ export function Settings() {
               </div>
               <button
                 type="button"
-                disabled={!workingCalendarDirty || savingWorkingCalendar}
-                onClick={() => void handleSaveWorkingCalendar()}
-                className={`shrink-0 cursor-pointer rounded-md px-3 py-1.5 text-[12px] font-medium disabled:cursor-not-allowed ${
-                  workingCalendarDirty && !savingWorkingCalendar
-                    ? "bg-primary text-primary-foreground hover:opacity-90"
-                    : "bg-surface-alt text-muted-foreground"
-                }`}
+                onClick={() => setCalendarOpen(true)}
+                className="shrink-0 cursor-pointer rounded-md border border-accent-line bg-accent-soft px-3 py-1.5 text-[12px] font-medium text-primary hover:bg-accent-soft/80"
               >
-                {savingWorkingCalendar ? "Saving…" : "Save"}
+                Calendar
               </button>
             </div>
           </Card>
 
-          <Card title="Date Format" desc="How dates are shown across tables, forms, reports, calendars, and exports.">
+          <Card
+            title="Date Format"
+            desc="How dates are shown across tables, forms, reports, calendars, and exports."
+            action={
+              <button
+                type="button"
+                disabled={!dateFormatDirty || savingDateFormat}
+                onClick={() => void handleSaveDateFormat()}
+                className={`shrink-0 cursor-pointer rounded-md px-3 py-1.5 text-[12px] font-medium disabled:cursor-not-allowed ${
+                  dateFormatDirty && !savingDateFormat
+                    ? "bg-primary text-primary-foreground hover:opacity-90"
+                    : "bg-surface-alt text-muted-foreground"
+                }`}
+              >
+                {savingDateFormat ? "Saving…" : "Save"}
+              </button>
+            }
+          >
             <div className="max-w-xs">
               <label className="mb-1.5 block text-[12px] font-medium text-foreground">
                 Display format <span className="text-danger">*</span>
@@ -541,20 +696,6 @@ export function Settings() {
               <div className="mt-2 text-[11px] text-muted-foreground">
                 Example: {formatAppDateTime(`${tomorrowISO()}T15:45:00`, dateFormatValue)}
               </div>
-            </div>
-            <div className="flex justify-end">
-              <button
-                type="button"
-                disabled={!dateFormatDirty || savingDateFormat}
-                onClick={() => void handleSaveDateFormat()}
-                className={`cursor-pointer rounded-md px-3 py-1.5 text-[12px] font-medium disabled:cursor-not-allowed ${
-                  dateFormatDirty && !savingDateFormat
-                    ? "bg-primary text-primary-foreground hover:opacity-90"
-                    : "bg-surface-alt text-muted-foreground"
-                }`}
-              >
-                {savingDateFormat ? "Saving…" : "Save"}
-              </button>
             </div>
           </Card>
 
@@ -596,11 +737,23 @@ export function Settings() {
         </aside>
       </div>
 
-      {confirmOpen && (
+      {confirmOpen &&
+        reviewSection &&
+        committedBands &&
+        committedMetricBands &&
+        committedCapacityBasis != null &&
+        committedOverallocationLimit != null && (
         <ImpactModal
+          section={reviewSection}
           draft={s}
           committedBands={committedBands}
-          onClose={() => setConfirmOpen(false)}
+          committedMetricBands={committedMetricBands}
+          committedCapacityBasis={committedCapacityBasis}
+          committedOverallocationLimit={committedOverallocationLimit}
+          onClose={() => {
+            setConfirmOpen(false);
+            setReviewSection(null);
+          }}
           onSave={(when, scheduledDate) => {
             void handleSave(when, scheduledDate);
           }}
@@ -629,55 +782,6 @@ export function Settings() {
           if (pendingCancelScheduleId) void handleCancelSchedule(pendingCancelScheduleId);
         }}
       />
-      {resetConfirmOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-          <div
-            className="absolute inset-0 bg-brand/50"
-            onClick={() => setResetConfirmOpen(false)}
-            aria-hidden
-          />
-          <div
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="settings-reset-title"
-            aria-describedby="settings-reset-desc"
-            className="relative z-10 w-full max-w-[360px] rounded-xl bg-surface p-5 text-center shadow-2xl"
-          >
-            <div className="flex justify-center">
-              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-warning-soft">
-                <AlertTriangle className="h-5 w-5 text-warning" />
-              </div>
-            </div>
-            <div id="settings-reset-title" className="mt-3 text-[15px] font-semibold text-foreground">
-              Reset System Parameters?
-            </div>
-            <div id="settings-reset-desc" className="mt-1.5 text-[13px] text-muted-foreground">
-              Unsaved changes will be discarded and values will reload from the server.
-            </div>
-            <div className="mt-5 flex gap-2">
-              <button
-                type="button"
-                onClick={() => setResetConfirmOpen(false)}
-                className="flex-1 cursor-pointer rounded-md border border-border py-2 text-[13px] text-foreground hover:bg-surface-alt"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setResetConfirmOpen(false);
-                  void refresh();
-                  setDirty(false);
-                  setSaveError("");
-                }}
-                className="flex-1 cursor-pointer rounded-md bg-primary py-2 text-[13px] font-medium text-primary-foreground hover:opacity-90"
-              >
-                Reset
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }
@@ -688,14 +792,22 @@ function formatScheduleDate(iso: string, pattern: DateFormatPattern) {
 }
 
 function ImpactModal({
+  section,
   draft,
   committedBands,
+  committedMetricBands,
+  committedCapacityBasis,
+  committedOverallocationLimit,
   onClose,
   onSave,
   saving,
 }: {
+  section: ReviewSection;
   draft: SettingsState;
   committedBands: SettingsState["bands"];
+  committedMetricBands: SettingsState["metricBands"];
+  committedCapacityBasis: SettingsState["capacityBasis"];
+  committedOverallocationLimit: number;
   onClose: () => void;
   onSave: (when: "now" | "future", scheduledDate: string) => void;
   saving?: boolean;
@@ -704,63 +816,135 @@ function ImpactModal({
   const [scheduledDate, setScheduledDate] = useState(tomorrowISO());
   const [impactRows, setImpactRows] = useState<ImpactRow[]>([]);
   const [impactSummary, setImpactSummary] = useState("Calculating impact…");
-  const [impactLoading, setImpactLoading] = useState(true);
+  const [impactLoading, setImpactLoading] = useState(section === "utilization");
+  const [changeLines, setChangeLines] = useState<string[]>([]);
   const focusRef = useFocusFirstField<HTMLDivElement>(when === "future");
   const minDate = tomorrowISO();
 
+  const sectionTitle =
+    section === "utilization"
+      ? "Utilization bands"
+      : section === "planning"
+        ? "Planning & confirmation bands"
+        : section === "capacity"
+          ? "Capacity basis"
+          : "Overallocation guardrail";
+
   useEffect(() => {
-    let cancelled = false;
-    setImpactLoading(true);
-    void (async () => {
-      try {
-        // Same week window as Utilization: Mon–Fri overlap, not a single day
-        // (from=to=Monday drops allocations that only cover Tue–Fri).
-        const weekStart = mondayISO();
-        const weekEnd = addDaysISO(weekStart, 4);
-        const offDays = draft.companyOffDays.map((d) => d.date.slice(0, 10));
-        const [employees, allocations] = await Promise.all([
-          fetchEmployees(),
-          fetchAllocations({ from: weekStart, to: weekEnd }),
-        ]);
-        if (cancelled) return;
-        const weekCapacity =
-          weekCapacityHours(weekStart, {
-            workingDays: draft.workingDays,
-            companyOffDays: offDays,
-            workingHoursPerDay: draft.workingHoursPerDay,
-          }) ||
-          Math.round(draft.workingHoursPerDay * draft.workingDays.length) ||
-          40;
-        const rows = buildUtilRowsFromEmployees(
-          employees,
-          weekCapacity,
-          allocations,
-          offDays
-        );
-        const impact = computeSettingsBandImpact(
-          rows.map((r) => r.pct),
-          committedBands,
-          draft.bands
-        );
-        setImpactRows(impact.rows);
-        setImpactSummary(impact.summary);
-      } catch {
-        if (!cancelled) {
-          setImpactRows([]);
-          setImpactSummary(
-            "Could not load live utilization — band impact could not be calculated. You can still save."
+    if (section === "utilization") {
+      let cancelled = false;
+      setImpactLoading(true);
+      void (async () => {
+        try {
+          const weekStart = mondayISO();
+          const weekEnd = addDaysISO(weekStart, 6);
+          const offDays = draft.companyOffDays.map((d) => d.date.slice(0, 10));
+          const [employees, allocations] = await Promise.all([
+            fetchEmployees(),
+            fetchAllocations({ from: weekStart, to: weekEnd }),
+          ]);
+          if (cancelled) return;
+          const weekCapacity =
+            weekCapacityHours(weekStart, {
+              workingDays: draft.workingDays,
+              companyOffDays: offDays,
+              workingHoursPerDay: draft.workingHoursPerDay,
+            }) ||
+            Math.round(draft.workingHoursPerDay * draft.workingDays.length) ||
+            40;
+          const rows = buildUtilRowsFromEmployees(
+            employees,
+            weekCapacity,
+            allocations,
+            offDays
           );
+          const impact = computeSettingsBandImpact(
+            rows.map((r) => r.pct),
+            committedBands,
+            draft.bands
+          );
+          setImpactRows(impact.rows);
+          setImpactSummary(impact.summary);
+          const lines: string[] = [];
+          if (committedBands.idleBelow !== draft.bands.idleBelow) {
+            lines.push(`Idle below ${committedBands.idleBelow}% → ${draft.bands.idleBelow}%`);
+          }
+          if (committedBands.optimalTo !== draft.bands.optimalTo) {
+            lines.push(`Optimal up to ${committedBands.optimalTo}% → ${draft.bands.optimalTo}%`);
+          }
+          setChangeLines(lines);
+        } catch {
+          if (!cancelled) {
+            setImpactRows([]);
+            setImpactSummary(
+              "Could not load live utilization — band impact could not be calculated. You can still save."
+            );
+            setChangeLines([
+              `Idle below ${committedBands.idleBelow}% → ${draft.bands.idleBelow}%`,
+              `Optimal up to ${committedBands.optimalTo}% → ${draft.bands.optimalTo}%`,
+            ]);
+          }
+        } finally {
+          if (!cancelled) setImpactLoading(false);
         }
-      } finally {
-        if (!cancelled) setImpactLoading(false);
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setImpactLoading(false);
+    setImpactRows([]);
+    if (section === "planning") {
+      const lines: string[] = [];
+      if (committedMetricBands.excellent !== draft.metricBands.excellent) {
+        lines.push(
+          `Excellent from ${committedMetricBands.excellent}% → ${draft.metricBands.excellent}%`
+        );
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
+      if (committedMetricBands.good !== draft.metricBands.good) {
+        lines.push(`Good from ${committedMetricBands.good}% → ${draft.metricBands.good}%`);
+      }
+      if (committedMetricBands.needsAttention !== draft.metricBands.needsAttention) {
+        lines.push(
+          `Needs attention from ${committedMetricBands.needsAttention}% → ${draft.metricBands.needsAttention}%`
+        );
+      }
+      setChangeLines(lines);
+      setImpactSummary(
+        lines.length
+          ? "These thresholds update status chips on the Resource Deployment Report. Historical chips keep their original labels when you schedule for later."
+          : "No planning-band values changed."
+      );
+      return;
+    }
+    if (section === "capacity") {
+      const before =
+        committedCapacityBasis === "billable" ? "Billable / project-eligible" : "Total hours";
+      const after =
+        draft.capacityBasis === "billable" ? "Billable / project-eligible" : "Total hours";
+      setChangeLines([`Capacity basis ${before} → ${after}`]);
+      setImpactSummary(
+        "Utilization & dashboards will measure against the new capacity basis. Past periods keep their original classification basis when scheduled for later."
+      );
+      return;
+    }
+    setChangeLines([
+      `Overallocation limit ${committedOverallocationLimit}% → ${draft.overallocationLimit}%`,
+    ]);
+    setImpactSummary(
+      `Planner saves warn between 100% and ${draft.overallocationLimit}%, and block above ${draft.overallocationLimit}%. Existing allocations are not changed by this save.`
+    );
   }, [
+    section,
     committedBands,
+    committedMetricBands,
+    committedCapacityBasis,
+    committedOverallocationLimit,
     draft.bands,
+    draft.metricBands,
+    draft.capacityBasis,
+    draft.overallocationLimit,
     draft.companyOffDays,
     draft.workingDays,
     draft.workingHoursPerDay,
@@ -771,7 +955,10 @@ function ImpactModal({
       <div onClick={onClose} className="absolute inset-0 bg-brand/40" />
       <div ref={focusRef} className="relative z-10 flex w-full max-w-[540px] flex-col overflow-hidden rounded-xl bg-surface shadow-2xl">
         <div className="flex flex-shrink-0 items-center justify-between border-b border-border-soft px-5 py-4">
-          <div className="text-[15px] font-semibold text-foreground">Review impact before saving</div>
+          <div>
+            <div className="text-[15px] font-semibold text-foreground">Review impact before saving</div>
+            <div className="mt-0.5 text-[12px] text-muted-foreground">{sectionTitle}</div>
+          </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
         </div>
 
@@ -783,20 +970,38 @@ function ImpactModal({
             </div>
           </div>
 
-          <div>
-            <div className="mb-2 text-[12px] font-semibold text-foreground">People per band</div>
-            <div className="overflow-hidden rounded-md border border-border-soft">
-              {impactLoading ? (
-                <div className="py-4 text-center text-[12px] text-muted-foreground">Loading live utilization…</div>
-              ) : impactRows.length === 0 ? (
-                <div className="py-4 text-center text-[12px] text-muted-foreground">
-                  No band-shift preview available
-                </div>
-              ) : (
-                impactRows.map((r) => <ImpactRowView key={r.band} r={r} />)
-              )}
+          {changeLines.length > 0 && (
+            <div>
+              <div className="mb-2 text-[12px] font-semibold text-foreground">Values in this card</div>
+              <ul className="overflow-hidden rounded-md border border-border-soft">
+                {changeLines.map((line) => (
+                  <li
+                    key={line}
+                    className="border-b border-border-soft px-3 py-2 text-[12px] text-foreground last:border-b-0"
+                  >
+                    {line}
+                  </li>
+                ))}
+              </ul>
             </div>
-          </div>
+          )}
+
+          {section === "utilization" && (
+            <div>
+              <div className="mb-2 text-[12px] font-semibold text-foreground">People per band</div>
+              <div className="overflow-hidden rounded-md border border-border-soft">
+                {impactLoading ? (
+                  <div className="py-4 text-center text-[12px] text-muted-foreground">Loading live utilization…</div>
+                ) : impactRows.length === 0 ? (
+                  <div className="py-4 text-center text-[12px] text-muted-foreground">
+                    No band-shift preview available
+                  </div>
+                ) : (
+                  impactRows.map((r) => <ImpactRowView key={r.band} r={r} />)
+                )}
+              </div>
+            </div>
+          )}
 
           <div>
             <div className="mb-2 text-[12px] font-semibold text-foreground">When should this take effect?</div>
@@ -929,10 +1134,10 @@ function CompanyCalendarModal({
           </button>
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-4">
-          <div>
-            <div className="mb-2 text-[12px] font-semibold text-foreground">Off days</div>
-            <div className="overflow-hidden rounded-md border border-border-soft">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden px-5 py-4">
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="mb-2 flex-shrink-0 text-[12px] font-semibold text-foreground">Off days</div>
+            <div className="min-h-[14rem] flex-1 overflow-y-auto rounded-md border border-border-soft">
               {sorted.length === 0 ? (
                 <div className="px-4 py-8 text-center text-[12px] text-muted-foreground">
                   No company off days entered yet.
@@ -953,7 +1158,7 @@ function CompanyCalendarModal({
                       type="button"
                       disabled={saving}
                       onClick={() => setPendingRemoveId(day.id)}
-                      className="flex-shrink-0 text-[11px] text-muted-foreground hover:text-danger hover:underline disabled:opacity-50"
+                      className="flex-shrink-0 cursor-pointer text-[11px] text-muted-foreground hover:text-danger hover:underline disabled:opacity-50"
                     >
                       Remove
                     </button>
@@ -963,48 +1168,52 @@ function CompanyCalendarModal({
             </div>
           </div>
 
-          <div className="rounded-md border border-border-soft bg-surface-alt px-3.5 py-3">
+          <div className="flex-shrink-0 rounded-md border border-border-soft bg-surface-alt px-3.5 py-3">
             <div className="mb-2.5 text-[12px] font-semibold text-foreground">Add off day</div>
             <div className="flex flex-col gap-2.5">
-              <div>
-                <label className="mb-1.5 block text-[11px] font-medium text-foreground">
-                  Date <span className="text-danger">*</span>
-                </label>
-                <input
-                  type="date"
-                  value={date}
-                  min={minOffDayDate}
-                  disabled={saving}
-                  onChange={(e) => {
-                    const next = e.target.value;
-                    if (next && next < minOffDayDate) {
-                      setError("Past dates cannot be added as holidays.");
-                      return;
-                    }
-                    setDate(next);
-                    setError("");
-                  }}
-                  className="w-full cursor-pointer rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line [color-scheme:light] disabled:cursor-not-allowed disabled:opacity-50"
-                />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-[11px] font-medium text-foreground">
-                  Label <span className="text-danger">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={label}
-                  maxLength={OFF_DAY_LABEL_MAX}
-                  disabled={saving}
-                  onChange={(e) => {
-                    setLabel(e.target.value.slice(0, OFF_DAY_LABEL_MAX));
-                    setError("");
-                  }}
-                  placeholder="e.g. Company holiday"
-                  className="w-full rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line placeholder:text-muted-foreground disabled:opacity-50"
-                />
-                <div className="mt-1 text-right text-[10px] text-muted-foreground">
-                  {label.length}/{OFF_DAY_LABEL_MAX}
+              <div className="flex flex-col gap-2.5 sm:flex-row sm:items-end sm:gap-3">
+                <div className="w-full flex-shrink-0 sm:w-[10.5rem]">
+                  <label className="mb-1.5 block text-[11px] font-medium text-foreground">
+                    Date <span className="text-danger">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={date}
+                    min={minOffDayDate}
+                    disabled={saving}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      if (next && next < minOffDayDate) {
+                        setError("Past dates cannot be added as holidays.");
+                        return;
+                      }
+                      setDate(next);
+                      setError("");
+                    }}
+                    className="w-full cursor-pointer rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line [color-scheme:light] disabled:cursor-not-allowed disabled:opacity-50"
+                  />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="mb-1.5 flex items-center justify-between gap-2">
+                    <label className="text-[11px] font-medium text-foreground">
+                      Label <span className="text-danger">*</span>
+                    </label>
+                    <span className="text-[10px] text-muted-foreground tabular-nums">
+                      {label.length}/{OFF_DAY_LABEL_MAX}
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    value={label}
+                    maxLength={OFF_DAY_LABEL_MAX}
+                    disabled={saving}
+                    onChange={(e) => {
+                      setLabel(e.target.value.slice(0, OFF_DAY_LABEL_MAX));
+                      setError("");
+                    }}
+                    placeholder="e.g. Company holiday"
+                    className="w-full rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line placeholder:text-muted-foreground disabled:opacity-50"
+                  />
                 </div>
               </div>
               {(error || persistError) && (
@@ -1014,7 +1223,7 @@ function CompanyCalendarModal({
                 type="button"
                 disabled={saving}
                 onClick={addOffDay}
-                className="self-start rounded-md bg-primary px-3.5 py-2 text-[12px] font-medium text-primary-foreground disabled:opacity-50"
+                className="self-start cursor-pointer rounded-md bg-primary px-3.5 py-2 text-[12px] font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {saving ? "Saving…" : "Add off day"}
               </button>
@@ -1146,11 +1355,11 @@ function Card({
   return (
     <div className="rounded-lg border border-border bg-surface px-4 py-4">
       <div className="flex items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <div className="text-[13px] font-semibold text-foreground">{title}</div>
           <div className="mt-0.5 text-[12px] leading-snug text-muted-foreground">{desc}</div>
         </div>
-        {action}
+        {action ? <div className="flex shrink-0 items-center gap-2">{action}</div> : null}
       </div>
       <div className="mt-3.5 flex flex-col gap-3">{children}</div>
     </div>

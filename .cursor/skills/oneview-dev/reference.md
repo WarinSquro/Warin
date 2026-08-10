@@ -86,6 +86,7 @@ Redirects: `/dashboard`, `/exec-dashboard` → `/cockpit`.
 ## Components worth preserving
 
 - `AppShell`, `AuthLayout`, `ProtectedRoute`, `ProductLogo`
+- Truncate hover: `TruncateHoverTitles` (app-wide), `TruncateText` — `docs/ui-truncate-tooltips.md`
 - Report helpers: `ReportColumnPicker`, `ReportPagination`, `SortColHeader`, `FilterMultiSelect`
 - Cockpit widgets under `components/Cockpit*`
 - Weekly check-in widgets under `components/WeeklyCheckIn*`

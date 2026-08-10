@@ -176,7 +176,7 @@ export function buildAvailableResourcesFromLive(
     const freeHours = Math.max(0, Math.round((windowCapacity - hours) * 10) / 10);
     if (freeHours < hoursPerDay) continue;
 
-    const thisWeekEnd = addDaysISO(mondayISO(new Date(`${windowFrom}T12:00:00`)), 4);
+    const thisWeekEnd = addDaysISO(mondayISO(new Date(`${windowFrom}T12:00:00`)), 6);
     const thisWeekBooked =
       bookedHoursInRange(allocations, windowFrom, thisWeekEnd).get(e.id)?.hours ?? 0;
     const thisWeekCap = Math.min(

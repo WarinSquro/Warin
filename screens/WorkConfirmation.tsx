@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Check, Plus, X, CheckCircle2, Bell } from "lucide-react";
 import { formatAppDate, formatAppDateTime } from "../utils/formatAppDate";
 import { useAppDateFormat } from "../hooks/useAppDateFormat";
-import { useSharedDataSync } from "../hooks/useSharedDataSync";
+import { useSharedDataSync, usePauseSharedDataSync } from "../hooks/useSharedDataSync";
 import {
   DEVIATION_REASONS,
   MISS_POSTING_REASONS,
@@ -497,6 +497,7 @@ function EmployeeConfirm() {
   }, [loadMyDay]);
 
   useSharedDataSync(submitted, loadMyDay, { resources: ["confirmations"] });
+  usePauseSharedDataSync(!submitted);
 
   /** Reload today's plan lines while staying in edit mode (never bounce to submitted view). */
   const loadTodayPlanForEdit = async () => {
@@ -1283,7 +1284,7 @@ function ManagerCompliance() {
               onSort={handleComplianceSort}
               className="flex-1"
             />
-            <div className="flex w-[120px] justify-between px-1">
+            <div className="grid w-[120px] grid-cols-5 place-items-center">
               {days.map((d, i) => (
                 <span key={i} className={i === todayIndex ? "text-foreground" : ""}>
                   {d}
@@ -1371,7 +1372,7 @@ function ComplianceRowView({
           <div className={`text-[10px] ${todayLabelClass(todayStatus)}`}>{row.todayLabel}</div>
         </div>
       </div>
-      <div className="flex w-[120px] justify-between px-1">
+      <div className="grid w-[120px] grid-cols-5 place-items-center">
         {row.week.map((s, i) => (
           <span
             key={i}

@@ -16,6 +16,7 @@ import type { ProjectType, MilestoneKind } from "../data/projects";
 import { MilestoneKindPicker } from "../components/MilestoneKindPicker";
 import { useMasters } from "../context/MastersContext";
 import { useToast } from "../context/ToastContext";
+import { usePauseSharedDataSync } from "../hooks/useSharedDataSync";
 import { matchesSearchQuery } from "../utils/textSearch";
 import {
   createActivity,
@@ -122,13 +123,11 @@ type SkillCategoryOption = { id: string; name: string };
 function SkillDrawer({
   skill,
   saving,
-  error,
   onClose,
   onSave,
 }: {
   skill: Skill | null;
   saving?: boolean;
-  error?: string | null;
   onClose: () => void;
   onSave: (payload: { name: string; categoryId: string }) => void;
 }) {
@@ -140,7 +139,6 @@ function SkillDrawer({
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [newCategory, setNewCategory] = useState("");
   const [addingCategory, setAddingCategory] = useState(false);
-  const [categoryError, setCategoryError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -175,7 +173,6 @@ function SkillDrawer({
   const addCategory = async () => {
     const v = newCategory.trim();
     if (!v) return;
-    setCategoryError(null);
     try {
       const created = await createSkillCategory(v);
       const opt = { id: String(created.id), name: created.name };
@@ -187,7 +184,7 @@ function SkillDrawer({
       setAddingCategory(false);
       toast.created();
     } catch (err) {
-      setCategoryError(err instanceof Error ? err.message : "Failed to add category");
+      toast.error(err instanceof Error ? err.message : "Failed to add category");
     }
   };
 
@@ -271,9 +268,7 @@ function SkillDrawer({
                 + Add Category
               </button>
             )}
-            {categoryError && <div className="mt-1 text-[12px] text-danger">{categoryError}</div>}
           </Field>
-          {error && <div className="text-[12px] text-danger">{error}</div>}
         </div>
         <div className="flex flex-shrink-0 gap-2 border-t border-border-soft px-5 py-3.5">
           <button
@@ -302,13 +297,11 @@ function SkillDrawer({
 function DeptDrawer({
   dept,
   saving,
-  error,
   onClose,
   onSave,
 }: {
   dept: Department | null;
   saving?: boolean;
-  error?: string | null;
   onClose: () => void;
   onSave: (name: string) => void;
 }) {
@@ -342,7 +335,6 @@ function DeptDrawer({
               placeholder="e.g. Engineering"
             />
           </Field>
-          {error && <div className="text-[12px] text-danger">{error}</div>}
         </div>
         <div className="flex flex-shrink-0 gap-2 border-t border-border-soft px-5 py-3.5">
           <button
@@ -374,7 +366,6 @@ function ActivityDrawer({
   activity,
   milestones,
   saving,
-  error,
   onClose,
   onSave,
   onCreateMilestone,
@@ -382,7 +373,6 @@ function ActivityDrawer({
   activity: Activity | null;
   milestones: ActivityMilestone[];
   saving?: boolean;
-  error?: string | null;
   onClose: () => void;
   onSave: (payload: { name: string; billable: boolean; milestoneId: string }) => void;
   onCreateMilestone: (payload: {
@@ -391,6 +381,7 @@ function ActivityDrawer({
     kind: MilestoneKind;
   }) => Promise<ActivityMilestone>;
 }) {
+  const toast = useToast();
   const isEdit = !!activity;
   const [name, setName] = useState(activity?.name ?? "");
   const [milestoneId, setMilestoneId] = useState(activity?.milestoneId ?? milestones[0]?.id ?? "");
@@ -400,21 +391,18 @@ function ActivityDrawer({
   const [newMilestoneKind, setNewMilestoneKind] = useState<MilestoneKind | "">("");
   const [newMilestoneType, setNewMilestoneType] = useState<ProjectType>("paid");
   const [milestoneSaving, setMilestoneSaving] = useState(false);
-  const [milestoneError, setMilestoneError] = useState<string | null>(null);
 
   const cancelAddMilestone = () => {
     setAddingMilestone(false);
     setNewMilestoneName("");
     setNewMilestoneKind("");
     setNewMilestoneType("paid");
-    setMilestoneError(null);
   };
 
   const addMilestone = async () => {
     const label = newMilestoneName.trim();
     if (!label || !newMilestoneKind || milestoneSaving) return;
     setMilestoneSaving(true);
-    setMilestoneError(null);
     try {
       const created = await onCreateMilestone({
         name: label,
@@ -424,7 +412,7 @@ function ActivityDrawer({
       setMilestoneId(created.id);
       cancelAddMilestone();
     } catch (err) {
-      setMilestoneError(err instanceof Error ? err.message : "Failed to add milestone");
+      toast.error(err instanceof Error ? err.message : "Failed to add milestone");
     } finally {
       setMilestoneSaving(false);
     }
@@ -537,7 +525,6 @@ function ActivityDrawer({
                     <option value="poc">POC</option>
                     <option value="product">Product</option>
                   </select>
-                  {milestoneError && <div className="text-[12px] text-danger">{milestoneError}</div>}
                   <div className="flex gap-2">
                     <button
                       onClick={() => void addMilestone()}
@@ -565,7 +552,6 @@ function ActivityDrawer({
               )}
             </Field>
           </div>
-          {error && <div className="text-[12px] text-danger">{error}</div>}
         </div>
         <div className="flex flex-shrink-0 gap-2 border-t border-border-soft px-5 py-3.5">
           <button
@@ -1002,7 +988,6 @@ export function SetupMasters() {
   } = useMasters();
 
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
 
   // departments state
   const [editingDept, setEditingDept] = useState<Department | null>(null);
@@ -1016,62 +1001,72 @@ export function SetupMasters() {
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
   const [activityDrawer, setActivityDrawer] = useState(false);
 
+  usePauseSharedDataSync(deptDrawer || skillDrawer || activityDrawer);
+
   const toggleDept = async (id: string) => {
     const row = depts.find((d) => d.id === id);
     if (!row) return;
     const next: SetupStatus = row.status === "active" ? "inactive" : "active";
+    if (next === "inactive" && row.memberCount > 0) {
+      toast.error("Department is mapped to one or more employees and cannot be disabled.");
+      return;
+    }
     try {
       await updateDepartment(id, { status: next });
       await refresh();
       toast.updated();
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : "Failed to update department");
+      toast.error(err instanceof Error ? err.message : "Failed to update department");
     }
   };
   const toggleSkill = async (id: string) => {
     const row = skills.find((s) => s.id === id);
     if (!row) return;
     const next: SetupStatus = row.status === "active" ? "inactive" : "active";
+    if (next === "inactive" && row.peopleCount > 0) {
+      toast.error("Skill is mapped to one or more employees and cannot be disabled.");
+      return;
+    }
     try {
       await updateSkill(id, { status: next });
       await refresh();
       toast.updated();
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : "Failed to update skill");
+      toast.error(err instanceof Error ? err.message : "Failed to update skill");
     }
   };
   const toggleActivity = async (id: string) => {
     const row = activities.find((a) => a.id === id);
     if (!row) return;
     const next: SetupStatus = row.status === "active" ? "inactive" : "active";
+    if (next === "inactive" && (row.projectCount ?? 0) > 0) {
+      toast.error("Activity is mapped to one or more projects and cannot be disabled.");
+      return;
+    }
     try {
       await updateActivity(id, { status: next });
       await refresh();
       toast.updated();
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : "Failed to update activity");
+      toast.error(err instanceof Error ? err.message : "Failed to update activity");
     }
   };
 
   const openNewDept = () => {
-    setSaveError(null);
     setEditingDept(null);
     setDeptDrawer(true);
   };
   const openNewSkill = () => {
-    setSaveError(null);
     setEditingSkill(null);
     setSkillDrawer(true);
   };
   const openNewActivity = () => {
-    setSaveError(null);
     setEditingActivity(null);
     setActivityDrawer(true);
   };
 
   const saveDept = async (name: string) => {
     setSaving(true);
-    setSaveError(null);
     try {
       if (editingDept) {
         await updateDepartment(editingDept.id, { name });
@@ -1085,7 +1080,7 @@ export function SetupMasters() {
         toast.created();
       }
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : "Failed to save department");
+      toast.error(err instanceof Error ? err.message : "Failed to save department");
     } finally {
       setSaving(false);
     }
@@ -1093,7 +1088,6 @@ export function SetupMasters() {
 
   const saveSkill = async (payload: { name: string; categoryId: string }) => {
     setSaving(true);
-    setSaveError(null);
     try {
       if (editingSkill) {
         await updateSkill(editingSkill.id, payload);
@@ -1107,7 +1101,7 @@ export function SetupMasters() {
         toast.created();
       }
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : "Failed to save skill");
+      toast.error(err instanceof Error ? err.message : "Failed to save skill");
     } finally {
       setSaving(false);
     }
@@ -1119,7 +1113,6 @@ export function SetupMasters() {
     milestoneId: string;
   }) => {
     setSaving(true);
-    setSaveError(null);
     try {
       if (editingActivity) {
         await updateActivity(editingActivity.id, {
@@ -1141,7 +1134,7 @@ export function SetupMasters() {
         toast.created();
       }
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : "Failed to save activity");
+      toast.error(err instanceof Error ? err.message : "Failed to save activity");
     } finally {
       setSaving(false);
     }
@@ -1228,12 +1221,6 @@ export function SetupMasters() {
           ))}
         </div>
 
-        {saveError && !deptDrawer && !skillDrawer && !activityDrawer && (
-          <div className="flex-shrink-0 rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-[12px] text-danger">
-            {saveError}
-          </div>
-        )}
-
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-surface">
           {/* toolbar */}
           <div className="flex flex-shrink-0 items-center justify-between border-b border-border-soft px-4 py-2.5">
@@ -1262,7 +1249,7 @@ export function SetupMasters() {
               tab={tab}
               q={q}
               rows={depts}
-              onEdit={(d) => { setSaveError(null); setEditingDept(d); setDeptDrawer(true); }}
+              onEdit={(d) => { setEditingDept(d); setDeptDrawer(true); }}
               onToggle={toggleDept}
             />
           )}
@@ -1271,7 +1258,7 @@ export function SetupMasters() {
               tab={tab}
               q={q}
               rows={skills}
-              onEdit={(s) => { setSaveError(null); setEditingSkill(s); setSkillDrawer(true); }}
+              onEdit={(s) => { setEditingSkill(s); setSkillDrawer(true); }}
               onToggle={toggleSkill}
             />
           )}
@@ -1281,7 +1268,7 @@ export function SetupMasters() {
               q={q}
               rows={activities}
               milestones={activityMilestones}
-              onEdit={(a) => { setSaveError(null); setEditingActivity(a); setActivityDrawer(true); }}
+              onEdit={(a) => { setEditingActivity(a); setActivityDrawer(true); }}
               onToggle={toggleActivity}
             />
           )}
@@ -1302,7 +1289,6 @@ export function SetupMasters() {
         <DeptDrawer
           dept={editingDept}
           saving={saving}
-          error={saveError}
           onClose={() => setDeptDrawer(false)}
           onSave={(name) => void saveDept(name)}
         />
@@ -1311,7 +1297,6 @@ export function SetupMasters() {
         <SkillDrawer
           skill={editingSkill}
           saving={saving}
-          error={saveError}
           onClose={() => setSkillDrawer(false)}
           onSave={(payload) => void saveSkill(payload)}
         />
@@ -1321,7 +1306,6 @@ export function SetupMasters() {
           activity={editingActivity}
           milestones={activityMilestones}
           saving={saving}
-          error={saveError}
           onClose={() => setActivityDrawer(false)}
           onSave={(payload) => void saveActivity(payload)}
           onCreateMilestone={handleCreateMilestone}

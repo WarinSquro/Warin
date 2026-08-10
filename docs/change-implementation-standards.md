@@ -148,7 +148,7 @@ Every new or modified screen must:
 
 - Follow the existing application theme (`docs/theme.md`, brand tokens).
 - Maintain consistent spacing and alignment.
-- Be responsive; no overlapping controls; no truncated text.
+- Be responsive; no overlapping controls; truncated text must expose the full value on hover (see `docs/ui-truncate-tooltips.md`).
 - No vertical text unless explicitly required.
 - Proper loading, empty, error, and success states.
 - Keyboard navigation and correct tab order.

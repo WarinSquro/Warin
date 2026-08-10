@@ -482,10 +482,10 @@ export function getDefaultReviewWeekStart(): string {
   return addWeeks(getCurrentWeekStart(), -1);
 }
 
-/** Current week (T) plus the previous four weeks (T-1 … T-4). No future weeks. */
+/** Previous five weeks only (T-5 … T-1). Current week is excluded from review. */
 export function getReviewWeekStarts(): string[] {
   const current = getCurrentWeekStart();
-  return [-4, -3, -2, -1, 0].map((n) => addWeeks(current, n));
+  return [-5, -4, -3, -2, -1].map((n) => addWeeks(current, n));
 }
 
 /** Prefer URL week when it is in the review window; otherwise previous week. */

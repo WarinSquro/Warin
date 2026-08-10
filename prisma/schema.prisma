@@ -235,7 +235,7 @@ model ActivityMilestone {
 model Activity {
   id                  BigInt      @id @default(autoincrement())
   code                String      @unique
-  name                String
+  name                String      @unique
   activityMilestoneId BigInt      @map("activity_milestone_id")
   billable            Boolean     @default(true)
   status              SetupStatus @default(active)
@@ -675,7 +675,7 @@ model WeeklyCheckInCompetency {
   departmentId BigInt         @map("department_id")
   kind         CompetencyKind
   label        String
-  remark       String         @default("")
+  remark       String         @default("") 
   sequence     Int
   isActive     Boolean        @default(true) @map("is_active")
   isDeleted    Boolean        @default(false) @map("is_deleted")

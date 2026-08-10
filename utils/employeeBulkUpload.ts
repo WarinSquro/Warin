@@ -53,7 +53,8 @@ function findColumnKey(headerKeys: string[], aliases: string[]): string | undefi
 
 export async function parseEmployeeWorkbook(
   file: File,
-  activeDepartmentNames: string[]
+  activeDepartmentNames: string[],
+  existingEmployees: { hrmsId: string; email: string }[] = []
 ): Promise<ParsedEmployeeWorkbook> {
   if (!isAcceptedUploadFile(file)) {
     return { rows: [], fileError: "Unsupported file type. Upload a .xlsx, .xls, or .csv file." };
@@ -135,6 +136,43 @@ export async function parseEmployeeWorkbook(
     }
   }
 
+  const emailCounts = new Map<string, number>();
+  for (const r of rows) {
+    const key = r.email.trim().toLowerCase();
+    if (!key) continue;
+    emailCounts.set(key, (emailCounts.get(key) ?? 0) + 1);
+  }
+  for (const r of rows) {
+    const key = r.email.trim().toLowerCase();
+    if (key && (emailCounts.get(key) ?? 0) > 1) {
+      r.errors.push("Duplicate Email within file");
+    }
+  }
+
+  const emailOwner = new Map<string, string>();
+  for (const e of existingEmployees) {
+    const key = e.email.trim().toLowerCase();
+    if (!key || !e.hrmsId) continue;
+    emailOwner.set(key, e.hrmsId);
+  }
+  for (const r of rows) {
+    const key = r.email.trim().toLowerCase();
+    if (!key) continue;
+    const ownerId = emailOwner.get(key);
+    if (ownerId && ownerId !== r.hrmsId) {
+      r.errors.push("Email already used by another employee");
+    }
+  }
+
+  const hasFileLevelDupEmail = rows.some((r) => r.errors.includes("Duplicate Email within file"));
+  if (hasFileLevelDupEmail) {
+    return {
+      rows,
+      fileError:
+        "Duplicate Email found in the file. Fix or remove duplicate emails before importing — no employees were uploaded.",
+    };
+  }
+
   return { rows };
 }
 
@@ -153,7 +191,9 @@ export function downloadEmployeeUploadTemplate(): void {
     ["2. Name, Employee ID (HRMS), Email and Department are mandatory for every row."],
     ["3. Department must match an existing active department name exactly (see Setup → Departments)."],
     ["4. Skills is optional — separate multiple skills with a semicolon, e.g. React;Node.js;AWS."],
-    ["5. Rows with errors (missing fields, unknown department, duplicate ID) are skipped — the rest still import."],
+    ["5. Email must be unique within the file and must not belong to a different existing employee."],
+    ["6. Rows with errors (missing fields, unknown department, duplicate ID/Email) are skipped — the rest still import."],
+    ["7. If the file contains duplicate Emails, import is blocked until those duplicates are fixed."],
   ]);
   instructionsSheet["!cols"] = [{ wch: 90 }];
   XLSX.utils.book_append_sheet(wb, instructionsSheet, "Instructions");

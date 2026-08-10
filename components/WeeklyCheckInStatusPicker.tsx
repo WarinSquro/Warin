@@ -19,18 +19,30 @@ export function WeeklyCheckInStatusPicker({
 }: WeeklyCheckInStatusPickerProps) {
   const options: WeeklyStatus[] = ["On Track", "Watch", "Intervention Required"];
   return (
-    <select
-      value={value}
-      disabled={disabled}
-      onChange={(e) => onChange(e.target.value as WeeklyStatus)}
-      className="w-full cursor-pointer rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line disabled:cursor-not-allowed disabled:opacity-60"
+    <div
+      className="flex flex-wrap gap-1.5"
+      role="group"
+      aria-label="Weekly status"
     >
-      {options.map((opt) => (
-        <option key={opt} value={opt}>
-          {opt}
-        </option>
-      ))}
-    </select>
+      {options.map((opt) => {
+        const selected = value === opt;
+        return (
+          <button
+            key={opt}
+            type="button"
+            disabled={disabled}
+            onClick={() => onChange(opt)}
+            className={`cursor-pointer rounded-md border px-2.5 py-1.5 text-[12px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+              selected
+                ? STATUS_STYLES[opt]
+                : "border-border bg-surface text-muted-foreground hover:border-accent-line hover:bg-surface-alt hover:text-foreground"
+            }`}
+          >
+            {opt}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -122,18 +134,26 @@ interface ConfidencePickerProps {
 export function WeeklyConfidencePicker({ value, onChange, disabled }: ConfidencePickerProps) {
   const options = ["High", "Medium", "Low"] as const;
   return (
-    <select
-      value={value}
-      disabled={disabled}
-      onChange={(e) => onChange(e.target.value as "High" | "Medium" | "Low")}
-      className="w-full cursor-pointer rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line disabled:cursor-not-allowed disabled:opacity-60"
-    >
-      {options.map((opt) => (
-        <option key={opt} value={opt}>
-          {opt}
-        </option>
-      ))}
-    </select>
+    <div className="flex flex-wrap gap-1.5" role="group" aria-label="Confidence">
+      {options.map((opt) => {
+        const selected = value === opt;
+        return (
+          <button
+            key={opt}
+            type="button"
+            disabled={disabled}
+            onClick={() => onChange(opt)}
+            className={`cursor-pointer rounded-md border px-2.5 py-1.5 text-[12px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+              selected
+                ? CONFIDENCE_STYLES[opt]
+                : "border-border bg-surface text-muted-foreground hover:border-accent-line hover:bg-surface-alt hover:text-foreground"
+            }`}
+          >
+            {opt}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -146,17 +166,25 @@ interface RecognitionPickerProps {
 export function WeeklyRecognitionPicker({ value, onChange, disabled }: RecognitionPickerProps) {
   const options = ["None", "Appreciate", "Appreciate Publicly"] as const;
   return (
-    <select
-      value={value}
-      disabled={disabled}
-      onChange={(e) => onChange(e.target.value as "None" | "Appreciate" | "Appreciate Publicly")}
-      className="w-full cursor-pointer rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line disabled:cursor-not-allowed disabled:opacity-60"
-    >
-      {options.map((opt) => (
-        <option key={opt} value={opt}>
-          {opt}
-        </option>
-      ))}
-    </select>
+    <div className="flex flex-wrap gap-1.5" role="group" aria-label="Recognition">
+      {options.map((opt) => {
+        const selected = value === opt;
+        return (
+          <button
+            key={opt}
+            type="button"
+            disabled={disabled}
+            onClick={() => onChange(opt)}
+            className={`cursor-pointer rounded-md border px-2.5 py-1.5 text-[12px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+              selected
+                ? "border-accent-line bg-accent-soft text-primary"
+                : "border-border bg-surface text-muted-foreground hover:border-accent-line hover:bg-surface-alt hover:text-foreground"
+            }`}
+          >
+            {opt}
+          </button>
+        );
+      })}
+    </div>
   );
 }

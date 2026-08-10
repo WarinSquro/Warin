@@ -114,15 +114,24 @@ export function payloadFromBody(
         label: String(d.label ?? ""),
       }))
     : fallbackOffDays;
+  const excellentRaw = Math.max(0, Math.min(100, Math.trunc(Number(body.excellent ?? 95))));
+  let goodRaw = Math.max(0, Math.min(100, Math.trunc(Number(body.good ?? 90))));
+  let needsRaw = Math.max(0, Math.min(100, Math.trunc(Number(body.needsAttention ?? 80))));
+  // Strict order: Needs Attention < Good < Excellent (0…100)
+  goodRaw = Math.max(needsRaw + 1, Math.min(99, goodRaw));
+  const excellent = Math.max(goodRaw + 1, Math.min(100, excellentRaw));
+  const good = Math.min(goodRaw, excellent - 1);
+  const needsAttention = Math.max(0, Math.min(needsRaw, good - 1));
+
   return {
     idleBelow: Number(body.idleBelow ?? 70),
-    optimalTo: Number(body.optimalTo ?? 100),
-    excellent: Number(body.excellent ?? 95),
-    good: Number(body.good ?? 90),
-    needsAttention: Number(body.needsAttention ?? 80),
+    optimalTo: Math.max(1, Math.min(125, Number(body.optimalTo ?? 100))),
+    excellent,
+    good,
+    needsAttention,
     capacityBasis,
     overallocationLimit: Number(body.overallocationLimit ?? 120),
-    workingHoursPerDay: Number(body.workingHoursPerDay ?? 8.5),
+    workingHoursPerDay: Math.max(0.1, Math.min(15, Number(body.workingHoursPerDay ?? 8.5))),
     workingDays: Array.isArray(body.workingDays)
       ? (body.workingDays as string[])
       : ["Mon", "Tue", "Wed", "Thu", "Fri"],

@@ -17,7 +17,7 @@ import { useMasters } from "../context/MastersContext";
 import { useToast } from "../context/ToastContext";
 import { ConfirmDeleteDialog } from "../components/ConfirmDeleteDialog";
 import { fetchWeeklyCheckInConfig, putWeeklyCheckInConfig } from "../api/domain";
-import { useSharedDataSync } from "../hooks/useSharedDataSync";
+import { useSharedDataSync, usePauseSharedDataSync } from "../hooks/useSharedDataSync";
 
 type Segment = "competencies" | "ranking";
 
@@ -29,6 +29,9 @@ const STATUS_CHIP: Record<DepartmentConfigStatus, { label: string; className: st
 
 const inputClass =
   "rounded-md border border-border bg-surface px-2.5 py-1.5 text-[12px] outline-none focus:border-accent-line";
+
+const COMPETENCY_LABEL_MAX = 40;
+const COMPETENCY_EVALUATES_MAX = 200;
 
 export function WeeklyCheckInConfig() {
   const { departments } = useMasters();
@@ -96,6 +99,9 @@ export function WeeklyCheckInConfig() {
   }, [loadConfig]);
 
   useSharedDataSync(!editingId && !editingRank, () => loadConfig({ silent: true }), { resources: ["weekly-check-in"] });
+  usePauseSharedDataSync(
+    Boolean(editingId) || Boolean(editingRank) || Boolean(newLabel.trim()) || Boolean(newRemark.trim())
+  );
 
   const deptComps = config.competenciesByDepartment[selectedDeptId] ?? [];
   const techComps = deptComps.filter((c) => c.kind === "technical").sort((a, b) => a.sequence - b.sequence);
@@ -225,7 +231,8 @@ export function WeeklyCheckInConfig() {
                       if (e.key === "Enter") saveEdit();
                       if (e.key === "Escape") cancelEdit();
                     }}
-                    placeholder={`${kind} competency`}
+                    placeholder={`${kind} competency (${COMPETENCY_LABEL_MAX} chars)`}
+                    maxLength={COMPETENCY_LABEL_MAX}
                     className={`w-[25%] min-w-0 flex-shrink-0 ${inputClass}`}
                     aria-label="Competency name"
                   />
@@ -236,9 +243,10 @@ export function WeeklyCheckInConfig() {
                       if (e.key === "Enter") saveEdit();
                       if (e.key === "Escape") cancelEdit();
                     }}
-                    placeholder="Remark"
+                    placeholder={`What it evaluates (${COMPETENCY_EVALUATES_MAX} chars)`}
+                    maxLength={COMPETENCY_EVALUATES_MAX}
                     className={`min-w-0 flex-[3] ${inputClass}`}
-                    aria-label="Remark"
+                    aria-label="What it evaluates"
                   />
                   <button
                     type="button"
@@ -331,7 +339,8 @@ export function WeeklyCheckInConfig() {
                 setNewRemark("");
               }
             }}
-            placeholder={`Add ${kind} competency…`}
+            placeholder={`Add ${kind} competency (${COMPETENCY_LABEL_MAX} chars)…`}
+            maxLength={COMPETENCY_LABEL_MAX}
             className={`w-[25%] min-w-0 flex-shrink-0 ${inputClass}`}
             aria-label={`Add ${kind} competency`}
           />
@@ -351,9 +360,10 @@ export function WeeklyCheckInConfig() {
             onKeyDown={(e) => {
               if (e.key === "Enter") handleAdd(kind);
             }}
-            placeholder="Add remark…"
+            placeholder={`Add what it evaluates (${COMPETENCY_EVALUATES_MAX} chars)…`}
+            maxLength={COMPETENCY_EVALUATES_MAX}
             className={`min-w-0 flex-[3] ${inputClass}`}
-            aria-label="Add remark"
+            aria-label="Add what it evaluates"
           />
           <button
             type="button"
@@ -488,7 +498,7 @@ export function WeeklyCheckInConfig() {
               {renderCompList("behavioural", behComps, "Behavioural Competencies")}
               <p className="text-[11px] text-muted-foreground">
                 Fewer than five competencies per category is allowed — empty categories are skipped
-                during review. Remarks are for configuration guidance only.
+                during review. What it evaluates is for configuration guidance only.
               </p>
             </div>
           </div>

@@ -11,6 +11,7 @@ import {
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import type { MilestoneKind, ProjectType, SetupStatus } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { RequirePermissions } from "../auth/guards";
 import { EmitDataChange } from "../realtime/emit-data-change.decorator";
@@ -112,13 +113,14 @@ export class MastersController {
     if (!name) throw new BadRequestException("name is required");
 
     const existing = await this.prisma.department.findFirst({
-      where: { name, isDeleted: false },
+      where: { name: { equals: name, mode: "insensitive" }, isDeleted: false },
     });
     if (existing) {
       if (!existing.isActive) {
         const revived = await this.prisma.department.update({
           where: { id: existing.id },
           data: {
+            name,
             isActive: true,
             status: "active",
             deletedAt: null,
@@ -157,14 +159,29 @@ export class MastersController {
     if (!row) throw new NotFoundException("Department not found");
 
     const name = body.name?.trim();
-    if (name && name !== row.name) {
+    if (name && name.toLowerCase() !== row.name.toLowerCase()) {
       const clash = await this.prisma.department.findFirst({
-        where: { name, isDeleted: false, NOT: { id: row.id } },
+        where: {
+          name: { equals: name, mode: "insensitive" },
+          isDeleted: false,
+          NOT: { id: row.id },
+        },
       });
       if (clash) throw new BadRequestException("Department name already exists");
     }
 
     const status = asStatus(body.status, row.status);
+    if (status === "inactive" && row.status !== "inactive") {
+      const mapped = await this.prisma.employee.count({
+        where: { departmentId: row.id, isDeleted: false },
+      });
+      if (mapped > 0) {
+        throw new BadRequestException(
+          "Department is mapped to one or more employees and cannot be disabled."
+        );
+      }
+    }
+
     const updated = await this.prisma.department.update({
       where: { id: row.id },
       data: {
@@ -265,13 +282,14 @@ export class MastersController {
     const categoryId = await this.resolveSkillCategoryId(body.categoryId, body.category);
 
     const existing = await this.prisma.skill.findFirst({
-      where: { name, isDeleted: false },
+      where: { name: { equals: name, mode: "insensitive" }, isDeleted: false },
     });
     if (existing) {
       if (!existing.isActive) {
         const revived = await this.prisma.skill.update({
           where: { id: existing.id },
           data: {
+            name,
             categoryId,
             isActive: true,
             status: "active",
@@ -326,14 +344,29 @@ export class MastersController {
     if (!row) throw new NotFoundException("Skill not found");
 
     const name = body.name?.trim();
-    if (name && name !== row.name) {
+    if (name && name.toLowerCase() !== row.name.toLowerCase()) {
       const clash = await this.prisma.skill.findFirst({
-        where: { name, isDeleted: false, NOT: { id: row.id } },
+        where: {
+          name: { equals: name, mode: "insensitive" },
+          isDeleted: false,
+          NOT: { id: row.id },
+        },
       });
       if (clash) throw new BadRequestException("Skill name already exists");
     }
 
     const status = asStatus(body.status, row.status);
+    if (status === "inactive" && row.status !== "inactive") {
+      const mapped = await this.prisma.employeeSkill.count({
+        where: { skillId: row.id, employee: { isDeleted: false } },
+      });
+      if (mapped > 0) {
+        throw new BadRequestException(
+          "Skill is mapped to one or more employees and cannot be disabled."
+        );
+      }
+    }
+
     const categoryId =
       body.categoryId != null || body.category
         ? await this.resolveSkillCategoryId(body.categoryId, body.category)
@@ -395,7 +428,16 @@ export class MastersController {
         isDeleted: false,
         ...(includeInactive === "true" ? {} : { isActive: true }),
       },
-      include: { milestone: true },
+      include: {
+        milestone: true,
+        _count: {
+          select: {
+            allocations: {
+              where: { isDeleted: false, project: { isDeleted: false } },
+            },
+          },
+        },
+      },
       orderBy: { name: "asc" },
     });
     return ser(rows);
@@ -425,19 +467,72 @@ export class MastersController {
     });
     if (!milestone) throw new BadRequestException("Milestone not found");
 
+    const existing = await this.prisma.activity.findFirst({
+      where: { name: { equals: name, mode: "insensitive" }, isDeleted: false },
+    });
+    if (existing) {
+      if (!existing.isActive) {
+        const revived = await this.prisma.activity.update({
+          where: { id: existing.id },
+          data: {
+            name,
+            billable: body.billable !== false,
+            activityMilestoneId: milestone.id,
+            isActive: true,
+            status: "active",
+            deletedAt: null,
+            version: { increment: 1 },
+          },
+          include: { milestone: true },
+        });
+        return ser(revived);
+      }
+      throw new BadRequestException("Activity already exists");
+    }
+
+    // Soft-deleted row may still hold the unique name — treat as revive of that row.
+    const softDeleted = await this.prisma.activity.findFirst({
+      where: { name: { equals: name, mode: "insensitive" }, isDeleted: true },
+      orderBy: { id: "asc" },
+    });
+    if (softDeleted) {
+      const revived = await this.prisma.activity.update({
+        where: { id: softDeleted.id },
+        data: {
+          name,
+          billable: body.billable !== false,
+          activityMilestoneId: milestone.id,
+          isActive: true,
+          isDeleted: false,
+          status: "active",
+          deletedAt: null,
+          version: { increment: 1 },
+        },
+        include: { milestone: true },
+      });
+      return ser(revived);
+    }
+
     const code = body.code?.trim() || slugCode("act", name);
     const billable = body.billable !== false;
 
-    const row = await this.prisma.activity.create({
-      data: {
-        code,
-        name,
-        billable,
-        activityMilestoneId: milestone.id,
-      },
-      include: { milestone: true },
-    });
-    return ser(row);
+    try {
+      const row = await this.prisma.activity.create({
+        data: {
+          code,
+          name,
+          billable,
+          activityMilestoneId: milestone.id,
+        },
+        include: { milestone: true },
+      });
+      return ser(row);
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        throw new BadRequestException("Activity already exists");
+      }
+      throw err;
+    }
   }
 
   @Put("activities/:code")
@@ -460,6 +555,18 @@ export class MastersController {
     });
     if (!row) throw new NotFoundException("Activity not found");
 
+    const name = body.name?.trim();
+    if (name && name.toLowerCase() !== row.name.toLowerCase()) {
+      const clash = await this.prisma.activity.findFirst({
+        where: {
+          name: { equals: name, mode: "insensitive" },
+          isDeleted: false,
+          NOT: { id: row.id },
+        },
+      });
+      if (clash) throw new BadRequestException("Activity name already exists");
+    }
+
     let activityMilestoneId = row.activityMilestoneId;
     const milestoneCode = (body.milestoneCode || body.milestoneId)?.trim();
     if (milestoneCode) {
@@ -471,10 +578,25 @@ export class MastersController {
     }
 
     const status = asStatus(body.status, row.status);
+    if (status === "inactive" && row.status !== "inactive") {
+      const mapped = await this.prisma.allocation.count({
+        where: {
+          activityId: row.id,
+          isDeleted: false,
+          project: { isDeleted: false },
+        },
+      });
+      if (mapped > 0) {
+        throw new BadRequestException(
+          "Activity is mapped to one or more projects and cannot be disabled."
+        );
+      }
+    }
+
     const updated = await this.prisma.activity.update({
       where: { id: row.id },
       data: {
-        name: body.name?.trim() || row.name,
+        name: name || row.name,
         billable: body.billable !== undefined ? body.billable : row.billable,
         activityMilestoneId,
         status,
@@ -532,7 +654,7 @@ export class MastersController {
         });
         return ser(revived);
       }
-      return ser(existing);
+      throw new BadRequestException("Activity milestone already exists");
     }
 
     const code = body.code?.trim() || slugCode("am", name);
