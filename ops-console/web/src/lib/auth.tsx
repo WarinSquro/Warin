@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { api } from "../lib/api";
+import { useBusy } from "./busy";
 
 type AuthState = {
   userId: string | null;
@@ -12,6 +13,7 @@ type AuthState = {
 const Ctx = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const { withBusy } = useBusy();
   const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -27,8 +29,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    void withBusy(() => refresh());
+  }, [refresh, withBusy]);
 
   const login = async (uid: string, password: string) => {
     await api("/auth/login", { method: "POST", json: { userId: uid, password } });

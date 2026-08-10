@@ -1,8 +1,8 @@
-import { config } from "../config.js";
+import { config, posixPath } from "../config.js";
 import { appendAudit, mutateStore, newId, loadStore } from "../store.js";
 import { createPredeployBackup } from "./backups.js";
 import { productionStatus } from "./docker.js";
-import { runBash, runCommand } from "./runner.js";
+import { runBash, runCommand, runCompose, runDocker, resolveCurlBin } from "./runner.js";
 
 export interface DeployOptions {
   confirm: boolean;
@@ -53,7 +53,7 @@ export async function runProductionDeploy(user: string, opts: DeployOptions) {
   };
 
   await step("Check current production status", async () => {
-    return `sha=${before.git.shortSha} branch=${before.git.branch} containers=${before.containers.length}`;
+    return `sha=${before.git.shortSha} branch=${before.git.branch} containers=${before.containers.length} platform=${process.platform}`;
   });
 
   await step("Verify target Git branch/tag/commit", async () => {
@@ -85,17 +85,13 @@ export async function runProductionDeploy(user: string, opts: DeployOptions) {
     if (!b || (b.status !== "verified" && b.status !== "success")) {
       throw new Error("Backup verification failed — deployment blocked");
     }
-    if (!b.restoreAvailable && b.type === "predeploy") {
-      // still allow if location exists
-    }
     return `backupId=${b.id} status=${b.status}`;
   });
 
   if (opts.pull) {
     await step("Pull latest approved code", async () => {
-      const ref = opts.targetRef || "origin/main";
-      const r = await runBash(`git pull origin ${ref.replace(/^origin\//, "")}`, {
-        cwd: config.warinAppDir,
+      const branch = (opts.targetRef || "main").replace(/^origin\//, "");
+      const r = await runCommand("git", ["-C", config.warinAppDir, "pull", "origin", branch], {
         timeoutMs: 10 * 60 * 1000,
       });
       if (!r.ok) throw new Error(r.stderr || "git pull failed");
@@ -105,7 +101,7 @@ export async function runProductionDeploy(user: string, opts: DeployOptions) {
 
   if (opts.rebuildApi) {
     await step("Build / deploy API containers", async () => {
-      const r = await runBash("docker compose up -d --build api worker", {
+      const r = await runCompose(["up", "-d", "--build", "api", "worker"], {
         cwd: config.warinAppDir,
         timeoutMs: 30 * 60 * 1000,
       });
@@ -116,19 +112,20 @@ export async function runProductionDeploy(user: string, opts: DeployOptions) {
 
   if (opts.runMigrate) {
     await step("Run database migration", async () => {
-      const r = await runBash(
-        "docker compose exec -T api npx prisma migrate deploy --schema=/app/prisma/schema.prisma",
+      const r = await runCompose(
+        ["exec", "-T", "api", "npx", "prisma", "migrate", "deploy", "--schema=/app/prisma/schema.prisma"],
         { cwd: config.warinAppDir, timeoutMs: 20 * 60 * 1000 },
       );
       if (!r.ok) throw new Error(r.stderr || "migrate failed");
-      await runBash("docker compose restart api worker", { cwd: config.warinAppDir });
+      await runCompose(["restart", "api", "worker"], { cwd: config.warinAppDir });
       return "migrate deploy ok";
     });
   }
 
   if (opts.rebuildSpa) {
     await step("Build and publish SPA", async () => {
-      const web = config.sharedWebPath.replace(/\\/g, "/");
+      const web = posixPath(config.sharedWebPath);
+      // POSIX snippet — runs under /bin/bash on EC2 and Git Bash on Windows
       const r = await runBash(
         `export VITE_API_BASE_URL="${config.viteApiBaseUrl}" && npx vite build && test -f dist/index.html && mkdir -p "${web}" && rm -rf "${web}"/* && cp -a dist/. "${web}/"`,
         { cwd: config.warinAppDir, timeoutMs: 20 * 60 * 1000 },
@@ -148,18 +145,19 @@ export async function runProductionDeploy(user: string, opts: DeployOptions) {
   });
 
   await step("Verify application health", async () => {
-    const r = await runBash(
-      "curl -sf http://127.0.0.1:8080/api/v1/health || curl -sf http://127.0.0.1:3001/api/v1/health",
-    );
-    if (!r.ok || !r.stdout.includes("ok") && !r.stdout.includes("degraded")) {
-      // accept json with status
-      if (!r.stdout.includes("status")) throw new Error(r.stderr || "Health check failed");
+    const curl = resolveCurlBin();
+    let r = await runCommand(curl, ["-sf", "http://127.0.0.1:8080/api/v1/health"]);
+    if (!r.ok) {
+      r = await runCommand(curl, ["-sf", "http://127.0.0.1:3001/api/v1/health"]);
+    }
+    if (!r.ok || (!r.stdout.includes("ok") && !r.stdout.includes("degraded") && !r.stdout.includes("status"))) {
+      throw new Error(r.stderr || "Health check failed");
     }
     return r.stdout.slice(0, 300);
   });
 
   await step("Check production logs", async () => {
-    const r = await runCommand("docker", ["logs", "--tail", "30", "oneview-api"]);
+    const r = await runDocker(["logs", "--tail", "30", "oneview-api"]);
     return (r.stdout || r.stderr).slice(0, 500);
   });
 

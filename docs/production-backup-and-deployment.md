@@ -4,7 +4,7 @@ Practical strategy for the **current** stack: **AWS EC2 + Docker Compose + host 
 
 Related: [`aws-ec2-deploy-checklist.md`](./aws-ec2-deploy-checklist.md), [`docker-deployment.md`](./docker-deployment.md), [`git-sync-workflow.md`](./git-sync-workflow.md), [`https-letsencrypt.md`](./https-letsencrypt.md), scripts `scripts/backup-postgres.sh`, `scripts/restore-postgres.sh`, `scripts/ec2-backup.sh`.
 
-**Standalone ops UI (not WARIN):** [`ops-console/README.md`](../ops-console/README.md) — Backup & Deployment Management console with its own JSON storage under `ops-console/data/` (never writes to the WARIN Postgres database).
+**Standalone ops UI (not WARIN):** [`ops-console/README.md`](../ops-console/README.md) — Backup & Deployment Management console with its own JSON storage (never writes to the WARIN Postgres database). Dual-platform: Windows (dev) + Ubuntu EC2 (prod); EC2 installer: `ops-console/scripts/ec2-install-ops-console.sh`.
 
 ---
 

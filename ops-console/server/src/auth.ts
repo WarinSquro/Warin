@@ -31,6 +31,20 @@ export function login(userId: string, password: string): { ok: true; token: stri
   return { ok: true, token };
 }
 
+export function verifyCredentials(
+  userId: string,
+  password: string,
+): { ok: true } | { ok: false; error: string } {
+  const store = loadStore();
+  if (!userId || userId !== store.auth.userId) {
+    return { ok: false, error: "Invalid credentials" };
+  }
+  if (!password || !bcrypt.compareSync(password, store.auth.passwordHash)) {
+    return { ok: false, error: "Invalid credentials" };
+  }
+  return { ok: true };
+}
+
 export function logout(token: string | undefined, userId: string) {
   if (token) {
     mutateStore((s) => {

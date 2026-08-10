@@ -3,14 +3,15 @@ import { Eye, EyeOff } from "lucide-react";
 import { Navigate } from "react-router-dom";
 import { AuthLayout } from "../components/AuthLayout";
 import { useAuth } from "../lib/auth";
+import { useBusy } from "../lib/busy";
 
 export function LoginPage() {
   const { userId, loading, login } = useAuth();
+  const { busy, withBusy } = useBusy();
   const [uid, setUid] = useState("");
   const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
 
   if (!loading && userId) return <Navigate to="/" replace />;
 
@@ -21,14 +22,11 @@ export function LoginPage() {
       setError("Enter User Id and password");
       return;
     }
-    setBusy(true);
     setError(null);
     try {
-      await login(uid.trim(), password);
+      await withBusy(() => login(uid.trim(), password));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Sign in failed");
-    } finally {
-      setBusy(false);
     }
   };
 

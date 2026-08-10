@@ -1,0 +1,28 @@
+[Unit]
+Description=Warin Backup & Deployment Management (ops-console)
+Documentation=file:///opt/warin/app/ops-console/README.md
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/warin/app/ops-console
+EnvironmentFile=-/opt/warin/shared/ops-console.env
+# Ensure Docker CLI is on PATH for ubuntu user / systemd
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=NODE_ENV=production
+Environment=OPS_SERVE_STATIC=1
+ExecStart=/usr/bin/npm run start:prod
+Restart=on-failure
+RestartSec=5
+# Ops store may contain session tokens — restrict
+UMask=0077
+
+# Hardening (adjust if npm/npx needs more)
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

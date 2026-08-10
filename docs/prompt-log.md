@@ -32,6 +32,158 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-10 23:00 IST
+
+**Prompt:**  
+> Ensure Ubuntu/AWS EC2 compatibility for Backup & Deployment Management (keep Windows dev working)
+
+**Output:**  
+- Platform-aware config: auto-detect `/opt/warin/app`, EC2 data dir `/opt/warin/ops-console-data`.  
+- Runner: resolve bash/docker/tar/curl for Linux + Windows; `runCompose` / `runShellScript`; Linux PATH for systemd.  
+- Deploy uses `docker compose` via CLI args (not PowerShell); SPA still POSIX via bash.  
+- Cross-platform backup root path checks (`path.relative`).  
+- Added `scripts/ec2-install-ops-console.sh`, `deploy/ops-console.service`, README/.env.example updates.  
+- `tsc --noEmit` OK.
+
+---
+
+### 2026-08-10 22:50 IST
+
+**Prompt:**  
+> Restore selected dump: ask credentials in popup, if correct then confirm with selected dump, then restore
+
+**Output:**  
+- Added `CredentialDialog` + `POST /api/ops/auth/verify`.  
+- Restore flow: credentials → verify → confirm (dump name/path) → restore.  
+- `POST /backups/restore` now requires re-verified `userId`/`password` (server-side).  
+- Rebuilt `web/dist` for static serve on :9191.
+
+---
+
+### 2026-08-10 22:45 IST
+
+**Prompt:**  
+> Docker/Deployment Create backup → spawn powershell.exe ENOENT — check and fix
+
+**Output:**  
+- Cause: Node `spawn("powershell.exe")` without full path (ENOENT under ops-console PATH).  
+- Docker backup now uses `System32\tar.exe` via `resolveTarBin()`.  
+- `runBash` / disk status use `resolvePowerShellBin()` absolute path; PATH prepends System32.  
+- Verified: `POST /api/ops/backups/docker` → `ok: true`, `status: success`, ~5KB `.tar.gz`.
+
+---
+
+### 2026-08-10 22:35 IST
+
+**Prompt:**  
+> Still on Sign Out app not ask — check yourself first
+
+**Output:**  
+- Root cause: port `9191` served stale `web/dist` (built before confirm existed); source changes never loaded.  
+- Rebuilt UI; verified disk + `http://127.0.0.1:9191` JS contain `End this session` (True).  
+- User must hard-refresh so `index.html` picks new hashed asset (`index-BCTf3cxh.js`).
+
+---
+
+### 2026-08-10 22:30 IST
+
+**Prompt:**  
+> Sign out confirmation not working (2nd time) — ask “End this session?”
+
+**Output:**  
+- Reworked `ConfirmDialog` / `useConfirm`: portal to `document.body`, resolve via ref (no stale closure), z-index 9999.  
+- Sign out no longer disabled while busy; opens “End this session?” before logout.  
+- Busy `cursor: wait` no longer overrides dialog button pointers.
+
+---
+
+### 2026-08-10 22:25 IST
+
+**Prompt:**  
+> Ask for Sign out (confirm before signing out of ops console)
+
+**Output:**  
+- Sign out now uses ConfirmDialog before calling logout.
+
+---
+
+### 2026-08-10 22:22 IST
+
+**Prompt:**  
+> Show progress bar when clicked Create backup (Backup Management cards)
+
+**Output:**  
+- Backup cards show indeterminate progress bar + “Creating backup…” while that backup type runs (`activeBackup` state).
+
+---
+
+### 2026-08-10 22:20 IST
+
+**Prompt:**  
+> Ops console message bar: put "x" to close (error/success banner)
+
+**Output:**  
+- Dashboard status banner now has a close (X) control that clears `msg`/`err`.
+
+---
+
+### 2026-08-10 22:15 IST
+
+**Prompt:**  
+> Ops console: whenever a process is in progress, show working/loading cursor for the entire app (including nav)
+
+**Output:**  
+- Added `BusyProvider` (`ops-console/web/src/lib/busy.tsx`) — toggles `html.ops-busy`.  
+- CSS: `html.ops-busy, html.ops-busy * { cursor: wait !important; }`.  
+- Wired dashboard ops, refresh, logout, login, and initial auth session check through `withBusy`.
+
+---
+
+### 2026-08-10 19:45 IST
+
+**Prompt:**  
+> Resource Planner: scrollbar shifts columns vs header — keep column positions consistent
+
+**Output:**  
+- Root cause: header outside scrollport; body `overflow-y-auto` scrollbar narrowed only the rows.  
+- Fix: single scroll container with sticky column header so header + rows share the same width (`screens/ResourcePlanner.tsx`).
+
+---
+
+### 2026-08-10 19:35 IST
+
+**Prompt:**  
+> Sidebar nav scrollbar: hide by default, show only on hover
+
+**Output:**  
+- Added `.sidebar-nav-scroll` in `index.css` (Firefox + WebKit).  
+- Applied on `AppShell` `<nav>` — scroll still works via wheel/trackpad when hidden.
+
+---
+
+### 2026-08-10 19:20 IST
+
+**Prompt:**  
+> Fix docker.sock / backup error on Windows ops-console
+
+**Output:**  
+- Root cause: Git Bash `docker` used `unix:///var/run/docker.sock` on Windows.  
+- Fix: resolve Docker Desktop `docker.exe`, run backups via `runDocker` (no bash), Windows predeploy uses sequential native CLI.  
+- Verified: status lists containers; DB backup succeeded (~185KB dump).
+
+---
+
+### 2026-08-10 19:10 IST
+
+**Prompt:**  
+> Fix Cannot GET / on http://127.0.0.1:9191
+
+**Output:**  
+- Root cause: API ran without `OPS_SERVE_STATIC`, so Express had no `/` handler.  
+- Fix: auto-serve `web/dist` when present; helpful fallback page if missing. Restarted server on `:9191`.
+
+---
+
 ### 2026-08-10 19:05 IST
 
 **Prompt:**  

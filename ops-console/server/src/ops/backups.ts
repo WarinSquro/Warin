@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { config } from "../config.js";
 import { appendAudit, loadStore, mutateStore, newId, type BackupRecord, type BackupType } from "../store.js";
-import { runBash, runCommand } from "./runner.js";
+import { runCommand, runDocker, runShellScript, resolveTarBin } from "./runner.js";
 import { assertPathInsideBackupRoot } from "./commands.js";
 
 async function gitSha(): Promise<string> {
@@ -29,6 +29,32 @@ function expiresFor(type: BackupType, createdAt: Date): { class: string; expires
   return { class: "daily", expiresAt: d.toISOString() };
 }
 
+function failBackup(id: string, user: string, action: string, sha: string, err: string): never {
+  mutateStore((s) => {
+    const b = s.backups.find((x) => x.id === id);
+    if (b) {
+      b.status = "failed";
+      b.completedAt = new Date().toISOString();
+      b.error = err;
+    }
+  });
+  appendAudit(user, action, "failed", { gitSha: sha, error: err });
+  throw new Error(err);
+}
+
+function succeedBackup(id: string, location: string, size: number, status: BackupRecord["status"] = "success") {
+  mutateStore((s) => {
+    const b = s.backups.find((x) => x.id === id);
+    if (b) {
+      b.status = status;
+      b.completedAt = new Date().toISOString();
+      b.location = location;
+      b.sizeBytes = size;
+      b.restoreAvailable = true;
+    }
+  });
+}
+
 export async function createDatabaseBackup(user: string): Promise<BackupRecord> {
   const id = newId("bak");
   const stamp = new Date().toISOString().replace(/[:.]/g, "").slice(0, 15);
@@ -37,6 +63,9 @@ export async function createDatabaseBackup(user: string): Promise<BackupRecord> 
   const location = path.join(config.backupRoot, "db", dumpName);
   const createdAt = new Date().toISOString();
   const exp = expiresFor("database", new Date(createdAt));
+  const containerPath = `/backups/${dumpName}`;
+
+  fs.mkdirSync(path.dirname(location), { recursive: true });
 
   mutateStore((s) => {
     s.backups.unshift({
@@ -53,39 +82,22 @@ export async function createDatabaseBackup(user: string): Promise<BackupRecord> 
   });
   appendAudit(user, "backup.database.started", "info", { gitSha: sha, detail: dumpName });
 
-  const script = `
-set -e
-DUMP="${dumpName}"
-docker exec oneview-postgres pg_dump -U admin -d oneview -F c -f "/backups/$DUMP"
-docker cp "oneview-postgres:/backups/$DUMP" "${location.replace(/\\/g, "/")}"
-docker exec oneview-postgres rm -f "/backups/$DUMP"
-test -f "${location.replace(/\\/g, "/")}"
-`;
-  const result = await runBash(script, { cwd: config.warinAppDir, timeoutMs: 20 * 60 * 1000 });
+  const dump = await runDocker(
+    ["exec", "oneview-postgres", "pg_dump", "-U", "admin", "-d", "oneview", "-F", "c", "-f", containerPath],
+    { timeoutMs: 20 * 60 * 1000 },
+  );
+  if (!dump.ok) failBackup(id, user, "backup.database.failed", sha, dump.stderr || "pg_dump failed");
 
-  if (!result.ok || !fs.existsSync(location)) {
-    mutateStore((s) => {
-      const b = s.backups.find((x) => x.id === id);
-      if (b) {
-        b.status = "failed";
-        b.completedAt = new Date().toISOString();
-        b.error = result.stderr || result.stdout || "Dump failed";
-      }
-    });
-    appendAudit(user, "backup.database.failed", "failed", { gitSha: sha, error: result.stderr });
-    throw new Error(result.stderr || "Database backup failed");
+  const cp = await runDocker(["cp", `oneview-postgres:${containerPath}`, location], {
+    timeoutMs: 10 * 60 * 1000,
+  });
+  await runDocker(["exec", "oneview-postgres", "rm", "-f", containerPath]);
+
+  if (!cp.ok || !fs.existsSync(location)) {
+    failBackup(id, user, "backup.database.failed", sha, cp.stderr || "docker cp failed");
   }
 
-  const size = fileSize(location);
-  mutateStore((s) => {
-    const b = s.backups.find((x) => x.id === id);
-    if (b) {
-      b.status = "success";
-      b.completedAt = new Date().toISOString();
-      b.sizeBytes = size;
-      b.restoreAvailable = true;
-    }
-  });
+  succeedBackup(id, location, fileSize(location));
   appendAudit(user, "backup.database.completed", "success", { gitSha: sha, detail: location });
   return loadStore().backups.find((x) => x.id === id)!;
 }
@@ -99,6 +111,11 @@ export async function createApplicationBackup(user: string): Promise<BackupRecor
   const metaGit = path.join(config.backupRoot, "meta", `git_application_${stamp}_${sha}.txt`);
   const createdAt = new Date().toISOString();
   const exp = expiresFor("application", new Date(createdAt));
+  const tmpInContainer = "/tmp/ops-files-backup.tar.gz";
+
+  fs.mkdirSync(path.dirname(location), { recursive: true });
+  fs.mkdirSync(path.dirname(metaGit), { recursive: true });
+  fs.writeFileSync(metaGit, `git_sha=${sha}\nat=${createdAt}\n`, { mode: 0o600 });
 
   mutateStore((s) => {
     s.backups.unshift({
@@ -116,37 +133,22 @@ export async function createApplicationBackup(user: string): Promise<BackupRecor
   });
   appendAudit(user, "backup.application.started", "info", { gitSha: sha });
 
-  fs.writeFileSync(metaGit, `git_sha=${sha}\nat=${createdAt}\n`, { mode: 0o600 });
-
-  const loc = location.replace(/\\/g, "/");
-  const result = await runBash(
-    `docker exec oneview-api sh -c 'cd /data/files && tar -czf - .' > "${loc}" && test -s "${loc}"`,
+  const tar = await runDocker(
+    ["exec", "oneview-api", "sh", "-c", `cd /data/files && tar -czf ${tmpInContainer} .`],
     { timeoutMs: 20 * 60 * 1000 },
   );
+  if (!tar.ok) failBackup(id, user, "backup.application.failed", sha, tar.stderr || "files tar failed");
 
-  if (!result.ok) {
-    mutateStore((s) => {
-      const b = s.backups.find((x) => x.id === id);
-      if (b) {
-        b.status = "failed";
-        b.completedAt = new Date().toISOString();
-        b.error = result.stderr || "Application backup failed";
-      }
-    });
-    appendAudit(user, "backup.application.failed", "failed", { error: result.stderr });
-    throw new Error(result.stderr || "Application backup failed");
+  const cp = await runDocker(["cp", `oneview-api:${tmpInContainer}`, location], {
+    timeoutMs: 10 * 60 * 1000,
+  });
+  await runDocker(["exec", "oneview-api", "rm", "-f", tmpInContainer]);
+
+  if (!cp.ok || !fs.existsSync(location)) {
+    failBackup(id, user, "backup.application.failed", sha, cp.stderr || "docker cp failed");
   }
 
-  const size = fileSize(location);
-  mutateStore((s) => {
-    const b = s.backups.find((x) => x.id === id);
-    if (b) {
-      b.status = "success";
-      b.completedAt = new Date().toISOString();
-      b.sizeBytes = size;
-      b.restoreAvailable = true;
-    }
-  });
+  succeedBackup(id, location, fileSize(location));
   appendAudit(user, "backup.application.completed", "success", { gitSha: sha, detail: location });
   return loadStore().backups.find((x) => x.id === id)!;
 }
@@ -155,13 +157,15 @@ export async function createDockerBackup(user: string): Promise<BackupRecord> {
   const id = newId("bak");
   const stamp = new Date().toISOString().replace(/[:.]/g, "").slice(0, 15);
   const sha = await gitSha();
-  const tarName = `docker_deploy_${stamp}_${sha}.tar.gz`;
-  const location = path.join(config.backupRoot, "docker", tarName);
+  const archiveName = `docker_deploy_${stamp}_${sha}.tar.gz`;
+  const location = path.join(config.backupRoot, "docker", archiveName);
   const manifest = path.join(config.backupRoot, "meta", `MANIFEST_docker_${stamp}_${sha}.txt`);
   const createdAt = new Date().toISOString();
   const exp = expiresFor("docker", new Date(createdAt));
 
-  // Copy .env to meta with restricted perms — NEVER return contents to UI
+  fs.mkdirSync(path.dirname(location), { recursive: true });
+  fs.mkdirSync(path.dirname(manifest), { recursive: true });
+
   const envCopy = path.join(config.backupRoot, "meta", `env_docker_${stamp}_${sha}.env`);
   let envCopied = false;
   if (fs.existsSync(config.sharedEnvPath)) {
@@ -204,38 +208,33 @@ export async function createDockerBackup(user: string): Promise<BackupRecord> {
   });
   appendAudit(user, "backup.docker.started", "info", { gitSha: sha });
 
-  const A = config.warinAppDir.replace(/\\/g, "/");
-  const loc = location.replace(/\\/g, "/");
-  const result = await runBash(
-    `tar -czf "${loc}" -C "${A}" docker-compose.yml scripts/ec2-backup.sh scripts/backup-postgres.sh scripts/restore-postgres.sh 2>/dev/null; ` +
-      `test -f "${A}/infra/nginx" && tar -rzf "${loc}" -C "${A}" infra/nginx || true; ` +
-      `test -s "${loc}"`,
+  const relEntries = [
+    "docker-compose.yml",
+    "scripts/ec2-backup.sh",
+    "scripts/backup-postgres.sh",
+    "scripts/restore-postgres.sh",
+  ].filter((rel) => fs.existsSync(path.join(config.warinAppDir, rel)));
+
+  if (fs.existsSync(path.join(config.warinAppDir, "infra", "nginx"))) {
+    relEntries.push("infra/nginx");
+  }
+
+  if (relEntries.length === 0) {
+    failBackup(id, user, "backup.docker.failed", sha, "No compose/scripts found to archive");
+  }
+
+  // Use system tar (Linux or Windows System32\tar.exe) — avoids powershell.exe PATH ENOENT on Windows
+  const result = await runCommand(
+    resolveTarBin(),
+    ["-czf", location, "-C", config.warinAppDir, ...relEntries],
     { timeoutMs: 10 * 60 * 1000 },
   );
 
-  if (!result.ok) {
-    mutateStore((s) => {
-      const b = s.backups.find((x) => x.id === id);
-      if (b) {
-        b.status = "failed";
-        b.completedAt = new Date().toISOString();
-        b.error = result.stderr || "Docker/config backup failed";
-      }
-    });
-    appendAudit(user, "backup.docker.failed", "failed", { error: result.stderr });
-    throw new Error(result.stderr || "Docker backup failed");
+  if (!result.ok || !fs.existsSync(location) || fileSize(location) <= 0) {
+    failBackup(id, user, "backup.docker.failed", sha, result.stderr || result.stdout || "Docker/config backup failed");
   }
 
-  const size = fileSize(location);
-  mutateStore((s) => {
-    const b = s.backups.find((x) => x.id === id);
-    if (b) {
-      b.status = "success";
-      b.completedAt = new Date().toISOString();
-      b.sizeBytes = size;
-      b.restoreAvailable = true;
-    }
-  });
+  succeedBackup(id, location, fileSize(location));
   appendAudit(user, "backup.docker.completed", "success", { gitSha: sha, detail: location });
   return loadStore().backups.find((x) => x.id === id)!;
 }
@@ -262,9 +261,11 @@ export async function createPredeployBackup(user: string): Promise<BackupRecord>
   });
   appendAudit(user, "backup.predeploy.started", "info", { gitSha: sha });
 
-  let result;
-  if (fs.existsSync(scriptPath)) {
-    result = await runBash(`bash "${scriptPath.replace(/\\/g, "/")}" predeploy`, {
+  const useScript = fs.existsSync(scriptPath);
+  let result: { ok: boolean; stderr: string; stdout: string };
+
+  if (useScript) {
+    result = await runShellScript(scriptPath, ["predeploy"], {
       cwd: config.warinAppDir,
       timeoutMs: 25 * 60 * 1000,
       env: {
@@ -275,20 +276,21 @@ export async function createPredeployBackup(user: string): Promise<BackupRecord>
       },
     });
   } else {
-    // Fallback: sequential DB + app + docker
-    await createDatabaseBackup(user);
-    await createApplicationBackup(user);
-    await createDockerBackup(user);
-    result = { ok: true, stdout: "fallback sequential", stderr: "", code: 0, durationMs: 0, command: "fallback" };
+    try {
+      await createDatabaseBackup(user);
+      await createApplicationBackup(user);
+      await createDockerBackup(user);
+      result = { ok: true, stdout: "sequential predeploy", stderr: "" };
+    } catch (e) {
+      result = { ok: false, stdout: "", stderr: e instanceof Error ? e.message : String(e) };
+    }
   }
 
-  // Find newest predeploy dump
   const dbDir = path.join(config.backupRoot, "db");
   let newest = "";
   let newestMtime = 0;
   if (fs.existsSync(dbDir)) {
     for (const f of fs.readdirSync(dbDir)) {
-      if (!f.includes("predeploy") && !f.endsWith(".dump")) continue;
       if (!f.endsWith(".dump")) continue;
       const st = fs.statSync(path.join(dbDir, f));
       if (st.mtimeMs > newestMtime) {
@@ -299,30 +301,11 @@ export async function createPredeployBackup(user: string): Promise<BackupRecord>
   }
 
   if (!result.ok) {
-    mutateStore((s) => {
-      const b = s.backups.find((x) => x.id === id);
-      if (b) {
-        b.status = "failed";
-        b.completedAt = new Date().toISOString();
-        b.error = result.stderr || "Pre-deploy backup failed";
-      }
-    });
-    appendAudit(user, "backup.predeploy.failed", "failed", { error: result.stderr });
-    throw new Error(result.stderr || "Pre-deploy backup failed");
+    failBackup(id, user, "backup.predeploy.failed", sha, result.stderr || "Pre-deploy backup failed");
   }
 
   const location = newest || path.join(config.backupRoot, "db");
-  const size = newest ? fileSize(newest) : 0;
-  mutateStore((s) => {
-    const b = s.backups.find((x) => x.id === id);
-    if (b) {
-      b.status = "verified";
-      b.completedAt = new Date().toISOString();
-      b.location = location;
-      b.sizeBytes = size;
-      b.restoreAvailable = Boolean(newest);
-    }
-  });
+  succeedBackup(id, location, newest ? fileSize(newest) : 0, "verified");
   appendAudit(user, "backup.predeploy.completed", "success", { gitSha: sha, detail: location });
   return loadStore().backups.find((x) => x.id === id)!;
 }
@@ -336,21 +319,23 @@ export async function restoreDatabase(user: string, dumpPath: string, confirm: b
   const sha = await gitSha();
   appendAudit(user, "restore.database.started", "info", { gitSha: sha, detail: path.basename(resolved) });
 
-  const script = path.join(config.warinAppDir, "scripts", "restore-postgres.sh");
-  const result = fs.existsSync(script)
-    ? await runBash(`bash "${script.replace(/\\/g, "/")}" "${resolved.replace(/\\/g, "/")}"`, {
-        cwd: config.warinAppDir,
-        timeoutMs: 30 * 60 * 1000,
-      })
-    : await runBash(
-        `docker cp "${resolved.replace(/\\/g, "/")}" oneview-postgres:/backups/restore.dump && docker exec oneview-postgres pg_restore -U admin -d oneview -c /backups/restore.dump`,
-        { timeoutMs: 30 * 60 * 1000 },
-      );
-
-  if (!result.ok) {
-    appendAudit(user, "restore.database.failed", "failed", { error: result.stderr });
-    throw new Error(result.stderr || "Restore failed");
+  const cp = await runDocker(["cp", resolved, "oneview-postgres:/backups/restore.dump"], {
+    timeoutMs: 10 * 60 * 1000,
+  });
+  if (!cp.ok) {
+    appendAudit(user, "restore.database.failed", "failed", { error: cp.stderr });
+    throw new Error(cp.stderr || "docker cp failed");
   }
+
+  const restore = await runDocker(
+    ["exec", "oneview-postgres", "pg_restore", "-U", "admin", "-d", "oneview", "-c", "/backups/restore.dump"],
+    { timeoutMs: 30 * 60 * 1000 },
+  );
+  if (!restore.ok && /fatal/i.test(restore.stderr)) {
+    appendAudit(user, "restore.database.failed", "failed", { error: restore.stderr });
+    throw new Error(restore.stderr || "Restore failed");
+  }
+
   appendAudit(user, "restore.database.completed", "success", { gitSha: sha, detail: path.basename(resolved) });
 }
 

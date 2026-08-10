@@ -25,6 +25,8 @@ app.get("/api/ops/health", (_req, res) => {
   res.json({
     status: "ok",
     service: "ops-console",
+    platform: process.platform,
+    isEc2Layout: config.isEc2Layout,
     storageBoundary: "ops-console-json-independent-of-warin-db",
     dataDir: config.dataDir,
   });
@@ -32,11 +34,26 @@ app.get("/api/ops/health", (_req, res) => {
 
 app.use("/api/ops", api);
 
-if (config.serveStatic && fs.existsSync(config.webDist)) {
+const distIndex = path.join(config.webDist, "index.html");
+if (config.serveStatic && fs.existsSync(distIndex)) {
   app.use(express.static(config.webDist));
-  app.get("*", (req, res, next) => {
-    if (req.path.startsWith("/api/")) return next();
-    res.sendFile(path.join(config.webDist, "index.html"));
+  app.get(/^(?!\/api\/).*/, (_req, res) => {
+    res.sendFile(distIndex);
+  });
+} else {
+  app.get("/", (_req, res) => {
+    res
+      .status(200)
+      .type("html")
+      .send(`<!doctype html><html><body style="font-family:system-ui;padding:2rem">
+<h1>Ops Console API</h1>
+<p>UI bundle not served. Either:</p>
+<ul>
+<li>Build UI: <code>cd ops-console && npm run build</code> then restart, or</li>
+<li>Dev UI: <code>npm run dev</code> and open <a href="http://127.0.0.1:5191">http://127.0.0.1:5191</a></li>
+</ul>
+<p>API health: <a href="/api/ops/health">/api/ops/health</a></p>
+</body></html>`);
   });
 }
 
@@ -47,6 +64,7 @@ app.use((err: unknown, _req: express.Request, res: express.Response, _next: expr
 
 app.listen(config.port, config.bind, () => {
   console.log(`[ops-console] listening on http://${config.bind}:${config.port}`);
+  console.log(`[ops-console] platform=${process.platform} isEc2Layout=${config.isEc2Layout}`);
   console.log(`[ops-console] OPS_ROOT=${OPS_ROOT}`);
   console.log(`[ops-console] dataDir=${config.dataDir} (NOT Warin Postgres)`);
   console.log(`[ops-console] warinAppDir=${config.warinAppDir}`);

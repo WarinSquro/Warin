@@ -252,11 +252,12 @@ export function resolveRunnable(id: string): ManualCommand | null {
 export function assertPathInsideBackupRoot(filePath: string): string {
   const resolved = path.resolve(filePath);
   const root = path.resolve(config.backupRoot);
-  if (!resolved.startsWith(root + path.sep) && resolved !== root) {
+  const rel = path.relative(root, resolved);
+  if (rel.startsWith("..") || path.isAbsolute(rel)) {
     throw new Error("Path outside backup root");
   }
-  if (!resolved.includes(`${path.sep}db${path.sep}`) && !resolved.endsWith(`${path.sep}db`)) {
-    // allow only db dumps for restore
+  const norm = resolved.replace(/\\/g, "/");
+  if (!/\/db\//.test(norm) && !norm.endsWith("/db")) {
     if (!/\.dump$/i.test(resolved)) throw new Error("Only .dump files under backup root may be restored");
   }
   return resolved;

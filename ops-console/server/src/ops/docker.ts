@@ -1,5 +1,5 @@
-import { runCommand, runBash } from "./runner.js";
-import { config } from "../config.js";
+import { runBash, runCommand, runDocker, resolveCurlBin, resolvePowerShellBin } from "./runner.js";
+import { config, isWindows } from "../config.js";
 
 export interface ContainerInfo {
   name: string;
@@ -28,7 +28,7 @@ function classify(state: string, health: string, status: string): string {
 }
 
 export async function listContainers(): Promise<ContainerInfo[]> {
-  const ps = await runCommand("docker", [
+  const ps = await runDocker([
     "ps",
     "-a",
     "--format",
@@ -37,7 +37,10 @@ export async function listContainers(): Promise<ContainerInfo[]> {
   if (!ps.ok) {
     throw new Error(ps.stderr || "Docker not available");
   }
-  const lines = ps.stdout.split("\n").map((l) => l.trim()).filter(Boolean);
+  const lines = ps.stdout
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
   const out: ContainerInfo[] = [];
 
   for (const line of lines) {
@@ -45,7 +48,7 @@ export async function listContainers(): Promise<ContainerInfo[]> {
     let health = "none";
     let startedAt: string | undefined;
     let restartCount: number | undefined;
-    const inspect = await runCommand("docker", [
+    const inspect = await runDocker([
       "inspect",
       "--format",
       "{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}\t{{.State.StartedAt}}\t{{.RestartCount}}\t{{.Config.Image}}",
@@ -99,12 +102,22 @@ export async function productionStatus() {
   } catch (e) {
     dockerError = e instanceof Error ? e.message : String(e);
   }
-  const disk = await runBash("df -h . 2>/dev/null | tail -n +1 || df -h");
-  const health = await runBash(
-    "curl -sf http://127.0.0.1:8080/api/v1/health || curl -sf http://127.0.0.1:3001/api/v1/health || echo '{\"status\":\"unreachable\"}'",
-  );
+  const disk = isWindows
+    ? await runCommand(resolvePowerShellBin(), [
+        "-NoProfile",
+        "-Command",
+        "Get-PSDrive -PSProvider FileSystem | Select-Object Name,Used,Free | Format-Table | Out-String",
+      ])
+    : await runBash("df -h . 2>/dev/null || df -h");
+  const curl = resolveCurlBin();
+  let health = await runCommand(curl, ["-sf", "http://127.0.0.1:8080/api/v1/health"]);
+  if (!health.ok) {
+    health = await runCommand(curl, ["-sf", "http://127.0.0.1:3001/api/v1/health"]);
+  }
   return {
     environment: config.environmentLabel,
+    platform: process.platform,
+    isEc2Layout: config.isEc2Layout,
     warinAppDir: config.warinAppDir,
     backupRoot: config.backupRoot,
     git: {
@@ -116,7 +129,7 @@ export async function productionStatus() {
     containers,
     dockerError,
     disk: disk.stdout || disk.stderr,
-    appHealthRaw: health.stdout || health.stderr,
+    appHealthRaw: health.stdout || health.stderr || '{"status":"unreachable"}',
   };
 }
 
@@ -133,7 +146,7 @@ export async function restartContainer(name: string, confirm: boolean, user: str
   if (!allowed.has(name)) throw new Error("Container not in allowlist");
   const { appendAudit } = await import("../store.js");
   appendAudit(user, "container.restart", "info", { detail: name });
-  const r = await runCommand("docker", ["restart", name]);
+  const r = await runDocker(["restart", name]);
   if (!r.ok) {
     appendAudit(user, "container.restart", "failed", { detail: name, error: r.stderr });
     throw new Error(r.stderr || "Restart failed");

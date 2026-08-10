@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { RefreshCw, LogOut, ShieldAlert } from "lucide-react";
+import { RefreshCw, LogOut, ShieldAlert, X } from "lucide-react";
 import { useAuth } from "../lib/auth";
+import { useBusy } from "../lib/busy";
 import { api, formatBytes, formatWhen } from "../lib/api";
 import { useConfirm } from "../components/ConfirmDialog";
+import { useCredentialPrompt } from "../components/CredentialDialog";
 
 type Tab =
   | "overview"
@@ -19,7 +21,9 @@ type Tab =
 
 export function DashboardPage() {
   const { userId, loading, logout } = useAuth();
+  const { busy, withBusy } = useBusy();
   const { confirm, dialog } = useConfirm();
+  const { promptCredentials, dialog: credDialog } = useCredentialPrompt();
   const [tab, setTab] = useState<Tab>("overview");
   const [status, setStatus] = useState<any>(null);
   const [backups, setBackups] = useState<any>(null);
@@ -30,8 +34,8 @@ export function DashboardPage() {
   const [deployments, setDeployments] = useState<any[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
   const [cmdOut, setCmdOut] = useState<string>("");
+  const [activeBackup, setActiveBackup] = useState<"database" | "application" | "docker" | null>(null);
   const [deployOpts, setDeployOpts] = useState({
     pull: true,
     rebuildApi: true,
@@ -61,21 +65,36 @@ export function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    if (userId) void refreshAll().catch((e) => setErr(e.message));
-  }, [userId, refreshAll]);
+    if (!userId) return;
+    void withBusy(async () => {
+      try {
+        await refreshAll();
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : String(e));
+      }
+    });
+  }, [userId, refreshAll, withBusy]);
 
   const run = async (label: string, fn: () => Promise<unknown>) => {
-    setBusy(true);
     setMsg(null);
     setErr(null);
     try {
-      await fn();
+      await withBusy(async () => {
+        await fn();
+        await refreshAll();
+      });
       setMsg(`${label} completed`);
-      await refreshAll();
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const runBackup = async (kind: "database" | "application" | "docker", label: string, path: string) => {
+    setActiveBackup(kind);
+    try {
+      await run(label, () => api(path, { method: "POST", json: {} }));
     } finally {
-      setBusy(false);
+      setActiveBackup(null);
     }
   };
 
@@ -96,6 +115,7 @@ export function DashboardPage() {
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
       {dialog}
+      {credDialog}
       <header className="flex items-center justify-between border-b border-border bg-brand px-4 py-3 text-brand-fg">
         <div className="flex items-center gap-3">
           <img src="/Warin-logo.png" alt="" className="h-7 brightness-0 invert" />
@@ -116,13 +136,29 @@ export function DashboardPage() {
             type="button"
             className="btn btn-ghost !border-brand-border !bg-brand-active !text-white"
             disabled={busy}
-            onClick={() => void refreshAll()}
+            onClick={() => void withBusy(() => refreshAll())}
           >
             <span className="inline-flex items-center gap-1">
               <RefreshCw size={14} /> Refresh
             </span>
           </button>
-          <button type="button" className="btn btn-ghost !border-brand-border !bg-transparent !text-white" onClick={() => void logout()}>
+          <button
+            type="button"
+            className="btn btn-ghost !border-brand-border !bg-transparent !text-white"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              void (async () => {
+                const ok = await confirm({
+                  title: "End this session?",
+                  message: "Are you sure you want to sign out of Backup & Deployment Management?",
+                  confirmLabel: "Sign out",
+                });
+                if (!ok) return;
+                await withBusy(() => logout());
+              })();
+            }}
+          >
             <span className="inline-flex items-center gap-1">
               <LogOut size={14} /> Sign out
             </span>
@@ -162,11 +198,22 @@ export function DashboardPage() {
         <main className="min-w-0 flex-1 overflow-y-auto p-5">
           {(msg || err) && (
             <div
-              className={`mb-4 rounded-md border px-3 py-2 text-[13px] ${
+              className={`mb-4 flex items-start gap-2 rounded-md border px-3 py-2 text-[13px] ${
                 err ? "border-danger/30 bg-danger-soft text-danger" : "border-success/30 bg-emerald-50 text-success"
               }`}
             >
-              {err || msg}
+              <div className="min-w-0 flex-1 break-words">{err || msg}</div>
+              <button
+                type="button"
+                className="shrink-0 cursor-pointer rounded p-0.5 opacity-70 hover:opacity-100"
+                aria-label="Close message"
+                onClick={() => {
+                  setMsg(null);
+                  setErr(null);
+                }}
+              >
+                <X size={16} strokeWidth={2.25} />
+              </button>
             </div>
           )}
 
@@ -198,7 +245,8 @@ export function DashboardPage() {
                   latest={backups?.records?.find((b: any) => b.type === "database")}
                   count={backups?.records?.filter((b: any) => b.type === "database").length}
                   busy={busy}
-                  onBackup={() => void run("Database backup", () => api("/backups/database", { method: "POST", json: {} }))}
+                  progressing={activeBackup === "database"}
+                  onBackup={() => void runBackup("database", "Database backup", "/backups/database")}
                 />
                 <BackupCard
                   title="Application Backup"
@@ -206,7 +254,8 @@ export function DashboardPage() {
                   latest={backups?.records?.find((b: any) => b.type === "application")}
                   count={backups?.records?.filter((b: any) => b.type === "application").length}
                   busy={busy}
-                  onBackup={() => void run("Application backup", () => api("/backups/application", { method: "POST", json: {} }))}
+                  progressing={activeBackup === "application"}
+                  onBackup={() => void runBackup("application", "Application backup", "/backups/application")}
                 />
                 <BackupCard
                   title="Docker / Deployment Backup"
@@ -214,26 +263,50 @@ export function DashboardPage() {
                   latest={backups?.records?.find((b: any) => b.type === "docker")}
                   count={backups?.records?.filter((b: any) => b.type === "docker").length}
                   busy={busy}
-                  onBackup={() => void run("Docker backup", () => api("/backups/docker", { method: "POST", json: {} }))}
+                  progressing={activeBackup === "docker"}
+                  onBackup={() => void runBackup("docker", "Docker backup", "/backups/docker")}
                 />
               </div>
               <RestorePanel
                 dumps={(backups?.filesystem || []).filter((f: any) => f.restoreAvailable)}
                 busy={busy}
-                onRestore={async (path: string) => {
+                onRestore={async (dumpPath: string) => {
+                  const dumpName = dumpPath.split(/[/\\]/).pop() || dumpPath;
+                  const creds = await promptCredentials({
+                    title: "Verify credentials to restore",
+                    message:
+                      "Database restore is destructive. Enter your Backup & Deployment User Id and password to continue.",
+                    submitLabel: "Verify",
+                    verify: async (userId, password) => {
+                      await api("/auth/verify", { method: "POST", json: { userId, password } });
+                    },
+                  });
+                  if (!creds) return;
                   const ok = await confirm({
-                    title: "Restore database?",
+                    title: "Restore selected dump?",
                     danger: true,
+                    confirmLabel: "Restore dump",
                     message: (
                       <>
-                        This will restore <code>{path}</code> into production Postgres. Existing data may be overwritten.
-                        Confirm to continue.
+                        Credentials verified. Restore dump{" "}
+                        <strong className="break-all text-foreground">{dumpName}</strong>
+                        {" "}into production Postgres?
+                        <div className="mt-2 break-all text-[11px] text-muted">{dumpPath}</div>
+                        <div className="mt-2">Existing data may be overwritten. This cannot be undone from this dialog.</div>
                       </>
                     ),
                   });
                   if (!ok) return;
                   await run("Database restore", () =>
-                    api("/backups/restore", { method: "POST", json: { path, confirm: true } }),
+                    api("/backups/restore", {
+                      method: "POST",
+                      json: {
+                        path: dumpPath,
+                        confirm: true,
+                        userId: creds.userId,
+                        password: creds.password,
+                      },
+                    }),
                   );
                 }}
               />
@@ -276,7 +349,12 @@ export function DashboardPage() {
             <section className="space-y-4">
               <div className="flex items-center justify-between">
                 <h1 className="text-[18px] font-semibold text-brand">Docker Container Status</h1>
-                <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => void refreshAll()}>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  disabled={busy}
+                  onClick={() => void withBusy(() => refreshAll())}
+                >
                   Refresh
                 </button>
               </div>
@@ -613,6 +691,7 @@ function BackupCard({
   latest,
   count,
   busy,
+  progressing,
   onBackup,
 }: {
   title: string;
@@ -620,22 +699,40 @@ function BackupCard({
   latest: any;
   count: number;
   busy: boolean;
+  progressing: boolean;
   onBackup: () => void;
 }) {
   return (
-    <div className="rounded-lg border border-border bg-white p-4">
+    <div className={`rounded-lg border bg-white p-4 ${progressing ? "border-primary/40" : "border-border"}`}>
       <div className="text-[14px] font-semibold text-brand">{title}</div>
       <div className="mt-1 text-[11px] text-muted">{hint}</div>
       <div className="mt-3 space-y-1 text-[12px]">
-        <div>Status: <strong>{latest?.status || "—"}</strong></div>
+        <div>
+          Status: <strong>{progressing ? "running" : latest?.status || "—"}</strong>
+        </div>
         <div>Date/time: {formatWhen(latest?.createdAt)}</div>
         <div>Size: {formatBytes(latest?.sizeBytes)}</div>
-        <div className="truncate" title={latest?.location}>Location: {latest?.location || "—"}</div>
+        <div className="truncate" title={latest?.location}>
+          Location: {latest?.location || "—"}
+        </div>
         <div>Total available: {count ?? 0}</div>
-        <div>Latest successful: {latest && (latest.status === "success" || latest.status === "verified") ? formatWhen(latest.completedAt || latest.createdAt) : "—"}</div>
+        <div>
+          Latest successful:{" "}
+          {latest && (latest.status === "success" || latest.status === "verified")
+            ? formatWhen(latest.completedAt || latest.createdAt)
+            : "—"}
+        </div>
       </div>
+      {progressing && (
+        <div className="mt-3" role="progressbar" aria-busy="true" aria-label={`${title} in progress`}>
+          <div className="mb-1 text-[11px] font-medium text-primary">Creating backup…</div>
+          <div className="ops-progress-track h-2 overflow-hidden rounded-full bg-brand/10">
+            <div className="ops-progress-indeterminate h-full rounded-full bg-primary" />
+          </div>
+        </div>
+      )}
       <button type="button" className="btn btn-primary mt-4 w-full" disabled={busy} onClick={onBackup}>
-        Create backup
+        {progressing ? "Creating backup…" : "Create backup"}
       </button>
     </div>
   );
@@ -654,7 +751,9 @@ function RestorePanel({
   return (
     <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
       <div className="text-[14px] font-semibold text-brand">Database restore</div>
-      <p className="mt-1 text-[12px] text-muted">Requires explicit confirmation. Never overwrites an existing backup file.</p>
+      <p className="mt-1 text-[12px] text-muted">
+        Requires credential verification and explicit confirmation. Never overwrites an existing backup file.
+      </p>
       <select
         className="mt-3 h-9 w-full rounded border border-border bg-white px-2 text-[12px]"
         value={path}

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { clearSessionCookie, login, logout, requireAuth, setSessionCookie } from "../auth.js";
+import { clearSessionCookie, login, logout, requireAuth, setSessionCookie, verifyCredentials } from "../auth.js";
 import { config } from "../config.js";
 import { GO_LIVE_KEYS, loadStore, mutateStore, appendAudit } from "../store.js";
 import {
@@ -15,7 +15,7 @@ import { buildManualCommands, resolveRunnable } from "../ops/commands.js";
 import { listContainers, productionStatus, restartContainer } from "../ops/docker.js";
 import { runProductionDeploy } from "../ops/deploy.js";
 import { cleanupExpired, retentionReport } from "../ops/retention.js";
-import { runBash } from "../ops/runner.js";
+import { runBash, platformToolingSummary } from "../ops/runner.js";
 
 export const api = Router();
 
@@ -24,10 +24,13 @@ api.get("/meta", (_req, res) => {
     name: "Warin Backup & Deployment Console",
     storageBoundary: "ops-console-json-independent-of-warin-db",
     environment: config.environmentLabel,
+    platform: process.platform,
+    isEc2Layout: config.isEc2Layout,
     warinAppDir: config.warinAppDir,
     backupRoot: config.backupRoot,
     dataDir: config.dataDir,
-    note: "This tool does not use the WARIN PostgreSQL database.",
+    tooling: platformToolingSummary(),
+    note: "This tool does not use the WARIN PostgreSQL database. Dual-platform: Windows (dev) + Ubuntu EC2 (prod).",
   });
 });
 
@@ -41,6 +44,21 @@ api.post("/auth/login", (req, res) => {
   }
   setSessionCookie(res, result.token);
   res.json({ ok: true, userId });
+});
+
+/** Re-check ops-console credentials for destructive actions (does not create a new session). */
+api.post("/auth/verify", requireAuth, (req, res) => {
+  const r = req as typeof req & { opsUser: string };
+  const userId = String(req.body?.userId || "").trim();
+  const password = String(req.body?.password || "");
+  const result = verifyCredentials(userId, password);
+  if (!result.ok) {
+    appendAudit(r.opsUser, "auth.verify", "failed", { detail: "credential-gate", error: result.error });
+    res.status(401).json({ error: result.error });
+    return;
+  }
+  appendAudit(r.opsUser, "auth.verify", "success", { detail: "credential-gate" });
+  res.json({ ok: true });
 });
 
 api.post("/auth/logout", requireAuth, (req, res) => {
@@ -133,6 +151,14 @@ api.post("/backups/predeploy", requireAuth, async (req, res) => {
 api.post("/backups/restore", requireAuth, async (req, res) => {
   try {
     const r = req as typeof req & { opsUser: string };
+    const userId = String(req.body?.userId || "").trim();
+    const password = String(req.body?.password || "");
+    const creds = verifyCredentials(userId, password);
+    if (!creds.ok) {
+      appendAudit(r.opsUser, "restore.database", "denied", { error: "Invalid credentials" });
+      res.status(401).json({ error: "Invalid credentials — restore blocked" });
+      return;
+    }
     await restoreDatabase(r.opsUser, String(req.body?.path || ""), Boolean(req.body?.confirm));
     res.json({ ok: true });
   } catch (e) {
