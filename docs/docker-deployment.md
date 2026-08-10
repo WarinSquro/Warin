@@ -59,6 +59,10 @@ For real Gmail/SMTP, set `MAIL_SMTP_HOST` / `MAIL_SMTP_USER` / `MAIL_SMTP_PASS` 
 
 ## Backup / restore
 
+**Production strategy (EC2):** see [`docs/production-backup-and-deployment.md`](./production-backup-and-deployment.md) (schedule, retention, deploy/rollback/DR, `scripts/ec2-backup.sh`).
+
+Local / Compose helpers:
+
 ```bash
 bash scripts/backup-postgres.sh ./backups
 bash scripts/restore-postgres.sh ./backups/oneview_YYYYMMDD.dump

@@ -42,7 +42,10 @@
     "worker:build": "npm run build -w @oneview/worker",
     "docker:up": "docker compose up -d --build",
     "docker:down": "docker compose down",
-    "db:migrate:deploy": "prisma migrate deploy"
+    "db:migrate:deploy": "prisma migrate deploy",
+    "ops:dev": "npm --prefix ops-console run dev",
+    "ops:start": "npm --prefix ops-console run start:prod",
+    "ops:build": "npm --prefix ops-console run build"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

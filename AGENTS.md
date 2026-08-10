@@ -50,7 +50,9 @@ Phase plan (ONE PROMPT adapted): Foundation → Database → Auth/JWT → Domain
 
 Local/Docker: `docker compose up -d --build` → `npx prisma migrate deploy` → `npm run db:seed` → `npm run api:dev` / `npm run dev`.
 
-See `docs/docker-deployment.md`, `docs/acceptance-checklist.md`, `docs/monorepo.md`.
+See `docs/docker-deployment.md`, `docs/acceptance-checklist.md`, `docs/monorepo.md`.  
+**Production backup / deploy / DR:** `docs/production-backup-and-deployment.md`.  
+**Standalone Backup & Deployment console:** `ops-console/` (own JSON store; not WARIN DB).
 
 ## Specs (FRD / UI)
 

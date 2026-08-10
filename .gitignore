@@ -33,5 +33,6 @@ playwright/.cache/
 packages/*/dist/
 data/files/
 
-# Prisma (generated client lives in node_modules; local DB volumes if added later)
-server/node_modules/
+# Local / EC2-style dumps created under repo during ops-console local runs
+/backups/
+

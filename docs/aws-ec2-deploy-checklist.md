@@ -68,7 +68,7 @@ bash scripts/ec2-enable-https.sh
 | H3 | Real SMTP (disable public Mailpit UI habit) | Later |
 | H4 | UFW: allow 22, 80, **443** | With HTTPS |
 | H5 | SG: 22 + 80 + **443**; **no** DB/Redis/8080/ops ports | Critical |
-| H6 | Backups | `/opt/warin/backups` |
+| H6 | Backups | **See [`docs/production-backup-and-deployment.md`](./production-backup-and-deployment.md)** — `/opt/warin/backups` + S3; `scripts/ec2-backup.sh` |
 
 ### Target exposure
 

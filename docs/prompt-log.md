@@ -32,7 +32,41 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
-### 2026-08-10 17:20 IST
+### 2026-08-10 19:05 IST
+
+**Prompt:**  
+> Create standalone Backup & Deployment Management app (independent of WARIN DB/auth), with login, backups, docker status, commands, deploy, checklist, history, retention, audit; WARIN-styled login; git commit/push
+
+**Output:**  
+- Added `ops-console/` standalone Express + React tool; storage `ops-console/data/ops-store.json` (bcrypt auth, audit, backups, checklist) — **not** WARIN Postgres.  
+- Features: DB/app/docker/predeploy backups, restore with confirm, Docker status, allowlisted commands, gated deploy sequence, go-live checklist, retention, audit.  
+- Scripts: root `ops:dev` / `ops:build` / `ops:start`; see `ops-console/README.md`.  
+- Linked from `docs/production-backup-and-deployment.md`. Verified login API + production web build.
+
+---
+
+### 2026-08-10 18:15 IST
+
+**Prompt:**  
+> Design complete production backup, recovery, and deployment process (DB, Docker, deploy, pre-deploy backup, DR, architecture) — inspect project first; deliver document
+
+**Output:**  
+- Added `docs/production-backup-and-deployment.md` (Warin EC2+Compose tailored: RPO/RTO, schedules, retention, deploy/rollback/DR, automation).  
+- Added `scripts/ec2-backup.sh` (daily/hourly/predeploy dumps + files + .env + manifest).  
+- Linked from `docs/aws-ec2-deploy-checklist.md` (H6), `docs/docker-deployment.md`, `AGENTS.md`.
+
+---
+
+### 2026-08-10 17:40 IST
+
+**Prompt:**  
+> Live login Failed to fetch — correct first
+
+**Output:**  
+- Diagnosed: live SPA bundle hardcodes `https://YOUR_DOMAIN/api/v1` (placeholder used at vite build). API itself is healthy (`/api/v1/health` 200) + CORS OK for `http://13.126.64.134`.  
+- Fix for user: rebuild SPA on EC2 with `VITE_API_BASE_URL=http://13.126.64.134/api/v1` then copy `dist/` → `/opt/warin/shared/web`.
+
+---
 
 **Prompt:**  
 > Reduce login wallpaper opacity by 30%
