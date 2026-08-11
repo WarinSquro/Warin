@@ -172,12 +172,20 @@ export class MastersController {
 
     const status = asStatus(body.status, row.status);
     if (status === "inactive" && row.status !== "inactive") {
-      const mapped = await this.prisma.employee.count({
+      const employeeCount = await this.prisma.employee.count({
         where: { departmentId: row.id, isDeleted: false },
       });
-      if (mapped > 0) {
+      if (employeeCount > 0) {
         throw new BadRequestException(
           "Department is mapped to one or more employees and cannot be disabled."
+        );
+      }
+      const competencyCount = await this.prisma.weeklyCheckInCompetency.count({
+        where: { departmentId: row.id, isDeleted: false },
+      });
+      if (competencyCount > 0) {
+        throw new BadRequestException(
+          "Department is used in weekly check-in configuration and cannot be disabled."
         );
       }
     }
@@ -357,12 +365,23 @@ export class MastersController {
 
     const status = asStatus(body.status, row.status);
     if (status === "inactive" && row.status !== "inactive") {
-      const mapped = await this.prisma.employeeSkill.count({
+      const employeeCount = await this.prisma.employeeSkill.count({
         where: { skillId: row.id, employee: { isDeleted: false } },
       });
-      if (mapped > 0) {
+      if (employeeCount > 0) {
         throw new BadRequestException(
           "Skill is mapped to one or more employees and cannot be disabled."
+        );
+      }
+      const demandCount = await this.prisma.projectDemandLine.count({
+        where: {
+          skills: { has: row.name },
+          project: { isDeleted: false },
+        },
+      });
+      if (demandCount > 0) {
+        throw new BadRequestException(
+          "Skill is used in project demand and cannot be disabled."
         );
       }
     }
@@ -579,16 +598,16 @@ export class MastersController {
 
     const status = asStatus(body.status, row.status);
     if (status === "inactive" && row.status !== "inactive") {
-      const mapped = await this.prisma.allocation.count({
+      const allocationCount = await this.prisma.allocation.count({
         where: {
           activityId: row.id,
           isDeleted: false,
           project: { isDeleted: false },
         },
       });
-      if (mapped > 0) {
+      if (allocationCount > 0) {
         throw new BadRequestException(
-          "Activity is mapped to one or more projects and cannot be disabled."
+          "Activity is associated with one or more allocations and cannot be disabled."
         );
       }
     }

@@ -15,7 +15,7 @@ import { useAuth } from "../context/AuthContext";
 import { useEmployees } from "../context/EmployeesContext";
 import { useToast } from "../context/ToastContext";
 import { fetchAccessRights, fetchAllAccessRights, putAccessRights } from "../api/domain";
-import { useSharedDataSync, usePauseSharedDataSync } from "../hooks/useSharedDataSync";
+import { useSharedDataSync, usePauseSharedDataSync, MASTER_TXN_SYNC_INTERVAL_MS } from "../hooks/useSharedDataSync";
 import { formatDataReachSummary, getResourceOwnerDisplay } from "../utils/employeeHierarchy";
 import { matchesSearchQuery } from "../utils/textSearch";
 import { ThemeCheckbox } from "../components/ThemeCheckbox";
@@ -45,6 +45,7 @@ export function AccessRights() {
   const [pendingSelectId, setPendingSelectId] = useState<string | null>(null);
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
   const [rightsCache, setRightsCache] = useState<Record<string, string[]>>({});
+  const [copyFromId, setCopyFromId] = useState("");
 
   const selectedEmployee = useMemo(
     () => employees.find((e) => e.id === selectedId) ?? null,
@@ -70,6 +71,7 @@ export function AccessRights() {
   const loadEmployee = useCallback(
     async (emp: Employee) => {
       setSelectedId(emp.id);
+      setCopyFromId("");
       if (isSuperAdminEmail(emp.email)) {
         const keys = new Set(getSuperAdminAssignableKeys());
         setDraftKeys(keys);
@@ -114,7 +116,10 @@ export function AccessRights() {
     void reloadRightsCache();
   }, [reloadRightsCache]);
 
-  useSharedDataSync(!dirty, reloadRightsCache, { resources: ["access-rights"] });
+  useSharedDataSync(!dirty, reloadRightsCache, {
+    resources: ["access-rights"],
+    intervalMs: MASTER_TXN_SYNC_INTERVAL_MS,
+  });
   usePauseSharedDataSync(dirty);
 
   const selectEmployee = (emp: Employee) => {
@@ -144,12 +149,16 @@ export function AccessRights() {
     }
   };
 
-  const handleDiscard = () => setDraftKeys(new Set(savedKeys));
+  const handleDiscard = () => {
+    setDraftKeys(new Set(savedKeys));
+    setCopyFromId("");
+  };
 
   const handleCopyFrom = async (sourceId: string) => {
     if (readOnly || !sourceId) return;
     const source = employees.find((e) => e.id === sourceId);
     if (!source || isSuperAdminEmail(source.email)) return;
+    setCopyFromId(sourceId);
     try {
       const keys = rightsCache[sourceId] ?? (await fetchAccessRights(sourceId));
       setDraftKeys(new Set(keys));
@@ -324,12 +333,11 @@ export function AccessRights() {
                   <div className="flex items-center gap-2">
                     <label className="text-[12px] text-muted-foreground">Copy access from</label>
                     <select
-                      defaultValue=""
+                      value={copyFromId}
                       onChange={(e) => {
-                        if (e.target.value) handleCopyFrom(e.target.value);
-                        e.target.value = "";
+                        if (e.target.value) void handleCopyFrom(e.target.value);
                       }}
-                      className="rounded-md border border-border bg-surface px-2.5 py-1.5 text-[12px] text-foreground outline-none"
+                      className="cursor-pointer rounded-md border border-border bg-surface px-2.5 py-1.5 text-[12px] text-foreground outline-none"
                     >
                       <option value="">Select employee…</option>
                       {copySources.map((e) => (

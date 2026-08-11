@@ -11,7 +11,7 @@ import { FilterMultiSelect } from "../components/FilterMultiSelect";
 import { MinFreeHoursSelect } from "../components/MinFreeHoursSelect";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import { usePlanningEmployees } from "../hooks/usePlanningEmployees";
-import { useSharedDataSync, usePauseSharedDataSync } from "../hooks/useSharedDataSync";
+import { useSharedDataSync, usePauseSharedDataSync, MASTER_TXN_SYNC_INTERVAL_MS } from "../hooks/useSharedDataSync";
 import { useMasters } from "../context/MastersContext";
 import { useSettings } from "../context/SettingsContext";
 import { useToast } from "../context/ToastContext";
@@ -366,7 +366,10 @@ export function Availability() {
   const [minFreeHours, setMinFreeHours] = useState(0);
   const { sortKey, sortDir, handleSort } = useColumnSort<AvailSortKey>("freeHours", "desc");
 
-  useSharedDataSync(!drawerOpen, reloadAllocations, { resources: ["allocations"] });
+  useSharedDataSync(!drawerOpen, reloadAllocations, {
+    resources: ["allocations"],
+    intervalMs: MASTER_TXN_SYNC_INTERVAL_MS,
+  });
   usePauseSharedDataSync(drawerOpen);
 
   useEffect(() => {

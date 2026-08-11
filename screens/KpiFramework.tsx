@@ -17,7 +17,7 @@ import {
 } from "../api/domain";
 import { ConfirmDeleteDialog } from "../components/ConfirmDeleteDialog";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
-import { useSharedDataSync, usePauseSharedDataSync } from "../hooks/useSharedDataSync";
+import { useSharedDataSync, usePauseSharedDataSync, MASTER_TXN_SYNC_INTERVAL_MS } from "../hooks/useSharedDataSync";
 import { useEmployees } from "../context/EmployeesContext";
 import { useMasters } from "../context/MastersContext";
 import { useToast } from "../context/ToastContext";
@@ -222,9 +222,12 @@ export function KpiFramework() {
     }
   }, [loadMasters, seg, resourceId, year, cycle, deptId]);
 
-  useSharedDataSync(true, syncKpi, { resources: ["kpi"] });
-  /** Avoid overwriting in-progress KPI / master edits on poll / focus / SSE. */
-  usePauseSharedDataSync(true);
+  useSharedDataSync(true, syncKpi, {
+    resources: ["kpi"],
+    intervalMs: MASTER_TXN_SYNC_INTERVAL_MS,
+  });
+  /** Pause only while typing a new master name — allow live reload of the open framework/list. */
+  usePauseSharedDataSync(Boolean(newMasterName.trim()));
 
   const masterList =
     masterTab === "categories" ? categories : masterTab === "methods" ? methods : units;
@@ -551,7 +554,7 @@ export function KpiFramework() {
               </Filter>
               <div className="ml-auto flex items-center gap-3">
                 <span
-                  className={`text-[12px] font-medium ${weightOk ? "text-muted-foreground" : "text-warning"}`}
+                  className={`text-[12px] font-medium ${weightOk ? "text-success" : "text-warning"}`}
                 >
                   Weightage {weightTotal.toFixed(0)}% / 100%
                 </span>
@@ -750,8 +753,8 @@ export function KpiFramework() {
                                 }
                                 className={fieldClass}
                               >
-                                <option value="higher_is_better">Higher is Better</option>
-                                <option value="lower_is_better">Lower is Better</option>
+                                <option value="higher_is_better">High</option>
+                                <option value="lower_is_better">Low</option>
                               </select>
                             </td>
                             <td className="px-3 py-2">

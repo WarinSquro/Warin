@@ -8,6 +8,9 @@ import {
 const DEFAULT_INTERVAL_MS = 45_000;
 const REALTIME_DEBOUNCE_MS = 400;
 
+/** Poll interval for Master/Transaction screens while the page is active (SSE is primary). */
+export const MASTER_TXN_SYNC_INTERVAL_MS = 8_000;
+
 type SyncOptions = {
   /** Poll while the tab is visible. Pass `false` to disable polling (visibility/focus only). */
   intervalMs?: number | false;
@@ -59,7 +62,8 @@ export function usePauseSharedDataSync(paused: boolean) {
  * - Optional SSE-driven refresh for matching `resources` (Phase 2)
  *
  * Callers should pass a silent refresh (no full-page loading spinner).
- * Sync is skipped while any `usePauseSharedDataSync(true)` is active.
+ * Sync is deferred (not dropped) while paused, hidden, or a sync is already in flight —
+ * so enable/disable and other mutations still land after the blocker clears.
  */
 export function useSharedDataSync(
   enabled: boolean,
@@ -73,6 +77,7 @@ export function useSharedDataSync(
   const onSyncRef = useRef(onSync);
   onSyncRef.current = onSync;
   const inFlightRef = useRef(false);
+  const pendingRef = useRef(false);
   const debounceRef = useRef<number | undefined>(undefined);
   const [pauseEpoch, setPauseEpoch] = useState(0);
 
@@ -85,12 +90,31 @@ export function useSharedDataSync(
   }, []);
 
   const run = useCallback(async () => {
-    if (!enabled || inFlightRef.current) return;
-    if (isSharedDataSyncPaused()) return;
-    if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+    if (!enabled) return;
+
+    if (isSharedDataSyncPaused()) {
+      pendingRef.current = true;
+      return;
+    }
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+      pendingRef.current = true;
+      return;
+    }
+    if (inFlightRef.current) {
+      pendingRef.current = true;
+      return;
+    }
+
     inFlightRef.current = true;
     try {
-      await onSyncRef.current();
+      do {
+        pendingRef.current = false;
+        await onSyncRef.current();
+      } while (
+        pendingRef.current &&
+        !isSharedDataSyncPaused() &&
+        (typeof document === "undefined" || document.visibilityState === "visible")
+      );
     } catch {
       /* caller handles errors; never throw out of sync loop */
     } finally {
@@ -105,6 +129,12 @@ export function useSharedDataSync(
       void run();
     }, REALTIME_DEBOUNCE_MS);
   }, [run]);
+
+  // After pause releases (drawer/form closed), flush any SSE/poll that arrived while blocked.
+  useEffect(() => {
+    if (!enabled || isSharedDataSyncPaused()) return;
+    if (pendingRef.current) void run();
+  }, [enabled, pauseEpoch, run]);
 
   useEffect(() => {
     if (!enabled) return;

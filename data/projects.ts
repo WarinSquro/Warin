@@ -62,6 +62,8 @@ export interface Project {
   /** Required when health is amber or red (FR-147 / BR-025). */
   healthRemarks?: string;
   status: ProjectStatus;
+  /** Non-deleted allocations linked to this project (blocks Disable when > 0). */
+  allocationCount?: number;
   /** ISO timestamp from API */
   createdAt?: string;
   /** ISO timestamp from API */

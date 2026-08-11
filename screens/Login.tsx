@@ -1,8 +1,9 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, Link, Navigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { AuthLayout } from "../components/AuthLayout";
 import { useAuth } from "../context/AuthContext";
+import { LOGIN_NOTICE_KEY } from "../api/client";
 
 export function Login() {
   const navigate = useNavigate();
@@ -14,6 +15,19 @@ export function Login() {
   const [loading, setLoading] = useState(false);
   const [showPin, setShowPin] = useState(false);
   const refs = useRef<(HTMLInputElement | null)[]>([]);
+
+  useEffect(() => {
+    try {
+      const notice = sessionStorage.getItem(LOGIN_NOTICE_KEY);
+      if (notice) {
+        sessionStorage.removeItem(LOGIN_NOTICE_KEY);
+        setError(true);
+        setErrorMsg(notice);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   if (isAuthenticated) {
     return <Navigate to={getDefaultLandingRoute()} replace />;

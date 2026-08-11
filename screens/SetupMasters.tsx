@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Plus, Search, X } from "lucide-react";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import {
@@ -16,7 +16,8 @@ import type { ProjectType, MilestoneKind } from "../data/projects";
 import { MilestoneKindPicker } from "../components/MilestoneKindPicker";
 import { useMasters } from "../context/MastersContext";
 import { useToast } from "../context/ToastContext";
-import { usePauseSharedDataSync } from "../hooks/useSharedDataSync";
+import { useAuth } from "../context/AuthContext";
+import { usePauseSharedDataSync, useSharedDataSync, MASTER_TXN_SYNC_INTERVAL_MS } from "../hooks/useSharedDataSync";
 import { matchesSearchQuery } from "../utils/textSearch";
 import {
   createActivity,
@@ -31,6 +32,24 @@ import {
 } from "../api/domain";
 
 type Segment = "departments" | "skills" | "activities";
+
+const SEGMENT_PERMISSION: Record<Segment, string> = {
+  departments: "masters.departments",
+  skills: "masters.skills",
+  activities: "masters.activities",
+};
+
+const ALL_SEGMENTS: Segment[] = ["departments", "skills", "activities"];
+
+function canAccessMastersSegment(
+  seg: Segment,
+  allowedKeys: Set<string>,
+  isSuperAdmin: boolean
+): boolean {
+  if (isSuperAdmin) return true;
+  if (allowedKeys.has("masters")) return true;
+  return allowedKeys.has(SEGMENT_PERMISSION[seg]);
+}
 type Tab = "active" | "inactive";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -211,8 +230,9 @@ function SkillDrawer({
               onChange={(e) => setName(e.target.value)}
               autoFocus
               disabled={saving}
+              maxLength={30}
               className="w-full rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line disabled:opacity-60"
-              placeholder="e.g. React"
+              placeholder="e.g. React (30 characters)"
             />
           </Field>
           <Field label="Category" required>
@@ -331,8 +351,9 @@ function DeptDrawer({
               onChange={(e) => setName(e.target.value)}
               autoFocus
               disabled={saving}
+              maxLength={30}
               className="w-full rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line disabled:opacity-60"
-              placeholder="e.g. Engineering"
+              placeholder="e.g. Engineering (30 characters)"
             />
           </Field>
         </div>
@@ -443,8 +464,9 @@ function ActivityDrawer({
               onChange={(e) => setName(e.target.value)}
               autoFocus
               disabled={saving}
+              maxLength={30}
               className="w-full rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line disabled:opacity-60"
-              placeholder="e.g. Feature Development"
+              placeholder="e.g. Feature Development (30 characters)"
             />
           </Field>
 
@@ -973,10 +995,32 @@ function ActivitiesList({
 // ─── screen ─────────────────────────────────────────────────────────────────
 
 export function SetupMasters() {
+  const { allowedKeys, isSuperAdmin } = useAuth();
   const [segment, setSegment] = useState<Segment>("departments");
   const [tab, setTab] = useState<Tab>("active");
   const [q, setQ] = useState("");
   const toast = useToast();
+
+  const segmentAllowed = useMemo(() => {
+    const map = {} as Record<Segment, boolean>;
+    for (const seg of ALL_SEGMENTS) {
+      map[seg] = canAccessMastersSegment(seg, allowedKeys, isSuperAdmin);
+    }
+    return map;
+  }, [allowedKeys, isSuperAdmin]);
+
+  const firstAllowedSegment = useMemo(
+    () => ALL_SEGMENTS.find((seg) => segmentAllowed[seg]) ?? null,
+    [segmentAllowed]
+  );
+
+  useEffect(() => {
+    if (!segmentAllowed[segment] && firstAllowedSegment) {
+      setSegment(firstAllowedSegment);
+      setTab("active");
+      setQ("");
+    }
+  }, [segment, segmentAllowed, firstAllowedSegment]);
 
   const {
     departments: depts,
@@ -986,6 +1030,20 @@ export function SetupMasters() {
     setActivityMilestones,
     refresh,
   } = useMasters();
+
+  const retriedEmptySeg = useRef<Partial<Record<Segment, boolean>>>({});
+
+  // One-shot reload when an allowed segment still has no rows (rights granted after first fetch).
+  useEffect(() => {
+    if (!segmentAllowed[segment] || retriedEmptySeg.current[segment]) return;
+    const empty =
+      (segment === "departments" && depts.length === 0) ||
+      (segment === "skills" && skills.length === 0) ||
+      (segment === "activities" && activities.length === 0);
+    if (!empty) return;
+    retriedEmptySeg.current[segment] = true;
+    void refresh();
+  }, [segment, segmentAllowed, depts.length, skills.length, activities.length, refresh]);
 
   const [saving, setSaving] = useState(false);
 
@@ -1002,6 +1060,10 @@ export function SetupMasters() {
   const [activityDrawer, setActivityDrawer] = useState(false);
 
   usePauseSharedDataSync(deptDrawer || skillDrawer || activityDrawer);
+  useSharedDataSync(!(deptDrawer || skillDrawer || activityDrawer), () => refresh(), {
+    resources: ["masters"],
+    intervalMs: MASTER_TXN_SYNC_INTERVAL_MS,
+  });
 
   const toggleDept = async (id: string) => {
     const row = depts.find((d) => d.id === id);
@@ -1040,7 +1102,7 @@ export function SetupMasters() {
     if (!row) return;
     const next: SetupStatus = row.status === "active" ? "inactive" : "active";
     if (next === "inactive" && (row.projectCount ?? 0) > 0) {
-      toast.error("Activity is mapped to one or more projects and cannot be disabled.");
+      toast.error("Activity is associated with one or more allocations and cannot be disabled.");
       return;
     }
     try {
@@ -1172,6 +1234,7 @@ export function SetupMasters() {
   };
 
   const handleAdd = () => {
+    if (!segmentAllowed[segment]) return;
     if (segment === "departments") openNewDept();
     else if (segment === "skills") openNewSkill();
     else openNewActivity();
@@ -1182,6 +1245,8 @@ export function SetupMasters() {
     skills: "Add skill",
     activities: "Add activity",
   }[segment];
+
+  const canAdd = segmentAllowed[segment];
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -1196,29 +1261,49 @@ export function SetupMasters() {
           </div>
         </div>
         <button
+          type="button"
           onClick={handleAdd}
-          className="flex cursor-pointer items-center gap-1.5 rounded-md bg-primary px-3.5 py-1.5 text-[12px] font-medium text-primary-foreground"
+          disabled={!canAdd}
+          className="flex cursor-pointer items-center gap-1.5 rounded-md bg-primary px-3.5 py-1.5 text-[12px] font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-40"
         >
           <Plus className="h-3.5 w-3.5" /> {addLabel}
         </button>
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden bg-background p-5">
-        {/* segment switcher */}
+        {/* segment switcher — each tab gated by Access Rights child key */}
         <div className="flex flex-shrink-0 gap-1 self-start rounded-lg border border-border bg-surface p-1">
-          {(["departments", "skills", "activities"] as Segment[]).map((seg) => (
-            <button
-              key={seg}
-              onClick={() => { setSegment(seg); setTab("active"); setQ(""); }}
-              className={`cursor-pointer rounded-md px-4 py-1.5 text-[12px] font-medium capitalize ${
-                segment === seg
-                  ? "bg-brand text-white"
-                  : "text-muted hover:bg-surface-alt"
-              }`}
-            >
-              {segmentLabels[seg]}
-            </button>
-          ))}
+          {ALL_SEGMENTS.map((seg) => {
+            const allowed = segmentAllowed[seg];
+            const active = segment === seg;
+            return (
+              <button
+                key={seg}
+                type="button"
+                disabled={!allowed}
+                title={
+                  allowed
+                    ? undefined
+                    : `No access to ${segmentLabels[seg]} — ask an administrator`
+                }
+                onClick={() => {
+                  if (!allowed) return;
+                  setSegment(seg);
+                  setTab("active");
+                  setQ("");
+                }}
+                className={`rounded-md px-4 py-1.5 text-[12px] font-medium capitalize ${
+                  !allowed
+                    ? "cursor-not-allowed text-muted-foreground opacity-40"
+                    : active
+                      ? "cursor-pointer bg-brand text-white"
+                      : "cursor-pointer text-muted hover:bg-surface-alt"
+                }`}
+              >
+                {segmentLabels[seg]}
+              </button>
+            );
+          })}
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-surface">
@@ -1244,7 +1329,7 @@ export function SetupMasters() {
           </div>
 
           {/* segment content */}
-          {segment === "departments" && (
+          {segmentAllowed[segment] && segment === "departments" && (
             <DepartmentsList
               tab={tab}
               q={q}
@@ -1253,7 +1338,7 @@ export function SetupMasters() {
               onToggle={toggleDept}
             />
           )}
-          {segment === "skills" && (
+          {segmentAllowed[segment] && segment === "skills" && (
             <SkillsList
               tab={tab}
               q={q}
@@ -1262,7 +1347,7 @@ export function SetupMasters() {
               onToggle={toggleSkill}
             />
           )}
-          {segment === "activities" && (
+          {segmentAllowed[segment] && segment === "activities" && (
             <ActivitiesList
               tab={tab}
               q={q}
@@ -1272,10 +1357,15 @@ export function SetupMasters() {
               onToggle={toggleActivity}
             />
           )}
+          {!segmentAllowed[segment] && (
+            <div className="px-4 py-12 text-center text-[12px] text-muted-foreground">
+              You do not have access to this section.
+            </div>
+          )}
         </div>
 
         {/* activities billable note */}
-        {segment === "activities" && (
+        {segmentAllowed.activities && segment === "activities" && (
           <div className="flex-shrink-0 rounded-md border border-border-soft bg-surface-alt px-4 py-3 text-[11px] text-muted-foreground">
             <span className="font-medium text-foreground">Billable flag:</span> Only billable
             activities count toward utilization. Mark internal activities (meetings, training,

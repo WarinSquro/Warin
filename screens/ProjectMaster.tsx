@@ -20,7 +20,7 @@ import { useFocusFirstField } from "../hooks/useFocusFirstField";
 import { matchesSearchQuery } from "../utils/textSearch";
 import { formatAppDate } from "../utils/formatAppDate";
 import { useAppDateFormat } from "../hooks/useAppDateFormat";
-import { usePauseSharedDataSync } from "../hooks/useSharedDataSync";
+import { usePauseSharedDataSync, useSharedDataSync, MASTER_TXN_SYNC_INTERVAL_MS } from "../hooks/useSharedDataSync";
 import {
   decodeApprovalSnap,
   encodeApprovalSnap,
@@ -316,22 +316,32 @@ function ProjectCell({
           {p.modifiedByName?.trim() || "—"}
         </div>
       );
-    case "action":
+    case "action": {
+      const disableBlocked = !inactive && (p.allocationCount ?? 0) > 0;
       return (
         <div className="text-right">
           <button
             type="button"
             onClick={onToggle}
+            disabled={disableBlocked}
+            title={
+              disableBlocked
+                ? "Project is associated with one or more allocations and cannot be disabled."
+                : undefined
+            }
             className={`text-[11px] ${
-              inactive
-                ? "text-success hover:underline"
-                : "text-muted-foreground hover:text-danger hover:underline"
+              disableBlocked
+                ? "cursor-not-allowed text-muted-foreground opacity-40"
+                : inactive
+                  ? "cursor-pointer text-success hover:underline"
+                  : "cursor-pointer text-muted-foreground hover:text-danger hover:underline"
             }`}
           >
             {inactive ? "Reactivate" : "Disable"}
           </button>
         </div>
       );
+    }
     default:
       return null;
   }
@@ -1180,6 +1190,10 @@ export function ProjectMaster() {
   );
 
   usePauseSharedDataSync(drawerOpen);
+  useSharedDataSync(!drawerOpen, () => refresh(), {
+    resources: ["projects"],
+    intervalMs: MASTER_TXN_SYNC_INTERVAL_MS,
+  });
 
   const { sortKey, sortDir, handleSort } = useColumnSort<ProjectSortKey>("project");
 
@@ -1270,6 +1284,10 @@ export function ProjectMaster() {
     const project = rows.find((p) => p.id === id);
     if (!project) return;
     const next = (project.status === "active" ? "inactive" : "active") as ProjectStatus;
+    if (next === "inactive" && (project.allocationCount ?? 0) > 0) {
+      toast.error("Project is associated with one or more allocations and cannot be disabled.");
+      return;
+    }
     try {
       await updateProject(id, { status: next });
       await refresh();

@@ -33,7 +33,7 @@ import { DepartmentSelect } from "../components/DepartmentSelect";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import { useProjects } from "../context/ProjectsContext";
 import { usePlanningEmployees } from "../hooks/usePlanningEmployees";
-import { useSharedDataSync, usePauseSharedDataSync } from "../hooks/useSharedDataSync";
+import { useSharedDataSync, usePauseSharedDataSync, MASTER_TXN_SYNC_INTERVAL_MS } from "../hooks/useSharedDataSync";
 import { useMasters } from "../context/MastersContext";
 import { useSettings } from "../context/SettingsContext";
 import { useToast } from "../context/ToastContext";
@@ -285,7 +285,12 @@ export function ResourcePlanner() {
     void reloadAllocations();
   }, [reloadAllocations]);
 
-  useSharedDataSync(!drawerOpen, reloadAllocations, { resources: ["allocations"] });
+  // Live cross-user refresh while Planner is open: SSE `allocations` + short poll fallback.
+  // Paused while the allocation drawer is open so in-progress edits are not overwritten.
+  useSharedDataSync(!drawerOpen, reloadAllocations, {
+    resources: ["allocations"],
+    intervalMs: MASTER_TXN_SYNC_INTERVAL_MS,
+  });
   usePauseSharedDataSync(drawerOpen);
 
   useEffect(() => {
@@ -552,82 +557,84 @@ export function ResourcePlanner() {
         </div>
       </div>
 
-      {/* Grid */}
+      {/* Grid — header + rows share one scrollport so scrollbar never shifts columns */}
       <div className="flex flex-1 flex-col overflow-hidden bg-surface">
-        {/* Column header */}
-        <div className="flex flex-shrink-0 border-b border-border bg-surface-alt">
-          <div className="w-[210px] flex-shrink-0 border-r border-border-soft px-4 py-2.5 text-[11px] font-semibold text-muted">
-            <SortColHeader
-              label="TEAM MEMBER"
-              col="name"
-              sortKey={sortKey}
-              sortDir={sortDir}
-              onSort={handleSort}
-            />
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
+          {/* Column header (sticky within scrollport) */}
+          <div className="sticky top-0 z-10 flex flex-shrink-0 border-b border-border bg-surface-alt">
+            <div className="w-[210px] flex-shrink-0 border-r border-border-soft px-4 py-2.5 text-[11px] font-semibold text-muted">
+              <SortColHeader
+                label="TEAM MEMBER"
+                col="name"
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onSort={handleSort}
+              />
+            </div>
+            {view === "week"
+              ? WEEKS.map((w, i) => (
+                  <div
+                    key={w}
+                    className={`flex-1 border-r border-border-soft px-3 py-2.5 text-center text-[11px] ${
+                      i === CURRENT_WEEK_INDEX ? "bg-highlight font-semibold text-foreground" : "text-muted-foreground"
+                    }`}
+                  >
+                    {w}
+                  </div>
+                ))
+              : DAYS.map((d, i) => {
+                  const iso = DAY_START_ISO[i]!;
+                  const holiday = !isPlannerWorkingDay(iso, calendarOpts);
+                  const isToday = i === CURRENT_DAY_INDEX;
+                  return (
+                    <div
+                      key={d}
+                      className={`flex flex-1 border-r border-border-soft px-3 py-2.5 text-center text-[11px] ${
+                        holiday
+                          ? "bg-surface-alt font-medium text-muted-foreground"
+                          : isToday
+                            ? "bg-highlight font-semibold text-foreground"
+                            : "text-muted-foreground"
+                      }`}
+                      title={holiday ? "Company holiday / non-working day" : undefined}
+                    >
+                      {d}
+                      {holiday ? <div className="text-[9px] font-normal">Holiday</div> : null}
+                    </div>
+                  );
+                })}
           </div>
-          {view === "week"
-            ? WEEKS.map((w, i) => (
+
+          {/* Rows */}
+          <div className="flex flex-col">
+            {sortedRows.length === 0 ? (
+              <div className="px-4 py-10 text-center text-[13px] text-muted-foreground">
+                No team members match the selected departments.
+              </div>
+            ) : (
+              sortedRows.map((row) => (
                 <div
-                  key={w}
-                  className={`flex-1 border-r border-border-soft px-3 py-2.5 text-center text-[11px] ${
-                    i === CURRENT_WEEK_INDEX ? "bg-highlight font-semibold text-foreground" : "text-muted-foreground"
-                  }`}
+                  key={row.id}
+                  ref={(el) => {
+                    rowRefs.current[row.id] = el;
+                  }}
+                  className={
+                    highlightRowId === row.id
+                      ? "ring-2 ring-inset ring-primary/40 bg-accent-soft/30"
+                      : undefined
+                  }
                 >
-                  {w}
+                  <PlannerGridRow
+                    row={row}
+                    view={view}
+                    calendarOpts={calendarOpts}
+                    onCellClick={handleCellClick}
+                    onChipClick={handleChipClick}
+                  />
                 </div>
               ))
-            : DAYS.map((d, i) => {
-                const iso = DAY_START_ISO[i]!;
-                const holiday = !isPlannerWorkingDay(iso, calendarOpts);
-                const isToday = i === CURRENT_DAY_INDEX;
-                return (
-                  <div
-                    key={d}
-                    className={`flex flex-1 border-r border-border-soft px-3 py-2.5 text-center text-[11px] ${
-                      holiday
-                        ? "bg-surface-alt font-medium text-muted-foreground"
-                        : isToday
-                          ? "bg-highlight font-semibold text-foreground"
-                          : "text-muted-foreground"
-                    }`}
-                    title={holiday ? "Company holiday / non-working day" : undefined}
-                  >
-                    {d}
-                    {holiday ? <div className="text-[9px] font-normal">Holiday</div> : null}
-                  </div>
-                );
-              })}
-        </div>
-
-        {/* Rows */}
-        <div className="flex flex-1 flex-col overflow-y-auto">
-          {sortedRows.length === 0 ? (
-            <div className="px-4 py-10 text-center text-[13px] text-muted-foreground">
-              No team members match the selected departments.
-            </div>
-          ) : (
-            sortedRows.map((row) => (
-              <div
-                key={row.id}
-                ref={(el) => {
-                  rowRefs.current[row.id] = el;
-                }}
-                className={
-                  highlightRowId === row.id
-                    ? "ring-2 ring-inset ring-primary/40 bg-accent-soft/30"
-                    : undefined
-                }
-              >
-                <PlannerGridRow
-                  row={row}
-                  view={view}
-                  calendarOpts={calendarOpts}
-                  onCellClick={handleCellClick}
-                  onChipClick={handleChipClick}
-                />
-              </div>
-            ))
-          )}
+            )}
+          </div>
         </div>
       </div>
 

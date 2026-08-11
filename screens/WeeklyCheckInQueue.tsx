@@ -17,7 +17,7 @@ import {
   type WeeklyStatus,
 } from "../data/weeklyCheckIn";
 import { fetchWeeklyQueue } from "../api/domain";
-import { useSharedDataSync } from "../hooks/useSharedDataSync";
+import { useSharedDataSync, MASTER_TXN_SYNC_INTERVAL_MS } from "../hooks/useSharedDataSync";
 import { matchesSearchQuery } from "../utils/textSearch";
 
 type FilterTab = "all" | "pending" | "completed";
@@ -79,7 +79,10 @@ export function WeeklyCheckInQueue() {
     void loadQueue();
   }, [loadQueue]);
 
-  useSharedDataSync(true, loadQueue, { resources: ["weekly-check-in"] });
+  useSharedDataSync(true, loadQueue, {
+    resources: ["weekly-check-in"],
+    intervalMs: MASTER_TXN_SYNC_INTERVAL_MS,
+  });
 
   const tabCounts = useMemo(
     () => ({

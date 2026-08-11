@@ -18,6 +18,7 @@ function assignedPageLabels(allowedKeys: Set<string>, isSuperAdmin: boolean): st
   const labels: string[] = [];
   for (const page of PERMISSION_PAGES) {
     if (page.superAdminOnly) continue;
+    if (page.accessRightsVisible === false) continue;
     if (page.children?.length) {
       const childLabels = page.children
         .filter((c) => allowedKeys.has(c.key))

@@ -31,7 +31,7 @@ import { useSettings } from "../context/SettingsContext";
 import { fetchWeeklyCheckInConfig, fetchWeeklySubmissions } from "../api/domain";
 import { mapApiWeeklySubmission } from "../api/liveViews";
 import { useAppDateFormat } from "../hooks/useAppDateFormat";
-import { useSharedDataSync } from "../hooks/useSharedDataSync";
+import { useSharedDataSync, MASTER_TXN_SYNC_INTERVAL_MS } from "../hooks/useSharedDataSync";
 
 const HISTORY_WEEK_COUNT = 8;
 
@@ -83,7 +83,10 @@ export function WeeklyCheckInHistory() {
     void loadHistory();
   }, [loadHistory]);
 
-  useSharedDataSync(true, () => loadHistory({ silent: true }), { resources: ["weekly-check-in"] });
+  useSharedDataSync(true, () => loadHistory({ silent: true }), {
+    resources: ["weekly-check-in"],
+    intervalMs: MASTER_TXN_SYNC_INTERVAL_MS,
+  });
 
   const history = useMemo((): EmployeeHistory => {
     const current = getCurrentWeekStart();

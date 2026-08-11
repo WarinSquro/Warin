@@ -15,7 +15,7 @@ import { useAuth } from "../context/AuthContext";
 import { useFocusFirstField } from "../hooks/useFocusFirstField";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import { useAppDateFormat } from "../hooks/useAppDateFormat";
-import { useSharedDataSync, usePauseSharedDataSync } from "../hooks/useSharedDataSync";
+import { useSharedDataSync, usePauseSharedDataSync, MASTER_TXN_SYNC_INTERVAL_MS } from "../hooks/useSharedDataSync";
 
 const CYCLES: AssessmentCycle[] = ["Q1", "Q2", "Q3", "Q4"];
 const fieldClass =
@@ -114,7 +114,10 @@ export function KpiResults() {
     void load();
   }, [load]);
 
-  useSharedDataSync(!selected, () => load({ silent: true }), { resources: ["kpi"] });
+  useSharedDataSync(!selected, () => load({ silent: true }), {
+    resources: ["kpi"],
+    intervalMs: MASTER_TXN_SYNC_INTERVAL_MS,
+  });
   usePauseSharedDataSync(Boolean(selected));
 
   const pendingCount = summary.pending;
@@ -499,7 +502,7 @@ function ResultDrawer({
           <ReadOnly label="Target" value={`${item.target} ${item.unitName ?? ""}`} />
           <ReadOnly
             label="Target Direction"
-            value={item.targetDirection === "higher_is_better" ? "Higher is Better" : "Lower is Better"}
+            value={item.targetDirection === "higher_is_better" ? "High" : "Low"}
           />
           <ReadOnly label="KPI Period" value={item.periodLabel} />
           <ReadOnly label="KPI Weightage" value={`${item.weightage}%`} />

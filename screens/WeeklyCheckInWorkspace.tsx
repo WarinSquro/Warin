@@ -40,7 +40,7 @@ import {
 } from "../api/domain";
 import { useFocusFirstField } from "../hooks/useFocusFirstField";
 import { useAppDateFormat } from "../hooks/useAppDateFormat";
-import { useSharedDataSync, usePauseSharedDataSync } from "../hooks/useSharedDataSync";
+import { useSharedDataSync, usePauseSharedDataSync, MASTER_TXN_SYNC_INTERVAL_MS } from "../hooks/useSharedDataSync";
 
 export function WeeklyCheckInWorkspace() {
   const { employeeId = "" } = useParams();
@@ -191,7 +191,10 @@ export function WeeklyCheckInWorkspace() {
     void loadWorkspace();
   }, [loadWorkspace]);
 
-  useSharedDataSync(viewOnly, () => loadWorkspace({ silent: true }), { resources: ["weekly-check-in"] });
+  useSharedDataSync(viewOnly, () => loadWorkspace({ silent: true }), {
+    resources: ["weekly-check-in"],
+    intervalMs: MASTER_TXN_SYNC_INTERVAL_MS,
+  });
   usePauseSharedDataSync(!viewOnly);
 
   if (!currentEmployee) {

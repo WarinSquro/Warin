@@ -70,12 +70,10 @@ export function WorkdayTimelinePanel({
           const skipped = isLunchStep && lunchSkipped;
           const isAllowed = allowed.includes(key);
           const enabled = !disabled && isAllowed;
-          const optionalHint =
-            isLunchStep && !stamped && !skipped && marks.dayStart && !marks.dayEnd && !marks.lunchOut
-              ? "Optional"
-              : isLunchStep && key === "lunchIn" && marks.lunchOut && !marks.lunchIn
-                ? "Required"
-                : null;
+          const stepHint =
+            isLunchStep && key === "lunchIn" && marks.lunchOut && !marks.lunchIn
+              ? "Required"
+              : null;
 
           return (
             <button
@@ -100,9 +98,9 @@ export function WorkdayTimelinePanel({
                 <div className="text-[10px] font-semibold uppercase tracking-wide text-muted">
                   {label}
                 </div>
-                {optionalHint && (
+                {stepHint && (
                   <span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
-                    {optionalHint}
+                    {stepHint}
                   </span>
                 )}
                 {skipped && (

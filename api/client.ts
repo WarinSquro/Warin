@@ -3,6 +3,10 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001/api
 export type ApiError = { error: { code: string; message: string } };
 
 export const SESSION_EXPIRED_EVENT = "oneview:session-expired";
+/** Fired when an API returns 403 — clients should re-sync permission keys from /auth/me. */
+export const PERMISSIONS_STALE_EVENT = "oneview:permissions-stale";
+/** sessionStorage key for a one-shot message shown on the Login screen after forced sign-out. */
+export const LOGIN_NOTICE_KEY = "oneview_login_notice";
 
 function getAccessToken(): string | null {
   try {
@@ -34,6 +38,14 @@ export function clearTokens() {
 function notifySessionExpired() {
   try {
     window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
+  } catch {
+    /* ignore */
+  }
+}
+
+function notifyPermissionsStale() {
+  try {
+    window.dispatchEvent(new CustomEvent(PERMISSIONS_STALE_EVENT));
   } catch {
     /* ignore */
   }
@@ -83,6 +95,10 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}, allowRet
     }
     clearTokens();
     notifySessionExpired();
+  }
+
+  if (res.status === 403 && !path.includes("/auth/")) {
+    notifyPermissionsStale();
   }
 
   if (!res.ok) {

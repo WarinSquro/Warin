@@ -16,7 +16,7 @@ import { useToast } from "../context/ToastContext";
 import { buildUtilRowsFromEmployees, mondayISO } from "../api/liveViews";
 import { weekCapacityHours } from "../data/planner";
 import { fetchAllocations, fetchSettingsSchedules, type ApiAllocation, type SettingsSchedule } from "../api/domain";
-import { useSharedDataSync } from "../hooks/useSharedDataSync";
+import { useSharedDataSync, MASTER_TXN_SYNC_INTERVAL_MS } from "../hooks/useSharedDataSync";
 import { runReportExport, summarizeFilter } from "../utils/reportExport";
 import type { ReportExportInput } from "../utils/reportExport";
 
@@ -76,7 +76,10 @@ export function Utilization() {
     void load();
   }, [load]);
 
-  useSharedDataSync(true, load, { resources: ["allocations"] });
+  useSharedDataSync(true, load, {
+    resources: ["allocations"],
+    intervalMs: MASTER_TXN_SYNC_INTERVAL_MS,
+  });
 
   const utilRows = useMemo(
     () =>

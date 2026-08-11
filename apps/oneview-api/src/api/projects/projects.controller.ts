@@ -21,6 +21,13 @@ function ser<T>(v: T): T {
   return JSON.parse(JSON.stringify(v, (_k, x) => (typeof x === "bigint" ? x.toString() : x))) as T;
 }
 
+const PROJECT_INCLUDE = {
+  milestones: true,
+  demandLines: true,
+  customer: true,
+  _count: { select: { allocations: { where: { isDeleted: false } } } },
+} as const;
+
 function parseDate(iso?: string | null): Date | null {
   if (!iso || !String(iso).trim()) return null;
   const day = String(iso).trim().slice(0, 10);
@@ -91,6 +98,7 @@ type ProjectRow = {
   customer: { id: bigint; name: string; code: string };
   milestones: unknown[];
   demandLines: unknown[];
+  _count?: { allocations: number };
 };
 
 @ApiTags("projects")
@@ -103,11 +111,12 @@ export class ProjectsController {
     row: ProjectRow,
     nameById: Map<string, string> = new Map()
   ) {
-    const { customer, ...rest } = row;
+    const { customer, _count, ...rest } = row;
     return {
       ...rest,
       customerId: customer.id.toString(),
       customer: customer.name,
+      allocationCount: _count?.allocations ?? 0,
       createdByName: row.createdBy
         ? nameById.get(row.createdBy.toString()) ?? null
         : null,
@@ -161,7 +170,7 @@ export class ProjectsController {
         isDeleted: false,
         ...(status ? { status: status as "active" | "inactive" } : {}),
       },
-      include: { milestones: true, demandLines: true, customer: true },
+      include: PROJECT_INCLUDE,
       orderBy: { projectCode: "asc" },
     });
     const names = await this.actorNameMap(rows);
@@ -177,7 +186,7 @@ export class ProjectsController {
         isDeleted: false,
         OR: isNum ? [{ id: BigInt(id) }, { projectCode: id }] : [{ projectCode: id }],
       },
-      include: { milestones: true, demandLines: true, customer: true },
+      include: PROJECT_INCLUDE,
     });
     if (!row) throw new NotFoundException("Project not found");
     const names = await this.actorNameMap([row]);
@@ -247,7 +256,7 @@ export class ProjectsController {
           })),
         },
       },
-      include: { milestones: true, demandLines: true, customer: true },
+      include: PROJECT_INCLUDE,
     });
     const names = await this.actorNameMap([row]);
     return ser(this.mapProject(row, names));
@@ -271,6 +280,18 @@ export class ProjectsController {
     if (!existing) throw new NotFoundException("Project not found");
 
     const status = body.status ?? existing.status;
+
+    if (status === "inactive" && existing.status !== "inactive") {
+      const allocationCount = await this.prisma.allocation.count({
+        where: { projectId: existing.id, isDeleted: false },
+      });
+      if (allocationCount > 0) {
+        throw new BadRequestException(
+          "Project is associated with one or more allocations and cannot be disabled."
+        );
+      }
+    }
+
     const health =
       body.health !== undefined ? parseHealth(body.health) : existing.health;
     const healthRemarks =
@@ -353,7 +374,7 @@ export class ProjectsController {
         modifiedBy: actor ?? existing.modifiedBy,
         version: { increment: 1 },
       },
-      include: { milestones: true, demandLines: true, customer: true },
+      include: PROJECT_INCLUDE,
     });
     const names = await this.actorNameMap([row]);
     return ser(this.mapProject(row, names));

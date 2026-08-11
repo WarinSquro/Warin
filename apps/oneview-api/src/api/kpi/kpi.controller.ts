@@ -303,9 +303,24 @@ export class KpiController {
       data.isActive = body.status === "active";
     }
     const pk = BigInt(id);
+
+    const assertNotUsedInFramework = async (
+      currentStatus: "active" | "inactive",
+      where: { categoryId?: bigint; measurementMethodId?: bigint; unitId?: bigint; isDeleted: false }
+    ) => {
+      if (data.status !== "inactive" || currentStatus === "inactive") return;
+      const used = await this.prisma.kpiFrameworkItem.count({ where });
+      if (used > 0) {
+        throw new BadRequestException(
+          "KPI master is used in one or more framework entries and cannot be disabled."
+        );
+      }
+    };
+
     if (k === "categories") {
       const row = await this.prisma.kpiCategory.findFirst({ where: { id: pk, isDeleted: false } });
       if (!row) throw new NotFoundException("Master not found");
+      await assertNotUsedInFramework(row.status, { categoryId: pk, isDeleted: false });
       return this.mapMaster(await this.prisma.kpiCategory.update({ where: { id: row.id }, data }));
     }
     if (k === "methods") {
@@ -313,6 +328,7 @@ export class KpiController {
         where: { id: pk, isDeleted: false },
       });
       if (!row) throw new NotFoundException("Master not found");
+      await assertNotUsedInFramework(row.status, { measurementMethodId: pk, isDeleted: false });
       return this.mapMaster(
         await this.prisma.kpiMeasurementMethod.update({ where: { id: row.id }, data })
       );
@@ -321,6 +337,7 @@ export class KpiController {
       where: { id: pk, isDeleted: false },
     });
     if (!row) throw new NotFoundException("Master not found");
+    await assertNotUsedInFramework(row.status, { unitId: pk, isDeleted: false });
     return this.mapMaster(
       await this.prisma.kpiUnitOfMeasurement.update({ where: { id: row.id }, data })
     );

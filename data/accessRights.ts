@@ -16,7 +16,6 @@ const SEED_RIGHTS: RightsStore = {
     "availability",
     "utilization",
     "confirmations",
-    "planning_conflicts",
     "reports.deployment",
     "reports.performance",
     "reports.execution",

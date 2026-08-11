@@ -24,6 +24,7 @@ type ApiEmployee = {
   skills: string[];
   utilization?: number | null;
   isSuperAdmin?: boolean;
+  transactionCount?: number;
 };
 
 type ApiDepartment = {
@@ -95,6 +96,8 @@ type ApiProject = {
   modifiedByName?: string | null;
   milestones: { id: string; name: string; date: string }[];
   demandLines: { id: string; skills: string[]; count: number }[];
+  allocationCount?: number;
+  _count?: { allocations?: number };
 };
 
 type ApiSettingsResponse = {
@@ -126,6 +129,7 @@ export function mapApiEmployee(e: ApiEmployee): Employee {
       : undefined,
     status: e.status,
     utilization: e.utilization ?? undefined,
+    transactionCount: e.transactionCount ?? 0,
   };
 }
 
@@ -209,6 +213,7 @@ export function mapApiProject(p: ApiProject): Project {
     health: p.health === "amber" || p.health === "red" || p.health === "green" ? p.health : "green",
     healthRemarks: p.healthRemarks ?? "",
     status: p.status,
+    allocationCount: p.allocationCount ?? p._count?.allocations ?? 0,
     createdAt: p.createdAt ?? undefined,
     modifiedAt: p.modifiedAt ?? undefined,
     createdByName: p.createdByName ?? undefined,
@@ -263,6 +268,7 @@ function mapEmployeeRow(
     resourceOwnerId: e.resourceOwnerHrmsId ?? e.resourceOwner?.hrmsId ?? undefined,
     status: e.status,
     utilization: e.utilization ?? undefined,
+    transactionCount: e.transactionCount ?? 0,
   };
 }
 

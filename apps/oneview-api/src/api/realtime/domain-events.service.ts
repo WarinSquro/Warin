@@ -14,6 +14,8 @@ export class DomainEventsService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(DomainEventsService.name);
   private subscriber: Redis | null = null;
   private readonly subject = new Subject<DataChangedEvent>();
+  /** True when this process is subscribed to the Redis pub/sub channel. */
+  private redisSubscribed = false;
 
   constructor(private readonly redis: RedisService) {}
 
@@ -32,10 +34,12 @@ export class DomainEventsService implements OnModuleInit, OnModuleDestroy {
         }
       });
       await this.subscriber.subscribe(DATA_CHANGE_CHANNEL);
+      this.redisSubscribed = true;
       this.logger.log(`Subscribed to ${DATA_CHANGE_CHANNEL}`);
     } catch (e) {
+      this.redisSubscribed = false;
       this.logger.warn(
-        `Realtime Redis subscribe failed — SSE will be idle until Redis is available: ${
+        `Realtime Redis subscribe failed — using in-process SSE fan-out only: ${
           e instanceof Error ? e.message : String(e)
         }`
       );
@@ -43,6 +47,7 @@ export class DomainEventsService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleDestroy() {
+    this.redisSubscribed = false;
     this.subject.complete();
     if (this.subscriber) {
       try {
@@ -67,14 +72,21 @@ export class DomainEventsService implements OnModuleInit, OnModuleDestroy {
       at: new Date().toISOString(),
       ...(actorId ? { actorId } : {}),
     };
+
+    // Always notify SSE clients connected to this API process (works without Redis).
+    // When Redis is subscribed, the same process may also receive a pub/sub echo — clients debounce.
+    this.subject.next(payload);
+
     try {
       await this.redis.publish(DATA_CHANGE_CHANNEL, JSON.stringify(payload));
     } catch (e) {
-      this.logger.warn(
-        `Failed to publish data-change (${resource}/${action}): ${
-          e instanceof Error ? e.message : String(e)
-        }`
-      );
+      if (this.redisSubscribed) {
+        this.logger.warn(
+          `Failed to publish data-change (${resource}/${action}): ${
+            e instanceof Error ? e.message : String(e)
+          }`
+        );
+      }
     }
   }
 }

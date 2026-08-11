@@ -17,7 +17,7 @@ import { useMasters } from "../context/MastersContext";
 import { useToast } from "../context/ToastContext";
 import { ConfirmDeleteDialog } from "../components/ConfirmDeleteDialog";
 import { fetchWeeklyCheckInConfig, putWeeklyCheckInConfig } from "../api/domain";
-import { useSharedDataSync, usePauseSharedDataSync } from "../hooks/useSharedDataSync";
+import { useSharedDataSync, usePauseSharedDataSync, MASTER_TXN_SYNC_INTERVAL_MS } from "../hooks/useSharedDataSync";
 
 type Segment = "competencies" | "ranking";
 
@@ -32,6 +32,7 @@ const inputClass =
 
 const COMPETENCY_LABEL_MAX = 40;
 const COMPETENCY_EVALUATES_MAX = 200;
+const RANK_TITLE_MAX = 30;
 
 export function WeeklyCheckInConfig() {
   const { departments } = useMasters();
@@ -98,7 +99,10 @@ export function WeeklyCheckInConfig() {
     void loadConfig();
   }, [loadConfig]);
 
-  useSharedDataSync(!editingId && !editingRank, () => loadConfig({ silent: true }), { resources: ["weekly-check-in"] });
+  useSharedDataSync(!editingId && !editingRank, () => loadConfig({ silent: true }), {
+    resources: ["weekly-check-in"],
+    intervalMs: MASTER_TXN_SYNC_INTERVAL_MS,
+  });
   usePauseSharedDataSync(
     Boolean(editingId) || Boolean(editingRank) || Boolean(newLabel.trim()) || Boolean(newRemark.trim())
   );
@@ -189,7 +193,7 @@ export function WeeklyCheckInConfig() {
   };
 
   const saveRankTitle = (value: 1 | 2 | 3 | 4 | 5) => {
-    updateRankingTitle(value, rankDraft);
+    updateRankingTitle(value, rankDraft.trim().slice(0, RANK_TITLE_MAX));
     setEditingRank(null);
     void refresh("updated");
   };
@@ -506,7 +510,7 @@ export function WeeklyCheckInConfig() {
           <div className="max-w-xl space-y-4 rounded-lg border border-border bg-surface p-5 shadow-sm">
             <p className="text-[12px] text-muted-foreground">
               Five levels ordered highest to lowest. Values and colours are fixed; titles are
-              editable.
+              editable (30 characters).
             </p>
             <div className="space-y-2">
               {[...config.rankingLevels].sort((a, b) => b.value - a.value).map((level) => (
@@ -526,6 +530,9 @@ export function WeeklyCheckInConfig() {
                       onChange={(e) => setRankDraft(e.target.value)}
                       onBlur={() => saveRankTitle(level.value)}
                       onKeyDown={(e) => e.key === "Enter" && saveRankTitle(level.value)}
+                      maxLength={RANK_TITLE_MAX}
+                      placeholder={`Title (${RANK_TITLE_MAX} characters)`}
+                      aria-label={`Ranking title (max ${RANK_TITLE_MAX} characters)`}
                       className={`flex-1 ${inputClass}`}
                     />
                   ) : (
@@ -537,7 +544,7 @@ export function WeeklyCheckInConfig() {
                     type="button"
                     onClick={() => {
                       setEditingRank(level.value);
-                      setRankDraft(level.title);
+                      setRankDraft(level.title.slice(0, RANK_TITLE_MAX));
                     }}
                     className="text-[11px] text-primary hover:underline"
                   >

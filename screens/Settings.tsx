@@ -25,7 +25,7 @@ import { SmtpSettingsSection } from "../components/SmtpSettingsSection";
 import { useToast } from "../context/ToastContext";
 import { ConfirmDeleteDialog } from "../components/ConfirmDeleteDialog";
 import { useAppDateFormat } from "../hooks/useAppDateFormat";
-import { usePauseSharedDataSync } from "../hooks/useSharedDataSync";
+import { usePauseSharedDataSync, useSharedDataSync, MASTER_TXN_SYNC_INTERVAL_MS } from "../hooks/useSharedDataSync";
 
 type ReviewSection = "utilization" | "planning" | "capacity" | "overallocation";
 
@@ -105,6 +105,10 @@ export function Settings() {
     utilizationDirty || planningDirty || capacityDirty || overallocationDirty;
 
   usePauseSharedDataSync(anyReviewDirty || workingCalendarDirty || dateFormatDirty);
+  useSharedDataSync(!(anyReviewDirty || workingCalendarDirty || dateFormatDirty), () => refresh(), {
+    resources: ["settings"],
+    intervalMs: MASTER_TXN_SYNC_INTERVAL_MS,
+  });
 
   const syncCommittedFrom = (src: SettingsState) => {
     setCommittedBands({ ...src.bands });

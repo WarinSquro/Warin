@@ -75,7 +75,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <ProductLogo variant="contrast" height={26} className="max-w-[176px]" />
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-2.5 py-3">
+        <nav className="sidebar-nav-scroll flex-1 overflow-y-auto px-2.5 py-3">
           {navGroups.map((group, gi) => (
             <div key={gi} className="mb-1">
               {group.heading && (

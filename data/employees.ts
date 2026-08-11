@@ -13,6 +13,8 @@ export interface Employee {
   resourceOwnerId?: string;
   status: EmpStatus;
   utilization?: number;
+  /** Non-deleted allocations + confirmations + WCI + KPI items; blocks Disable when > 0 */
+  transactionCount?: number;
 }
 
 export const DEPARTMENTS = ["Engineering", "QA", "Design", "DevOps", "Support"];

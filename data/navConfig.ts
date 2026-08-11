@@ -13,6 +13,8 @@ export interface PermissionPage {
   route: string;
   group: string;
   menuVisible: boolean;
+  /** When false, hidden from Access Rights tree (e.g. sub-screens opened from My Workspace). Default true. */
+  accessRightsVisible?: boolean;
   superAdminOnly?: boolean;
   badge?: string;
   children?: PermissionSubpage[];
@@ -60,6 +62,7 @@ export const PERMISSION_PAGES: PermissionPage[] = [
     route: "/planning-conflicts",
     group: "Planning",
     menuVisible: false,
+    accessRightsVisible: false,
   },
   {
     key: "reports.deployment",
@@ -165,7 +168,7 @@ const GROUP_ORDER = ["My Workspace", "My Team", "Planning", "Reports", "Setup"];
 
 export function getPermissionGroups(includeSuperAdminOnly: boolean): { heading?: string; pages: PermissionPage[] }[] {
   const pages = PERMISSION_PAGES.filter(
-    (p) => includeSuperAdminOnly || !p.superAdminOnly
+    (p) => (includeSuperAdminOnly || !p.superAdminOnly) && p.accessRightsVisible !== false
   );
   const byGroup = new Map<string, PermissionPage[]>();
   for (const page of pages) {
@@ -184,6 +187,7 @@ export function getAllAssignableKeys(includeSuperAdminOnly: boolean): string[] {
   const keys: string[] = [];
   for (const page of PERMISSION_PAGES) {
     if (page.superAdminOnly && !includeSuperAdminOnly) continue;
+    if (page.accessRightsVisible === false) continue;
     if (page.children?.length) {
       for (const child of page.children) keys.push(child.key);
     } else {
@@ -234,6 +238,11 @@ export function getPermissionKeyForPath(pathname: string): string | null {
 
 export function isRouteAllowed(pathname: string, allowedKeys: Set<string>): boolean {
   const normalized = pathname.split("?")[0];
+  // Opened from My Workspace — gated by my_workspace (legacy planning_conflicts still honored)
+  if (normalized === "/planning-conflicts") {
+    return allowedKeys.has("my_workspace") || allowedKeys.has("planning_conflicts");
+  }
+
   const page = PERMISSION_PAGES.find((p) => p.route === normalized);
   if (page) return isPageAllowed(page, allowedKeys);
 

@@ -25,7 +25,7 @@ export function AccessDenied() {
           <button
             type="button"
             onClick={() => signOut()}
-            className="rounded-md border border-border px-4 py-2 text-[13px] text-foreground hover:bg-surface-alt"
+            className="cursor-pointer rounded-md border border-border px-4 py-2 text-[13px] text-foreground hover:bg-surface-alt"
           >
             Sign out
           </button>
@@ -34,12 +34,6 @@ export function AccessDenied() {
             className="rounded-md border border-border px-4 py-2 text-[13px] text-foreground hover:bg-surface-alt"
           >
             Profile
-          </Link>
-          <Link
-            to="/login"
-            className="rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground"
-          >
-            Back to sign in
           </Link>
         </div>
       </div>

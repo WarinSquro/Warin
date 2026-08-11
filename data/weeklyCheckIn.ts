@@ -437,7 +437,7 @@ export function moveCompetency(competencyId: string, direction: "up" | "down"): 
 export function updateRankingTitle(value: 1 | 2 | 3 | 4 | 5, title: string): void {
   const config = readConfig();
   const level = config.rankingLevels.find((l) => l.value === value);
-  if (level) level.title = title.trim();
+  if (level) level.title = title.trim().slice(0, 30);
   writeConfig(config);
 }
 

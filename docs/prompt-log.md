@@ -32,6 +32,239 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-11 15:45 IST
+
+**Prompt:**  
+> Aarav Shah is allocated in Resource Planner but Employee Master still allowed Disable — fix so any transaction blocks disable
+
+**Output:**  
+- **Root cause:** UI/source already had the guard, but the running Docker API image (Aug 7) had neither `transactionCount` on list nor the disable reject. Frontend hit `127.0.0.1:8080` (Compose API), so Disable stayed clickable and PUT succeeded. EMP-4732 had 6 allocations + 1 weekly check-in.
+- **Fix:** Employees API returns `transactionCount`; PUT inactive rejects when count &gt; 0; EmpRow greys Disable + client guard (already in source). Deployed fixed `dist` into `oneview-api` container; reactivated EMP-4732.
+- **Verified:** `GET /employees/EMP-4732` → `transactionCount=7`; `PUT status=inactive` → `Employee is associated with one or more transactions and cannot be disabled.`
+- Files: `employees.controller.ts`, `api/domain.ts`, `data/employees.ts`, `screens/EmployeeMaster.tsx`, `docs/prompt-log.md`.
+- Note: persist with `docker compose up -d --build api` so a recreate does not drop the patched dist.
+
+### 2026-08-11 15:10 IST
+
+**Prompt:**  
+> Employee Master Disable (EMP-4732) — if associated with any transaction, master must not be allowed to be disabled
+
+**Output:**  
+- **Root cause:** API already blocked disable; list UI still showed a clickable Disable with no `transactionCount` from the roster payload.
+- **API:** employee list/get/create/update include `transactionCount` (non-deleted allocations + work confirmations + weekly check-ins + KPI framework items).
+- **UI:** EmpRow Disable greyed + tooltip when `transactionCount > 0`; client guard in `toggleStatus` before API; Reactivate unchanged.
+- Files: `employees.controller.ts`, `api/domain.ts`, `data/employees.ts`, `screens/EmployeeMaster.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-11 15:02 IST
+
+**Prompt:**  
+> Project Master Disable — if associated with any transaction, must not be allowed to disable (UI on PRJ-002)
+
+**Output:**  
+- **API:** project list/get/create/update include `allocationCount` (non-deleted allocations).
+- **UI:** Disable button disabled + tooltip when `allocationCount > 0`; client guard before API; server reject already in place.
+- Files: `projects.controller.ts`, `api/domain.ts`, `data/projects.ts`, `screens/ProjectMaster.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-11 14:56 IST
+
+**Prompt:**  
+> Disable Restriction for Master Records — if associated with any transaction, cannot disable
+
+**Output:**  
+- **API (server-side authoritative):**
+  - Department: employees (existing) + weekly check-in competencies
+  - Skill: employees (existing) + project demand lines
+  - Activity: non-deleted allocations (message clarified)
+  - Employee: allocations, work confirmations, weekly check-in submissions, KPI framework items
+  - Project: non-deleted allocations
+  - KPI Category/Method/Unit: non-deleted framework entries
+- **UI:** Setup Masters activity toast message aligned; Employees/Projects/KPI already surface API errors via toast.
+- Files: `masters.controller.ts`, `employees.controller.ts`, `projects.controller.ts`, `kpi.controller.ts`, `SetupMasters.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-11 14:50 IST
+
+**Prompt:**  
+> Real-Time Updates — disable/enable of a record on Master/Transaction should appear on User A’s open page without refresh
+
+**Output:**  
+- **Root cause:** `useSharedDataSync` dropped SSE/poll events when a refresh was already in flight (or while paused/hidden), so status toggles (Disable/Reactivate/Enable) often never reloaded for the other user until a later poll.
+- **Fix:** `hooks/useSharedDataSync.ts` — queue a pending sync instead of dropping; re-run after in-flight completes; flush pending when pause clears or tab becomes visible again.
+- Enable/disable already emit `@EmitDataChange` on masters/employees/projects/kpi update endpoints — no API change required.
+
+### 2026-08-11 14:10 IST
+
+**Prompt:**  
+> Real-Time Updates for Master/Transaction pages (all except Resource Planner): User B add/edit/delete appears on User A’s open page without refresh
+
+**Output:**  
+- Exported `MASTER_TXN_SYNC_INTERVAL_MS` (8s) from `hooks/useSharedDataSync.ts`.
+- Applied SSE resource listen + 8s poll (pause while editing/drawer) on: Availability, Utilization, Planning Conflicts, Work Confirmation, Setup Masters, Employees, Projects, Access Rights, Settings, KPI Framework/Results, Weekly Check-In queue/workspace/history/config.
+- **KPI Framework:** removed always-on `usePauseSharedDataSync(true)` (blocked live reload); pause only while typing a new master name.
+- Resource Planner left as previously wired (now uses the shared interval constant). Reports/Cockpit unchanged (default 45s).
+- Relies on existing `@EmitDataChange` + in-process SSE fan-out from prior change.
+
+### 2026-08-11 14:00 IST
+
+**Prompt:**  
+> Real-Time Updates for Master/Transaction Page — apply only for Resource Planner: User B’s add/edit/delete should appear on User A’s open Planner without refresh
+
+**Output:**  
+- **Root cause:** Allocation mutations already `@EmitDataChange("allocations")` and Planner already subscribed via `useSharedDataSync`, but `DomainEventsService.publish` only pushed through Redis — if Redis subscribe failed, SSE clients never received events (45s poll only).
+- **Server:** `domain-events.service.ts` — always fan-out to in-process SSE subscribers; still publish to Redis for multi-instance.
+- **Client:** `ResourcePlanner.tsx` — keep SSE on `allocations`; tighten poll fallback to 8s while page is active; still pause while allocation drawer is open.
+- Scope: Resource Planner only (other screens unchanged).
+
+### 2026-08-11 13:45 IST
+
+**Prompt:**  
+> Access Rights “Copy access from” — rights update correctly but dropdown stays on “Select employee…”
+
+**Output:**  
+- **Root cause:** select used uncontrolled `defaultValue=""` and explicitly reset `e.target.value = ""` after copy.
+- **Fix:** `screens/AccessRights.tsx` — controlled `copyFromId` state; show selected source name; clear when switching the target employee.
+
+### 2026-08-11 12:00 IST
+
+**Prompt:**  
+> Setup Masters — with required rights, Departments and Activities unable to retrieve data
+
+**Output:**  
+- **Root cause:** `MastersProvider` fetched all masters endpoints once on login; 403s for unauthorized segments left empty arrays, and data was not re-fetched when the user later had (or already had) those rights while only Skills succeeded.
+- **Fix:** `context/MastersContext.tsx` — permission-aware fetches (only call endpoints the user can access); reload when fetch scope / keys change. `SetupMasters.tsx` — one-shot refresh if an allowed segment still has no rows.
+- API permission OR-lists unchanged (`masters.departments` / `masters.activities` already allowed).
+
+### 2026-08-11 11:51 IST
+
+**Prompt:**  
+> Setup Masters Departments/Skills/Activities tabs — enable/disable each based on Access Rights child pages
+
+**Output:**  
+- `screens/SetupMasters.tsx`: segment buttons gated by `masters.departments` / `masters.skills` / `masters.activities` (or parent `masters` / super-admin). Unauthorized tabs disabled; auto-switch to first allowed segment; Add + content guarded.
+- API already OR-checks the same keys on masters endpoints.
+
+### 2026-08-11 11:46 IST
+
+**Prompt:**  
+> Access Denied — remove "Back to sign in" button
+
+**Output:**  
+- `screens/AccessDenied.tsx`: removed the `/login` “Back to sign in” link; Sign out and Profile remain.
+
+### 2026-08-11 11:35 IST
+
+**Prompt:**  
+> Access Rights Revocation — Immediate Session Handling: detect revoke while signed in; block API/UI; module redirect + message; overall revoke → sign out to Login; server-side enforcement; no manual refresh required.
+
+**Output:**  
+- **Root cause:** Access JWT baked `permissionKeys`; `PermissionsGuard` trusted claims only; client session never re-fetched keys after admin `PUT /access-rights`.
+- **Server:** `jwt.strategy.ts` reloads active employee + live permission keys from DB on every authenticated request. `access-rights` PUT revokes refresh tokens when resulting keys are empty (non–super-admin).
+- **Client:** `AuthContext.refreshAllowedKeys` calls `/auth/me`; sync on SSE `access-rights`, 403 (`PERMISSIONS_STALE_EVENT`), focus/visibility, 30s poll. Empty keys after prior access → sign-out + Login notice. `AccessRevocationWatcher` toasts “Your access to this module has been revoked.”; `ProtectedRoute` redirects. `Login.tsx` shows `LOGIN_NOTICE_KEY`.
+- **Files:** `apps/oneview-api/src/api/auth/jwt.strategy.ts`, `access-rights.controller.ts`, `context/AuthContext.tsx`, `api/client.ts`, `components/AccessRevocationWatcher.tsx`, `App.tsx`, `screens/Login.tsx`, `docs/prompt-log.md`.
+- **Validation:** Module revoke → API 403 + UI redirect/toast without refresh; all keys removed → sign-out to Login with notice; login/super-admin/`/access-denied` empty-keys path preserved.
+
+### 2026-08-11 11:16 IST
+
+**Prompt:**  
+> Workday Timeline — remove Optional text from buttons
+
+**Output:**  
+- `components/ConfirmationProductivity.tsx` (`WorkdayTimelinePanel`): dropped the "Optional" hint on Lunch Out/In; "Required" (after lunch out) and "Skipped" unchanged.
+
+### 2026-08-11 11:12 IST
+
+**Prompt:**  
+> KPI Framework Weightage — when 100%/100% text color should be green; other colors ok
+
+**Output:**  
+- `screens/KpiFramework.tsx`: weight summary uses `text-success` when `weightOk` (100%), keeps `text-warning` otherwise.
+
+### 2026-08-11 11:10 IST
+
+**Prompt:**  
+> KPI Framework Direction select — items are only "High" and "Low"
+
+**Output:**  
+- `screens/KpiFramework.tsx`: option labels `High` / `Low` (values still `higher_is_better` / `lower_is_better`).
+- `screens/KpiResults.tsx`: matching display labels `High` / `Low`.
+
+### 2026-08-11 11:08 IST
+
+**Prompt:**  
+> Activity name field — remove "(30 characters)" from label and add after placeholder text
+
+**Output:**  
+- `screens/SetupMasters.tsx` (`ActivityDrawer`): label already `Activity name`; placeholder `e.g. Feature Development (30 characters)`; added `maxLength={30}` to match the hint.
+
+### 2026-08-11 11:07 IST
+
+**Prompt:**  
+> Skill name field — remove "(30 characters)" from label and add after placeholder text
+
+**Output:**  
+- `screens/SetupMasters.tsx` (`SkillDrawer`): label `Skill name`; placeholder `e.g. React (30 characters)`; `maxLength={30}` unchanged.
+
+### 2026-08-11 11:06 IST
+
+**Prompt:**  
+> Department name field — remove "(30 characters)" from label and add after placeholder text
+
+**Output:**  
+- `screens/SetupMasters.tsx` (`DeptDrawer`): label `Department name`; placeholder `e.g. Engineering (30 characters)`; `maxLength={30}` unchanged.
+
+### 2026-08-11 11:05 IST
+
+**Prompt:**  
+> Weekly Check-In ranking titles — character limit 30 characters
+
+**Output:**  
+- `WeeklyCheckInConfig`: `RANK_TITLE_MAX = 30`, `maxLength` on edit input, help text “(30 characters)”, save slices to 30.
+
+---
+
+### 2026-08-11 11:02 IST
+
+**Prompt:**  
+> Skill name field — add "(30 characters)" after label text
+
+**Output:**  
+- `SkillDrawer` label: `Skill name (30 characters)` + `maxLength={30}` in `screens/SetupMasters.tsx`.
+
+---
+
+### 2026-08-11 11:00 IST
+
+**Prompt:**  
+> Department name field — add "(30 characters)" after label text
+
+**Output:**  
+- `DeptDrawer` label: `Department name (30 characters)` in `screens/SetupMasters.tsx`.
+
+---
+
+### 2026-08-11 10:55 IST
+
+**Prompt:**  
+> Planning Conflicts opens from My Workspace — remove from Access Rights tree (not main menu)
+
+**Output:**  
+- Set `planning_conflicts` `menuVisible: false`, `accessRightsVisible: false`.  
+- Excluded from Access Rights groups / assignable keys; Account Settings labels skip it.  
+- Route `/planning-conflicts` allowed via `my_workspace` (legacy `planning_conflicts` still honored).  
+- Removed from demo seed / local accessRights seed lists.
+
+---
+
+### 2026-08-11 09:15 IST
+
+**Prompt:**  
+> Planning Conflicts rights given but not visible on menu — check and correct
+
+**Output:**  
+- Root cause: `planning_conflicts` had `menuVisible: false` in `data/navConfig.ts` (assignable in Access Rights, filtered out of sidebar).  
+- Set `menuVisible: true` so it appears under Planning when the permission is granted.
+
+---
+
 ### 2026-08-10 23:00 IST
 
 **Prompt:**  

@@ -8,7 +8,7 @@ import { workingWeekEnd } from "../utils/workingWeek";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import { usePlanningEmployees } from "../hooks/usePlanningEmployees";
 import { useSettings } from "../context/SettingsContext";
-import { useSharedDataSync } from "../hooks/useSharedDataSync";
+import { useSharedDataSync, MASTER_TXN_SYNC_INTERVAL_MS } from "../hooks/useSharedDataSync";
 import type { PlanningConflictRow } from "../data/cockpit";
 
 type ConflictSortKey = "employee" | "type" | "projects" | "detail";
@@ -40,7 +40,10 @@ export function PlanningConflicts() {
     void load();
   }, [load]);
 
-  useSharedDataSync(true, load, { resources: ["allocations"] });
+  useSharedDataSync(true, load, {
+    resources: ["allocations"],
+    intervalMs: MASTER_TXN_SYNC_INTERVAL_MS,
+  });
 
   const conflicts: PlanningConflictRow[] = useMemo(() => {
     if (!loaded) return [];

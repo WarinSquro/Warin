@@ -70,6 +70,13 @@ export class AccessRightsController {
         data: keys.map((key) => ({ employeeId: emp.id, key })),
       });
     }
-    return { ok: true, permissionKeys: keys };
+    // Overall app access removed — invalidate refresh sessions so they cannot renew a JWT.
+    if (keys.length === 0 && !emp.isSuperAdmin) {
+      await this.prisma.refreshToken.updateMany({
+        where: { employeeId: emp.id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+    }
+    return { ok: true, permissionKeys: keys, employeeId: emp.id.toString(), hrmsId: emp.hrmsId };
   }
 }

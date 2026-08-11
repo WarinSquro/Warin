@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Check, Plus, X, CheckCircle2, Bell } from "lucide-react";
 import { formatAppDate, formatAppDateTime } from "../utils/formatAppDate";
 import { useAppDateFormat } from "../hooks/useAppDateFormat";
-import { useSharedDataSync, usePauseSharedDataSync } from "../hooks/useSharedDataSync";
+import { useSharedDataSync, usePauseSharedDataSync, MASTER_TXN_SYNC_INTERVAL_MS } from "../hooks/useSharedDataSync";
 import {
   DEVIATION_REASONS,
   MISS_POSTING_REASONS,
@@ -496,7 +496,10 @@ function EmployeeConfirm() {
     void loadMyDay();
   }, [loadMyDay]);
 
-  useSharedDataSync(submitted, loadMyDay, { resources: ["confirmations"] });
+  useSharedDataSync(submitted, loadMyDay, {
+    resources: ["confirmations"],
+    intervalMs: MASTER_TXN_SYNC_INTERVAL_MS,
+  });
   usePauseSharedDataSync(!submitted);
 
   /** Reload today's plan lines while staying in edit mode (never bounce to submitted view). */
@@ -1215,7 +1218,10 @@ function ManagerCompliance() {
     void loadTeam();
   }, [loadTeam]);
 
-  useSharedDataSync(true, loadTeam, { resources: ["confirmations"] });
+  useSharedDataSync(true, loadTeam, {
+    resources: ["confirmations"],
+    intervalMs: MASTER_TXN_SYNC_INTERVAL_MS,
+  });
 
   const todayIndex = useMemo(() => {
     const d = new Date(`${today}T12:00:00`);

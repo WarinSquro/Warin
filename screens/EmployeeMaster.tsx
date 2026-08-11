@@ -22,7 +22,7 @@ import { useEmployees } from "../context/EmployeesContext";
 import { useMasters } from "../context/MastersContext";
 import { useToast } from "../context/ToastContext";
 import { useFocusFirstField } from "../hooks/useFocusFirstField";
-import { usePauseSharedDataSync } from "../hooks/useSharedDataSync";
+import { usePauseSharedDataSync, useSharedDataSync, MASTER_TXN_SYNC_INTERVAL_MS } from "../hooks/useSharedDataSync";
 import {
   downloadEmployeeUploadTemplate,
   parseEmployeeWorkbook,
@@ -51,6 +51,10 @@ export function EmployeeMaster() {
   const [saving, setSaving] = useState(false);
 
   usePauseSharedDataSync(drawerOpen || uploadOpen);
+  useSharedDataSync(!(drawerOpen || uploadOpen), () => refresh(), {
+    resources: ["employees"],
+    intervalMs: MASTER_TXN_SYNC_INTERVAL_MS,
+  });
 
   const { sortKey, sortDir, handleSort } = useColumnSort<EmployeeSortKey>("name");
 
@@ -125,6 +129,12 @@ export function EmployeeMaster() {
     const emp = rows.find((e) => e.id === id);
     if (!emp) return;
     const next = emp.status === "active" ? "inactive" : "active";
+    if (next === "inactive" && (emp.transactionCount ?? 0) > 0) {
+      toast.error(
+        "Employee is associated with one or more transactions and cannot be disabled."
+      );
+      return;
+    }
     try {
       await updateEmployee(id, { status: next });
       await refresh();
@@ -289,6 +299,7 @@ export function EmployeeMaster() {
 
 function EmpRow({ e, employees, highlighted, onEdit, onToggle }: { e: Employee; employees: Employee[]; highlighted?: boolean; onEdit: () => void; onToggle: () => void }) {
   const inactive = e.status === "inactive";
+  const disableBlocked = !inactive && (e.transactionCount ?? 0) > 0;
   return (
     <div
       id={`employee-row-${e.id}`}
@@ -315,7 +326,23 @@ function EmpRow({ e, employees, highlighted, onEdit, onToggle }: { e: Employee; 
       </div>
       <div className="w-[140px] text-[12px] text-foreground">{resourceOwnerName(e.resourceOwnerId, employees)}</div>
       <div className="w-[90px] text-right">
-        <button onClick={onToggle} className={`text-[11px] ${inactive ? "text-success hover:underline" : "text-muted-foreground hover:text-danger hover:underline"}`}>
+        <button
+          type="button"
+          onClick={onToggle}
+          disabled={disableBlocked}
+          title={
+            disableBlocked
+              ? "Employee is associated with one or more transactions and cannot be disabled."
+              : undefined
+          }
+          className={`text-[11px] ${
+            disableBlocked
+              ? "cursor-not-allowed text-muted-foreground opacity-40"
+              : inactive
+                ? "cursor-pointer text-success hover:underline"
+                : "cursor-pointer text-muted-foreground hover:text-danger hover:underline"
+          }`}
+        >
           {inactive ? "Reactivate" : "Disable"}
         </button>
       </div>

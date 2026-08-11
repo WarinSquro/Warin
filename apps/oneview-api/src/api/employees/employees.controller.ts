@@ -75,7 +75,19 @@ export class EmployeesController {
     isSuperAdmin: boolean;
     utilization: number | null;
     skills: { skill: { name: string } }[];
+    _count?: {
+      allocations?: number;
+      workConfirmations?: number;
+      weeklyCheckIns?: number;
+      kpiFrameworkItems?: number;
+    };
   }) {
+    const c = e._count;
+    const transactionCount =
+      (c?.allocations ?? 0) +
+      (c?.workConfirmations ?? 0) +
+      (c?.weeklyCheckIns ?? 0) +
+      (c?.kpiFrameworkItems ?? 0);
     return {
       id: e.id.toString(),
       hrmsId: e.hrmsId,
@@ -90,6 +102,7 @@ export class EmployeesController {
       isSuperAdmin: e.isSuperAdmin,
       utilization: e.utilization,
       skills: e.skills.map((s) => s.skill.name),
+      transactionCount,
     };
   }
 
@@ -192,6 +205,14 @@ export class EmployeesController {
         department: true,
         skills: { include: { skill: true } },
         resourceOwner: { select: { id: true, hrmsId: true, name: true } },
+        _count: {
+          select: {
+            allocations: { where: { isDeleted: false } },
+            workConfirmations: { where: { isDeleted: false } },
+            weeklyCheckIns: { where: { isDeleted: false } },
+            kpiFrameworkItems: { where: { isDeleted: false } },
+          },
+        },
       },
       orderBy: { name: "asc" },
     });
@@ -211,6 +232,14 @@ export class EmployeesController {
         skills: { include: { skill: true } },
         resourceOwner: { select: { id: true, hrmsId: true, name: true } },
         permissions: true,
+        _count: {
+          select: {
+            allocations: { where: { isDeleted: false } },
+            workConfirmations: { where: { isDeleted: false } },
+            weeklyCheckIns: { where: { isDeleted: false } },
+            kpiFrameworkItems: { where: { isDeleted: false } },
+          },
+        },
       },
     });
     if (!e) throw new NotFoundException("Employee not found");
@@ -282,6 +311,14 @@ export class EmployeesController {
         department: true,
         skills: { include: { skill: true } },
         resourceOwner: { select: { id: true, hrmsId: true, name: true } },
+        _count: {
+          select: {
+            allocations: { where: { isDeleted: false } },
+            workConfirmations: { where: { isDeleted: false } },
+            weeklyCheckIns: { where: { isDeleted: false } },
+            kpiFrameworkItems: { where: { isDeleted: false } },
+          },
+        },
       },
     });
 
@@ -346,6 +383,28 @@ export class EmployeesController {
 
     const status = body.status ?? emp.status;
 
+    if (status === "inactive" && emp.status !== "inactive") {
+      const [allocations, confirmations, weeklyCheckIns, kpiItems] = await Promise.all([
+        this.prisma.allocation.count({
+          where: { employeeId: emp.id, isDeleted: false },
+        }),
+        this.prisma.workConfirmation.count({
+          where: { employeeId: emp.id, isDeleted: false },
+        }),
+        this.prisma.weeklyCheckInSubmission.count({
+          where: { employeeId: emp.id, isDeleted: false },
+        }),
+        this.prisma.kpiFrameworkItem.count({
+          where: { employeeId: emp.id, isDeleted: false },
+        }),
+      ]);
+      if (allocations + confirmations + weeklyCheckIns + kpiItems > 0) {
+        throw new BadRequestException(
+          "Employee is associated with one or more transactions and cannot be disabled."
+        );
+      }
+    }
+
     if (body.skills) {
       await this.prisma.employeeSkill.deleteMany({ where: { employeeId: emp.id } });
       const skills = await this.prisma.skill.findMany({
@@ -373,6 +432,14 @@ export class EmployeesController {
         department: true,
         skills: { include: { skill: true } },
         resourceOwner: { select: { id: true, hrmsId: true, name: true } },
+        _count: {
+          select: {
+            allocations: { where: { isDeleted: false } },
+            workConfirmations: { where: { isDeleted: false } },
+            weeklyCheckIns: { where: { isDeleted: false } },
+            kpiFrameworkItems: { where: { isDeleted: false } },
+          },
+        },
       },
     });
 
