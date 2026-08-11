@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Put } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { RequirePermissions } from "../auth/guards";
+import { SessionAuthCache } from "../auth/session-auth.cache";
 import { EmitDataChange } from "../realtime/emit-data-change.decorator";
 
 function ser<T>(v: T): T {
@@ -12,7 +13,10 @@ function ser<T>(v: T): T {
 @ApiBearerAuth()
 @Controller("access-rights")
 export class AccessRightsController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly sessionAuthCache: SessionAuthCache
+  ) {}
 
   /** All employees' permission keys keyed by HRMS id — used for Access Rights list counts. */
   @Get()
@@ -70,6 +74,8 @@ export class AccessRightsController {
         data: keys.map((key) => ({ employeeId: emp.id, key })),
       });
     }
+    // Drop cached JWT auth so the next request reloads live permission keys.
+    this.sessionAuthCache.invalidate(emp.id);
     // Overall app access removed — invalidate refresh sessions so they cannot renew a JWT.
     if (keys.length === 0 && !emp.isSuperAdmin) {
       await this.prisma.refreshToken.updateMany({

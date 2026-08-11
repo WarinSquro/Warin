@@ -32,6 +32,21 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-11 17:00 IST
+
+**Prompt:**  
+> Login Performance Regression — was ~1s, now 20–25s; find root cause; do not run expensive enable/disable checks during login; restore ~1–2s
+
+**Output:**  
+- **Root cause:** `JwtStrategy.validate` (recent live-revoke change) queried employee+permissions from Postgres on **every** authenticated request. Post-login bootstrap (employees/projects/masters/settings/SSE/me) multiplied that into a long queue on small EC2/Docker hosts. Employees list also used 4× filtered Prisma `_count` per row for Disable UI.
+- **Fix:**  
+  - `SessionAuthCache` (default 5s TTL) for JWT validate; invalidate on access-rights PUT and employee disable.  
+  - Employees list/get: batch/single `EXISTS` for `transactionCount` (0/1) instead of per-row `_count`.  
+  - Slim `/auth/me` (no skills join).  
+  - Client: skip permission `/auth/me` sync for 4s after sign-in.
+- Files: `session-auth.cache.ts`, `jwt.strategy.ts`, `auth.module.ts`, `auth.service.ts`, `access-rights.controller.ts`, `employees.controller.ts`, `AuthContext.tsx`, `docs/prompt-log.md`.
+- Note: rebuild/restart API on EC2 (`docker compose up -d --build api`) for live.
+
 ### 2026-08-11 15:45 IST
 
 **Prompt:**  

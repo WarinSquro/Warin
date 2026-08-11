@@ -127,7 +127,16 @@ export class AuthService {
     const id = BigInt(employeeId);
     const employee = await this.prisma.employee.findFirst({
       where: { id, isDeleted: false },
-      include: { permissions: true, department: true, skills: { include: { skill: true } } },
+      select: {
+        id: true,
+        hrmsId: true,
+        name: true,
+        email: true,
+        isSuperAdmin: true,
+        mustChangePin: true,
+        department: { select: { name: true } },
+        permissions: { select: { key: true } },
+      },
     });
     if (!employee) throw new UnauthorizedException();
     return serializeBigInt({
@@ -137,7 +146,6 @@ export class AuthService {
       email: employee.email,
       isSuperAdmin: employee.isSuperAdmin,
       departmentName: employee.department?.name ?? null,
-      skills: employee.skills.map((s) => s.skill.name),
       permissionKeys: employee.isSuperAdmin ? ["*"] : employee.permissions.map((p) => p.key),
       mustChangePin: employee.mustChangePin,
     });

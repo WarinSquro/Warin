@@ -16,6 +16,7 @@ import { MailService } from "@oneview/mail";
 import { randomInt } from "node:crypto";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { RequirePermissions } from "../auth/guards";
+import { SessionAuthCache } from "../auth/session-auth.cache";
 import { EmitDataChange } from "../realtime/emit-data-change.decorator";
 
 function ser<T>(v: T): T {
@@ -59,7 +60,8 @@ export class EmployeesController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly hashing: HashingService,
-    private readonly mail: MailService
+    private readonly mail: MailService,
+    private readonly sessionAuthCache: SessionAuthCache
   ) {}
 
   private mapRow(e: {
@@ -81,13 +83,14 @@ export class EmployeesController {
       weeklyCheckIns?: number;
       kpiFrameworkItems?: number;
     };
-  }) {
+  }, transactionCountOverride?: number) {
     const c = e._count;
     const transactionCount =
+      transactionCountOverride ??
       (c?.allocations ?? 0) +
-      (c?.workConfirmations ?? 0) +
-      (c?.weeklyCheckIns ?? 0) +
-      (c?.kpiFrameworkItems ?? 0);
+        (c?.workConfirmations ?? 0) +
+        (c?.weeklyCheckIns ?? 0) +
+        (c?.kpiFrameworkItems ?? 0);
     return {
       id: e.id.toString(),
       hrmsId: e.hrmsId,
@@ -104,6 +107,62 @@ export class EmployeesController {
       skills: e.skills.map((s) => s.skill.name),
       transactionCount,
     };
+  }
+
+  /** Fast boolean flags for Disable UI — one EXISTS scan, not 4× per-row _count. */
+  private async transactionFlagByEmployeeId(): Promise<Map<string, number>> {
+    const rows = await this.prisma.$queryRaw<Array<{ id: string; has_tx: boolean }>>`
+      SELECT e.id::text AS id,
+        (
+          EXISTS (
+            SELECT 1 FROM allocations a
+            WHERE a.employee_id = e.id AND a.is_deleted = false
+          )
+          OR EXISTS (
+            SELECT 1 FROM work_confirmations w
+            WHERE w.employee_id = e.id AND w.is_deleted = false
+          )
+          OR EXISTS (
+            SELECT 1 FROM weekly_check_in_submissions wci
+            WHERE wci.employee_id = e.id AND wci.is_deleted = false
+          )
+          OR EXISTS (
+            SELECT 1 FROM kpi_framework_items k
+            WHERE k.employee_id = e.id AND k.is_deleted = false
+          )
+        ) AS has_tx
+      FROM employees e
+      WHERE e.is_deleted = false
+    `;
+    const map = new Map<string, number>();
+    for (const r of rows) {
+      map.set(r.id, r.has_tx ? 1 : 0);
+    }
+    return map;
+  }
+
+  private async transactionCountForEmployee(employeeId: bigint): Promise<number> {
+    const rows = await this.prisma.$queryRaw<Array<{ has_tx: boolean }>>`
+      SELECT (
+        EXISTS (
+          SELECT 1 FROM allocations a
+          WHERE a.employee_id = ${employeeId} AND a.is_deleted = false
+        )
+        OR EXISTS (
+          SELECT 1 FROM work_confirmations w
+          WHERE w.employee_id = ${employeeId} AND w.is_deleted = false
+        )
+        OR EXISTS (
+          SELECT 1 FROM weekly_check_in_submissions wci
+          WHERE wci.employee_id = ${employeeId} AND wci.is_deleted = false
+        )
+        OR EXISTS (
+          SELECT 1 FROM kpi_framework_items k
+          WHERE k.employee_id = ${employeeId} AND k.is_deleted = false
+        )
+      ) AS has_tx
+    `;
+    return rows[0]?.has_tx ? 1 : 0;
   }
 
   private async findEmp(id: string) {
@@ -196,27 +255,24 @@ export class EmployeesController {
   // WCI reviewers + planner/availability need roster; write ops stay employees-only.
   @RequirePermissions("employees", "my_team.weekly_check_in", "planner", "availability")
   async list(@Query("status") status?: string) {
-    const rows = await this.prisma.employee.findMany({
-      where: {
-        isDeleted: false,
-        ...(status ? { status: status as "active" | "inactive" } : {}),
-      },
-      include: {
-        department: true,
-        skills: { include: { skill: true } },
-        resourceOwner: { select: { id: true, hrmsId: true, name: true } },
-        _count: {
-          select: {
-            allocations: { where: { isDeleted: false } },
-            workConfirmations: { where: { isDeleted: false } },
-            weeklyCheckIns: { where: { isDeleted: false } },
-            kpiFrameworkItems: { where: { isDeleted: false } },
-          },
+    const [rows, txFlags] = await Promise.all([
+      this.prisma.employee.findMany({
+        where: {
+          isDeleted: false,
+          ...(status ? { status: status as "active" | "inactive" } : {}),
         },
-      },
-      orderBy: { name: "asc" },
-    });
-    return ser(rows.map((e) => this.mapRow(e)));
+        include: {
+          department: true,
+          skills: { include: { skill: true } },
+          resourceOwner: { select: { id: true, hrmsId: true, name: true } },
+        },
+        orderBy: { name: "asc" },
+      }),
+      this.transactionFlagByEmployeeId(),
+    ]);
+    return ser(
+      rows.map((e) => this.mapRow(e, txFlags.get(e.id.toString()) ?? 0))
+    );
   }
 
   @Get(":id")
@@ -232,19 +288,12 @@ export class EmployeesController {
         skills: { include: { skill: true } },
         resourceOwner: { select: { id: true, hrmsId: true, name: true } },
         permissions: true,
-        _count: {
-          select: {
-            allocations: { where: { isDeleted: false } },
-            workConfirmations: { where: { isDeleted: false } },
-            weeklyCheckIns: { where: { isDeleted: false } },
-            kpiFrameworkItems: { where: { isDeleted: false } },
-          },
-        },
       },
     });
     if (!e) throw new NotFoundException("Employee not found");
+    const transactionCount = await this.transactionCountForEmployee(e.id);
     return ser({
-      ...this.mapRow(e),
+      ...this.mapRow(e, transactionCount),
       permissionKeys: e.permissions.map((p) => p.key),
     });
   }
@@ -311,14 +360,6 @@ export class EmployeesController {
         department: true,
         skills: { include: { skill: true } },
         resourceOwner: { select: { id: true, hrmsId: true, name: true } },
-        _count: {
-          select: {
-            allocations: { where: { isDeleted: false } },
-            workConfirmations: { where: { isDeleted: false } },
-            weeklyCheckIns: { where: { isDeleted: false } },
-            kpiFrameworkItems: { where: { isDeleted: false } },
-          },
-        },
       },
     });
 
@@ -344,7 +385,7 @@ export class EmployeesController {
 
     // Never include plainPin in the API response
     return ser({
-      ...this.mapRow(created),
+      ...this.mapRow(created, 0),
       welcomeEmailSent,
       welcomeEmailSkipped,
       welcomeEmailMessage,
@@ -384,21 +425,8 @@ export class EmployeesController {
     const status = body.status ?? emp.status;
 
     if (status === "inactive" && emp.status !== "inactive") {
-      const [allocations, confirmations, weeklyCheckIns, kpiItems] = await Promise.all([
-        this.prisma.allocation.count({
-          where: { employeeId: emp.id, isDeleted: false },
-        }),
-        this.prisma.workConfirmation.count({
-          where: { employeeId: emp.id, isDeleted: false },
-        }),
-        this.prisma.weeklyCheckInSubmission.count({
-          where: { employeeId: emp.id, isDeleted: false },
-        }),
-        this.prisma.kpiFrameworkItem.count({
-          where: { employeeId: emp.id, isDeleted: false },
-        }),
-      ]);
-      if (allocations + confirmations + weeklyCheckIns + kpiItems > 0) {
+      const linked = await this.transactionCountForEmployee(emp.id);
+      if (linked > 0) {
         throw new BadRequestException(
           "Employee is associated with one or more transactions and cannot be disabled."
         );
@@ -432,17 +460,14 @@ export class EmployeesController {
         department: true,
         skills: { include: { skill: true } },
         resourceOwner: { select: { id: true, hrmsId: true, name: true } },
-        _count: {
-          select: {
-            allocations: { where: { isDeleted: false } },
-            workConfirmations: { where: { isDeleted: false } },
-            weeklyCheckIns: { where: { isDeleted: false } },
-            kpiFrameworkItems: { where: { isDeleted: false } },
-          },
-        },
       },
     });
 
-    return ser(this.mapRow(updated));
+    if (status === "inactive") {
+      this.sessionAuthCache.invalidate(emp.id);
+    }
+
+    const transactionCount = await this.transactionCountForEmployee(updated.id);
+    return ser(this.mapRow(updated, transactionCount));
   }
 }

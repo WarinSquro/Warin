@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException } from "@nestjs/common";
 import { PassportStrategy } from "@nestjs/passport";
 import { ExtractJwt, Strategy } from "passport-jwt";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
+import { SessionAuthCache } from "./session-auth.cache";
 
 export type JwtPayload = {
   sub: string;
@@ -13,7 +14,10 @@ export type JwtPayload = {
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(private readonly prisma: PrismaService) {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly sessionCache: SessionAuthCache
+  ) {
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([
         ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -26,8 +30,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   /**
-   * Re-load active employee + permission keys from DB on every authenticated request
-   * so access-rights revokes take effect immediately (JWT claims alone are not trusted).
+   * Resolve live employee + permission keys for authorization.
+   * Uses a short TTL cache so post-login request bursts do not each hit Postgres.
+   * Cache is invalidated when access rights change (see AccessRightsController).
    */
   async validate(payload: JwtPayload): Promise<JwtPayload> {
     let id: bigint;
@@ -36,6 +41,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     } catch {
       throw new UnauthorizedException();
     }
+
+    const cached = this.sessionCache.get(payload.sub);
+    if (cached) return cached;
 
     const employee = await this.prisma.employee.findFirst({
       where: { id, isDeleted: false, isActive: true },
@@ -53,12 +61,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       ? ["*"]
       : employee.permissions.map((p) => p.key);
 
-    return {
+    const next: JwtPayload = {
       sub: employee.id.toString(),
       email: employee.email,
       hrmsId: employee.hrmsId,
       isSuperAdmin: employee.isSuperAdmin,
       permissionKeys,
     };
+    this.sessionCache.set(next);
+    return next;
   }
 }

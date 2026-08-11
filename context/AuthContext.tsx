@@ -108,6 +108,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const syncInFlight = useRef<Promise<void> | null>(null);
   const userRef = useRef(user);
   userRef.current = user;
+  /** Avoid /auth/me storms for a few seconds after sign-in while contexts bootstrap. */
+  const skipPermissionSyncUntil = useRef(0);
 
   useEffect(() => {
     const token = sessionStorage.getItem("oneview_access_token");
@@ -176,6 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSessionEmail(su.email);
     setKeysVersion((v) => v + 1);
     persistUser(su);
+    skipPermissionSyncUntil.current = Date.now() + 4_000;
     if (su.mustChangePin) return "/change-pin";
     const keys =
       su.isSuperAdmin || su.permissionKeys.includes("*")
@@ -213,6 +216,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (syncInFlight.current) return syncInFlight.current;
     const token = sessionStorage.getItem("oneview_access_token");
     if (!token || !userRef.current) return;
+    // Skip competing /auth/me during the login bootstrap window.
+    if (Date.now() < skipPermissionSyncUntil.current) return;
 
     syncInFlight.current = (async () => {
       try {
