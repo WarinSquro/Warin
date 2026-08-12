@@ -180,7 +180,12 @@ export function resolveProjectName(key: string) {
 }
 
 export function projectShortName(fullName: string) {
-  return PROJECT_SHORT_NAMES[fullName] ?? fullName.replace(/^Project /, "");
+  const mapped = PROJECT_SHORT_NAMES[fullName];
+  if (mapped) return mapped;
+  // "Project Falcon" → "Falcon"; keep full name when strip leaves a tiny label ("Project Z" → "Z").
+  const stripped = fullName.replace(/^Project\s+/i, "").trim();
+  if (!stripped || stripped.length <= 2) return fullName;
+  return stripped;
 }
 
 export function cellBookedHours(cell: Chip[]) {
@@ -209,6 +214,54 @@ export function allocatedHoursInRange(
     if (days > 0) total += a.hoursPerDay * days;
   }
   return Math.round(total * 10) / 10;
+}
+
+/**
+ * Peak hours/day for an employee over [rangeStart, rangeEnd] on working days,
+ * after adding `extraHoursPerDay` (e.g. draft allocation) and optionally excluding one allocation (edit).
+ */
+export function peakDailyAllocationHours(
+  allocs: AllocationSlice[],
+  employeeHrmsId: string,
+  rangeStart: string,
+  rangeEnd: string,
+  opts: {
+    calendar?: PlannerCalendarOpts;
+    extraHoursPerDay?: number;
+    excludeAllocationId?: string;
+  } = {}
+): number {
+  const start = rangeStart.slice(0, 10);
+  const end = rangeEnd.slice(0, 10);
+  if (!employeeHrmsId || !start || !end || end < start) return 0;
+
+  const calendar = opts.calendar ?? {};
+  const extra = opts.extraHoursPerDay ?? 0;
+  const mine = allocs.filter(
+    (a) =>
+      a.employeeHrmsId === employeeHrmsId &&
+      a.id !== opts.excludeAllocationId
+  );
+
+  let peak = 0;
+  let sawWorkingDay = false;
+  const t0 = parseISO(start).getTime();
+  const t1 = parseISO(end).getTime();
+  for (let t = t0; t <= t1; t += 86400000) {
+    const iso = toISODate(new Date(t));
+    if (!isPlannerWorkingDay(iso, calendar)) continue;
+    sawWorkingDay = true;
+    let dayHrs = extra;
+    for (const a of mine) {
+      const aStart = a.startDate.slice(0, 10);
+      const aEnd = a.endDate.slice(0, 10);
+      if (iso >= aStart && iso <= aEnd) dayHrs += a.hoursPerDay;
+    }
+    if (dayHrs > peak) peak = dayHrs;
+  }
+
+  if (!sawWorkingDay) return Math.round(extra * 10) / 10;
+  return Math.round(peak * 10) / 10;
 }
 
 export function capacityForView(capacity: number, view: "day" | "week") {

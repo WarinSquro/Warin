@@ -459,7 +459,7 @@ export function WeeklyCheckInConfig() {
                           : "border-transparent text-foreground hover:bg-surface-alt"
                       }`}
                     >
-                      <span className="truncate">{d.name}</span>
+                      <span className="min-w-0 flex-1 truncate">{d.name}</span>
                       <span
                         className={`ml-1 shrink-0 rounded border px-1 py-0.5 text-[9px] font-semibold ${chip.className}`}
                       >

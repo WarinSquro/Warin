@@ -32,6 +32,173 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-12 12:00 IST
+
+**Prompt:**  
+> Availability Total Free Capacity KPI — show hours in decimal values like Free Capacity (32.5h)
+
+**Output:**  
+- **Root cause:** `formatHoursLabel` drops trailing `.0`, so integer totals rendered as `2448h`.  
+- Added `formatHoursDecimalLabel` (always 1 decimal: `2448.0h`, `32.5h`).  
+- Availability KPI + table Free Capacity use it.  
+- Files: `utils/formatHours.ts`, `screens/Availability.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-12 11:58 IST
+
+**Prompt:**  
+> Availability Avg Free Hrs / Person KPI — show hours in decimal values like Free Capacity (32.5h)
+
+**Output:**  
+- **Root cause:** `computeAvailKpis` used `Math.round` so avg was always an integer (`41h`); display was raw `${n}h`.  
+- Avg keeps 1 decimal; KPI / table Free Capacity use `formatHoursLabel` (e.g. `32.5h`, `41h`).  
+- Files: `data/availability.ts`, `screens/Availability.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-12 10:49 IST
+
+**Prompt:**  
+> Allocation drawer overallocation card — show only when Employee is selected and that employee's total daily hours exceed Settings → Working Calendar → Hours per Day
+
+**Output:**  
+- **Root cause:** Card used hours alone (`combined > workingHoursPerDay`) without requiring a team member; `pastAllocationHours` was frozen from open prefill and did not update when the employee dropdown changed.  
+- Added `peakDailyAllocationHours` (working-day peak = existing overlapping allocs + draft hours; excludes edited allocation).  
+- Card / reason required only when `personId` set and peak > Hours per Day.  
+- Pass live `allocations` into drawer from Resource Planner + Availability.  
+- Files: `data/planner.ts`, `components/AllocationDrawer.tsx`, `screens/ResourcePlanner.tsx`, `screens/Availability.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-12 10:24 IST
+
+**Prompt:**  
+> Weekly Check-In Previous Week Review — long no-space text overflows card; show … and full text on hover tooltip
+
+**Output:**  
+- **Root cause:** `roRemarks` / `actionNotes` rendered in unconstrained `<p>` so unbroken strings overflow.  
+- Use `TruncateText` (ellipsis) + app-wide hover `title`; card/containers `min-w-0 overflow-hidden`.  
+- Files: `components/WeeklyCheckInEvidencePanel.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-12 10:07 IST
+
+**Prompt:**  
+> Utilization — clicking Avg Utilization KPI should show All (like other band cards)
+
+**Output:**  
+- **Root cause:** Avg Utilization card had no `onClick` / `active` props (static div).  
+- Wired `onClick={() => setSeg("all")}` and `active={seg === "all"}` so it selects the All tab/filter and highlights when All is active.  
+- Files: `screens/Utilization.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-12 10:02 IST
+
+**Prompt:**  
+> Weekly Check-In Assessment — show * for all mandatory fields; for Technical & Behavioural, * after those words only
+
+**Output:**  
+- Section headers in competency grid: `Technical*` / `Behavioural*` (red `*`, not per-row).  
+- Action Notes (when Action Type ≠ None): added required `*`.  
+- RO Remarks already had `*`.  
+- Files: `WeeklyCheckInCompetencyRating.tsx`, `WeeklyCheckInWorkspace.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-12 09:59 IST
+
+**Prompt:**  
+> Weekly Check-In Config department list — when truncated with …, show full text on hover tooltip
+
+**Output:**  
+- **Root cause:** App-wide `TruncateHoverTitles` was documented but not mounted in `App.tsx`; department name `span.truncate` also lacked `min-w-0 flex-1` so flex+status chip could prevent proper ellipsis.  
+- Remounted `TruncateHoverTitles` in `App.tsx` (native `title` only when overflowing).  
+- Department name: `min-w-0 flex-1 truncate`.  
+- Files: `App.tsx`, `screens/WeeklyCheckInConfig.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-12 09:55 IST
+
+**Prompt:**  
+> Work Confirmation focus timer Total label — set a readable font color (muted on success-soft)
+
+**Output:**  
+- **Root cause:** `text-muted-foreground` (#9ca3af) on `bg-success-soft` had poor contrast.  
+- Changed Total clock to `text-muted` (#6b7280); still secondary to session clock.  
+- Files: `components/ConfirmationProductivity.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-12 09:47 IST
+
+**Prompt:**  
+> Employee Master: scrollbar misaligns columns with header — correct alignment
+
+**Output:**  
+- **Root cause:** Column header sat outside the body `overflow-y-auto` pane; scrollbar narrowed only the rows.  
+- **Fix:** Same pattern as Project Master / Resource Planner — header + rows in one scrollport; sticky header (`sticky top-0`).  
+- Files: `screens/EmployeeMaster.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-12 09:42 IST
+
+**Prompt:**  
+> Resource Planner chip shows "Z · 18h" for project name "Project Z" — check and fix so full name shows
+
+**Output:**  
+- **Root cause:** `projectShortName` always stripped the `Project ` prefix, so `"Project Z"` became `"Z"`.  
+- Keep full name when stripped remnant is empty or ≤2 chars; mapped shorts (Falcon/Atlas/Auto) unchanged.  
+- Files: `data/planner.ts`, `docs/prompt-log.md`.  
+- Chip label is now `Project Z · 18h`.
+
+### 2026-08-12 09:37 IST
+
+**Prompt:**  
+> Work Confirmation compliance row — when showing Confirmed datetime instead of "Not yet confirmed", show IST not UTC
+
+**Output:**  
+- **Root cause:** API `formatTime` used server local TZ (Docker UTC) for `Confirmed …` labels.  
+- API confirmations `formatTime` now uses `timeZone: "Asia/Kolkata"`.  
+- Client `formatAppTime12h` / `formatAppDateTime` also format in IST via `APP_DISPLAY_TIMEZONE`.  
+- Files: `confirmations.controller.ts`, `utils/formatAppDate.ts`, `docs/prompt-log.md`.  
+- Restart/rebuild API required for compliance labels.
+
+### 2026-08-12 09:26 IST
+
+**Prompt:**  
+> Weekly Check-In Submit — validate mandatory fields one at a time (single toast + focus first missing field)
+
+**Output:**  
+- Added `findFirstSubmissionIssue` (ordered: technical → behavioural → RO Remarks → Action Notes).  
+- Submit shows one toast via `toast.clear()` + `toast.error`, scrolls/focuses that field.  
+- Focus anchors on competency rating controls and remarks/notes textareas.  
+- Files: `data/weeklyCheckIn.ts`, `WeeklyCheckInCompetencyRating.tsx`, `WeeklyCheckInWorkspace.tsx`, `ToastContext.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-12 09:18 IST
+
+**Prompt:**  
+> Weekly Check-In Workspace — show validation/submit errors as toast (not inline danger box)
+
+**Output:**  
+- Removed inline `bg-danger-soft` validation list.  
+- On submit, each validation error and API failure uses `toast.error`; success still `toast.created()`.  
+- Files: `screens/WeeklyCheckInWorkspace.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-12 07:42 IST
+
+**Prompt:**  
+> Planning Conflicts is open from My Workspace; make it visible again on Access Rights (revert hide)
+
+**Output:**  
+- Removed `accessRightsVisible: false` from `planning_conflicts` so it appears in the Access Rights permission tree (Planning group). Sidebar still hidden (`menuVisible: false`); page still opens from My Workspace. Route still allows `my_workspace` or `planning_conflicts`.  
+- Files: `data/navConfig.ts`, `docs/prompt-log.md`.
+
+### 2026-08-11 17:45 IST
+
+**Prompt:**  
+> Keep space between Confirmation and Confirmed On so Confirmation sort arrows stay visible
+
+**Output:**  
+- Widened Confirmation column (`7.25rem`); tightened Confirmed On / Plan/Unplanned stacks; header cells clip overflow so labels cannot bleed into the next column.  
+- Files: `data/dailyWorkReport.ts`, `screens/DailyWorkReport.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-11 17:40 IST
+
+**Prompt:**  
+> Daily Work Report — two-line headers for CONFIRMED ON and Plan/Unplanned (match Actual HRS)
+
+**Output:**  
+- Added optional `stackedHeader` on daily work columns; Confirmed On → CONFIRMED / ON; Plan/Unplanned → PLAN/ / UNPLANNED; also explicit ACTUAL/PLANNED HRS stacks.  
+- `SortColHeader` accepts `ReactNode` labels.  
+- Files: `data/dailyWorkReport.ts`, `components/SortColHeader.tsx`, `screens/DailyWorkReport.tsx`, `docs/prompt-log.md`.
+
 ### 2026-08-11 17:00 IST
 
 **Prompt:**  

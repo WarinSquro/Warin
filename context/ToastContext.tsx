@@ -17,6 +17,8 @@ const CRUD = {
 
 type ToastApi = {
   push: (tone: ToastTone, message: string) => void;
+  /** Dismiss all visible toasts (e.g. before showing the next sequential validation message). */
+  clear: () => void;
   success: (message: string) => void;
   info: (message: string) => void;
   warning: (message: string) => void;
@@ -44,6 +46,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setItems((prev) => prev.filter((x) => x.id !== id));
   }, []);
 
+  const clear = useCallback(() => {
+    for (const t of timers.current.values()) {
+      window.clearTimeout(t);
+    }
+    timers.current.clear();
+    setItems([]);
+  }, []);
+
   const push = useCallback(
     (tone: ToastTone, message: string) => {
       const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -57,6 +67,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const api = useMemo<ToastApi>(
     () => ({
       push,
+      clear,
       success: (message) => push("success", message),
       info: (message) => push("info", message),
       warning: (message) => push("warning", message),
@@ -65,7 +76,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       updated: () => push("success", CRUD.updated),
       deleted: () => push("success", CRUD.deleted),
     }),
-    [push]
+    [push, clear]
   );
 
   return (

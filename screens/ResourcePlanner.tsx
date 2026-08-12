@@ -643,6 +643,7 @@ export function ResourcePlanner() {
         onClose={() => setDrawerOpen(false)}
         prefill={prefill}
         people={plannerRows}
+        allocations={allocations}
         onSave={handleAllocationSave}
         onDelete={handleAllocationDelete}
       />

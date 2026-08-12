@@ -258,7 +258,13 @@ export function Utilization() {
 
         {/* KPI row — band cards filter the grid */}
         <div className="grid flex-shrink-0 grid-cols-4 gap-3">
-          <Kpi label="Avg Utilization" value={`${kpis.avg}%`} delta={kpis.total ? `▲ ${kpis.avgDelta}% vs last mo` : undefined} />
+          <Kpi
+            label="Avg Utilization"
+            value={`${kpis.avg}%`}
+            delta={kpis.total ? `▲ ${kpis.avgDelta}% vs last mo` : undefined}
+            active={seg === "all"}
+            onClick={() => setSeg("all")}
+          />
           <Kpi
             label="Overloaded"
             value={kpis.over}

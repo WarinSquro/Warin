@@ -1,5 +1,6 @@
 import { Lock } from "lucide-react";
 import { BillableSplitBar } from "./BillableSplitBar";
+import { TruncateText } from "./TruncateText";
 import { useSettings } from "../context/SettingsContext";
 import { metricBand, type MetricBand } from "../data/deploymentReport";
 import type {
@@ -122,9 +123,9 @@ export function WeeklyCheckInEvidencePanel({
       </div>
 
       {(previousSubmission || !frozen) && (
-      <div className="rounded-lg border border-border bg-surface px-3 py-2.5 shadow-sm">
+      <div className="min-w-0 overflow-hidden rounded-lg border border-border bg-surface px-3 py-2.5 shadow-sm">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <div className="text-[10px] font-medium uppercase tracking-wide text-muted">
               Previous week review
             </div>
@@ -142,9 +143,9 @@ export function WeeklyCheckInEvidencePanel({
         {!previousSubmission ? (
           <div className="text-[12px] text-muted-foreground">No previous review available.</div>
         ) : (
-          <div className="space-y-2 text-[12px]">
-            <p className="text-foreground">{previousSubmission.roRemarks}</p>
-            <div className="rounded-md border border-border-soft bg-surface-alt/70 px-2.5 py-2">
+          <div className="min-w-0 space-y-2 text-[12px]">
+            <TruncateText text={previousSubmission.roRemarks} className="block text-foreground" />
+            <div className="min-w-0 overflow-hidden rounded-md border border-border-soft bg-surface-alt/70 px-2.5 py-2">
               <div
                 className={`text-[12px] font-medium ${
                   previousSubmission.recognition !== "None"
@@ -154,12 +155,15 @@ export function WeeklyCheckInEvidencePanel({
               >
                 Recognition: {previousSubmission.recognition}
               </div>
-              <div className="mt-2.5 border-t border-border-soft pt-2.5">
+              <div className="mt-2.5 min-w-0 border-t border-border-soft pt-2.5">
                 <div className="font-medium text-foreground">
                   Action: {previousSubmission.actionType}
                 </div>
                 {previousSubmission.actionNotes && (
-                  <p className="mt-1 text-muted-foreground">{previousSubmission.actionNotes}</p>
+                  <TruncateText
+                    text={previousSubmission.actionNotes}
+                    className="mt-1 block text-muted-foreground"
+                  />
                 )}
               </div>
               {previousSubmission.actionType !== "None" && (

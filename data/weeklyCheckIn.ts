@@ -148,6 +148,20 @@ export interface ValidationResult {
   errors: string[];
 }
 
+/** First blocking issue for sequential submit validation (toast + focus one field at a time). */
+export interface SubmissionIssue {
+  message: string;
+  /** DOM id of the control to focus, when applicable */
+  focusId?: string;
+}
+
+export function competencyFocusId(competencyId: string): string {
+  return `wci-focus-comp-${competencyId}`;
+}
+
+export const WCI_FOCUS_RO_REMARKS = "wci-focus-ro-remarks";
+export const WCI_FOCUS_ACTION_NOTES = "wci-focus-action-notes";
+
 const CONFIG_STORAGE_KEY = "oneview_wci_config_v1";
 const SUBMISSIONS_STORAGE_KEY = "oneview_wci_submissions_v1";
 const SUBMISSIONS_VERSION_KEY = "oneview_wci_submissions_version";
@@ -824,28 +838,38 @@ export function validateSubmission(
   /** Live department PK (or code) used as competenciesByDepartment key — prefer dbId from Masters. */
   departmentConfigId?: string
 ): ValidationResult {
-  const errors: string[] = [];
+  const first = findFirstSubmissionIssue(draft, existingSubmission, departmentConfigId);
+  return first ? { valid: false, errors: [first.message] } : { valid: true, errors: [] };
+}
+
+/**
+ * Returns the first missing mandatory field in defined order (competencies → remarks → action notes).
+ * Used so Submit shows one toast and focuses one field at a time.
+ */
+export function findFirstSubmissionIssue(
+  draft: WeeklyCheckInDraft,
+  existingSubmission?: WeeklyCheckInSubmission,
+  departmentConfigId?: string
+): SubmissionIssue | null {
   if (existingSubmission) {
-    errors.push("Review already submitted for this week.");
-    return { valid: false, errors };
+    return { message: "Review already submitted for this week." };
   }
 
   let deptKey = departmentConfigId?.trim() ?? "";
   if (!deptKey) {
     const dept = getDepartmentByEmployee(draft.employeeId);
     if (!dept) {
-      errors.push("Employee department not found.");
-      return { valid: false, errors };
+      return { message: "Employee department not found." };
     }
     deptKey = dept.dbId ?? dept.id;
   }
 
   const status = getDepartmentConfigStatus(deptKey);
   if (status === "not_set") {
-    errors.push(
-      "No competency template exists for this department. Ask an administrator to configure competencies under Setup → Weekly Check-In Config."
-    );
-    return { valid: false, errors };
+    return {
+      message:
+        "No competency template exists for this department. Ask an administrator to configure competencies under Setup → Weekly Check-In Config.",
+    };
   }
 
   const comps = getCompetenciesForDepartment(deptKey);
@@ -857,25 +881,37 @@ export function validateSubmission(
   for (const c of tech) {
     const v = draft.technicalRatings[c.id];
     if (v == null || !validValues.has(v as 1 | 2 | 3 | 4 | 5)) {
-      errors.push(`Rate technical competency: ${c.label}`);
+      return {
+        message: `Rate technical competency: ${c.label}`,
+        focusId: competencyFocusId(c.id),
+      };
     }
   }
   for (const c of beh) {
     const v = draft.behaviouralRatings[c.id];
     if (v == null || !validValues.has(v as 1 | 2 | 3 | 4 | 5)) {
-      errors.push(`Rate behavioural competency: ${c.label}`);
+      return {
+        message: `Rate behavioural competency: ${c.label}`,
+        focusId: competencyFocusId(c.id),
+      };
     }
   }
 
   if (draft.roRemarks.trim().length < MIN_REMARKS_LENGTH) {
-    errors.push(`RO Remarks must be at least ${MIN_REMARKS_LENGTH} characters.`);
+    return {
+      message: `RO Remarks must be at least ${MIN_REMARKS_LENGTH} characters.`,
+      focusId: WCI_FOCUS_RO_REMARKS,
+    };
   }
 
   if (draft.actionType !== "None" && draft.actionNotes.trim().length < MIN_REMARKS_LENGTH) {
-    errors.push(`Action Notes must be at least ${MIN_REMARKS_LENGTH} characters when Action Type is not None.`);
+    return {
+      message: `Action Notes must be at least ${MIN_REMARKS_LENGTH} characters when Action Type is not None.`,
+      focusId: WCI_FOCUS_ACTION_NOTES,
+    };
   }
 
-  return { valid: errors.length === 0, errors };
+  return null;
 }
 
 export function submitWeeklyCheckIn(

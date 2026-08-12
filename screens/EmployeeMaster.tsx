@@ -222,51 +222,52 @@ export function EmployeeMaster() {
             </div>
           </div>
 
-          <div className="flex flex-shrink-0 border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold text-muted">
-            <SortColHeader
-              label="NAME"
-              col="name"
-              sortKey={sortKey}
-              sortDir={sortDir}
-              onSort={handleSort}
-              className="w-[220px]"
-            />
-            <SortColHeader
-              label="HRMS ID"
-              col="id"
-              sortKey={sortKey}
-              sortDir={sortDir}
-              onSort={handleSort}
-              className="w-[110px]"
-            />
-            <SortColHeader
-              label="DEPARTMENT"
-              col="department"
-              sortKey={sortKey}
-              sortDir={sortDir}
-              onSort={handleSort}
-              className="w-[120px]"
-            />
-            <SortColHeader
-              label="SKILLS"
-              col="skills"
-              sortKey={sortKey}
-              sortDir={sortDir}
-              onSort={handleSort}
-              className="flex-1"
-            />
-            <SortColHeader
-              label="RESOURCE OWNER"
-              col="resourceOwner"
-              sortKey={sortKey}
-              sortDir={sortDir}
-              onSort={handleSort}
-              className="w-[140px]"
-            />
-            <div className="w-[90px] text-right">ACTION</div>
-          </div>
-
+          {/* Single scrollport: sticky header + rows share width (scrollbar no longer shifts columns). */}
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            <div className="sticky top-0 z-10 flex border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold text-muted">
+              <SortColHeader
+                label="NAME"
+                col="name"
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onSort={handleSort}
+                className="w-[220px]"
+              />
+              <SortColHeader
+                label="HRMS ID"
+                col="id"
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onSort={handleSort}
+                className="w-[110px]"
+              />
+              <SortColHeader
+                label="DEPARTMENT"
+                col="department"
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onSort={handleSort}
+                className="w-[120px]"
+              />
+              <SortColHeader
+                label="SKILLS"
+                col="skills"
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onSort={handleSort}
+                className="flex-1"
+              />
+              <SortColHeader
+                label="RESOURCE OWNER"
+                col="resourceOwner"
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onSort={handleSort}
+                className="w-[140px]"
+              />
+              <div className="w-[90px] text-right">ACTION</div>
+            </div>
+
             {sorted.map((e) => (
               <EmpRow
                 key={e.id}

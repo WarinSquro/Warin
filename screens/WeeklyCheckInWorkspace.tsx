@@ -16,13 +16,15 @@ import { useSettings } from "../context/SettingsContext";
 import { useToast } from "../context/ToastContext";
 import {
   MIN_REMARKS_LENGTH,
+  WCI_FOCUS_ACTION_NOTES,
+  WCI_FOCUS_RO_REMARKS,
   addWeeks,
+  findFirstSubmissionIssue,
   formatWeekLabel,
   getCompetenciesForDepartment,
   resolveReviewWeekStart,
   getWeeklyCheckInConfig,
   saveWeeklyCheckInConfig,
-  validateSubmission,
   type ActionStatus,
   type Recognition,
   type WeeklyCheckInDraft,
@@ -104,7 +106,6 @@ export function WeeklyCheckInWorkspace() {
   const [actionNotes, setActionNotes] = useState("");
   const [recognition, setRecognition] = useState<Recognition>("None");
   const [previousActionStatus, setPreviousActionStatus] = useState<ActionStatus | undefined>();
-  const [errors, setErrors] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [actionTypes, setActionTypes] = useState<string[]>(["None"]);
 
@@ -253,7 +254,6 @@ export function WeeklyCheckInWorkspace() {
 
   const handleSubmit = async () => {
     setSubmitting(true);
-    setErrors([]);
     const draft: WeeklyCheckInDraft = {
       employeeId,
       resourceOwnerId: reviewerId,
@@ -270,9 +270,18 @@ export function WeeklyCheckInWorkspace() {
         (previousSubmission?.actionType !== "None" ? "Completed" : undefined),
       recognition,
     };
-    const validation = validateSubmission(draft, existing ?? undefined, deptConfigKey);
-    if (!validation.valid) {
-      setErrors(validation.errors);
+    const issue = findFirstSubmissionIssue(draft, existing ?? undefined, deptConfigKey);
+    if (issue) {
+      toast.clear();
+      toast.error(issue.message);
+      if (issue.focusId) {
+        const root = reviewFocusRef.current;
+        const target = root?.querySelector<HTMLElement>(`#${CSS.escape(issue.focusId)}`);
+        window.requestAnimationFrame(() => {
+          target?.scrollIntoView({ behavior: "smooth", block: "center" });
+          target?.focus();
+        });
+      }
       setSubmitting(false);
       return;
     }
@@ -291,10 +300,12 @@ export function WeeklyCheckInWorkspace() {
         previousActionStatus: draft.previousActionStatus,
         recognition,
       });
+      toast.clear();
       toast.created();
       navigate(`/my-team/weekly-check-in?week=${weekStart}`);
     } catch (e) {
-      setErrors([e instanceof Error ? e.message : "Submission failed."]);
+      toast.clear();
+      toast.error(e instanceof Error ? e.message : "Submission failed.");
     } finally {
       setSubmitting(false);
     }
@@ -410,6 +421,7 @@ export function WeeklyCheckInWorkspace() {
                     </span>
                   </div>
                   <textarea
+                    id={WCI_FOCUS_RO_REMARKS}
                     value={roRemarks}
                     disabled={viewOnly}
                     maxLength={100}
@@ -446,9 +458,11 @@ export function WeeklyCheckInWorkspace() {
                 {actionType !== "None" && (
                   <div className="mt-3">
                     <label className="mb-1 block text-[11px] font-medium text-muted">
-                      Action notes (min {MIN_REMARKS_LENGTH})
+                      Action notes (min {MIN_REMARKS_LENGTH}){" "}
+                      <span className="font-normal text-danger">*</span>
                     </label>
                     <textarea
+                      id={WCI_FOCUS_ACTION_NOTES}
                       value={actionNotes}
                       disabled={viewOnly}
                       onChange={(e) => setActionNotes(e.target.value)}
@@ -458,14 +472,6 @@ export function WeeklyCheckInWorkspace() {
                   </div>
                 )}
               </div>
-
-              {errors.length > 0 && (
-                <div className="rounded-md border border-danger-border bg-danger-soft px-3 py-2 text-[12px] text-danger">
-                  {errors.map((e) => (
-                    <div key={e}>{e}</div>
-                  ))}
-                </div>
-              )}
 
               {!viewOnly && (
                 <button

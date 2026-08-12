@@ -43,7 +43,7 @@ export function computeAvailKpis(rows: AvailRow[]) {
     totalFreeHrs,
     fullyAvailable: rows.filter((r) => r.bookedPct === 0).length,
     rollingOffSoon: rows.filter((r) => r.availableFrom !== "Now").length,
-    avgFreeHrs: Math.round(totalFreeHrs / rows.length),
+    avgFreeHrs: Math.round((totalFreeHrs / rows.length) * 10) / 10,
   };
 }
 

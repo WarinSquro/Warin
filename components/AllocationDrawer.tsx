@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { X, TriangleAlert, Info, Calendar, Trash2 } from "lucide-react";
-import { isFutureAllocationCell } from "../data/planner";
-import type { PlannerRow } from "../data/planner";
+import { isFutureAllocationCell, peakDailyAllocationHours } from "../data/planner";
+import type { AllocationSlice, PlannerRow } from "../data/planner";
 import { useProjects } from "../context/ProjectsContext";
 import { useMasters } from "../context/MastersContext";
 import { useSettings } from "../context/SettingsContext";
@@ -62,6 +62,8 @@ interface Props {
   onClose: () => void;
   prefill?: AllocationPrefill | null;
   people?: PlannerRow[];
+  /** Live allocations — used to compute selected employee's total daily load. */
+  allocations?: AllocationSlice[];
   onSave?: (payload: AllocationSavePayload) => void | Promise<void>;
   onDelete?: (editRef: AllocationEditRef) => void | Promise<void>;
 }
@@ -108,7 +110,7 @@ function createEmptyForm() {
 
 const EMPTY = createEmptyForm();
 
-export function AllocationDrawer({ open, onClose, prefill, people, onSave, onDelete }: Props) {
+export function AllocationDrawer({ open, onClose, prefill, people, allocations = [], onSave, onDelete }: Props) {
   const { projects, refresh: refreshProjects } = useProjects();
   const { activities, activityMilestones, refresh: refreshMasters } = useMasters();
   const { settings } = useSettings();
@@ -116,7 +118,6 @@ export function AllocationDrawer({ open, onClose, prefill, people, onSave, onDel
   const isEdit = prefill?.mode === "edit";
   const [form, setForm] = useState({ ...EMPTY });
   const [taskInput, setTaskInput] = useState("");
-  const [pastAllocationHours, setPastAllocationHours] = useState(0);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const focusRef = useFocusFirstField<HTMLDivElement>(open);
@@ -164,7 +165,6 @@ export function AllocationDrawer({ open, onClose, prefill, people, onSave, onDel
         hoursPerDay: Math.min(12, prefill?.hoursPerDay ?? 6),
         reason: prefill?.reason ?? "",
       });
-      setPastAllocationHours(prefill?.pastAllocationHours ?? 0);
       setTaskInput("");
     }
   }, [open, prefill, projects, roster, activities, activityMilestones]);
@@ -201,11 +201,43 @@ export function AllocationDrawer({ open, onClose, prefill, people, onSave, onDel
       ? `${formatHours(newAllocationHours)} hrs total · ${allocationDays} day${allocationDays === 1 ? "" : "s"}`
       : undefined;
 
-  const totalAllocationHours = newAllocationHours + pastAllocationHours;
-  const combinedHoursPerDay =
-    allocationDays > 0 ? totalAllocationHours / allocationDays : 0;
+  const calendarOpts = useMemo(
+    () => ({
+      workingDays: settings.workingDays,
+      companyOffDays: settings.companyOffDays.map((d) => d.date.slice(0, 10)),
+      workingHoursPerDay: settings.workingHoursPerDay,
+    }),
+    [settings.workingDays, settings.companyOffDays, settings.workingHoursPerDay]
+  );
+
+  // Peak daily load for the selected employee (existing overlapping allocs + this draft).
+  const combinedHoursPerDay = useMemo(() => {
+    if (!form.personId || !form.start || !form.end || form.end < form.start) {
+      return form.hoursPerDay;
+    }
+    return peakDailyAllocationHours(allocations, form.personId, form.start, form.end, {
+      calendar: calendarOpts,
+      extraHoursPerDay: form.hoursPerDay,
+      excludeAllocationId: prefill?.editRef?.allocationId,
+    });
+  }, [
+    allocations,
+    form.personId,
+    form.start,
+    form.end,
+    form.hoursPerDay,
+    calendarOpts,
+    prefill?.editRef?.allocationId,
+  ]);
+
   const dailyLimit = settings.workingHoursPerDay;
-  const isOver = allocationDays > 0 && combinedHoursPerDay > dailyLimit;
+  // Only warn once a team member is chosen and their total daily hours exceed Hours per Day.
+  const isOver =
+    !!form.personId &&
+    !!form.start &&
+    !!form.end &&
+    form.end >= form.start &&
+    combinedHoursPerDay > dailyLimit + 0.01;
   const overPct = isOver
     ? Math.round(((combinedHoursPerDay - dailyLimit) / dailyLimit) * 100)
     : 0;

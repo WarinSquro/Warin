@@ -11,3 +11,9 @@ export function formatHours(value: number): string {
 export function formatHoursLabel(value: number, suffix = "h"): string {
   return `${formatHours(value)}${suffix}`;
 }
+
+/** Always one decimal: `32.5h`, `2448.0h`. */
+export function formatHoursDecimalLabel(value: number, suffix = "h"): string {
+  const n = Number.isFinite(value) ? value : 0;
+  return `${n.toFixed(1)}${suffix}`;
+}

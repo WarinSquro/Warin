@@ -17,6 +17,7 @@ import { useSettings } from "../context/SettingsContext";
 import { useToast } from "../context/ToastContext";
 import { buildAvailRowsFromEmployees, buildRollingOffFromLive, toLocalISO, addDaysISO, mondayISO } from "../api/liveViews";
 import { createAllocation, fetchAllocations, type ApiAllocation } from "../api/domain";
+import { formatHoursDecimalLabel } from "../utils/formatHours";
 
 type Segment = "all" | "now" | "rolling";
 type AvailSortKey = "name" | "freeHours" | "availableFrom" | "skills";
@@ -115,7 +116,7 @@ function FreeCapacityBar({ freeHours, capacity }: { freeHours: number; capacity:
           style={{ width: `${freePct}%` }}
         />
       </div>
-      <span className="text-[12px] font-semibold text-success">{freeHours}h free</span>
+      <span className="text-[12px] font-semibold text-success">{formatHoursDecimalLabel(freeHours)} free</span>
     </div>
   );
 }
@@ -534,7 +535,7 @@ export function Availability() {
         <div className="grid flex-shrink-0 grid-cols-4 gap-3">
           <Kpi
             label="Total Free Capacity"
-            value={`${kpis.totalFreeHrs}h`}
+            value={formatHoursDecimalLabel(kpis.totalFreeHrs)}
             sub="hrs/wk across team"
             accent="border-l-success"
             valueClass="text-success"
@@ -555,9 +556,9 @@ export function Availability() {
           />
           <Kpi
             label="Avg Free Hrs / Person"
-            value={`${kpis.avgFreeHrs}h`}
+            value={formatHoursDecimalLabel(kpis.avgFreeHrs)}
             sub="per week"
-            delta={allFiltersActive ? "▲ 6h vs last mo" : undefined}
+            delta={allFiltersActive ? `▲ ${formatHoursDecimalLabel(6)} vs last mo` : undefined}
           />
         </div>
 
@@ -662,6 +663,20 @@ export function Availability() {
         onClose={() => setDrawerOpen(false)}
         prefill={prefill}
         people={plannerPeople}
+        allocations={allocations.map((a) => ({
+          id: a.id,
+          employeeHrmsId: a.employeeHrmsId,
+          projectName: a.projectName,
+          projectCode: a.projectCode,
+          milestoneId: a.milestoneId,
+          milestoneName: a.milestoneName,
+          activity: a.activity,
+          tasks: a.tasks ?? [],
+          startDate: a.startDate,
+          endDate: a.endDate,
+          hoursPerDay: a.hoursPerDay,
+          reason: a.reason,
+        }))}
         onSave={handleAllocationSave}
       />
     </div>

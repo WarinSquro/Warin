@@ -233,7 +233,7 @@ export function AllocationFocusTimer({
         <div className="font-mono text-[13px] font-bold tabular-nums tracking-tight text-foreground">
           {formatHms(sessionMs)}
         </div>
-        <div className="ml-auto flex-shrink-0 font-mono text-[10px] tabular-nums text-muted-foreground">
+        <div className="ml-auto flex-shrink-0 font-mono text-[10px] tabular-nums text-muted">
           Total {formatHms(totalMs)}
         </div>
       </div>

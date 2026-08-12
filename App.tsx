@@ -9,6 +9,7 @@ import { MastersProvider } from "./context/MastersContext";
 import { ToastProvider } from "./context/ToastContext";
 import { RealtimeSyncBridge } from "./components/RealtimeSyncBridge";
 import { AccessRevocationWatcher } from "./components/AccessRevocationWatcher";
+import { TruncateHoverTitles } from "./components/TruncateHoverTitles";
 import { AppRoutes } from "./routes";
 
 export default function App() {
@@ -18,6 +19,7 @@ export default function App() {
         <AuthProvider>
           <RealtimeSyncBridge />
           <AccessRevocationWatcher />
+          <TruncateHoverTitles />
           <SettingsProvider>
             <EmployeesProvider>
               <MastersProvider>

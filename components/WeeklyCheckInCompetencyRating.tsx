@@ -1,7 +1,7 @@
 import { Fragment, useState } from "react";
 import { Info, X } from "lucide-react";
 import type { DepartmentCompetency, RankingLevel } from "../data/weeklyCheckIn";
-import { rankingChipClass } from "../data/weeklyCheckIn";
+import { competencyFocusId, rankingChipClass } from "../data/weeklyCheckIn";
 
 export interface CompetencyRatingGroup {
   title: string;
@@ -81,6 +81,9 @@ export function WeeklyCheckInCompetencyRating({
                     className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
                   >
                     {group.title}
+                    <span className="ml-0.5 font-normal normal-case tracking-normal text-danger" aria-hidden>
+                      *
+                    </span>
                   </td>
                 </tr>
                 {group.competencies.map((comp, rowIdx) => (
@@ -99,7 +102,7 @@ export function WeeklyCheckInCompetencyRating({
                     >
                       <span className="line-clamp-2">{comp.label}</span>
                     </td>
-                    {sorted.map((level) => {
+                    {sorted.map((level, levelIdx) => {
                       const selected = group.ratings[comp.id] === level.value;
                       return (
                         <td key={level.value} className="px-1 py-1.5 text-center">
@@ -107,6 +110,7 @@ export function WeeklyCheckInCompetencyRating({
                             level={level}
                             selected={selected}
                             disabled={disabled}
+                            focusId={levelIdx === 0 ? competencyFocusId(comp.id) : undefined}
                             onSelect={() => group.onChange(comp.id, level.value)}
                           />
                         </td>
@@ -222,28 +226,33 @@ function RatingCell({
   level,
   selected,
   disabled,
+  focusId,
   onSelect,
 }: {
   level: RankingLevel;
   selected: boolean;
   disabled?: boolean;
+  /** Anchor for sequential validation focus (first rating control in the row). */
+  focusId?: string;
   onSelect: () => void;
 }) {
   if (disabled) {
     return selected ? (
       <div
+        id={focusId}
         className={`mx-auto flex h-7 w-7 items-center justify-center rounded-md text-[11px] font-bold ${rankingChipClass(level, true)}`}
         title={level.title}
       >
         {level.value}
       </div>
     ) : (
-      <div className="mx-auto h-7 w-7" aria-hidden />
+      <div id={focusId} className="mx-auto h-7 w-7" aria-hidden />
     );
   }
 
   return (
     <button
+      id={focusId}
       type="button"
       aria-pressed={selected}
       aria-label={`${level.title} (${level.value})`}
