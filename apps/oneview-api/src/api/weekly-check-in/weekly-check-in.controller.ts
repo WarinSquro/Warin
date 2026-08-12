@@ -465,8 +465,11 @@ export class WeeklyCheckInController {
     const employee = await this.empByHrms(body.employeeHrmsId);
     const weekStart = parseDate(body.weekStart);
     if (!weekStart) throw new BadRequestException("weekStart is required");
-    if (!body.roRemarks?.trim() || body.roRemarks.trim().length < 100) {
-      throw new BadRequestException("Remarks must be at least 100 characters");
+    if (!body.roRemarks?.trim()) {
+      throw new BadRequestException("RO Remarks are required");
+    }
+    if (body.roRemarks.trim().length > 100) {
+      throw new BadRequestException("RO Remarks must be at most 100 characters");
     }
 
     const ownerId = employee.resourceOwnerId ?? submitter.id;

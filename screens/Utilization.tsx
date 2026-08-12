@@ -13,8 +13,9 @@ import { usePlanningEmployees } from "../hooks/usePlanningEmployees";
 import { useMasters } from "../context/MastersContext";
 import { useSettings } from "../context/SettingsContext";
 import { useToast } from "../context/ToastContext";
-import { buildUtilRowsFromEmployees, mondayISO } from "../api/liveViews";
-import { weekCapacityHours } from "../data/planner";
+import { addDaysISO, buildUtilRowsFromEmployees } from "../api/liveViews";
+import { dayCapacityHours } from "../data/planner";
+import { monthBoundsFromId } from "../utils/reportPeriods";
 import { fetchAllocations, fetchSettingsSchedules, type ApiAllocation, type SettingsSchedule } from "../api/domain";
 import { useSharedDataSync, MASTER_TXN_SYNC_INTERVAL_MS } from "../hooks/useSharedDataSync";
 import { runReportExport, summarizeFilter } from "../utils/reportExport";
@@ -50,27 +51,37 @@ export function Utilization() {
   const { employees } = usePlanningEmployees();
   const { departments: deptMaster } = useMasters();
   const { settings } = useSettings();
-  const weekCapacity =
-    weekCapacityHours(mondayISO(), {
-      workingDays: settings.workingDays,
-      companyOffDays: settings.companyOffDays.map((d) => d.date.slice(0, 10)),
-      workingHoursPerDay: settings.workingHoursPerDay,
-    }) ||
-    Math.round(settings.workingHoursPerDay * settings.workingDays.length) ||
-    40;
+  const [monthId, setMonthId] = useState(DEFAULT_UTIL_MONTH);
+  const month = UTIL_MONTHS.find((m) => m.id === monthId) ?? UTIL_MONTHS[UTIL_MONTHS.length - 1];
+  const monthRange = useMemo(() => monthBoundsFromId(month.id), [month.id]);
+  const offDays = useMemo(
+    () => settings.companyOffDays.map((d) => d.date.slice(0, 10)),
+    [settings.companyOffDays]
+  );
+  const periodCapacity = useMemo(() => {
+    let hours = 0;
+    for (let d = monthRange.from; d <= monthRange.to; d = addDaysISO(d, 1)) {
+      hours += dayCapacityHours(d, {
+        workingDays: settings.workingDays,
+        companyOffDays: offDays,
+        workingHoursPerDay: settings.workingHoursPerDay,
+      });
+    }
+    return Math.round(hours * 10) / 10 || 40;
+  }, [monthRange.from, monthRange.to, settings.workingDays, settings.workingHoursPerDay, offDays]);
   const [allocations, setAllocations] = useState<ApiAllocation[]>([]);
   const [pendingSchedule, setPendingSchedule] = useState<SettingsSchedule | null>(null);
 
   const load = useCallback(async () => {
     await Promise.all([
-      fetchAllocations()
+      fetchAllocations({ from: monthRange.from, to: monthRange.to })
         .then(setAllocations)
         .catch(() => setAllocations([])),
       fetchSettingsSchedules()
         .then((rows) => setPendingSchedule(rows[0] ?? null))
         .catch(() => setPendingSchedule(null)),
     ]);
-  }, []);
+  }, [monthRange.from, monthRange.to]);
 
   useEffect(() => {
     void load();
@@ -85,11 +96,14 @@ export function Utilization() {
     () =>
       buildUtilRowsFromEmployees(
         employees,
-        weekCapacity,
+        periodCapacity,
         allocations,
-        settings.companyOffDays.map((d) => d.date.slice(0, 10))
+        offDays,
+        monthRange.from,
+        monthRange.to,
+        settings.workingDays
       ),
-    [employees, weekCapacity, allocations, settings.companyOffDays]
+    [employees, periodCapacity, allocations, offDays, monthRange.from, monthRange.to, settings.workingDays]
   );
   const utilDepartments = useMemo(
     () => deptMaster.filter((d) => d.status === "active").map((d) => d.name),
@@ -99,15 +113,12 @@ export function Utilization() {
   const [seg, setSeg] = useState<Segment>("all");
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const toast = useToast();
-  const [monthId, setMonthId] = useState(DEFAULT_UTIL_MONTH);
   const [selectedDepts, setSelectedDepts] = useState<string[]>([]);
   const { sortKey, sortDir, handleSort } = useColumnSort<UtilSortKey>("pct", "desc");
 
   useEffect(() => {
     if (utilDepartments.length) setSelectedDepts((p) => (p.length ? p : [...utilDepartments]));
   }, [utilDepartments]);
-
-  const month = UTIL_MONTHS.find((m) => m.id === monthId) ?? UTIL_MONTHS[UTIL_MONTHS.length - 1];
 
   const deptRows = useMemo(
     () => utilRows.filter((r) => selectedDepts.includes(r.department)),

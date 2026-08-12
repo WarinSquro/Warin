@@ -112,21 +112,27 @@ export function reportRange(
   };
 }
 
+const DOW_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+const DEFAULT_WORKING_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri"];
+
 function weekdayHoursInRange(
   startDate: string,
   endDate: string,
   rangeFrom: string,
   rangeTo: string,
   hoursPerDay: number,
-  companyOffDays?: string[]
+  companyOffDays?: string[],
+  workingDays?: string[]
 ): number {
   const off = new Set((companyOffDays ?? []).map((d) => d.slice(0, 10)));
+  const working = workingDays?.length ? workingDays : DEFAULT_WORKING_DAYS;
   let days = 0;
   for (let d = rangeFrom; d <= rangeTo; d = addDaysISO(d, 1)) {
     if (d < startDate || d > endDate) continue;
     if (off.has(d)) continue;
-    const dow = new Date(`${d}T12:00:00`).getDay();
-    if (dow >= 1 && dow <= 5) days += 1;
+    const label = DOW_SHORT[new Date(`${d}T12:00:00`).getDay()]!;
+    if (!working.includes(label)) continue;
+    days += 1;
   }
   return hoursPerDay * days;
 }
@@ -134,17 +140,19 @@ function weekdayHoursInRange(
 export function bookedHoursByEmployee(
   allocations: ApiAllocation[],
   weekStart = mondayISO(),
-  companyOffDays?: string[]
+  companyOffDays?: string[],
+  workingDays?: string[]
 ): Map<string, { hours: number; primaryProject: string | null }> {
   const weekEnd = addDaysISO(weekStart, 6);
-  return bookedHoursInRange(allocations, weekStart, weekEnd, companyOffDays);
+  return bookedHoursInRange(allocations, weekStart, weekEnd, companyOffDays, workingDays);
 }
 
 export function bookedHoursInRange(
   allocations: ApiAllocation[],
   rangeFrom: string,
   rangeTo: string,
-  companyOffDays?: string[]
+  companyOffDays?: string[],
+  workingDays?: string[]
 ): Map<string, { hours: number; primaryProject: string | null }> {
   const map = new Map<string, { hours: number; primaryProject: string | null }>();
   const projectHours = new Map<string, Map<string, number>>();
@@ -156,7 +164,8 @@ export function bookedHoursInRange(
       rangeFrom,
       rangeTo,
       a.hoursPerDay,
-      companyOffDays
+      companyOffDays,
+      workingDays
     );
     if (hours <= 0) continue;
     const prev = map.get(a.employeeHrmsId) ?? { hours: 0, primaryProject: null };
@@ -358,19 +367,70 @@ export function buildRollingOffEmpty(): RollingOffPerson[] {
   return [];
 }
 
+function workingDayCount(
+  rangeFrom: string,
+  rangeTo: string,
+  companyOffDays?: string[],
+  workingDays?: string[]
+): number {
+  const off = new Set((companyOffDays ?? []).map((d) => d.slice(0, 10)));
+  const working = workingDays?.length ? workingDays : DEFAULT_WORKING_DAYS;
+  let n = 0;
+  for (let d = rangeFrom; d <= rangeTo; d = addDaysISO(d, 1)) {
+    if (off.has(d)) continue;
+    const label = DOW_SHORT[new Date(`${d}T12:00:00`).getDay()]!;
+    if (working.includes(label)) n += 1;
+  }
+  return n;
+}
+
+function utilWeekStarts(rangeFrom: string, rangeTo: string): string[] {
+  const weeks: string[] = [];
+  let d = mondayISO(new Date(`${rangeFrom}T12:00:00`));
+  while (d <= rangeTo && weeks.length < 4) {
+    weeks.push(d);
+    d = addDaysISO(d, 7);
+  }
+  return weeks;
+}
+
 export function buildUtilRowsFromEmployees(
   employees: Employee[],
-  weekCapacity = 40,
+  periodCapacity = 40,
   allocations: ApiAllocation[] = [],
-  companyOffDays?: string[]
+  companyOffDays?: string[],
+  rangeFrom = mondayISO(),
+  rangeTo = addDaysISO(mondayISO(), 6),
+  workingDays?: string[]
 ): UtilRow[] {
-  const booked = bookedHoursByEmployee(allocations, mondayISO(), companyOffDays);
+  const booked = bookedHoursInRange(allocations, rangeFrom, rangeTo, companyOffDays, workingDays);
+  const weekStarts = utilWeekStarts(rangeFrom, rangeTo);
+  const weekSlices = weekStarts.map((ws) => {
+    const we = addDaysISO(ws, 6);
+    const from = ws < rangeFrom ? rangeFrom : ws;
+    const to = we > rangeTo ? rangeTo : we;
+    const days = workingDayCount(from, to, companyOffDays, workingDays);
+    const cap =
+      periodCapacity > 0 && days > 0
+        ? (periodCapacity * days) / Math.max(1, workingDayCount(rangeFrom, rangeTo, companyOffDays, workingDays))
+        : days;
+    return {
+      booked: bookedHoursInRange(allocations, from, to, companyOffDays, workingDays),
+      cap,
+    };
+  });
+
   return employees
     .filter((e) => e.status === "active")
     .map((e) => {
       const entry = booked.get(e.id);
       const hours = entry?.hours ?? 0;
-      const pct = weekCapacity > 0 ? Math.round((hours / weekCapacity) * 100) : 0;
+      const pct = periodCapacity > 0 ? Math.round((hours / periodCapacity) * 100) : 0;
+      const trend = weekSlices.map((w) => {
+        const h = w.booked.get(e.id)?.hours ?? 0;
+        return w.cap > 0 ? h / w.cap : 0;
+      });
+      while (trend.length < 4) trend.unshift(0);
       return {
         id: e.id,
         name: e.name,
@@ -379,7 +439,7 @@ export function buildUtilRowsFromEmployees(
         department: e.department,
         pct,
         band: utilBand(pct),
-        trend: [0, 0, 0, pct / 100],
+        trend: trend.slice(-4),
         primaryWork: entry?.primaryProject ?? "Unallocated",
         primaryMuted: !entry?.primaryProject,
       };

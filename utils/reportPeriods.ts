@@ -71,6 +71,19 @@ export function monthIdFromDate(d = new Date()): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+/** Inclusive calendar bounds for a `YYYY-MM` month id. */
+export function monthBoundsFromId(monthId: string): { from: string; to: string } {
+  const [y, m] = monthId.split("-").map(Number);
+  const year = y || new Date().getFullYear();
+  const month = m || 1;
+  const from = `${year}-${String(month).padStart(2, "0")}-01`;
+  const end = new Date(year, month, 0);
+  const to = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(
+    end.getDate()
+  ).padStart(2, "0")}`;
+  return { from, to };
+}
+
 export type ReportMonthOption = {
   id: string;
   label: string;

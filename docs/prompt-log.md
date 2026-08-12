@@ -32,6 +32,39 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-12 12:26 IST
+
+**Prompt:**  
+> RO Remarks still asks for at least 100 characters — check and fix
+
+**Output:**  
+- **Root cause:** Frontend/source already allowed shorter remarks, but Docker `oneview-api` still ran old dist (`Remarks must be at least 100 characters`).  
+- Rebuilt `@oneview/api`, copied updated `weekly-check-in.controller.js` into container, restarted `oneview-api`.  
+- Container now: required + max 100 only.  
+- Files: API dist deploy; `docs/prompt-log.md`.
+
+### 2026-08-12 12:20 IST
+
+**Prompt:**  
+> RO Remarks should allow maximum 100 characters (not require exact 100). Check and fix.
+
+**Output:**  
+- **Root cause:** Min validation was 100 and `maxLength` was 100 → effectively exact 100.  
+- RO Remarks: required (non-empty) + max 100 (`MAX_RO_REMARKS_LENGTH`); client + API aligned.  
+- Action Notes min-100 when Action Type ≠ None unchanged.  
+- Files: `data/weeklyCheckIn.ts`, `WeeklyCheckInWorkspace.tsx`, `weekly-check-in.controller.ts`, `docs/prompt-log.md`.  
+- API rebuild/restart needed for server validation.
+
+### 2026-08-12 12:12 IST
+
+**Prompt:**  
+> Utilization "This Month" filter — data is not updating according to the selected month. Check and fix.
+
+**Output:**  
+- **Root cause:** Month dropdown only changed header/export labels; allocations always loaded unscoped and util rows always used the current week.  
+- Fetch allocations for the selected month (`from`/`to`); compute monthly capacity vs Settings calendar; rebuild util % + 4-week trend for that range.  
+- Files: `utils/reportPeriods.ts` (`monthBoundsFromId`), `api/liveViews.ts`, `screens/Utilization.tsx`, `docs/prompt-log.md`.
+
 ### 2026-08-12 12:00 IST
 
 **Prompt:**  

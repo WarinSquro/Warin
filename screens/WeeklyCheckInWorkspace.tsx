@@ -16,6 +16,7 @@ import { useSettings } from "../context/SettingsContext";
 import { useToast } from "../context/ToastContext";
 import {
   MIN_REMARKS_LENGTH,
+  MAX_RO_REMARKS_LENGTH,
   WCI_FOCUS_ACTION_NOTES,
   WCI_FOCUS_RO_REMARKS,
   addWeeks,
@@ -417,14 +418,14 @@ export function WeeklyCheckInWorkspace() {
                       RO Remarks <span className="font-normal text-danger">*</span>
                     </label>
                     <span className="text-[11px] text-muted-foreground">
-                      {Math.min(roRemarks.length, 100)}/100
+                      {Math.min(roRemarks.length, MAX_RO_REMARKS_LENGTH)}/{MAX_RO_REMARKS_LENGTH}
                     </span>
                   </div>
                   <textarea
                     id={WCI_FOCUS_RO_REMARKS}
                     value={roRemarks}
                     disabled={viewOnly}
-                    maxLength={100}
+                    maxLength={MAX_RO_REMARKS_LENGTH}
                     onChange={(e) => setRoRemarks(e.target.value)}
                     rows={4}
                     placeholder="Coaching observations based on evidence..."
