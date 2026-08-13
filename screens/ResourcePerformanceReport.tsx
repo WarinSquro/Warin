@@ -44,6 +44,24 @@ import { runReportExport, summarizeFilter } from "../utils/reportExport";
 import type { ReportExportInput } from "../utils/reportExport";
 import { formatHoursLabel } from "../utils/formatHours";
 import { scopeEmployeesForViewer } from "../utils/reportVisibility";
+import {
+  loadReportFilters,
+  reconcileMultiSelect,
+  saveReportFilters,
+} from "../utils/reportFilterPersistence";
+
+type PerformancePersistedFilters = {
+  periodId: PerformancePeriodId;
+  customMonthId: PerformanceCustomMonthId;
+  compareOn: boolean;
+  search: string;
+  departments: string[];
+  resourceOwners: string[];
+  skills: string[];
+  employmentStatuses: string[];
+  sortKey: PerformanceSortKey;
+  sortDir: "asc" | "desc";
+};
 
 const REPORT_GRID =
   "grid w-full grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(5.5rem,0.72fr)_minmax(0,1.15fr)_minmax(4.5rem,0.7fr)] items-center gap-x-4 px-4";
@@ -60,12 +78,18 @@ export function ResourcePerformanceReport() {
   const weekCapacity = Math.round(settings.workingHoursPerDay * settings.workingDays.length) || 40;
   const [searchParams] = useSearchParams();
   const departmentPreset = searchParams.get("department");
-  const [periodId, setPeriodId] = useState<PerformancePeriodId>("month");
-  const [customMonthId, setCustomMonthId] = useState<PerformanceCustomMonthId>(
-    DEFAULT_PERFORMANCE_CUSTOM_MONTH
+  const storedFilters = useMemo(
+    () => loadReportFilters<PerformancePersistedFilters>("performance"),
+    []
   );
-  const [compareOn, setCompareOn] = useState(false);
-  const [search, setSearch] = useState("");
+  const [periodId, setPeriodId] = useState<PerformancePeriodId>(
+    () => storedFilters?.periodId ?? "month"
+  );
+  const [customMonthId, setCustomMonthId] = useState<PerformanceCustomMonthId>(
+    () => storedFilters?.customMonthId ?? DEFAULT_PERFORMANCE_CUSTOM_MONTH
+  );
+  const [compareOn, setCompareOn] = useState(() => storedFilters?.compareOn ?? false);
+  const [search, setSearch] = useState(() => storedFilters?.search ?? "");
   const toast = useToast();
   const [drawerRow, setDrawerRow] = useState<PerformanceRow | null>(null);
   const [allocations, setAllocations] = useState<ApiAllocation[]>([]);
@@ -136,25 +160,58 @@ export function ResourcePerformanceReport() {
   const allSkills = useMemo(() => performanceSkills(periodRows), [periodRows]);
   const ownerNames = useMemo(() => allOwners.map((o) => o.name), [allOwners]);
 
-  const [departments, setDepartments] = useState<string[]>(() => [...allDepts]);
-  const [resourceOwners, setResourceOwners] = useState<string[]>(() => [...ownerNames]);
-  const [skills, setSkills] = useState<string[]>(() => [...allSkills]);
-  const [employmentStatuses, setEmploymentStatuses] = useState<string[]>(() => [
-    ...EMPLOYMENT_STATUS_OPTIONS,
-  ]);
+  const [departments, setDepartments] = useState<string[]>(() => {
+    if (storedFilters?.departments?.length) return storedFilters.departments;
+    if (departmentPreset) return [departmentPreset];
+    return [];
+  });
+  const [resourceOwners, setResourceOwners] = useState<string[]>(
+    () => storedFilters?.resourceOwners ?? []
+  );
+  const [skills, setSkills] = useState<string[]>(() => storedFilters?.skills ?? []);
+  const [employmentStatuses, setEmploymentStatuses] = useState<string[]>(
+    () => storedFilters?.employmentStatuses ?? [...EMPLOYMENT_STATUS_OPTIONS]
+  );
 
   useEffect(() => {
-    setDepartments(
-      departmentPreset && allDepts.includes(departmentPreset)
-        ? [departmentPreset]
-        : [...allDepts]
+    setDepartments((prev) => reconcileMultiSelect(prev, allDepts));
+    setResourceOwners((prev) => reconcileMultiSelect(prev, ownerNames));
+    setSkills((prev) => reconcileMultiSelect(prev, allSkills));
+    setEmploymentStatuses((prev) =>
+      reconcileMultiSelect(prev, [...EMPLOYMENT_STATUS_OPTIONS])
     );
-    setResourceOwners([...ownerNames]);
-    setSkills([...allSkills]);
-    setEmploymentStatuses([...EMPLOYMENT_STATUS_OPTIONS]);
-  }, [periodId, customMonthId, allDepts, ownerNames, allSkills, departmentPreset]);
+  }, [allDepts, ownerNames, allSkills]);
 
-  const { sortKey, sortDir, handleSort } = useColumnSort<PerformanceSortKey>("employee", "asc");
+  const { sortKey, sortDir, handleSort } = useColumnSort<PerformanceSortKey>(
+    storedFilters?.sortKey ?? "employee",
+    storedFilters?.sortDir ?? "asc"
+  );
+
+  useEffect(() => {
+    saveReportFilters("performance", {
+      periodId,
+      customMonthId,
+      compareOn,
+      search,
+      departments,
+      resourceOwners,
+      skills,
+      employmentStatuses,
+      sortKey,
+      sortDir,
+    } satisfies PerformancePersistedFilters);
+  }, [
+    periodId,
+    customMonthId,
+    compareOn,
+    search,
+    departments,
+    resourceOwners,
+    skills,
+    employmentStatuses,
+    sortKey,
+    sortDir,
+  ]);
 
   const filters: PerformanceFilters = {
     search,

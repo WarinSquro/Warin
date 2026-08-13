@@ -58,12 +58,31 @@ import {
   scopeConfirmationsForViewer,
   visibleEmployeeIdSet,
 } from "../utils/reportVisibility";
+import {
+  loadReportFilters,
+  reconcileMultiSelect,
+  saveReportFilters,
+} from "../utils/reportFilterPersistence";
 
 const REPORT_GRID =
   "grid w-full grid-cols-[minmax(0,1.15fr)_minmax(0,0.95fr)_minmax(0,0.95fr)_minmax(5.5rem,0.72fr)_minmax(0,1.15fr)_minmax(3.5rem,0.55fr)_minmax(0,0.95fr)] items-center gap-x-4 px-4";
 
 const HEALTH_FILTER_ITEMS = HEALTH_OPTIONS.map((h) => HEALTH_LABELS[h]);
 const STATUS_FILTER_ITEMS = EXECUTION_STATUS_OPTIONS.map((s) => EXECUTION_STATUS_LABELS[s]);
+
+type ExecutionPersistedFilters = {
+  periodId: ExecutionPeriodId;
+  customMonthId: ExecutionCustomMonthId;
+  compareOn: boolean;
+  search: string;
+  projects: string[];
+  departments: string[];
+  resourceOwners: string[];
+  healthFilters: string[];
+  statusFilters: string[];
+  sortKey: ExecutionSortKey;
+  sortDir: "asc" | "desc";
+};
 
 export function ProjectExecutionReport() {
   const navigate = useNavigate();
@@ -78,12 +97,18 @@ export function ProjectExecutionReport() {
   );
   const [searchParams] = useSearchParams();
   const attentionPreset = searchParams.get("preset") === "attention";
-  const [periodId, setPeriodId] = useState<ExecutionPeriodId>("month");
-  const [customMonthId, setCustomMonthId] = useState<ExecutionCustomMonthId>(
-    DEFAULT_EXECUTION_CUSTOM_MONTH
+  const storedFilters = useMemo(
+    () => loadReportFilters<ExecutionPersistedFilters>("execution"),
+    []
   );
-  const [compareOn, setCompareOn] = useState(false);
-  const [search, setSearch] = useState("");
+  const [periodId, setPeriodId] = useState<ExecutionPeriodId>(
+    () => storedFilters?.periodId ?? "month"
+  );
+  const [customMonthId, setCustomMonthId] = useState<ExecutionCustomMonthId>(
+    () => storedFilters?.customMonthId ?? DEFAULT_EXECUTION_CUSTOM_MONTH
+  );
+  const [compareOn, setCompareOn] = useState(() => storedFilters?.compareOn ?? false);
+  const [search, setSearch] = useState(() => storedFilters?.search ?? "");
   const toast = useToast();
   const [drawerRow, setDrawerRow] = useState<ExecutionRow | null>(null);
   const [allocations, setAllocations] = useState<ApiAllocation[]>([]);
@@ -171,32 +196,60 @@ export function ProjectExecutionReport() {
   const allOwners = useMemo(() => executionResourceOwners(periodRows), [periodRows]);
   const ownerNames = useMemo(() => allOwners.map((o) => o.name), [allOwners]);
 
-  const [projects, setProjects] = useState<string[]>(() => [...allProjects]);
-  const [departments, setDepartments] = useState<string[]>(() => [...allDepts]);
-  const [resourceOwners, setResourceOwners] = useState<string[]>(() => [...ownerNames]);
-  const [healthFilters, setHealthFilters] = useState<string[]>(() =>
-    attentionPreset
-      ? [HEALTH_LABELS.amber, HEALTH_LABELS.red]
-      : [...HEALTH_FILTER_ITEMS]
+  const [projects, setProjects] = useState<string[]>(() => storedFilters?.projects ?? []);
+  const [departments, setDepartments] = useState<string[]>(() => storedFilters?.departments ?? []);
+  const [resourceOwners, setResourceOwners] = useState<string[]>(
+    () => storedFilters?.resourceOwners ?? []
   );
-  const [statusFilters, setStatusFilters] = useState<string[]>(() => [...STATUS_FILTER_ITEMS]);
+  const [healthFilters, setHealthFilters] = useState<string[]>(() => {
+    if (storedFilters?.healthFilters?.length) return storedFilters.healthFilters;
+    if (attentionPreset) return [HEALTH_LABELS.amber, HEALTH_LABELS.red];
+    return [...HEALTH_FILTER_ITEMS];
+  });
+  const [statusFilters, setStatusFilters] = useState<string[]>(
+    () => storedFilters?.statusFilters ?? [...STATUS_FILTER_ITEMS]
+  );
 
   useEffect(() => {
-    setProjects([...allProjects]);
-    setDepartments([...allDepts]);
-    setResourceOwners([...ownerNames]);
-    setHealthFilters(
-      attentionPreset
-        ? [HEALTH_LABELS.amber, HEALTH_LABELS.red]
-        : [...HEALTH_FILTER_ITEMS]
-    );
-    setStatusFilters([...STATUS_FILTER_ITEMS]);
-  }, [periodId, customMonthId, allProjects, allDepts, ownerNames, attentionPreset]);
+    setProjects((prev) => reconcileMultiSelect(prev, allProjects));
+    setDepartments((prev) => reconcileMultiSelect(prev, allDepts));
+    setResourceOwners((prev) => reconcileMultiSelect(prev, ownerNames));
+    setHealthFilters((prev) => reconcileMultiSelect(prev, HEALTH_FILTER_ITEMS));
+    setStatusFilters((prev) => reconcileMultiSelect(prev, STATUS_FILTER_ITEMS));
+  }, [allProjects, allDepts, ownerNames]);
 
   const { sortKey, sortDir, handleSort } = useColumnSort<ExecutionSortKey>(
-    attentionPreset ? "health" : "project",
-    attentionPreset ? "desc" : "asc"
+    storedFilters?.sortKey ?? (attentionPreset ? "health" : "project"),
+    storedFilters?.sortDir ?? (attentionPreset ? "desc" : "asc")
   );
+
+  useEffect(() => {
+    saveReportFilters("execution", {
+      periodId,
+      customMonthId,
+      compareOn,
+      search,
+      projects,
+      departments,
+      resourceOwners,
+      healthFilters,
+      statusFilters,
+      sortKey,
+      sortDir,
+    } satisfies ExecutionPersistedFilters);
+  }, [
+    periodId,
+    customMonthId,
+    compareOn,
+    search,
+    projects,
+    departments,
+    resourceOwners,
+    healthFilters,
+    statusFilters,
+    sortKey,
+    sortDir,
+  ]);
 
   const healthStatuses = useMemo(
     () =>

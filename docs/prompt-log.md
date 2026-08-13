@@ -32,6 +32,16 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-13 22:55 IST
+
+**Prompt:**  
+> When any report is refreshed, retain all currently applied filters exactly as they are. (REPORTS section / AppShell)
+
+**Output:**  
+- **Root cause:** Report filter state lived only in React `useState`, and `useEffect` hooks reset multi-selects to “all” whenever period/options changed — so a browser refresh (and data reload) wiped filters.
+- **Fix:** Added `utils/reportFilterPersistence.ts` (sessionStorage load/save + `reconcileMultiSelect`). Wired Deployment, Performance, Execution, and Daily Work reports to restore period/search/group/compare/multi-selects/sort (and Daily Work page size) on load, persist on change, and reconcile options without wiping picks. URL presets still apply when no stored filter exists.
+- Files: `utils/reportFilterPersistence.ts`, `screens/ResourceDeploymentReport.tsx`, `screens/ResourcePerformanceReport.tsx`, `screens/ProjectExecutionReport.tsx`, `screens/DailyWorkReport.tsx`, `docs/prompt-log.md`.
+
 ### 2026-08-13 16:51 IST
 
 **Prompt:**  
