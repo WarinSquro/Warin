@@ -10,6 +10,8 @@ export type JwtPayload = {
   hrmsId: string;
   isSuperAdmin: boolean;
   permissionKeys: string[];
+  /** Active login session id — must match employees.active_session_id. */
+  sid: string;
 };
 
 @Injectable()
@@ -31,10 +33,16 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
   /**
    * Resolve live employee + permission keys for authorization.
-   * Uses a short TTL cache so post-login request bursts do not each hit Postgres.
-   * Cache is invalidated when access rights change (see AccessRightsController).
+   * Rejects JWTs whose session id is no longer the employee's sole active session.
    */
   async validate(payload: JwtPayload): Promise<JwtPayload> {
+    if (!payload?.sid || !payload?.sub) {
+      throw new UnauthorizedException({
+        error: "SESSION_REVOKED",
+        message: "Your session ended because you signed in elsewhere. Please sign in again.",
+      });
+    }
+
     let id: bigint;
     try {
       id = BigInt(payload.sub);
@@ -42,8 +50,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException();
     }
 
-    const cached = this.sessionCache.get(payload.sub);
-    if (cached) return cached;
+    const cached = this.sessionCache.getSession(payload.sub, payload.sid);
+    if (cached) {
+      void this.touchLastSeen(id, payload.sid);
+      return cached;
+    }
 
     const employee = await this.prisma.employee.findFirst({
       where: { id, isDeleted: false, isActive: true },
@@ -52,10 +63,19 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         email: true,
         hrmsId: true,
         isSuperAdmin: true,
+        activeSessionId: true,
         permissions: { select: { key: true } },
       },
     });
     if (!employee) throw new UnauthorizedException();
+
+    if (!employee.activeSessionId || employee.activeSessionId !== payload.sid) {
+      this.sessionCache.invalidate(payload.sub);
+      throw new UnauthorizedException({
+        error: "SESSION_REVOKED",
+        message: "Your session ended because you signed in elsewhere. Please sign in again.",
+      });
+    }
 
     const permissionKeys = employee.isSuperAdmin
       ? ["*"]
@@ -67,8 +87,26 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       hrmsId: employee.hrmsId,
       isSuperAdmin: employee.isSuperAdmin,
       permissionKeys,
+      sid: payload.sid,
     };
-    this.sessionCache.set(next);
+    this.sessionCache.setSession(next, employee.activeSessionId);
+    void this.touchLastSeen(id, payload.sid);
     return next;
+  }
+
+  private async touchLastSeen(employeeId: bigint, sessionId: string) {
+    try {
+      await this.prisma.refreshToken.updateMany({
+        where: {
+          employeeId,
+          sessionId,
+          revokedAt: null,
+          expiresAt: { gt: new Date() },
+        },
+        data: { lastSeenAt: new Date() },
+      });
+    } catch {
+      /* ignore */
+    }
   }
 }

@@ -633,26 +633,26 @@ function DepartmentsList({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="flex flex-shrink-0 border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold text-muted">
-        <SortColHeader
-          label="DEPARTMENT"
-          col="department"
-          sortKey={sortKey}
-          sortDir={sortDir}
-          onSort={handleSort}
-          className="flex-1"
-        />
-        <SortColHeader
-          label="MEMBERS"
-          col="members"
-          sortKey={sortKey}
-          sortDir={sortDir}
-          onSort={handleSort}
-          className="w-[100px]"
-        />
-        <div className="w-[90px] text-right">ACTION</div>
-      </div>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div className="sticky top-0 z-10 flex border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold text-muted">
+          <SortColHeader
+            label="DEPARTMENT"
+            col="department"
+            sortKey={sortKey}
+            sortDir={sortDir}
+            onSort={handleSort}
+            className="flex-1"
+          />
+          <SortColHeader
+            label="MEMBERS"
+            col="members"
+            sortKey={sortKey}
+            sortDir={sortDir}
+            onSort={handleSort}
+            className="w-[100px]"
+          />
+          <div className="w-[90px] text-right">ACTION</div>
+        </div>
         {sorted.map((d) => {
           const inactive = d.status === "inactive";
           return (
@@ -736,34 +736,34 @@ function SkillsList({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="flex flex-shrink-0 border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold text-muted">
-        <SortColHeader
-          label="SKILL"
-          col="skill"
-          sortKey={sortKey}
-          sortDir={sortDir}
-          onSort={handleSort}
-          className="flex-1"
-        />
-        <SortColHeader
-          label="CATEGORY"
-          col="category"
-          sortKey={sortKey}
-          sortDir={sortDir}
-          onSort={handleSort}
-          className="w-[130px]"
-        />
-        <SortColHeader
-          label="PEOPLE"
-          col="people"
-          sortKey={sortKey}
-          sortDir={sortDir}
-          onSort={handleSort}
-          className="w-[100px]"
-        />
-        <div className="w-[90px] text-right">ACTION</div>
-      </div>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div className="sticky top-0 z-10 flex border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold text-muted">
+          <SortColHeader
+            label="SKILL"
+            col="skill"
+            sortKey={sortKey}
+            sortDir={sortDir}
+            onSort={handleSort}
+            className="flex-1"
+          />
+          <SortColHeader
+            label="CATEGORY"
+            col="category"
+            sortKey={sortKey}
+            sortDir={sortDir}
+            onSort={handleSort}
+            className="w-[130px]"
+          />
+          <SortColHeader
+            label="PEOPLE"
+            col="people"
+            sortKey={sortKey}
+            sortDir={sortDir}
+            onSort={handleSort}
+            className="w-[100px]"
+          />
+          <div className="w-[90px] text-right">ACTION</div>
+        </div>
         {sorted.map((s) => {
           const inactive = s.status === "inactive";
           return (
@@ -887,50 +887,50 @@ function ActivitiesList({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div
-        className={`${gridCols} flex-shrink-0 border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold text-muted`}
-      >
-        <SortColHeader
-          label="ACTIVITY"
-          col="activity"
-          sortKey={sortKey}
-          sortDir={sortDir}
-          onSort={handleSort}
-          className="min-w-0"
-        />
-        <SortColHeader
-          label="TYPE"
-          col="type"
-          sortKey={sortKey}
-          sortDir={sortDir}
-          onSort={handleSort}
-        />
-        <SortColHeader
-          label="MILESTONE"
-          col="milestone"
-          sortKey={sortKey}
-          sortDir={sortDir}
-          onSort={handleSort}
-          className="min-w-0"
-        />
-        <SortColHeader
-          label="MILESTONE TYPE"
-          col="milestoneType"
-          sortKey={sortKey}
-          sortDir={sortDir}
-          onSort={handleSort}
-          className="min-w-0"
-        />
-        <SortColHeader
-          label="PROJECT TYPE"
-          col="projectType"
-          sortKey={sortKey}
-          sortDir={sortDir}
-          onSort={handleSort}
-        />
-        <div className="text-right">ACTION</div>
-      </div>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div
+          className={`${gridCols} sticky top-0 z-10 border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold text-muted`}
+        >
+          <SortColHeader
+            label="ACTIVITY"
+            col="activity"
+            sortKey={sortKey}
+            sortDir={sortDir}
+            onSort={handleSort}
+            className="min-w-0"
+          />
+          <SortColHeader
+            label="TYPE"
+            col="type"
+            sortKey={sortKey}
+            sortDir={sortDir}
+            onSort={handleSort}
+          />
+          <SortColHeader
+            label="MILESTONE"
+            col="milestone"
+            sortKey={sortKey}
+            sortDir={sortDir}
+            onSort={handleSort}
+            className="min-w-0"
+          />
+          <SortColHeader
+            label="MILESTONE TYPE"
+            col="milestoneType"
+            sortKey={sortKey}
+            sortDir={sortDir}
+            onSort={handleSort}
+            className="min-w-0"
+          />
+          <SortColHeader
+            label="PROJECT TYPE"
+            col="projectType"
+            sortKey={sortKey}
+            sortDir={sortDir}
+            onSort={handleSort}
+          />
+          <div className="text-right">ACTION</div>
+        </div>
         {sorted.map((a) => {
           const inactive = a.status === "inactive";
           const milestone = milestoneMap[a.milestoneId];

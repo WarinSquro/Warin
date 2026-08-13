@@ -42,6 +42,20 @@ export function emptyFocusState(): FocusAllocationState {
   return { laps: [], sessionAccumMs: 0, segmentStartedAt: null };
 }
 
+/** True when Start/Pause session is still open (running or paused, Stop not pressed). */
+export function hasUnstoppedFocusSession(state: FocusAllocationState | undefined): boolean {
+  if (!state) return false;
+  return !!state.segmentStartedAt || state.sessionAccumMs > 0;
+}
+
+/** True when any allocation still has an unstopped focus session. */
+export function hasAnyUnstoppedFocusSession(
+  focusByAllocation: Record<string, FocusAllocationState> | undefined
+): boolean {
+  if (!focusByAllocation) return false;
+  return Object.values(focusByAllocation).some(hasUnstoppedFocusSession);
+}
+
 function storageKey(hrmsId: string) {
   return `${STORAGE_PREFIX}${hrmsId}`;
 }

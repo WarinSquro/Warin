@@ -15,12 +15,47 @@ import { useSharedDataSync, usePauseSharedDataSync, MASTER_TXN_SYNC_INTERVAL_MS 
 import { useMasters } from "../context/MastersContext";
 import { useSettings } from "../context/SettingsContext";
 import { useToast } from "../context/ToastContext";
-import { buildAvailRowsFromEmployees, buildRollingOffFromLive, toLocalISO, addDaysISO, mondayISO } from "../api/liveViews";
+import { WeeklyCheckInWeekPicker } from "../components/WeeklyCheckInWeekPicker";
+import { buildAvailRowsFromEmployees, buildRollingOffFromLive, addDaysISO, mondayISO } from "../api/liveViews";
 import { createAllocation, fetchAllocations, type ApiAllocation } from "../api/domain";
 import { formatHoursDecimalLabel } from "../utils/formatHours";
+import { formatWeekLabel, type ReviewWeekOption } from "../data/weeklyCheckIn";
 
 type Segment = "all" | "now" | "rolling";
 type AvailSortKey = "name" | "freeHours" | "availableFrom" | "skills";
+
+/** Current week + next 2 weeks for the Availability week picker. */
+function getAvailabilityWeeks(workingDays?: string[]): ReviewWeekOption[] {
+  const current = mondayISO();
+  return [0, 1, 2].map((offset) => {
+    const weekStart = addDaysISO(current, offset * 7);
+    return {
+      weekStart,
+      label: formatWeekLabel(weekStart, workingDays),
+      isCurrent: offset === 0,
+    };
+  });
+}
+
+/** Current-week Monday → Sunday of the 3rd week (21 calendar days). */
+function forwardSupplyBounds(from = new Date()) {
+  const start = mondayISO(from);
+  const end = addDaysISO(start, 20);
+  return { start, end };
+}
+
+/** e.g. "Aug 10 – Aug 30, 2026" */
+function formatForwardSupplyRange(start: string, end: string): string {
+  const a = new Date(`${start}T12:00:00`);
+  const b = new Date(`${end}T12:00:00`);
+  const left = a.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const right = b.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+  return `${left} – ${right}`;
+}
 
 function availFromOrder(value: string) {
   if (value === "Now") return 0;
@@ -121,15 +156,24 @@ function FreeCapacityBar({ freeHours, capacity }: { freeHours: number; capacity:
   );
 }
 
+const ROLLING_OFF_PAGE_SIZE = 5;
+/** Matches Tailwind `gap-2.5` (10px) between cards. */
+const ROLLING_OFF_CARD_GAP_PX = 10;
+
 function RollingOffCard({
   person,
   onPlanAhead,
+  widthPx,
 }: {
   person: RollingOffPerson;
   onPlanAhead: (person: RollingOffPerson) => void;
+  widthPx: number;
 }) {
   return (
-    <div className="w-[200px] flex-shrink-0 rounded-md border border-l-[3px] border-border border-l-warning bg-surface px-3 py-2.5">
+    <div
+      className="flex-shrink-0 rounded-md border border-l-[3px] border-border border-l-warning bg-surface px-3 py-2.5"
+      style={{ width: widthPx > 0 ? widthPx : undefined }}
+    >
       <div className="mb-1 flex items-center gap-2">
         <div className="flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-full bg-warning-soft text-[10px] font-semibold text-warning">
           {person.initials}
@@ -150,7 +194,7 @@ function RollingOffCard({
   );
 }
 
-/** Horizontal strip with < > when cards overflow the viewport. */
+/** Horizontal strip: 5 fixed-width cards per page; < > advances one page. */
 function RollingOffCarousel({
   people,
   onPlanAhead,
@@ -161,14 +205,20 @@ function RollingOffCarousel({
   const scrollerRef = useRef<HTMLDivElement>(null);
   const [canLeft, setCanLeft] = useState(false);
   const [canRight, setCanRight] = useState(false);
+  const [cardWidthPx, setCardWidthPx] = useState(0);
 
-  const updateScrollState = useCallback(() => {
+  const updateLayout = useCallback(() => {
     const el = scrollerRef.current;
     if (!el) {
       setCanLeft(false);
       setCanRight(false);
       return;
     }
+    const trackW = el.clientWidth;
+    const gaps = ROLLING_OFF_CARD_GAP_PX * (ROLLING_OFF_PAGE_SIZE - 1);
+    const nextWidth =
+      trackW > gaps ? Math.floor((trackW - gaps) / ROLLING_OFF_PAGE_SIZE) : 0;
+    setCardWidthPx(nextWidth);
     const max = el.scrollWidth - el.clientWidth;
     setCanLeft(el.scrollLeft > 4);
     setCanRight(max > 4 && el.scrollLeft < max - 4);
@@ -177,26 +227,33 @@ function RollingOffCarousel({
   useEffect(() => {
     const el = scrollerRef.current;
     if (!el) return;
-    updateScrollState();
-    el.addEventListener("scroll", updateScrollState, { passive: true });
-    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateScrollState) : null;
+    updateLayout();
+    el.addEventListener("scroll", updateLayout, { passive: true });
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateLayout) : null;
     ro?.observe(el);
     return () => {
-      el.removeEventListener("scroll", updateScrollState);
+      el.removeEventListener("scroll", updateLayout);
       ro?.disconnect();
     };
-  }, [people.length, updateScrollState]);
+  }, [people.length, updateLayout]);
 
-  const scrollByCards = (dir: -1 | 1) => {
+  /** After card width settles, re-check whether another page is scrollable. */
+  useEffect(() => {
+    updateLayout();
+  }, [cardWidthPx, people.length, updateLayout]);
+
+  const scrollByPage = (dir: -1 | 1) => {
     const el = scrollerRef.current;
-    if (!el) return;
-    el.scrollBy({ left: dir * 220, behavior: "smooth" });
+    if (!el || cardWidthPx <= 0) return;
+    const pageStep =
+      ROLLING_OFF_PAGE_SIZE * (cardWidthPx + ROLLING_OFF_CARD_GAP_PX);
+    el.scrollBy({ left: dir * pageStep, behavior: "smooth" });
   };
 
   if (people.length === 0) {
     return (
       <div className="rounded-md border border-dashed border-border bg-surface px-3 py-4 text-center text-[12px] text-muted-foreground">
-        No allocations ending in the next 2 weeks
+        No allocations ending in the next 3 weeks
       </div>
     );
   }
@@ -205,26 +262,32 @@ function RollingOffCarousel({
     <div className="flex items-stretch gap-1.5">
       <button
         type="button"
-        aria-label="Scroll rolling-off cards left"
+        aria-label="Previous rolling-off cards"
         disabled={!canLeft}
-        onClick={() => scrollByCards(-1)}
+        onClick={() => scrollByPage(-1)}
         className="flex w-8 flex-shrink-0 items-center justify-center self-center rounded-md border border-border bg-surface text-foreground hover:bg-surface-alt disabled:cursor-not-allowed disabled:opacity-35"
       >
         <ChevronLeft className="h-4 w-4" />
       </button>
       <div
         ref={scrollerRef}
-        className="flex min-w-0 flex-1 gap-2.5 overflow-x-auto scroll-smooth pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex min-w-0 flex-1 overflow-x-auto scroll-smooth pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        style={{ gap: ROLLING_OFF_CARD_GAP_PX }}
       >
         {people.map((person) => (
-          <RollingOffCard key={person.id} person={person} onPlanAhead={onPlanAhead} />
+          <RollingOffCard
+            key={person.id}
+            person={person}
+            onPlanAhead={onPlanAhead}
+            widthPx={cardWidthPx}
+          />
         ))}
       </div>
       <button
         type="button"
-        aria-label="Scroll rolling-off cards right"
+        aria-label="Next rolling-off cards"
         disabled={!canRight}
-        onClick={() => scrollByCards(1)}
+        onClick={() => scrollByPage(1)}
         className="flex w-8 flex-shrink-0 items-center justify-center self-center rounded-md border border-border bg-surface text-foreground hover:bg-surface-alt disabled:cursor-not-allowed disabled:opacity-35"
       >
         <ChevronRight className="h-4 w-4" />
@@ -307,29 +370,70 @@ export function Availability() {
   const { departments: deptRows, skills: skillRows } = useMasters();
   const { settings } = useSettings();
   const toast = useToast();
-  const weekCapacity =
-    weekCapacityHours(mondayISO(), {
+  const { start: supplyFrom, end: supplyTo } = useMemo(() => forwardSupplyBounds(), []);
+  const supplyRangeLabel = useMemo(
+    () => formatForwardSupplyRange(supplyFrom, supplyTo),
+    [supplyFrom, supplyTo]
+  );
+  const availabilityWeeks = useMemo(
+    () => getAvailabilityWeeks(settings.workingDays),
+    [settings.workingDays]
+  );
+  const [weekStart, setWeekStart] = useState(() => mondayISO());
+  useEffect(() => {
+    if (!availabilityWeeks.some((w) => w.weekStart === weekStart)) {
+      setWeekStart(availabilityWeeks[0]?.weekStart ?? mondayISO());
+    }
+  }, [availabilityWeeks, weekStart]);
+
+  const offDayIsos = useMemo(
+    () => settings.companyOffDays.map((d) => d.date.slice(0, 10)),
+    [settings.companyOffDays]
+  );
+  const calendarOpts = useMemo(
+    () => ({
       workingDays: settings.workingDays,
-      companyOffDays: settings.companyOffDays.map((d) => d.date.slice(0, 10)),
+      companyOffDays: offDayIsos,
       workingHoursPerDay: settings.workingHoursPerDay,
-    }) ||
-    Math.round(settings.workingHoursPerDay * settings.workingDays.length) ||
-    40;
+    }),
+    [settings.workingDays, offDayIsos, settings.workingHoursPerDay]
+  );
+  const fallbackWeekCapacity =
+    Math.round(settings.workingHoursPerDay * settings.workingDays.length) || 40;
+
+  /** Capacity / free hrs for header KPI cards — locked to forward-supply week 1 (not week picker). */
+  const summaryWeekCapacity =
+    weekCapacityHours(supplyFrom, calendarOpts) || fallbackWeekCapacity;
+  /** Capacity for the table — follows week picker. */
+  const weekCapacity = weekCapacityHours(weekStart, calendarOpts) || fallbackWeekCapacity;
   const [allocations, setAllocations] = useState<ApiAllocation[]>([]);
 
   const reloadAllocations = useCallback(async () => {
-    const from = addDaysISO(toLocalISO(new Date()), -30);
-    const to = addDaysISO(toLocalISO(new Date()), 13);
+    const from = addDaysISO(supplyFrom, -30);
+    const to = supplyTo;
     try {
       setAllocations(await fetchAllocations({ from, to }));
     } catch {
       setAllocations([]);
     }
-  }, []);
+  }, [supplyFrom, supplyTo]);
 
   useEffect(() => {
     void reloadAllocations();
   }, [reloadAllocations]);
+
+  const summaryRows = useMemo(
+    () =>
+      buildAvailRowsFromEmployees(
+        employees,
+        summaryWeekCapacity,
+        allocations,
+        offDayIsos,
+        supplyFrom,
+        settings.workingDays
+      ),
+    [employees, summaryWeekCapacity, allocations, offDayIsos, supplyFrom, settings.workingDays]
+  );
 
   const availRows = useMemo(
     () =>
@@ -337,18 +441,20 @@ export function Availability() {
         employees,
         weekCapacity,
         allocations,
-        settings.companyOffDays.map((d) => d.date.slice(0, 10))
+        offDayIsos,
+        weekStart,
+        settings.workingDays
       ),
-    [employees, weekCapacity, allocations, settings.companyOffDays]
+    [employees, weekCapacity, allocations, offDayIsos, weekStart, settings.workingDays]
   );
   const rollingOffAll = useMemo(
     () =>
       buildRollingOffFromLive(employees, allocations, {
-        windowFrom: toLocalISO(new Date()),
-        windowDays: 14,
+        windowFrom: supplyFrom,
+        windowDays: 21,
         workingDaysPerWeek: settings.workingDays.length || 5,
       }),
-    [employees, allocations, settings.workingDays.length]
+    [employees, allocations, settings.workingDays.length, supplyFrom]
   );
   const availDepartments = useMemo(
     () => deptRows.filter((d) => d.status === "active").map((d) => d.name),
@@ -435,9 +541,9 @@ export function Availability() {
     return counts;
   }, [availRows]);
 
-  const filteredRows = useMemo(
-    () =>
-      availRows.filter(
+  const applyListFilters = useCallback(
+    (rows: AvailRow[]) =>
+      rows.filter(
         (r) =>
           selectedDepts.includes(r.department) &&
           (selectedSkills.length === 0
@@ -445,7 +551,15 @@ export function Availability() {
             : r.skills.length === 0 || r.skills.some((s) => selectedSkills.includes(s))) &&
           r.freeHours >= minFreeHours
       ),
-    [availRows, selectedDepts, selectedSkills, minFreeHours]
+    [selectedDepts, selectedSkills, minFreeHours]
+  );
+
+  const filteredRows = useMemo(() => applyListFilters(availRows), [applyListFilters, availRows]);
+
+  /** Header KPI cards — same skill/dept/min filters, but week locked to forward-supply range. */
+  const summaryFilteredRows = useMemo(
+    () => applyListFilters(summaryRows),
+    [applyListFilters, summaryRows]
   );
 
   const rollingOff = useMemo(() => {
@@ -456,9 +570,9 @@ export function Availability() {
   }, [rollingOffAll, employees, selectedDepts]);
 
   const kpis = useMemo(() => {
-    const base = computeAvailKpis(filteredRows);
+    const base = computeAvailKpis(summaryFilteredRows);
     return { ...base, rollingOffSoon: rollingOff.length };
-  }, [filteredRows, rollingOff]);
+  }, [summaryFilteredRows, rollingOff]);
 
   const rows = useMemo(() => {
     const filtered = filteredRows.filter((r) => {
@@ -499,7 +613,7 @@ export function Availability() {
             Availability
           </div>
           <div className="text-[12px] text-muted-foreground">
-            Forward supply · Jan 6 – Feb 9, 2026 · hours free per week
+            Forward supply · {supplyRangeLabel} · hours free per week
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -550,7 +664,7 @@ export function Availability() {
           <Kpi
             label="Rolling Off Soon"
             value={kpis.rollingOffSoon}
-            sub="within 2 weeks"
+            sub="within 3 weeks"
             accent="border-l-warning"
             valueClass="text-warning"
           />
@@ -568,7 +682,7 @@ export function Availability() {
             <div className="text-[12px] font-semibold text-foreground">
               Rolling off soon{" "}
               <span className="font-normal text-muted-foreground">
-                · {rollingOff.length} people freeing up within 2 weeks
+                · {rollingOff.length} people freeing up within 3 weeks
               </span>
             </div>
             <button
@@ -604,47 +718,51 @@ export function Availability() {
                 Rolling off soon {rollingCount}
               </Tab>
             </div>
+            <WeeklyCheckInWeekPicker
+              weekStart={weekStart}
+              onChange={setWeekStart}
+              weeks={availabilityWeeks}
+            />
           </div>
 
-          {/* Column headers */}
-          <div className="flex flex-shrink-0 border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold text-muted">
-            <SortColHeader
-              label="TEAM MEMBER"
-              col="name"
-              sortKey={sortKey}
-              sortDir={sortDir}
-              onSort={handleSort}
-              className="w-[200px]"
-            />
-            <SortColHeader
-              label="FREE CAPACITY"
-              col="freeHours"
-              sortKey={sortKey}
-              sortDir={sortDir}
-              onSort={handleSort}
-              className="w-[160px]"
-            />
-            <SortColHeader
-              label="AVAILABLE FROM"
-              col="availableFrom"
-              sortKey={sortKey}
-              sortDir={sortDir}
-              onSort={handleSort}
-              className="w-[130px]"
-            />
-            <SortColHeader
-              label="SKILLS"
-              col="skills"
-              sortKey={sortKey}
-              sortDir={sortDir}
-              onSort={handleSort}
-              className="flex-1"
-            />
-            <div className="w-[100px] text-right">ACTION</div>
-          </div>
-
-          {/* Body rows */}
+          {/* Single scrollport: sticky header + rows share width (scrollbar no longer shifts columns). */}
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            <div className="sticky top-0 z-10 flex border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold text-muted">
+              <SortColHeader
+                label="TEAM MEMBER"
+                col="name"
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onSort={handleSort}
+                className="w-[200px]"
+              />
+              <SortColHeader
+                label="FREE CAPACITY"
+                col="freeHours"
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onSort={handleSort}
+                className="w-[160px]"
+              />
+              <SortColHeader
+                label="AVAILABLE FROM"
+                col="availableFrom"
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onSort={handleSort}
+                className="w-[130px]"
+              />
+              <SortColHeader
+                label="SKILLS"
+                col="skills"
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onSort={handleSort}
+                className="flex-1"
+              />
+              <div className="w-[100px] text-right">ACTION</div>
+            </div>
+
             {rows.length === 0 ? (
               <div className="px-4 py-10 text-center text-[13px] text-muted-foreground">
                 No people match the selected filters.

@@ -58,6 +58,9 @@ export class MastersController {
   async createCustomer(@Body() body: { name?: string; code?: string }) {
     const name = body.name?.trim();
     if (!name) throw new BadRequestException("name is required");
+    if (name.length > 25) {
+      throw new BadRequestException("Customer name must be 25 characters or fewer");
+    }
 
     const existing = await this.prisma.customer.findFirst({
       where: { name, isDeleted: false },

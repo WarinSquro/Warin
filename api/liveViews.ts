@@ -8,6 +8,7 @@ import type { AvailRow, RollingOffPerson } from "../data/availability";
 import type { Band, UtilRow } from "../data/utilization";
 import type { DeploymentRow, DeploymentStatus } from "../data/deploymentReport";
 import { workingWeekBounds } from "../utils/workingWeek";
+import { roundHoursToTenth } from "../utils/formatHours";
 import type {
   PerformanceHistory,
   PerformanceHistoryMonth,
@@ -224,14 +225,16 @@ export function buildAvailRowsFromEmployees(
   employees: Employee[],
   weekCapacity = 40,
   allocations: ApiAllocation[] = [],
-  companyOffDays?: string[]
+  companyOffDays?: string[],
+  weekStart = mondayISO(),
+  workingDays?: string[]
 ): AvailRow[] {
-  const booked = bookedHoursByEmployee(allocations, mondayISO(), companyOffDays);
+  const booked = bookedHoursByEmployee(allocations, weekStart, companyOffDays, workingDays);
   return employees
     .filter((e) => e.status === "active")
     .map((e) => {
       const hours = booked.get(e.id)?.hours ?? 0;
-      const freeHours = Math.max(0, weekCapacity - hours);
+      const freeHours = Math.max(0, roundHoursToTenth(weekCapacity - hours));
       return {
         id: e.id,
         name: e.name,
@@ -1000,7 +1003,7 @@ export function buildCandidatesFromEmployees(
     .filter((e) => e.status === "active")
     .map((e) => {
       const hours = booked.get(e.id)?.hours ?? 0;
-      const freeHours = Math.max(0, Math.round((weekCapacity - hours) * 10) / 10);
+      const freeHours = Math.max(0, roundHoursToTenth(weekCapacity - hours));
       const overloaded = hours > weekCapacity + 0.01;
       let availability = "available now";
       let availabilityTone: Candidate["availabilityTone"] = "success";

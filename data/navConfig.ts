@@ -62,7 +62,6 @@ export const PERMISSION_PAGES: PermissionPage[] = [
     route: "/planning-conflicts",
     group: "Planning",
     menuVisible: false,
-    accessRightsVisible: false,
   },
   {
     key: "reports.deployment",

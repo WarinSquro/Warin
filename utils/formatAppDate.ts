@@ -1,5 +1,8 @@
 import type { DateFormatPattern } from "../data/settings";
 
+/** Product display timezone — confirmation / audit times shown in IST. */
+export const APP_DISPLAY_TIMEZONE = "Asia/Kolkata";
+
 export const DATE_FORMAT_OPTIONS: { value: DateFormatPattern; label: string }[] = [
   { value: "dd/MM/yyyy", label: "dd/MM/yyyy" },
   { value: "MM/dd/yyyy", label: "MM/dd/yyyy" },
@@ -61,18 +64,24 @@ export function formatAppDate(
   }
 }
 
-/** 12-hour clock: hh:mm AM/PM (hour zero-padded). */
+/** 12-hour clock in IST: hh:mm AM/PM (hour zero-padded). */
 export function formatAppTime12h(value: string | Date | null | undefined): string {
   const d = toDate(value);
   if (!d) return "—";
-  const h24 = d.getHours();
-  const h12 = h24 % 12 || 12;
-  const ampm = h24 >= 12 ? "PM" : "AM";
-  return `${pad2(h12)}:${pad2(d.getMinutes())} ${ampm}`;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: APP_DISPLAY_TIMEZONE,
+  }).formatToParts(d);
+  const hour = parts.find((p) => p.type === "hour")?.value ?? "12";
+  const minute = parts.find((p) => p.type === "minute")?.value ?? "00";
+  const dayPeriod = (parts.find((p) => p.type === "dayPeriod")?.value ?? "AM").toUpperCase();
+  return `${hour}:${minute} ${dayPeriod}`;
 }
 
 /**
- * Settings date format + 12-hour time, e.g. `06/08/2026 03:45 PM`.
+ * Settings date format + 12-hour IST time, e.g. `06/08/2026 03:45 PM`.
  */
 export function formatAppDateTime(
   value: string | Date | null | undefined,
@@ -80,7 +89,13 @@ export function formatAppDateTime(
 ): string {
   const d = toDate(value);
   if (!d) return "—";
-  const isoDate = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  // Calendar date in IST (not browser/server local), then apply Settings pattern.
+  const isoDate = new Intl.DateTimeFormat("en-CA", {
+    timeZone: APP_DISPLAY_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
   return `${formatAppDate(isoDate, pattern)} ${formatAppTime12h(d)}`;
 }
 

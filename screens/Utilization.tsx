@@ -316,50 +316,53 @@ export function Utilization() {
             </div>
           </div>
 
-          <div className="flex flex-shrink-0 border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold text-muted">
-            <SortColHeader
-              label="TEAM MEMBER"
-              col="name"
-              sortKey={sortKey}
-              sortDir={sortDir}
-              onSort={handleSort}
-              className="w-[200px]"
-            />
-            <SortColHeader
-              label="UTILIZATION"
-              col="pct"
-              sortKey={sortKey}
-              sortDir={sortDir}
-              onSort={handleSort}
-              className="flex-1"
-            />
-            <SortColHeader
-              label="4-WEEK TREND"
-              col="trend"
-              sortKey={sortKey}
-              sortDir={sortDir}
-              onSort={handleSort}
-              className="w-[120px]"
-            />
-            <SortColHeader
-              label="PRIMARY WORK"
-              col="primaryWork"
-              sortKey={sortKey}
-              sortDir={sortDir}
-              onSort={handleSort}
-              className="w-[150px]"
-            />
-            <div className="w-[90px] text-right">ACTION</div>
-          </div>
-
+          {/* Single scrollport: sticky header + rows share width (scrollbar no longer shifts columns). */}
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            <div className={`${UTIL_GRID} sticky top-0 z-10 border-b border-border-soft bg-surface-alt py-2 text-[11px] font-semibold text-muted`}>
+              <SortColHeader
+                label="TEAM MEMBER"
+                col="name"
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onSort={handleSort}
+              />
+              <SortColHeader
+                label="UTILIZATION"
+                col="pct"
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onSort={handleSort}
+              />
+              <SortColHeader
+                label="4-WEEK TREND"
+                col="trend"
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onSort={handleSort}
+                className="justify-start"
+              />
+              <SortColHeader
+                label="PRIMARY WORK"
+                col="primaryWork"
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onSort={handleSort}
+              />
+              <div className="text-right">ACTION</div>
+            </div>
+
             {rows.length === 0 ? (
               <div className="px-4 py-10 text-center text-[13px] text-muted-foreground">
                 No people match the selected departments.
               </div>
             ) : (
               rows.map((r) => (
-                <UtilTableRow key={r.id} row={r} onAct={() => navigate("/planner")} />
+                <UtilTableRow
+                  key={r.id}
+                  row={r}
+                  actionsEnabled={monthId === DEFAULT_UTIL_MONTH}
+                  onAct={() => navigate("/planner")}
+                />
               ))
             )}
           </div>
@@ -369,27 +372,38 @@ export function Utilization() {
   );
 }
 
-function UtilTableRow({ row, onAct }: { row: UtilRow; onAct: () => void }) {
+const UTIL_GRID =
+  "grid w-full grid-cols-[200px_minmax(0,1fr)_120px_150px_90px] items-center gap-x-0 px-4";
+
+function UtilTableRow({
+  row,
+  onAct,
+  actionsEnabled,
+}: {
+  row: UtilRow;
+  onAct: () => void;
+  actionsEnabled: boolean;
+}) {
   const barW = Math.min(row.pct, 120) / 120 * 100;
   const action = row.band === "over" ? "Rebalance" : row.band === "idle" ? "Assign" : null;
   return (
-    <div className="flex items-center border-b border-border-soft px-4 py-3 last:border-b-0">
-      <div className="flex w-[200px] items-center gap-2.5">
-        <div className={`flex h-[30px] w-[30px] items-center justify-center rounded-full text-[11px] font-semibold ${
+    <div className={`${UTIL_GRID} border-b border-border-soft py-3 last:border-b-0`}>
+      <div className="flex min-w-0 items-center gap-2.5">
+        <div className={`flex h-[30px] w-[30px] flex-shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
           row.band === "over" ? "bg-danger-soft text-danger" : row.band === "idle" ? "bg-surface-alt text-muted" : "bg-success-soft text-success-fg"
         }`}>{row.initials}</div>
-        <div>
-          <div className="text-[13px] font-medium text-foreground">{row.name}</div>
-          <div className="text-[11px] text-muted-foreground">{row.department}</div>
+        <div className="min-w-0">
+          <div className="truncate text-[13px] font-medium text-foreground">{row.name}</div>
+          <div className="truncate text-[11px] text-muted-foreground">{row.department}</div>
         </div>
       </div>
-      <div className="flex flex-1 items-center gap-2.5 pr-5">
-        <div className={`h-1.5 flex-1 rounded-full ${BAND_TRACK[row.band]}`}>
+      <div className="flex min-w-0 items-center gap-2.5 pr-4">
+        <div className={`h-1.5 min-w-0 flex-1 rounded-full ${BAND_TRACK[row.band]}`}>
           <div className={`h-full rounded-full ${BAND_BAR[row.band]}`} style={{ width: `${barW}%` }} />
         </div>
-        <span className={`w-10 text-[12px] font-semibold ${BAND_TEXT[row.band]}`}>{row.pct}%</span>
+        <span className={`w-10 shrink-0 text-[12px] font-semibold ${BAND_TEXT[row.band]}`}>{row.pct}%</span>
       </div>
-      <div className="flex h-[22px] w-[120px] items-end gap-[3px]">
+      <div className="flex h-[22px] w-full items-end justify-start gap-[3px]">
         {row.trend.map((t, i) => {
           const isCurrent = i === row.trend.length - 1;
           const ratio = isCurrent ? row.pct / 100 : t;
@@ -404,10 +418,24 @@ function UtilTableRow({ row, onAct }: { row: UtilRow; onAct: () => void }) {
           );
         })}
       </div>
-      <div className={`w-[150px] text-[12px] ${row.primaryMuted ? "italic text-muted-foreground" : "text-foreground"}`}>{row.primaryWork}</div>
-      <div className="w-[90px] text-right">
+      <div className={`min-w-0 truncate text-[12px] ${row.primaryMuted ? "italic text-muted-foreground" : "text-foreground"}`}>{row.primaryWork}</div>
+      <div className="text-right">
         {action ? (
-          <button onClick={onAct} className="inline-flex items-center gap-0.5 text-[11px] text-primary hover:underline">
+          <button
+            type="button"
+            onClick={onAct}
+            disabled={!actionsEnabled}
+            title={
+              actionsEnabled
+                ? undefined
+                : "Assign / Rebalance is available only for This Month"
+            }
+            className={`inline-flex items-center gap-0.5 text-[11px] ${
+              actionsEnabled
+                ? "text-primary hover:underline"
+                : "cursor-not-allowed text-muted-foreground opacity-50"
+            }`}
+          >
             {action} <ArrowRight className="h-3 w-3" />
           </button>
         ) : (

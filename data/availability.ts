@@ -2,6 +2,7 @@
 // Free capacity is the supply-side mirror of Utilization (demand/load view).
 
 import { UTIL_DEPARTMENTS } from "./utilization";
+import { roundHoursToTenth } from "../utils/formatHours";
 
 export { UTIL_DEPARTMENTS as AVAIL_DEPARTMENTS };
 
@@ -40,10 +41,10 @@ export function computeAvailKpis(rows: AvailRow[]) {
   }
   const totalFreeHrs = rows.reduce((sum, r) => sum + r.freeHours, 0);
   return {
-    totalFreeHrs,
+    totalFreeHrs: roundHoursToTenth(totalFreeHrs),
     fullyAvailable: rows.filter((r) => r.bookedPct === 0).length,
     rollingOffSoon: rows.filter((r) => r.availableFrom !== "Now").length,
-    avgFreeHrs: Math.round((totalFreeHrs / rows.length) * 10) / 10,
+    avgFreeHrs: roundHoursToTenth(totalFreeHrs / rows.length),
   };
 }
 

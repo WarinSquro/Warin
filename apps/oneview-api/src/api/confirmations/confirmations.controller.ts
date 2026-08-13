@@ -141,7 +141,12 @@ function initials(name: string): string {
 }
 
 function formatTime(d: Date): string {
-  return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return d.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "Asia/Kolkata",
+  });
 }
 
 function formatPlanDateLabel(iso: string): string {
@@ -782,11 +787,36 @@ export class ConfirmationsController {
 
     const scopedIds = await immediateReportEmployeeIds(this.prisma, req.user);
 
+    const viewer = await this.prisma.employee.findFirst({
+      where: { hrmsId: req.user.hrmsId, isDeleted: false },
+      select: { id: true },
+    });
+
+    /** Anyone who owns ≥1 active report is an RO — team list is ICs / members only. */
+    const ownerRows = await this.prisma.employee.findMany({
+      where: {
+        isDeleted: false,
+        status: "active",
+        resourceOwnerId: { not: null },
+      },
+      select: { resourceOwnerId: true },
+      distinct: ["resourceOwnerId"],
+    });
+    const resourceOwnerIds = ownerRows
+      .map((r) => r.resourceOwnerId)
+      .filter((id): id is bigint => id != null);
+
+    const excludeIds = [
+      ...resourceOwnerIds,
+      ...(viewer ? [viewer.id] : []),
+    ];
+
     const roster = await this.prisma.employee.findMany({
       where: {
         isDeleted: false,
         status: "active",
         ...(scopedIds ? { id: { in: scopedIds } } : {}),
+        ...(excludeIds.length > 0 ? { id: { notIn: excludeIds } } : {}),
       },
       include: {
         skills: { include: { skill: true }, take: 1 },

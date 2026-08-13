@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Plus, Search, X, AlertTriangle, Calendar, Trash2, Upload } from "lucide-react";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
@@ -12,14 +12,15 @@ import { useProjects } from "../context/ProjectsContext";
 import { milestoneKindLabel, formatResourceDemand } from "../data/projects";
 import { HEALTH_LABELS, HEALTH_OPTIONS } from "../data/executionReport";
 import type { ProjectHealth } from "../data/executionReport";
+import { ProjectHealthBadge } from "../components/ProjectHealthBadge";
 import { milestonesForProjectType } from "../data/setup";
 import type { Project, Milestone, ProjectStatus, ResourceDemandLine } from "../data/projects";
 import { useMasters } from "../context/MastersContext";
 import { useToast } from "../context/ToastContext";
 import { useFocusFirstField } from "../hooks/useFocusFirstField";
 import { matchesSearchQuery } from "../utils/textSearch";
-import { formatAppDate } from "../utils/formatAppDate";
 import { useAppDateFormat } from "../hooks/useAppDateFormat";
+import { AppDateInput } from "../components/AppDateInput";
 import { usePauseSharedDataSync, useSharedDataSync, MASTER_TXN_SYNC_INTERVAL_MS } from "../hooks/useSharedDataSync";
 import {
   decodeApprovalSnap,
@@ -27,13 +28,19 @@ import {
 } from "../utils/approvalSnap";
 
 type Tab = "active" | "inactive";
+
+/** Add/Edit project drawer field length limits */
+const PROJECT_ID_MAX = 10;
+const PROJECT_NAME_MAX = 25;
+const CUSTOMER_NAME_MAX = 25;
+const PO_NUMBER_MAX = 15;
 type ProjectColId =
   | "project"
-  | "customer"
   | "kickoff"
   | "timeline"
   | "milestones"
   | "demand"
+  | "health"
   | "createdAt"
   | "modifiedAt"
   | "createdBy"
@@ -41,7 +48,7 @@ type ProjectColId =
   | "action";
 type ProjectSortKey = Extract<
   ProjectColId,
-  "project" | "customer" | "kickoff" | "timeline" | "milestones" | "demand"
+  "project" | "kickoff" | "timeline" | "milestones" | "demand" | "health"
 >;
 
 type ProjectColumnDef = ReportColumnOption & {
@@ -50,15 +57,20 @@ type ProjectColumnDef = ReportColumnOption & {
   sortable?: boolean;
 };
 
-/** All list columns — picker + grid (Daily Work Detail pattern). */
+/** All list columns — picker + grid. fr tracks fill card width; extras scroll horizontally (no wrap). */
 const PROJECT_COLUMNS: ProjectColumnDef[] = [
-  // fr tracks fill the card width by default (no forced horizontal scroll).
-  { id: "project", label: "PROJECT", defaultVisible: true, width: "minmax(0,1.55fr)", sortable: true },
-  { id: "customer", label: "CUSTOMER", defaultVisible: true, width: "minmax(0,1.05fr)", sortable: true },
+  { id: "project", label: "PROJECT", defaultVisible: true, width: "minmax(0,1.35fr)", sortable: true },
   { id: "kickoff", label: "KICKOFF", defaultVisible: true, width: "minmax(0,0.72fr)", sortable: true },
   { id: "timeline", label: "TIMELINE", defaultVisible: true, width: "minmax(0,1.1fr)", sortable: true },
-  { id: "milestones", label: "MILESTONES", defaultVisible: true, width: "minmax(0,1.25fr)", sortable: true },
-  { id: "demand", label: "DEMAND", defaultVisible: true, width: "minmax(0,1.05fr)", sortable: true },
+  { id: "milestones", label: "MILESTONES", defaultVisible: true, width: "minmax(0,1.05fr)", sortable: true },
+  { id: "demand", label: "DEMAND", defaultVisible: true, width: "minmax(0,0.9fr)", sortable: true },
+  {
+    id: "health",
+    label: "Project Health",
+    defaultVisible: true,
+    width: "6.75rem",
+    sortable: true,
+  },
   {
     id: "createdAt",
     label: "Project created date & time",
@@ -82,19 +94,8 @@ const PROJECT_COLUMNS: ProjectColumnDef[] = [
   },
 ];
 
-const PROJECT_AUDIT_COL_IDS = new Set<ProjectColId>([
-  "createdAt",
-  "modifiedAt",
-  "createdBy",
-  "modifiedBy",
-]);
-
 function defaultProjectVisibleColumns(): Set<string> {
   return new Set(PROJECT_COLUMNS.filter((c) => c.defaultVisible || c.locked).map((c) => c.id));
-}
-
-function projectHasExtraColumns(visibleCols: ProjectColumnDef[]): boolean {
-  return visibleCols.some((c) => PROJECT_AUDIT_COL_IDS.has(c.id));
 }
 
 function ensureLockedProjectColumns(visible: Set<string>): Set<string> {
@@ -105,8 +106,18 @@ function ensureLockedProjectColumns(visible: Set<string>): Set<string> {
   return next;
 }
 
-function projectHeaderLabel(col: ProjectColumnDef): string {
+function projectHeaderLabel(col: ProjectColumnDef): ReactNode {
   switch (col.id) {
+    case "health":
+      // Two lines so the sort icon stays beside the label in the narrow column
+      // (avoids the text flex item stretching and pushing the icon to the cell edge).
+      return (
+        <>
+          PROJECT
+          <br />
+          HEALTH
+        </>
+      );
     case "createdAt":
       return "CREATED";
     case "modifiedAt":
@@ -188,33 +199,35 @@ function TypeBadge({ type }: { type: Project["type"] }) {
   );
 }
 
-function fmtDate(iso: string, pattern = "dd/MM/yyyy") {
-  if (!iso) return "—";
-  return formatAppDate(iso, pattern as "dd/MM/yyyy" | "MM/dd/yyyy" | "yyyy-MM-dd" | "dd-MMM-yyyy");
-}
-
 // ─── row ────────────────────────────────────────────────────────────────────
 
 function ProjectCell({
   colId,
   p,
-  stackDates,
   onEdit,
   onToggle,
 }: {
   colId: ProjectColId;
   p: Project;
-  /** When true (extra Columns selected), date ranges / date-times wrap to two lines. */
-  stackDates: boolean;
   onEdit: () => void;
   onToggle: () => void;
 }) {
-  const { formatDate, formatTime, formatDateTime } = useAppDateFormat();
+  const { formatDate, formatDateTime } = useAppDateFormat();
   const inactive = p.status === "inactive";
   const noMilestones = p.milestones.length === 0;
 
   switch (colId) {
-    case "project":
+    case "project": {
+      const customerFull = p.customer.trim();
+      const customerShort =
+        customerFull.length > 15 ? `${customerFull.slice(0, 15)}…` : customerFull;
+      const po = p.poNumber.trim();
+      const customerPo = customerFull
+        ? po
+          ? `${customerShort} . ${po}`
+          : customerShort
+        : "";
+      const needsCustomerTooltip = customerFull.length > 15;
       return (
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
@@ -227,31 +240,23 @@ function ProjectCell({
             </button>
             <TypeBadge type={p.type} />
           </div>
-          <div className="font-mono text-[11px] text-muted-foreground">{p.id}</div>
+          {customerPo ? (
+            <div
+              className="min-w-0 truncate text-[11px] text-muted-foreground"
+              title={needsCustomerTooltip ? customerFull : undefined}
+              data-full-text={needsCustomerTooltip ? customerFull : undefined}
+            >
+              {customerPo}
+            </div>
+          ) : null}
         </div>
       );
-    case "customer":
-      return (
-        <div className="min-w-0">
-          <div className="truncate text-[12px] text-foreground">{p.customer}</div>
-          {p.poNumber.trim() && (
-            <div className="truncate font-mono text-[11px] text-muted-foreground">{p.poNumber}</div>
-          )}
-        </div>
-      );
+    }
     case "kickoff":
-      return <div className="text-[12px] text-foreground">{formatDate(p.kickoffDate)}</div>;
+      return <div className="whitespace-nowrap text-[12px] text-foreground">{formatDate(p.kickoffDate)}</div>;
     case "timeline":
-      return stackDates ? (
-        <div className="min-w-0 text-[12px] leading-snug text-foreground">
-          <div>{formatDate(p.startDate)}</div>
-          <div>
-            <span className="text-muted-foreground">– </span>
-            {formatDate(p.endDate)}
-          </div>
-        </div>
-      ) : (
-        <div className="truncate text-[12px] text-foreground">
+      return (
+        <div className="truncate whitespace-nowrap text-[12px] text-foreground">
           <span>{formatDate(p.startDate)}</span>
           <span className="mx-1 text-muted-foreground">–</span>
           <span>{formatDate(p.endDate)}</span>
@@ -259,22 +264,22 @@ function ProjectCell({
       );
     case "milestones":
       return noMilestones ? (
-        <div className="flex items-center gap-1 text-[11px] text-warning">
+        <div className="flex min-w-0 items-center gap-1 text-[11px] text-warning">
           <AlertTriangle className="h-3 w-3 flex-shrink-0" />
-          <span>No milestones — allocations blocked</span>
+          <span className="truncate">No milestones — allocations blocked</span>
         </div>
       ) : (
-        <div className="flex flex-wrap gap-1">
+        <div className="flex min-w-0 flex-nowrap items-center gap-1 overflow-hidden">
           {p.milestones.slice(0, 2).map((m) => (
             <span
               key={m.id}
-              className="rounded-sm bg-surface-alt px-1.5 py-0.5 text-[10px] text-muted"
+              className="shrink-0 rounded-sm bg-surface-alt px-1.5 py-0.5 text-[10px] text-muted"
             >
               {m.name}
             </span>
           ))}
           {p.milestones.length > 2 && (
-            <span className="text-[10px] text-muted-foreground">+{p.milestones.length - 2}</span>
+            <span className="shrink-0 text-[10px] text-muted-foreground">+{p.milestones.length - 2}</span>
           )}
         </div>
       );
@@ -284,25 +289,21 @@ function ProjectCell({
           {p.demand || <span className="text-muted">—</span>}
         </div>
       );
+    case "health":
+      return <ProjectHealthBadge health={p.health ?? "green"} />;
     case "createdAt":
       if (!p.createdAt) return <div className="text-[12px] text-muted">—</div>;
-      return stackDates ? (
-        <div className="min-w-0 text-[12px] leading-snug text-foreground">
-          <div>{formatDate(p.createdAt)}</div>
-          <div className="text-muted-foreground">{formatTime(p.createdAt)}</div>
+      return (
+        <div className="truncate whitespace-nowrap text-[12px] text-foreground">
+          {formatDateTime(p.createdAt)}
         </div>
-      ) : (
-        <div className="truncate text-[12px] text-foreground">{formatDateTime(p.createdAt)}</div>
       );
     case "modifiedAt":
       if (!p.modifiedAt) return <div className="text-[12px] text-muted">—</div>;
-      return stackDates ? (
-        <div className="min-w-0 text-[12px] leading-snug text-foreground">
-          <div>{formatDate(p.modifiedAt)}</div>
-          <div className="text-muted-foreground">{formatTime(p.modifiedAt)}</div>
+      return (
+        <div className="truncate whitespace-nowrap text-[12px] text-foreground">
+          {formatDateTime(p.modifiedAt)}
         </div>
-      ) : (
-        <div className="truncate text-[12px] text-foreground">{formatDateTime(p.modifiedAt)}</div>
       );
     case "createdBy":
       return (
@@ -363,7 +364,6 @@ function ProjectRow({
   onToggle: () => void;
 }) {
   const inactive = p.status === "inactive";
-  const stackDates = projectHasExtraColumns(visibleCols);
 
   return (
     <div
@@ -378,7 +378,6 @@ function ProjectRow({
           key={col.id}
           colId={col.id}
           p={p}
-          stackDates={stackDates}
           onEdit={onEdit}
           onToggle={onToggle}
         />
@@ -407,6 +406,7 @@ function ProjectDrawer({
     ? "cursor-not-allowed bg-surface-alt text-muted"
     : "bg-surface text-foreground";
   const { skills: skillRows, activityMilestones } = useMasters();
+  const { formatDate } = useAppDateFormat();
 
   const [id, setId] = useState(project?.id ?? "");
   const [projectType, setProjectType] = useState<Project["type"]>(project?.type ?? "paid");
@@ -519,7 +519,7 @@ function ProjectDrawer({
   const toast = useToast();
 
   const addCustomer = async () => {
-    const v = newCustomer.trim();
+    const v = newCustomer.trim().slice(0, CUSTOMER_NAME_MAX);
     if (!v || addingCustomerBusy) return;
     setAddingCustomerBusy(true);
     try {
@@ -540,6 +540,7 @@ function ProjectDrawer({
   const addMilestone = () => {
     const catalog = activityMilestones.find((m) => m.id === msCatalogId);
     if (!catalog) return;
+    if (msDate && milestoneDateMin && msDate < milestoneDateMin) return;
     const newMs: Milestone = {
       id: `ms-${Date.now()}`,
       name: catalog.name,
@@ -615,15 +616,37 @@ function ProjectDrawer({
     setKickoffDate(value);
     if (value && startDate && startDate < value) setStartDate(value);
     if (value && endDate && endDate < value) setEndDate(value);
+    const floor =
+      value && startDate ? (value > startDate ? value : startDate) : value || startDate;
+    if (floor && msDate && msDate < floor) setMsDate(floor);
   };
 
   const handleStartChange = (value: string) => {
     setStartDate(value);
     if (value && endDate && endDate < value) setEndDate(value);
+    const floor =
+      kickoffDate && value
+        ? kickoffDate > value
+          ? kickoffDate
+          : value
+        : kickoffDate || value;
+    if (floor && msDate && msDate < floor) setMsDate(floor);
   };
 
   const startMin = kickoffDate || undefined;
   const endMin = startDate || kickoffDate || undefined;
+  /** Milestone date must be on/after both kickoff and start (later of the two). */
+  const milestoneDateMin =
+    kickoffDate && startDate
+      ? kickoffDate > startDate
+        ? kickoffDate
+        : startDate
+      : kickoffDate || startDate || undefined;
+  const milestoneDateTooEarly =
+    !!msDate && !!milestoneDateMin && msDate < milestoneDateMin;
+  const milestonesDatesValid = milestones.every(
+    (m) => !m.date || !milestoneDateMin || m.date >= milestoneDateMin
+  );
   const datesValid =
     !!kickoffDate &&
     !!startDate &&
@@ -640,10 +663,14 @@ function ProjectDrawer({
   const healthRemarksRequired = health === "amber" || health === "red";
   const canSave =
     !!id.trim() &&
+    id.trim().length <= PROJECT_ID_MAX &&
     !!name.trim() &&
+    name.trim().length <= PROJECT_NAME_MAX &&
     !!customer.trim() &&
+    poNumber.trim().length <= PO_NUMBER_MAX &&
     datesValid &&
     milestones.length > 0 &&
+    milestonesDatesValid &&
     (!poRequired || !!poNumber.trim()) &&
     (!pocRequired || pocComplete) &&
     (!healthRemarksRequired || !!healthRemarks.trim());
@@ -651,10 +678,10 @@ function ProjectDrawer({
   const handleSave = () => {
     if (!canSave) return;
     onSave({
-      id: id.trim(),
-      name: name.trim(),
+      id: id.trim().slice(0, PROJECT_ID_MAX),
+      name: name.trim().slice(0, PROJECT_NAME_MAX),
       customer,
-      poNumber,
+      poNumber: poNumber.trim().slice(0, PO_NUMBER_MAX),
       type: projectType,
       approvedByName: pocRequired ? approvedByName.trim() : undefined,
       approvedByDate: pocRequired ? approvedByDate : undefined,
@@ -696,7 +723,8 @@ function ProjectDrawer({
               <input
                 value={id}
                 disabled={coreLocked}
-                onChange={(e) => setId(e.target.value)}
+                maxLength={PROJECT_ID_MAX}
+                onChange={(e) => setId(e.target.value.slice(0, PROJECT_ID_MAX))}
                 className={`w-full rounded-md border border-border px-3 py-2 font-mono text-[13px] outline-none focus:border-accent-line ${coreInputClass}`}
                 placeholder="PRJ-019"
               />
@@ -730,7 +758,8 @@ function ProjectDrawer({
             <input
               value={name}
               disabled={coreLocked}
-              onChange={(e) => setName(e.target.value)}
+              maxLength={PROJECT_NAME_MAX}
+              onChange={(e) => setName(e.target.value.slice(0, PROJECT_NAME_MAX))}
               className={`w-full rounded-md border border-border px-3 py-2 text-[13px] outline-none focus:border-accent-line ${coreInputClass}`}
               placeholder="e.g. Project Nova"
             />
@@ -767,7 +796,8 @@ function ProjectDrawer({
               <div className="mt-2 flex gap-2">
                 <input
                   value={newCustomer}
-                  onChange={(e) => setNewCustomer(e.target.value)}
+                  maxLength={CUSTOMER_NAME_MAX}
+                  onChange={(e) => setNewCustomer(e.target.value.slice(0, CUSTOMER_NAME_MAX))}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
@@ -820,11 +850,10 @@ function ProjectDrawer({
                     />
                   </Field>
                   <Field label="Approved On" required>
-                    <input
-                      type="date"
+                    <AppDateInput
                       value={approvedByDate}
-                      onChange={(e) => setApprovedByDate(e.target.value)}
-                      className="w-full rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line [color-scheme:light]"
+                      onChange={setApprovedByDate}
+                      inputClassName="focus:border-accent-line"
                     />
                   </Field>
                 </div>
@@ -903,41 +932,39 @@ function ProjectDrawer({
               <input
                 value={poNumber}
                 disabled={coreLocked}
-                onChange={(e) => setPoNumber(e.target.value)}
+                maxLength={PO_NUMBER_MAX}
+                onChange={(e) => setPoNumber(e.target.value.slice(0, PO_NUMBER_MAX))}
                 className={`w-full rounded-md border border-border px-3 py-2 text-[13px] outline-none focus:border-accent-line ${coreInputClass}`}
                 placeholder={poRequired ? "e.g. PO-2025-0012" : "Optional"}
               />
             </Field>
             <Field label="Kickoff date" required>
-              <input
-                type="date"
+              <AppDateInput
                 value={kickoffDate}
                 disabled={coreLocked}
-                onChange={(e) => handleKickoffChange(e.target.value)}
-                className={`w-full rounded-md border border-border px-3 py-2 text-[13px] outline-none focus:border-accent-line [color-scheme:light] ${coreInputClass}`}
+                onChange={handleKickoffChange}
+                inputClassName={`focus:border-accent-line ${coreInputClass}`}
               />
             </Field>
             <Field label="Start date" required>
-              <input
-                type="date"
+              <AppDateInput
                 value={startDate}
                 min={startMin}
                 disabled={coreLocked}
-                onChange={(e) => handleStartChange(e.target.value)}
-                className={`w-full rounded-md border border-border px-3 py-2 text-[13px] outline-none focus:border-accent-line [color-scheme:light] ${coreInputClass}`}
+                onChange={handleStartChange}
+                inputClassName={`focus:border-accent-line ${coreInputClass}`}
               />
               {kickoffDate && startDate && startDate < kickoffDate && (
                 <div className="mt-1 text-[11px] text-danger">Start date cannot be before kickoff.</div>
               )}
             </Field>
             <Field label="End date" required>
-              <input
-                type="date"
+              <AppDateInput
                 value={endDate}
                 min={endMin}
                 disabled={coreLocked}
-                onChange={(e) => setEndDate(e.target.value)}
-                className={`w-full rounded-md border border-border px-3 py-2 text-[13px] outline-none focus:border-accent-line [color-scheme:light] ${coreInputClass}`}
+                onChange={setEndDate}
+                inputClassName={`focus:border-accent-line ${coreInputClass}`}
               />
               {startDate && endDate && endDate < startDate && (
                 <div className="mt-1 text-[11px] text-danger">End date cannot be before start date.</div>
@@ -963,7 +990,7 @@ function ProjectDrawer({
                     <div className="flex-1 min-w-0">
                       <div className="truncate text-[12px] text-foreground">{m.name}</div>
                       <div className="text-[11px] text-muted-foreground">
-                        {m.date ? fmtDate(m.date) : "No date"}
+                        {m.date ? formatDate(m.date) : "No date"}
                         {m.kind ? ` · ${milestoneKindLabel(m.kind)}` : ""}
                       </div>
                     </div>
@@ -997,20 +1024,38 @@ function ProjectDrawer({
                 ))}
               </select>
               <div className="flex gap-2">
-                <input
-                  type="date"
+                <AppDateInput
                   value={msDate}
-                  onChange={(e) => setMsDate(e.target.value)}
-                  className="min-w-0 flex-1 rounded-md border border-border bg-surface px-3 py-2 text-[12px] text-foreground outline-none focus:border-accent-line"
+                  min={milestoneDateMin}
+                  onChange={(v) => {
+                    if (milestoneDateMin && v && v < milestoneDateMin) {
+                      setMsDate(milestoneDateMin);
+                      return;
+                    }
+                    setMsDate(v);
+                  }}
+                  className="min-w-0 flex-1"
+                  inputClassName="py-2 text-[12px] focus:border-accent-line"
                 />
                 <button
+                  type="button"
                   onClick={addMilestone}
-                  disabled={!msCatalogId}
+                  disabled={!msCatalogId || milestoneDateTooEarly}
                   className="shrink-0 rounded-md border border-accent-line px-4 py-2 text-[12px] text-primary hover:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   Add
                 </button>
               </div>
+              {milestoneDateTooEarly && (
+                <div className="text-[11px] text-danger">
+                  Milestone date cannot be before project kickoff or start date.
+                </div>
+              )}
+              {!milestonesDatesValid && (
+                <div className="text-[11px] text-danger">
+                  One or more milestones are before the project kickoff or start date.
+                </div>
+              )}
             </div>
           </div>
 
@@ -1205,6 +1250,12 @@ export function ProjectMaster() {
     () => visibleColDefs.map((c) => c.width).join(" "),
     [visibleColDefs]
   );
+  /** Default set = 100% width; each optional column adds rem so the table scrolls instead of crushing. */
+  const tableMinWidth = useMemo(() => {
+    const extraCount = visibleColDefs.filter((c) => !c.defaultVisible && !c.locked).length;
+    if (extraCount === 0) return undefined;
+    return `calc(100% + ${extraCount * 9}rem)`;
+  }, [visibleColDefs]);
 
   const filtered = rows.filter(
     (p) =>
@@ -1228,9 +1279,6 @@ export function ProjectMaster() {
     if (sortKey === "project") {
       return mul * a.name.localeCompare(b.name);
     }
-    if (sortKey === "customer") {
-      return mul * a.customer.localeCompare(b.customer);
-    }
     if (sortKey === "kickoff") {
       return mul * a.kickoffDate.localeCompare(b.kickoffDate);
     }
@@ -1243,6 +1291,9 @@ export function ProjectMaster() {
       const ma = a.milestones[0]?.name ?? "";
       const mb = b.milestones[0]?.name ?? "";
       return mul * ma.localeCompare(mb);
+    }
+    if (sortKey === "health") {
+      return mul * HEALTH_LABELS[a.health ?? "green"].localeCompare(HEALTH_LABELS[b.health ?? "green"]);
     }
     return mul * (a.demand || "—").localeCompare(b.demand || "—");
   });
@@ -1395,9 +1446,9 @@ export function ProjectMaster() {
             />
           </div>
 
-          {/* single scroll: sticky header + rows (Daily Work Detail pattern) */}
+          {/* single scroll: sticky header + rows; default cols fit card width */}
           <div className="min-h-0 flex-1 overflow-x-auto overflow-y-auto overscroll-contain">
-            <div className="w-full min-w-0">
+            <div className="w-full min-w-0" style={tableMinWidth ? { minWidth: tableMinWidth } : undefined}>
               <div
                 className="sticky top-0 z-10 grid w-full items-center gap-x-3 border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold text-muted"
                 style={{ gridTemplateColumns: gridTemplate }}

@@ -27,7 +27,7 @@ DATABASE_URL="postgresql://admin:admin@127.0.0.1:15432/oneview?schema=public"
 
 ## Core tables
 
-`employees`, `departments`, `skills`, `employee_skills`, `employee_permissions`, `activity_milestones`, `activities`, `projects`, `project_milestones`, `project_demand_lines`, `allocations`, `work_confirmations`, `work_confirmation_lines`, `app_settings`, `company_off_days`, `pin_reset_tokens`, `refresh_tokens`, `weekly_check_in_settings`, `weekly_check_in_competencies`, `weekly_check_in_submissions`
+`employees`, `departments`, `skills`, `employee_skills`, `employee_permissions`, `activity_milestones`, `activities`, `projects`, `project_milestones`, `project_demand_lines`, `allocations`, `work_confirmations`, `work_confirmation_lines`, `app_settings`, `company_off_days`, `pin_reset_tokens`, `refresh_tokens` (incl. single-session metadata / `session_id`), `employees.active_session_id`, `weekly_check_in_settings`, `weekly_check_in_competencies`, `weekly_check_in_submissions`
 
 Weekly check-in tables back Module 14 (`my_team.weekly_check_in` / `masters.weekly_check_in`): `weekly_check_in_settings` holds the singleton ranking-levels + action-types JSON, `weekly_check_in_competencies` holds per-department technical/behavioural competency masters (`department_id` → `departments.id`), and `weekly_check_in_submissions` stores one RO-submitted review per employee per ISO week (`week_start`), including the frozen evidence snapshot, ratings, status/confidence, remarks, and action-item tracking.
 

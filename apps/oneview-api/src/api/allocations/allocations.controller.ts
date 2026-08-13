@@ -258,6 +258,19 @@ export class AllocationsController {
     if (!existing) throw new NotFoundException("Allocation not found");
     await assertCanPlanForEmployee(this.prisma, req.user, existing.employee);
 
+    const startIso = existing.startDate.toISOString().slice(0, 10);
+    const todayIso = new Intl.DateTimeFormat("en-CA", {
+      timeZone: process.env.APP_DISPLAY_TIMEZONE || "Asia/Kolkata",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    if (startIso <= todayIso) {
+      throw new BadRequestException(
+        "Past and current allocations cannot be deleted — adjust hours instead."
+      );
+    }
+
     await this.prisma.allocation.update({
       where: { id: existing.id },
       data: {

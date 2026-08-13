@@ -9,7 +9,7 @@ export interface UtilBands {
 export interface MetricBands {
   excellent: number;      // >= this % = Excellent
   good: number;           // >= this % = Good
-  needsAttention: number; // >= this % = Needs Attention; below = Critical
+  needsAttention: number; // >= this % = Needs Attention; below = Critical; must be ≥ 1
 }
 
 export interface SettingsState {

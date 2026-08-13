@@ -41,10 +41,9 @@ export function WorkdayTimelinePanel({
 }) {
   const { settings } = useSettings();
   const dateFmt = settings.dateFormat ?? "dd/MM/yyyy";
-  const { officeMs, lunchMs, productiveMs } = workdayDurationMs(marks);
+  const { officeMs, productiveMs } = workdayDurationMs(marks);
   const allowed = disabled ? [] : allowedWorkdayActionKeys(marks);
   const lunchSkipped = isLunchSkipped(marks);
-  const lunchTaken = Boolean(marks.lunchOut && marks.lunchIn);
   const heading =
     dateLabel ||
     formatAppDate(selectedDate || todayIsoLocal(), dateFmt);
@@ -150,14 +149,6 @@ export function WorkdayTimelinePanel({
             {formatCompactDuration(officeMs)}
           </span>
         </div>
-        <div className="flex items-center justify-between text-[11px]">
-          <span className="text-muted-foreground">
-            Lunch Break{lunchSkipped ? " (skipped)" : lunchTaken ? "" : ""}
-          </span>
-          <span className="font-medium tabular-nums text-foreground">
-            {lunchSkipped ? "—" : formatCompactDuration(lunchMs)}
-          </span>
-        </div>
         <div className="flex items-center justify-between rounded-md bg-accent-soft px-2.5 py-1.5 text-[11px]">
           <span className="text-accent-softfg">Productive Window</span>
           <span className="font-semibold tabular-nums text-primary">
@@ -177,30 +168,33 @@ export function AllocationFocusTimer({
   isActiveRunner,
   onStartPause,
   onStop,
+  disabled = false,
 }: {
   allocationId: string;
   state: FocusAllocationState | undefined;
   isActiveRunner: boolean;
   onStartPause: (allocationId: string) => void;
   onStop: (allocationId: string) => void;
+  /** When true (e.g. confirmation already submitted), Start/Pause/Stop are locked. */
+  disabled?: boolean;
 }) {
   const st = state ?? emptyFocusState();
   const running = !!st.segmentStartedAt;
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    if (!running) return;
+    if (!running || disabled) return;
     const id = window.setInterval(() => setNow(Date.now()), 250);
     return () => window.clearInterval(id);
-  }, [running]);
+  }, [running, disabled]);
 
   const sessionMs = sessionDisplayMs(st, now);
   const totalMs = focusElapsedMs(st, now);
-  const stopDisabled = !running && st.sessionAccumMs <= 0;
+  const stopDisabled = disabled || (!running && st.sessionAccumMs <= 0);
   // Started (running) → mint · Paused (session open) → cream · Stopped (Stop disabled) → cool gray
-  const tint = running
+  const tint = running && !disabled
     ? "border-success-border bg-success-soft"
-    : !stopDisabled
+    : !stopDisabled && !disabled
       ? "border-warning-border bg-warning-soft"
       : "border-border-soft bg-[#F8F9FC]";
 
@@ -211,11 +205,18 @@ export function AllocationFocusTimer({
           <button
             type="button"
             onClick={() => onStartPause(allocationId)}
+            disabled={disabled}
             aria-label={running ? "Pause" : "Start"}
-            title={running ? "Pause" : "Start"}
-            className={`inline-flex h-8 w-9 cursor-pointer items-center justify-center text-white ${
+            title={
+              disabled
+                ? "Focus timer locked after confirmation is submitted"
+                : running
+                  ? "Pause"
+                  : "Start"
+            }
+            className={`inline-flex h-8 w-9 items-center justify-center text-white disabled:cursor-not-allowed disabled:opacity-40 ${
               running ? "bg-warning hover:brightness-95" : "bg-primary hover:brightness-95"
-            }`}
+            } ${disabled ? "" : "cursor-pointer"}`}
           >
             {running ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5 fill-current" />}
           </button>
@@ -224,7 +225,11 @@ export function AllocationFocusTimer({
             onClick={() => onStop(allocationId)}
             disabled={stopDisabled}
             aria-label="Stop"
-            title="Stop · complete lap"
+            title={
+              disabled
+                ? "Focus timer locked after confirmation is submitted"
+                : "Stop · complete lap"
+            }
             className="inline-flex h-8 w-9 cursor-pointer items-center justify-center border-l border-border bg-surface text-danger hover:bg-danger-soft disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Square className="h-3 w-3 fill-current" />

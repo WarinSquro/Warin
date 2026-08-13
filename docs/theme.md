@@ -42,7 +42,7 @@ Helpers: `.auth-canvas-bg` (gradient), `.auth-canvas-solid`.
 |-------|-------|----------|
 | `--color-foreground` | `#111827` | `foreground` |
 | `--color-muted` | `#6b7280` | `muted` |
-| `--color-muted-foreground` | `#9ca3af` | `muted-foreground` |
+| `--color-muted-foreground` | `#6b7280` | `muted-foreground` |
 | `--color-border` | `#e5e7eb` | `border` |
 | `--color-border-soft` | `#eef0f3` | `border-soft` |
 | `--color-border-focus` | mix of foreground + border | focused inputs (global) |

@@ -37,6 +37,44 @@ function parseDate(iso?: string | null): Date | null {
   return d;
 }
 
+const PROJECT_CODE_MAX = 10;
+const PROJECT_NAME_MAX = 25;
+const CUSTOMER_NAME_MAX = 25;
+const PO_NUMBER_MAX = 15;
+
+function assertProjectFieldLengths(fields: {
+  projectCode?: string | null;
+  name?: string | null;
+  poNumber?: string | null;
+}) {
+  if (fields.projectCode != null && fields.projectCode.length > PROJECT_CODE_MAX) {
+    throw new BadRequestException(`projectCode must be ${PROJECT_CODE_MAX} characters or fewer`);
+  }
+  if (fields.name != null && fields.name.length > PROJECT_NAME_MAX) {
+    throw new BadRequestException(`name must be ${PROJECT_NAME_MAX} characters or fewer`);
+  }
+  if (fields.poNumber != null && fields.poNumber.length > PO_NUMBER_MAX) {
+    throw new BadRequestException(`poNumber must be ${PO_NUMBER_MAX} characters or fewer`);
+  }
+}
+
+/** Milestone dates must be on/after the later of kickoff and start. */
+function assertMilestoneDatesNotBeforeProject(
+  milestones: { date?: string }[] | undefined,
+  kickoffDate: Date,
+  startDate: Date
+) {
+  const floor = kickoffDate.getTime() > startDate.getTime() ? kickoffDate : startDate;
+  for (const m of milestones ?? []) {
+    const d = parseDate(m.date);
+    if (d && d.getTime() < floor.getTime()) {
+      throw new BadRequestException(
+        "Milestone date cannot be earlier than project kickoff or start date"
+      );
+    }
+  }
+}
+
 function parseHealth(raw?: string | null): ProjectHealth {
   if (raw === "amber" || raw === "red" || raw === "green") return raw;
   return "green";
@@ -202,6 +240,8 @@ export class ProjectsController {
     if (!projectCode || !name || !body.type) {
       throw new BadRequestException("projectCode, name, and type are required");
     }
+    const poNumber = body.poNumber?.trim() ?? "";
+    assertProjectFieldLengths({ projectCode, name, poNumber });
     const customerId = await this.resolveCustomerId(body);
     const kickoffDate = parseDate(body.kickoffDate);
     const startDate = parseDate(body.startDate);
@@ -209,6 +249,7 @@ export class ProjectsController {
     if (!kickoffDate || !startDate || !endDate) {
       throw new BadRequestException("kickoffDate, startDate, and endDate are required");
     }
+    assertMilestoneDatesNotBeforeProject(body.milestones, kickoffDate, startDate);
 
     const exists = await this.prisma.project.findFirst({
       where: { projectCode, isDeleted: false },
@@ -227,7 +268,7 @@ export class ProjectsController {
         projectCode,
         name,
         customerId,
-        poNumber: body.poNumber?.trim() ?? "",
+        poNumber,
         type: body.type,
         approvedByName: body.approvedByName?.trim() || null,
         approvedByDate: parseDate(body.approvedByDate),
@@ -279,6 +320,15 @@ export class ProjectsController {
     });
     if (!existing) throw new NotFoundException("Project not found");
 
+    const nextName = body.name !== undefined ? body.name.trim() : existing.name;
+    const nextPo =
+      body.poNumber !== undefined ? body.poNumber.trim() : existing.poNumber;
+    assertProjectFieldLengths({
+      projectCode: existing.projectCode,
+      name: nextName,
+      poNumber: nextPo,
+    });
+
     const status = body.status ?? existing.status;
 
     if (status === "inactive" && existing.status !== "inactive") {
@@ -310,6 +360,15 @@ export class ProjectsController {
     }
 
     if (body.milestones) {
+      const kickoffForMs =
+        body.kickoffDate !== undefined
+          ? (parseDate(body.kickoffDate) ?? existing.kickoffDate)
+          : existing.kickoffDate;
+      const startForMs =
+        body.startDate !== undefined
+          ? (parseDate(body.startDate) ?? existing.startDate)
+          : existing.startDate;
+      assertMilestoneDatesNotBeforeProject(body.milestones, kickoffForMs, startForMs);
       await this.prisma.projectMilestone.deleteMany({ where: { projectId: existing.id } });
       await this.prisma.projectMilestone.createMany({
         data: body.milestones.map((m) => ({
@@ -338,9 +397,9 @@ export class ProjectsController {
     const row = await this.prisma.project.update({
       where: { id: existing.id },
       data: {
-        name: body.name?.trim() ?? existing.name,
+        name: nextName,
         customer: { connect: { id: customerId } },
-        poNumber: body.poNumber !== undefined ? body.poNumber.trim() : existing.poNumber,
+        poNumber: nextPo,
         type: body.type ?? existing.type,
         approvedByName:
           body.approvedByName !== undefined

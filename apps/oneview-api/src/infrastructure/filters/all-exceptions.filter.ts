@@ -58,7 +58,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
           code = "VALIDATION_ERROR";
         }
       }
-      if (status === HttpStatus.UNAUTHORIZED) code = "UNAUTHORIZED";
+      if (status === HttpStatus.UNAUTHORIZED) {
+        const explicit = typeof body === "object" && body !== null ? (body as Record<string, unknown>).error : null;
+        if (typeof explicit !== "string" || !explicit || explicit === "Unauthorized") {
+          code = "UNAUTHORIZED";
+        }
+      }
       if (status === HttpStatus.FORBIDDEN) code = "FORBIDDEN";
       if (status === HttpStatus.NOT_FOUND) code = "NOT_FOUND";
       if (status === HttpStatus.BAD_REQUEST && code !== "VALIDATION_ERROR") code = "VALIDATION_ERROR";

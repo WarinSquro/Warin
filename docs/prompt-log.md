@@ -32,6 +32,506 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-13 16:45 IST
+
+**Prompt:**  
+> Work Confirmation: when Day Start is stamped and user clicks Day End while an Allocation timer is running, confirm before stopping allocation timer + completing Day End. Cancel leaves both timers alone.
+
+**Output:**  
+- `screens/WorkConfirmation.tsx`: Day End checks `segmentStartedAt` on allocation focus timers; opens confirm dialog with the specified copy.
+- **Yes, Continue** stops running allocation timer(s) (same Stop lap rules), then stamps Day End; **Cancel**/backdrop closes with no change.
+- Extracted `stopFocusTimerOnDay` shared with focus Stop handler.
+
+---
+
+### 2026-08-13 16:37 IST
+
+**Prompt:**  
+> Availability: two lines of cards (KPIs + Rolling off soon) generated from top-left date range; week picker must not change them — only the table.
+
+**Output:**  
+- Split summary vs table: `summaryRows` / KPIs locked to forward-supply week (`supplyFrom`); rolling-off carousel stays on 21-day `supplyFrom`…`supplyTo` window.
+- Table `availRows` / tabs still follow `WeeklyCheckInWeekPicker` `weekStart`.
+- Skill/dept/min-free filters still apply to both; week picker no longer moves KPI values.
+
+---
+
+### 2026-08-13 15:21 IST
+
+**Prompt:**  
+> Availability table toolbar: put WeeklyCheckInWeekPicker on the right (same as Weekly Check-In). Items = current week + next 2 (e.g. Aug 10–16, Aug 17–23, Aug 24–30). Show table data for the selected week.
+
+**Output:**  
+- `Availability.tsx`: week picker on toolbar right; 3 forward weeks via `getAvailabilityWeeks`; free capacity / KPIs / table recompute for `weekStart`.
+- `buildAvailRowsFromEmployees`: accepts `weekStart` + `workingDays` so booked hours match the selected week.
+- Labels use `formatWeekLabel` (Mon–Sun), first option marked “This week”.
+
+---
+
+### 2026-08-13 15:10 IST
+
+**Prompt:**  
+> Availability header subtitle: Current week Monday to 3rd week Sunday i.e. Aug 10 - Aug 30, 2026 (replace hardcoded Jan 6 – Feb 9, 2026).
+
+**Output:**  
+- `screens/Availability.tsx`: forward supply range = `mondayISO()` → `+20` days (Sunday of week 3); subtitle `Forward supply · {Aug 10 – Aug 30, 2026} · hours free per week`.
+- Aligned allocation fetch end + rolling-off window (21 days) and “within 3 weeks” KPI/band copy with that range.
+
+---
+
+### 2026-08-13 14:54 IST
+
+**Prompt:**  
+> Settings NumField "Needs attention from": user can not set to zero as it is always greater than zero.
+
+**Output:**  
+- Enforced minimum **1%** for Needs attention (UI `min={1}`, `patchMetricBandsDirty` floor, API `payloadFromBody`).
+- Strict order remains **1 ≤ Needs Attention < Good < Excellent ≤ 100** so Critical stays reachable below the threshold.
+
+---
+
+### 2026-08-13 14:28 IST
+
+**Prompt:**  
+> Lunch break to be removed (Workday Timeline summary row circled).
+
+**Output:**  
+- Removed the "Lunch Break" duration row from `components/ConfirmationProductivity.tsx` Workday Timeline summary.
+- Left Total Office Time + Productive Window; lunch Out/In stamps and productive calc (office − lunch) unchanged.
+
+---
+
+### 2026-08-13 14:26 IST
+
+**Prompt:**  
+> Work Confirmation ManagerCompliance team list: resource owner never show in this list as this is for team members only (Anil Kumar selected as example).
+
+**Output:**  
+- Root cause: `/confirmations/team` roster included every scoped active employee; for super-admins that meant all employees including ROs; viewer could also appear if data/scope allowed.
+- API (`confirmations.controller.ts` team): exclude anyone who owns ≥1 active report + exclude the signed-in employee; list is ICs/team members only.
+- UI (`WorkConfirmation.tsx` ManagerCompliance): also filter out `currentEmployee.id` from rows as a client guard.
+- Rebuild Docker API if SPA hits `:8080` so the endpoint change is live.
+
+---
+
+### 2026-08-13 13:35 IST
+
+**Prompt:**  
+> All dates throughout the application should follow the date format selected in Settings > Date Format.
+
+**Output:**  
+- Root cause: native `type="date"` inputs render in browser locale; some display helpers defaulted to `dd/MM/yyyy` without settings.
+- Added `components/AppDateInput.tsx` — ISO storage + visible text via `useAppDateFormat()` (placeholder = selected pattern).
+- Wired AppDateInput in Project Master drawer (kickoff/start/end/milestone/approved on), AllocationDrawer start/end, Work Confirmation miss-post date, Settings schedule effective date + off-day date.
+- Milestone list + SessionConflictDialog now use settings-aware formatters.
+- List/report screens already used `useAppDateFormat` / `formatAppDate*`; storage remains ISO `YYYY-MM-DD`.
+
+---
+
+### 2026-08-13 13:25 IST
+
+**Prompt:**  
+> Edit allocation: Start date picker should show previous dates disabled.
+
+**Output:**  
+- `AllocationDrawer` Start `DateInput`: `min={today}` in create and edit; `setStart` ignores values before today so past days stay disabled in the picker.
+
+---
+
+### 2026-08-13 13:16 IST
+
+**Prompt:**  
+> AllocationDrawer edit mode: End date cannot be before Start (disable earlier dates); cannot delete past/current date allocations.
+
+**Output:**  
+- Root cause: End `min` was inconsistent; delete used planner cell index (`isFutureAllocationCell`) instead of allocation calendar dates, so past allocations could still show Delete.
+- `AllocationDrawer`: End picker always `min` = start (create also respects today); reject End < Start in setter; `canDelete` only when original `prefill.start > today`.
+- `allocations.controller` DELETE: reject when `startDate <= today` (IST), same message as UI.
+- Validation: past/current → message “Past and current allocations cannot be deleted…”; End calendar disables days before Start.
+
+---
+
+### 2026-08-13 13:05 IST
+
+**Prompt:**  
+> Weekly Check-In RO Remarks counter: rename `0/100` to `0/100 (min 100)`.
+
+**Output:**  
+- `screens/WeeklyCheckInWorkspace.tsx`: counter label now shows `{n}/100 (min 100)` using `MAX_RO_REMARKS_LENGTH`.
+
+---
+
+### 2026-08-13 13:00 IST
+
+**Prompt:**  
+> Remove project id from Project Master list PROJECT cell (e.g. PRJ-002 line).
+
+**Output:**  
+- `ProjectCell` project case: removed the monospace project-id line; cell now shows name + type badge and customer . PO only.
+
+---
+
+### 2026-08-13 12:59 IST
+
+**Prompt:**  
+> Remove CUSTOMER column and respective data column from Project Master list.
+
+**Output:**  
+- Removed `customer` from `PROJECT_COLUMNS`, `ProjectColId`, sort keys, and `ProjectCell` case.
+- Customer (15 chars) + ` . ` + PO now shows under the PROJECT cell (below project id), with full customer name on hover when truncated.
+- Drawer customer field and search-by-customer unchanged.
+
+---
+
+### 2026-08-13 12:54 IST
+
+**Prompt:**  
+> Project list customer column: show Customer Name (15 characters) then " . " then PO Number; if customer name > 15 chars show full name on hover tooltip.
+
+**Output:**  
+- `screens/ProjectMaster.tsx` `ProjectCell` `customer` case: single-line `CustomerShort . PO`; truncates customer to 15 chars with ellipsis; `title` + `data-full-text` set to full customer name when longer than 15.
+
+---
+
+### 2026-08-13 12:52 IST
+
+**Prompt:**  
+> Keep customer name 25 characters (Add customer input in Project drawer).
+
+**Output:**  
+- `CUSTOMER_NAME_MAX` updated 15 → 25 in `screens/ProjectMaster.tsx` (input maxLength/slice).
+- `masters.controller.ts` createCustomer rejects names longer than 25.
+- `projects.controller.ts` constant aligned to 25.
+
+---
+
+### 2026-08-13 12:50 IST
+
+**Prompt:**  
+> Project drawer field length limits: Project ID 10, Project name 25, Customer Name 15, PO Number 15.
+
+**Output:**  
+- Root cause: inputs had no max length; API accepted arbitrary string lengths.
+- `screens/ProjectMaster.tsx` (`ProjectDrawer`): `maxLength` + slice on Project ID (10), Project Name (25), Add-customer name (15), PO Number (15); save payload clipped to same limits.
+- `projects.controller.ts`: create/update reject over-length `projectCode` / `name` / `poNumber`.
+- `masters.controller.ts`: create customer rejects name > 15 chars.
+- Validation: UI blocks typing past limits; API returns BadRequest if exceeded.
+- Note: existing longer customer names remain selectable in the dropdown; only new customer names are capped.
+
+---
+
+### 2026-08-13 12:10 IST
+
+**Prompt:**  
+> getting error while login. fix the error (“An unexpected error occurred” on Sign in for aarav@acme.io)
+
+**Output:**  
+- **Root cause:** Vite SPA uses `VITE_API_BASE_URL=http://127.0.0.1:8080/api/v1` (nginx → Docker `oneview-api`). DB migration added NOT NULL `refresh_tokens.session_id`, but the Docker API image still ran old login code that inserted refresh tokens without `session_id` → Prisma P2011 → 500 `INTERNAL_ERROR` / “An unexpected error occurred”.
+- **Fix:** `docker compose up -d --build api` rebuilt/restarted `oneview-api` with single-session auth.
+- **Validation:** `POST http://127.0.0.1:8080/api/v1/auth/login` for `aarav@acme.io` returns `session_conflict` or `ok`; `login/continue` returns tokens.
+
+---
+
+### 2026-08-13 11:53 IST
+
+**Prompt:**  
+> Single-Session Login Across Devices & Browser Tabs — only one active login per credential; conflict confirmation (Yes Continue / Cancel); server-side session authority; invalidate other sessions on continue; protect APIs; keep existing login UX and Work Confirmation timers working.
+
+**Output:**  
+- **Root cause / design:** Auth allowed multiple concurrent refresh tokens with no session id in JWT; browser storage alone cannot enforce single session.
+- **DB:** Migration `20260813120000_single_active_session` — `employees.active_session_id`; `refresh_tokens` gains `session_id`, UA/IP/device/browser labels, `last_seen_at`. Applied via `npx prisma migrate deploy`.
+- **API:** `POST /auth/login` returns `session_conflict` + `continueToken` + existing session info when active; `POST /auth/login/continue` creates exclusive session and revokes others; JWT `sid` validated in `JwtStrategy` against `active_session_id`; logout clears active session; refresh distinguishes SESSION_REVOKED vs expiry.
+- **UI:** `SessionConflictDialog` on Login; AuthContext `continueSignIn` + `logoutApi` on sign-out; client sets login notice when session taken over elsewhere.
+- **Docs:** `docs/OneView_Table_Structure.xlsx` patched (`scripts/patch-single-session-xlsx.mjs`); e2e login helper handles conflict→continue.
+- **Validation (API smoke):** Device A login → Device B conflict with device/browser/IP → Continue → A `/auth/me` + refresh 401 SESSION_REVOKED; B works; logout invalidates B JWT.
+- **Result:** Single active session enforced server-side; Cancel leaves prior session; timers/protected APIs reject stale sessions on next request.
+
+---
+
+### 2026-08-12 23:54 IST
+
+**Prompt:**  
+> SortColHeader on Project Master “PROJECT HEALTH”: keep sorting arrows near the header name same as other headers (arrows were far right of the cell).
+
+**Output:**  
+- Root cause: grid cell stretch made the header button full column width; wrapped “PROJECT HEALTH” text filled that width and pushed the sort icon to the far right.
+- `components/SortColHeader.tsx`: `inline-flex w-fit max-w-full`, wrap label in a span so the control sizes to content and the icon stays beside the label.
+- `screens/ProjectMaster.tsx`: health header label uses explicit `PROJECT` / `HEALTH` line break so the label box stays compact in the narrow column.
+- Validation: layout-only; matches DEMAND-style icon adjacency.
+- Testing: visual check on Project Master list header (active tab).
+
+---
+
+### 2026-08-12 23:39 IST
+
+**Prompt:**  
+> Users not allowed to select a milestone date earlier than the project kickoff date or the project start date
+
+**Output:**  
+- Milestone date input `min` = later of kickoff/start; clamps on change; Add disabled + error if too early.  
+- Save blocked if any listed milestone is before that floor.  
+- API create/update rejects milestone dates before kickoff/start.  
+- Files: `screens/ProjectMaster.tsx`, `apps/oneview-api/src/api/projects/projects.controller.ts`, `docs/prompt-log.md`.
+
+### 2026-08-12 23:37 IST
+
+**Prompt:**  
+> Adjust "Project Health" column by default in current viewport. Do not resize column width of any date time.
+
+**Output:**  
+- `health` set `defaultVisible: true` with compact `6.75rem` track (badge).  
+- Freed space from PROJECT / CUSTOMER / MILESTONES / DEMAND fr shares only.  
+- KICKOFF, TIMELINE, createdAt, modifiedAt widths unchanged.  
+- Files: `screens/ProjectMaster.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-12 23:33 IST
+
+**Prompt:**  
+> Project Master — set current columns to fit within available screen width
+
+**Output:**  
+- Replaced always-on `min-w-max` (which blew out `fr` tracks) with `w-full min-w-0` so default columns fill the card.  
+- Optional Columns bump `minWidth: calc(100% + N*9rem)` so extras scroll horizontally without crushing the default set.  
+- Files: `screens/ProjectMaster.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-12 23:26 IST
+
+**Prompt:**  
+> Just revert column width changes (Project Master Columns)
+
+**Output:**  
+- Restored prior `PROJECT_COLUMNS` width tracks (`minmax(0,…fr)` / original rem+fr for audit cols).  
+- Kept horizontal scroll (`min-w-max`) and no-wrap cell behavior from the prior change.  
+- Files: `screens/ProjectMaster.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-12 23:24 IST
+
+**Prompt:**  
+> Project Master Columns — when adding columns, do not wrap; keep existing widths; use horizontal scrollbar if space is insufficient
+
+**Output:**  
+- Column tracks use solid mins (no `minmax(0,…)` collapse); optional columns use fixed rem widths.  
+- Grid wrapper `min-w-max` so overflow scrolls horizontally (Daily Work pattern).  
+- Removed date stacking/wrapping when extras are on; timeline/audit dates stay single-line; milestones `flex-nowrap`.  
+- Removed unused `PROJECT_AUDIT_COL_IDS` / `stackDates` path.  
+- Files: `screens/ProjectMaster.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-12 23:16 IST
+
+**Prompt:**  
+> Project Master Columns dropdown — add "Project Health" column
+
+**Output:**  
+- Added optional `health` column (“Project Health”) to `PROJECT_COLUMNS` / Columns picker (`defaultVisible: false`).  
+- Grid header label **PROJECT HEALTH**; cell uses `ProjectHealthBadge`; sortable by health label.  
+- Files: `screens/ProjectMaster.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-12 19:14 IST
+
+**Prompt:**  
+> Utilization Assign action enabled only when "This Month" is selected on top dropdown
+
+**Output:**  
+- Assign / Rebalance action buttons enabled only when `monthId === DEFAULT_UTIL_MONTH` (“This Month”); otherwise disabled with muted styling + tooltip.  
+- Files: `screens/Utilization.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-12 18:59 IST
+
+**Prompt:**  
+> Utilization 4-WEEK TREND column looks like a chart and is not aligned — keep left aligned
+
+**Output:**  
+- Header + rows now share `UTIL_GRID` (`200px | 1fr | 120px | 150px | 90px`) so the trend chart column lines up under “4-WEEK TREND”.  
+- Trend cell uses `justify-start`; header uses `justify-start`.  
+- Files: `screens/Utilization.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-12 18:51 IST
+
+**Prompt:**  
+> Apply for entire application where data tables used (where required): Due to the vertical scrollbar, all columns are misaligned with the header. Correct the alignment.
+
+**Output:**  
+- **Root cause:** Column headers sat outside body `overflow-y-auto`, so the scrollbar narrowed only the rows.  
+- **Fix (app-wide where required):** Header + rows share one scrollport; header `sticky top-0 z-10`.  
+- Updated: Availability, Utilization, WeeklyCheckInQueue, SetupMasters (Departments/Skills/Activities), WorkConfirmation team compliance, Resource Deployment / Performance / Project Execution reports.  
+- Already correct (unchanged): EmployeeMaster, ProjectMaster, ResourcePlanner, DailyWorkReport.  
+- Files listed above + `docs/prompt-log.md`.
+
+### 2026-08-12 18:37 IST
+
+**Prompt:**  
+> Work confirmation should not be submitted until all tasks have been stopped.
+
+**Output:**  
+- Submit (`Confirm all as planned` / Submit confirmation) stays disabled while any focus timer is running or paused (Stop not pressed).  
+- Helpers: `hasUnstoppedFocusSession` / `hasAnyUnstoppedFocusSession` in `utils/confirmationProductivity.ts`.  
+- Warning copy + submit title when timers are open; handleSubmit double-checks.  
+- Files: `utils/confirmationProductivity.ts`, `screens/WorkConfirmation.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-12 18:33 IST
+
+**Prompt:**  
+> The task should not start after the work confirmation has been submitted.
+
+**Output:**  
+- **Root cause:** Submitted confirmation view still rendered a live `AllocationFocusTimer` with Start/Pause wired.  
+- Added `disabled` prop on `AllocationFocusTimer` (locks Start/Pause/Stop); passed on submitted view.  
+- `handleFocusStartPause` / `handleFocusStop` no-op when `submitted`.  
+- Files: `components/ConfirmationProductivity.tsx`, `screens/WorkConfirmation.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-12 18:06 IST
+
+**Prompt:**  
+> Replace in entire application for color code #9ca3af with #6b7280
+
+**Output:**  
+- Replaced `#9ca3af` → `#6b7280` for `--color-muted-foreground` and hardcoded chart/dashboard muted/axis colors.  
+- Files: `theme/tokens.css`, `index.css`, `docs/theme.md`, `screens/ExecutiveDashboard.tsx`, `components/CockpitUtilTrendChart.tsx`, `components/ProjectExecutionDrawer.tsx`, `components/PerformanceHistoryDrawer.tsx`, `docs/prompt-log.md`.  
+- Left historical mentions in older prompt-log entries unchanged.
+
+### 2026-08-12 17:40 IST
+
+**Prompt:**  
+> Keep the 5-week list in the dropdown unchanged. For weeks older than the last two weeks, prevent assessment entry by disabling Submit / inputs. Only last two weeks allow assessment.
+
+**Output:**  
+- Restored picker list to T-5…T-1 (`REVIEW_WEEK_PICKER_LOOKBACK = 5`); URL resolve accepts all five.  
+- Assessment gate stays T-2…T-1 via `getAssessableReviewWeekStarts` / `isAssessableReviewWeek`.  
+- Workspace still locks competency/status/remarks/actions and disables Submit for older weeks (with closed-period message); API submit reject unchanged.  
+- Files: `data/weeklyCheckIn.ts`, `screens/WeeklyCheckInWorkspace.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-12 17:27 IST
+
+**Prompt:**  
+> Users can perform assessments only for the last two weeks. Assessments for any period older than two weeks should not be allowed.
+
+**Output:**  
+- **Root cause:** Review week window was T-5…T-1 (five prior weeks).  
+- `getReviewWeekStarts()` now returns only T-2…T-1 (`REVIEW_WEEK_LOOKBACK = 2`); week picker + URL resolve follow that.  
+- Added `isAssessableReviewWeek`; workspace locks the form and blocks submit outside the window; API `POST submissions` rejects older weeks.  
+- History remains available for viewing older submissions.  
+- Files: `data/weeklyCheckIn.ts`, `screens/WeeklyCheckInWorkspace.tsx`, `apps/oneview-api/src/api/weekly-check-in/weekly-check-in.controller.ts`, `docs/prompt-log.md`.
+
+### 2026-08-12 17:15 IST
+
+**Prompt:**  
+> Previous week review header — show previous week in round brackets e.g. Previous week review [On Track] (Jul 27 - Aug 2, 2026)
+
+**Output:**  
+- Label uses `formatWeekLabel` for the previous week (`previousSubmission.weekStart` or `addWeeks(weekStart, -1)`), e.g. `Previous week review (Jul 27 – Aug 2, 2026)` next to the status badge.  
+- Passed `weekStart` into `WeeklyCheckInEvidencePanel` from the workspace.  
+- Files: `components/WeeklyCheckInEvidencePanel.tsx`, `screens/WeeklyCheckInWorkspace.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-12 17:11 IST
+
+**Prompt:**  
+> In Weekly Check-In Evidence panel, MetricCard hours (e.g. visible_text "10h") should show one decimal place (e.g. `10.0h`, `12.5h`). Prefer `formatHoursDecimalLabel`. Also check "Your Assessment" h2 week label if still missing.
+
+**Output:**  
+- **Root cause:** Utilization MetricCard used raw template strings (`${hrs}h`), so integers rendered without a decimal (e.g. `10h`).  
+- **Fix:** Evidence Utilization primary + capacity sub now use `formatHoursDecimalLabel` (same pattern as Availability KPIs) → `10.0h`, `12.5h`.  
+- **Your Assessment:** Already had `Your Assessment ({formatWeekLabel(...)})` from prior change — skipped.  
+- Files: `components/WeeklyCheckInEvidencePanel.tsx`, `docs/prompt-log.md`.  
+- No commit/push (not requested).
+
+### 2026-08-12 17:05 IST
+
+**Prompt:**  
+> Your Assessment header — show selected week in round brackets e.g. Your Assessment (Aug 3 - Aug 9, 2026)
+
+**Output:**  
+- Assessment panel `h2` now includes `formatWeekLabel(weekStart, settings.workingDays)` — e.g. `Your Assessment (Aug 3 – Aug 9, 2026)`.  
+- Files: `screens/WeeklyCheckInWorkspace.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-12 15:57 IST
+
+**Prompt:**  
+> Evidence header — show selected week in round brackets e.g. Evidence (Aug 3 - Aug 9, 2026)
+
+**Output:**  
+- Evidence panel `h2` now includes `formatWeekLabel(weekStart, settings.workingDays)` — e.g. `Evidence (Aug 3 – Aug 9, 2026)`.  
+- Files: `screens/WeeklyCheckInWorkspace.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-12 15:52 IST
+
+**Prompt:**  
+> Weekly Check-In queue — after opening a row and clicking Back, return to the same tab (e.g. Completed stays selected)
+
+**Output:**  
+- **Root cause:** Queue tab lived in component state (`useState<FilterTab>("all")`), so navigating to the assessment and back remounted the queue at **All**.  
+- Tab now lives in the URL (`?week=…&tab=all|pending|completed`); row click passes the active tab through, and the workspace Back button, "Back to queue" links, week picker, and post-submit redirect all preserve it.  
+- Files: `screens/WeeklyCheckInQueue.tsx`, `screens/WeeklyCheckInWorkspace.tsx`, `docs/prompt-log.md`.  
+- **Validation:** `npx tsc --noEmit` — no new errors from these files (3 pre-existing errors elsewhere unchanged).
+
+### 2026-08-12 15:42 IST
+
+**Prompt:**  
+> Previous week review text — word-wrap when spaces exist; only show … + hover when there is no single space
+
+**Output:**  
+- Replaced single-line `TruncateText` for previous RO remarks (and action notes) with `ReviewProseText`: wraps with `whitespace-pre-wrap break-words` when any whitespace is present; otherwise keeps truncate + hover tooltip.  
+- Files: `components/WeeklyCheckInEvidencePanel.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-12 15:35 IST
+
+**Prompt:**  
+> Rolling off soon carousel — show 5 fixed-width cards in available width; fewer than 5 must not expand; > navigates to next set of cards
+
+**Output:**  
+- Card width = `(trackWidth − 4×gap) / 5` via ResizeObserver; same width for 1–5+ cards (no flex grow).  
+- `<` / `>` scroll by one page of 5 cards (`pageStep = 5 × (cardWidth + gap)`).  
+- Files: `screens/Availability.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-12 15:22 IST
+
+**Prompt:**  
+> Availability Total Free Capacity KPI — decimal is limited to 1 only
+
+**Output:**  
+- Per-person `freeHours` and KPI totals/averages now round to one decimal before display; UI still uses `formatHoursDecimalLabel` (`2484.5h`, `2484.0h`).  
+- Added `roundHoursToTenth` in `utils/formatHours.ts`; applied in `api/liveViews.ts` (`buildAvailRowsFromEmployees`) and `data/availability.ts` (`computeAvailKpis`).  
+- Files: `utils/formatHours.ts`, `api/liveViews.ts`, `data/availability.ts`, `docs/prompt-log.md`.
+
+### 2026-08-12 15:16 IST
+
+**Prompt:**  
+> Red dot is only where "Reason for overallocation" is entered (planner overallocated chip)
+
+**Output:**  
+- Red dot on overallocated planner chips now appears only when that allocation has a saved overallocation reason (not on every `kind === "over"` chip).  
+- `Chip` gains optional `overallocationReason`; `buildCellFromAllocations` copies trimmed `AllocationSlice.reason` onto the chip; dot tooltip shows the reason text.  
+- Files: `data/planner.ts`, `screens/ResourcePlanner.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-12 15:08 IST
+
+**Prompt:**  
+> Resource Planner — when chip is overallocated (red), show small red dot after hours (same size as Confirmation calendar date dot)
+
+**Output:**  
+- Overallocated chips (`kind === "over"`) now show `h-1 w-1 rounded-full bg-danger` after the label with ~2-space gap (matches `ConfirmationDayCalendar` dot size).  
+- Files: `screens/ResourcePlanner.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-12 14:07 IST
+
+**Prompt:**  
+> EC2: Open Demand drawer auto-opens every 5–10s on Resource Planner (not locally) — investigate and fix
+
+**Output:**  
+- **Root cause:** `useEffect` depended on `plannerRows`; EC2 runs SSE + 8s allocation poll → rows refresh constantly. With `?panel=demand` in URL (Executive Cockpit deep-link), effect re-opened drawer each sync. Local often tested via “View all” (no URL param) so bug was hidden.  
+- **Fix:** Open from URL only when `location.search` changes; dismiss ref blocks re-open after user closes; strip `panel` from URL on close; “View all” uses shared opener.  
+- Files: `screens/ResourcePlanner.tsx`, `docs/prompt-log.md`.  
+- **EC2:** Rebuild/redeploy SPA after pull.
+
+### 2026-08-12 12:41 IST
+
+**Prompt:**  
+> Open Demand drawer reopens automatically ~5–6s after close — check and fix
+
+**Output:**  
+- **Root cause:** `useEffect` opened `?panel=demand` on every `plannerRows` change; shared sync (~8s) refreshed rows and reopened the drawer while the query param remained.  
+- Split deep-link open to depend only on `location.search`; on close, remove `panel` from the URL (`replace`).  
+- Files: `screens/ResourcePlanner.tsx`, `docs/prompt-log.md`.
+
 ### 2026-08-12 12:26 IST
 
 **Prompt:**  

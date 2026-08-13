@@ -17,7 +17,7 @@ import type { UtilizationTrendWeek, WeeklyMetric } from "../data/cockpit";
 const CHART = {
   primary: "#152F39",
   grid: "#eef0f3",
-  axis: "#9ca3af",
+  axis: "#6b7280",
   bandLine: "#dc2626",
 };
 

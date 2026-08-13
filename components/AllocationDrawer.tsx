@@ -1,16 +1,17 @@
-import { useState, useEffect, useMemo } from "react";
-import { X, TriangleAlert, Info, Calendar, Trash2 } from "lucide-react";
-import { isFutureAllocationCell, peakDailyAllocationHours } from "../data/planner";
+import { peakDailyAllocationHours } from "../data/planner";
 import type { AllocationSlice, PlannerRow } from "../data/planner";
 import { useProjects } from "../context/ProjectsContext";
 import { useMasters } from "../context/MastersContext";
 import { useSettings } from "../context/SettingsContext";
 import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
+import { AppDateInput } from "./AppDateInput";
 import { milestoneKindLabel, type Project } from "../data/projects";
 import { activitiesForProjectMilestone } from "../data/setup";
 import type { Activity, ActivityMilestone } from "../data/setup";
 import { useFocusFirstField } from "../hooks/useFocusFirstField";
 import { formatHours } from "../utils/formatHours";
+import { X, TriangleAlert, Info, Trash2 } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
 
 export interface AllocationEditRef {
   rowId: string;
@@ -122,7 +123,16 @@ export function AllocationDrawer({ open, onClose, prefill, people, allocations =
   const [deleting, setDeleting] = useState(false);
   const focusRef = useFocusFirstField<HTMLDivElement>(open);
   const today = todayISO();
-  const endMin = form.start >= today ? form.start : today;
+  /** End date cannot be before start (and in create mode, not before today). */
+  const endDateMin = form.start
+    ? isEdit
+      ? form.start
+      : form.start >= today
+        ? form.start
+        : today
+    : isEdit
+      ? undefined
+      : today;
 
   const resolveActivities = (milestoneName: string | undefined, projectType: Project["type"] | undefined) =>
     activitiesForProjectMilestone(
@@ -277,10 +287,12 @@ export function AllocationDrawer({ open, onClose, prefill, people, allocations =
     }
   };
 
+  /** Only strictly future allocations (start after today) may be deleted. */
   const canDelete =
     isEdit &&
     !!prefill?.editRef &&
-    isFutureAllocationCell(prefill.editRef.view, prefill.editRef.cellIndex);
+    !!prefill.start &&
+    prefill.start > today;
 
   const handleDelete = async () => {
     if (!canDelete || !prefill?.editRef) return;
@@ -316,13 +328,18 @@ export function AllocationDrawer({ open, onClose, prefill, people, allocations =
   };
 
   const setStart = (start: string) => {
+    // Past calendar days are disabled; ignore any value before today.
+    if (start && start < today) return;
     setForm((f) => {
       const nextEnd = f.end && start > f.end ? start : f.end;
-      return {
-        ...f,
-        start,
-        end: nextEnd && nextEnd >= today ? nextEnd : start,
-      };
+      return { ...f, start, end: nextEnd };
+    });
+  };
+
+  const setEnd = (end: string) => {
+    setForm((f) => {
+      if (f.start && end < f.start) return f;
+      return { ...f, end };
     });
   };
 
@@ -443,10 +460,10 @@ export function AllocationDrawer({ open, onClose, prefill, people, allocations =
 
           <div className="flex gap-2.5">
             <Field label="Start" required>
-              <DateInput value={form.start} onChange={setStart} min={isEdit ? undefined : today} />
+              <AppDateInput value={form.start} onChange={setStart} min={today} inputClassName="focus:border-primary" />
             </Field>
             <Field label="End" required>
-              <DateInput value={form.end} onChange={(v) => set("end", v)} min={isEdit ? form.start : endMin} />
+              <AppDateInput value={form.end} onChange={setEnd} min={endDateMin} inputClassName="focus:border-primary" />
             </Field>
           </div>
           {!isEdit && form.start && form.start < today && (
@@ -564,21 +581,5 @@ function Select({ value, onChange, children, placeholder, disabled }: { value: s
       <option value="" disabled>{placeholder}</option>
       {children}
     </select>
-  );
-}
-
-function DateInput({ value, onChange, min, max }: { value: string; onChange: (v: string) => void; min?: string; max?: string }) {
-  return (
-    <div className="relative">
-      <input
-        type="date"
-        value={value}
-        min={min}
-        max={max}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-md border border-border bg-surface py-2 pl-2.5 pr-9 text-[13px] text-foreground outline-none focus:border-primary [color-scheme:light] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0"
-      />
-      <Calendar className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-    </div>
   );
 }

@@ -23,6 +23,7 @@ import {
   findFirstSubmissionIssue,
   formatWeekLabel,
   getCompetenciesForDepartment,
+  isAssessableReviewWeek,
   resolveReviewWeekStart,
   getWeeklyCheckInConfig,
   saveWeeklyCheckInConfig,
@@ -49,6 +50,11 @@ export function WeeklyCheckInWorkspace() {
   const { employeeId = "" } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const weekStart = resolveReviewWeekStart(searchParams.get("week"));
+  /** Queue tab the user came from, so Back restores the same list. */
+  const queueTab = searchParams.get("tab") ?? "";
+  const queueUrl = `/my-team/weekly-check-in?week=${weekStart}${
+    queueTab ? `&tab=${queueTab}` : ""
+  }`;
   const navigate = useNavigate();
   const toast = useToast();
   const { formatDateTime } = useAppDateFormat();
@@ -61,9 +67,12 @@ export function WeeklyCheckInWorkspace() {
   useEffect(() => {
     const raw = searchParams.get("week");
     if (raw !== weekStart) {
-      setSearchParams({ week: weekStart }, { replace: true });
+      setSearchParams(
+        queueTab ? { week: weekStart, tab: queueTab } : { week: weekStart },
+        { replace: true }
+      );
     }
-  }, [searchParams, setSearchParams, weekStart]);
+  }, [searchParams, setSearchParams, weekStart, queueTab]);
 
   // Route param and Employee.id are both HRMS ids (queue returns hrmsId as employeeId).
   const employee = employees.find((e) => e.id === employeeId);
@@ -74,9 +83,14 @@ export function WeeklyCheckInWorkspace() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [configReady, setConfigReady] = useState(false);
 
-  const viewOnly = !!existing;
+  const alreadySubmitted = !!existing;
+  const canAssess = isAssessableReviewWeek(weekStart);
+  const formLocked = alreadySubmitted || !canAssess;
+  const viewOnly = formLocked; // evidence freeze + disable form when submitted or outside window
   const reviewScrollRef = useRef<HTMLDivElement | null>(null);
-  const reviewFocusRef = useFocusFirstField<HTMLDivElement>(!loading && !loadError && !!evidence && !viewOnly);
+  const reviewFocusRef = useFocusFirstField<HTMLDivElement>(
+    !loading && !loadError && !!evidence && !formLocked
+  );
 
   // Scroll Review panel to top after focus (focus can scroll to bottom when first input is far down)
   useEffect(() => {
@@ -227,7 +241,7 @@ export function WeeklyCheckInWorkspace() {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-2 text-[13px] text-muted-foreground">
         <p>You can only review direct reports (Resource Owner).</p>
-        <Link to="/my-team/weekly-check-in" className="text-primary hover:underline">
+        <Link to={queueUrl} className="text-primary hover:underline">
           Back to queue
         </Link>
       </div>
@@ -246,7 +260,7 @@ export function WeeklyCheckInWorkspace() {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-2 text-[13px] text-muted-foreground">
         <p>{loadError ?? "Could not load check-in data."}</p>
-        <Link to="/my-team/weekly-check-in" className="text-primary hover:underline">
+        <Link to={queueUrl} className="text-primary hover:underline">
           Back to queue
         </Link>
       </div>
@@ -272,6 +286,12 @@ export function WeeklyCheckInWorkspace() {
       recognition,
     };
     const issue = findFirstSubmissionIssue(draft, existing ?? undefined, deptConfigKey);
+    if (!canAssess) {
+      toast.clear();
+      toast.error("Assessments can only be submitted for the last two weeks.");
+      setSubmitting(false);
+      return;
+    }
     if (issue) {
       toast.clear();
       toast.error(issue.message);
@@ -303,7 +323,7 @@ export function WeeklyCheckInWorkspace() {
       });
       toast.clear();
       toast.created();
-      navigate(`/my-team/weekly-check-in?week=${weekStart}`);
+      navigate(queueUrl);
     } catch (e) {
       toast.clear();
       toast.error(e instanceof Error ? e.message : "Submission failed.");
@@ -312,7 +332,8 @@ export function WeeklyCheckInWorkspace() {
     }
   };
 
-  const setWeek = (w: string) => setSearchParams({ week: w });
+  const setWeek = (w: string) =>
+    setSearchParams(queueTab ? { week: w, tab: queueTab } : { week: w });
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-surface">
@@ -320,7 +341,7 @@ export function WeeklyCheckInWorkspace() {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => navigate(`/my-team/weekly-check-in?week=${weekStart}`)}
+            onClick={() => navigate(queueUrl)}
             className="rounded-md p-1 text-muted-foreground hover:bg-surface-alt"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -348,12 +369,13 @@ export function WeeklyCheckInWorkspace() {
         <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-hidden lg:grid-cols-2">
           <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
             <h2 className="flex-shrink-0 border-b border-border-soft px-4 py-3 text-[12px] font-medium text-muted-foreground">
-              Evidence
+              Evidence ({formatWeekLabel(weekStart, settings.workingDays)})
             </h2>
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
               <WeeklyCheckInEvidencePanel
                 evidence={evidence}
                 previousSubmission={previousSubmission ?? undefined}
+                weekStart={weekStart}
                 frozen={viewOnly}
                 previousActionStatus={previousActionStatus}
                 onPreviousActionStatusChange={viewOnly ? undefined : setPreviousActionStatus}
@@ -364,7 +386,7 @@ export function WeeklyCheckInWorkspace() {
 
           <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
             <h2 className="flex-shrink-0 border-b border-border-soft px-4 py-3 text-[12px] font-medium text-muted-foreground">
-              Your Assessment
+              Your Assessment ({formatWeekLabel(weekStart, settings.workingDays)})
             </h2>
             <div ref={(el) => { reviewFocusRef.current = el; reviewScrollRef.current = el; }} className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4">
               {techComps.length === 0 && behComps.length === 0 ? (
@@ -418,7 +440,8 @@ export function WeeklyCheckInWorkspace() {
                       RO Remarks <span className="font-normal text-danger">*</span>
                     </label>
                     <span className="text-[11px] text-muted-foreground">
-                      {Math.min(roRemarks.length, MAX_RO_REMARKS_LENGTH)}/{MAX_RO_REMARKS_LENGTH}
+                      {Math.min(roRemarks.length, MAX_RO_REMARKS_LENGTH)}/{MAX_RO_REMARKS_LENGTH}{" "}
+                      (min {MAX_RO_REMARKS_LENGTH})
                     </span>
                   </div>
                   <textarea
@@ -474,17 +497,23 @@ export function WeeklyCheckInWorkspace() {
                 )}
               </div>
 
-              {!viewOnly && (
+              {!alreadySubmitted && !canAssess && (
+                <div className="rounded-md border border-warning-border bg-warning-soft px-3 py-2 text-center text-[12px] text-warning">
+                  Assessments can only be entered for the last two weeks. This period is closed for
+                  submission.
+                </div>
+              )}
+              {!alreadySubmitted && (
                 <button
                   type="button"
-                  disabled={submitting}
+                  disabled={submitting || !canAssess}
                   onClick={() => void handleSubmit()}
-                  className="w-full rounded-md bg-primary py-2.5 text-[13px] font-semibold text-primary-foreground disabled:opacity-50"
+                  className="w-full rounded-md bg-primary py-2.5 text-[13px] font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {submitting ? "Submitting…" : "Submit weekly check-in"}
                 </button>
               )}
-              {viewOnly && (
+              {alreadySubmitted && (
                 <div className="rounded-md border border-success-border bg-success-soft px-3 py-2 text-center text-[12px] text-success">
                   Submitted {formatDateTime(existing!.submittedAt)}
                 </div>

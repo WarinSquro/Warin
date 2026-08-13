@@ -7,7 +7,20 @@ async function apiLoginOk(page: import("@playwright/test").Page): Promise<boolea
       const login = await page.request.post(`${base}/auth/login`, {
         data: { email: "admin@acme.io", pin: "12345" },
       });
-      if (login.ok()) return true;
+      if (!login.ok()) continue;
+      const body = (await login.json()) as {
+        status?: string;
+        accessToken?: string;
+        continueToken?: string;
+      };
+      if (body.status === "session_conflict" && body.continueToken) {
+        const cont = await page.request.post(`${base}/auth/login/continue`, {
+          data: { continueToken: body.continueToken },
+        });
+        if (cont.ok()) return true;
+        continue;
+      }
+      if (body.accessToken) return true;
     } catch {
       /* try next */
     }

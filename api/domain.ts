@@ -232,12 +232,18 @@ function normalizeDateFormat(
 export function mapApiSettings(res: ApiSettingsResponse): SettingsState {
   const s = res.settings;
   if (!s) return { ...DEFAULT_SETTINGS, companyOffDays: [] };
+  let needsAttention = Math.max(1, Math.min(100, Math.trunc(Number(s.needsAttention ?? 80))));
+  let good = Math.max(0, Math.min(100, Math.trunc(Number(s.good ?? 90))));
+  let excellent = Math.max(0, Math.min(100, Math.trunc(Number(s.excellent ?? 95))));
+  good = Math.max(needsAttention + 1, Math.min(99, good));
+  excellent = Math.max(good + 1, Math.min(100, excellent));
+  needsAttention = Math.max(1, Math.min(good - 1, needsAttention));
   return {
     bands: { idleBelow: s.idleBelow, optimalTo: s.optimalTo },
     metricBands: {
-      excellent: s.excellent,
-      good: s.good,
-      needsAttention: s.needsAttention,
+      excellent,
+      good,
+      needsAttention,
     },
     capacityBasis: s.capacityBasis,
     overallocationLimit: s.overallocationLimit,

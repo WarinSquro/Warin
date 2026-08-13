@@ -78,10 +78,16 @@ export class AccessRightsController {
     this.sessionAuthCache.invalidate(emp.id);
     // Overall app access removed — invalidate refresh sessions so they cannot renew a JWT.
     if (keys.length === 0 && !emp.isSuperAdmin) {
-      await this.prisma.refreshToken.updateMany({
-        where: { employeeId: emp.id, revokedAt: null },
-        data: { revokedAt: new Date() },
-      });
+      await this.prisma.$transaction([
+        this.prisma.refreshToken.updateMany({
+          where: { employeeId: emp.id, revokedAt: null },
+          data: { revokedAt: new Date() },
+        }),
+        this.prisma.employee.update({
+          where: { id: emp.id },
+          data: { activeSessionId: null },
+        }),
+      ]);
     }
     return { ok: true, permissionKeys: keys, employeeId: emp.id.toString(), hrmsId: emp.hrmsId };
   }

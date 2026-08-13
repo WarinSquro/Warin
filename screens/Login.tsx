@@ -2,18 +2,24 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, Link, Navigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { AuthLayout } from "../components/AuthLayout";
+import { SessionConflictDialog } from "../components/SessionConflictDialog";
 import { useAuth } from "../context/AuthContext";
-import { LOGIN_NOTICE_KEY } from "../api/client";
+import { LOGIN_NOTICE_KEY, type ExistingSessionInfo } from "../api/client";
 
 export function Login() {
   const navigate = useNavigate();
-  const { signInWithPin, isAuthenticated, getDefaultLandingRoute } = useAuth();
+  const { signInWithPin, continueSignIn, isAuthenticated, getDefaultLandingRoute } = useAuth();
   const [email, setEmail] = useState("");
   const [pin, setPin] = useState<string[]>(["", "", "", "", ""]);
   const [error, setError] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showPin, setShowPin] = useState(false);
+  const [conflict, setConflict] = useState<{
+    continueToken: string;
+    existingSession: ExistingSessionInfo;
+  } | null>(null);
+  const [continuing, setContinuing] = useState(false);
   const refs = useRef<(HTMLInputElement | null)[]>([]);
 
   useEffect(() => {
@@ -58,14 +64,43 @@ export function Login() {
     setLoading(true);
     setErrorMsg(null);
     try {
-      const landing = await signInWithPin(email.trim().toLowerCase(), pin.join(""));
-      navigate(landing);
+      const result = await signInWithPin(email.trim().toLowerCase(), pin.join(""));
+      if (typeof result !== "string") {
+        setConflict({
+          continueToken: result.continueToken,
+          existingSession: result.existingSession,
+        });
+        return;
+      }
+      navigate(result);
     } catch (e) {
       setError(true);
       setErrorMsg(e instanceof Error ? e.message : "Sign in failed");
     } finally {
       setLoading(false);
     }
+  };
+
+  const onConflictContinue = async () => {
+    if (!conflict) return;
+    setContinuing(true);
+    try {
+      const landing = await continueSignIn(conflict.continueToken);
+      setConflict(null);
+      navigate(landing);
+    } catch (e) {
+      setConflict(null);
+      setError(true);
+      setErrorMsg(e instanceof Error ? e.message : "Sign in failed");
+    } finally {
+      setContinuing(false);
+    }
+  };
+
+  const onConflictCancel = () => {
+    setConflict(null);
+    setError(false);
+    setErrorMsg(null);
   };
 
   return (
@@ -126,7 +161,7 @@ export function Login() {
           <button
             type="button"
             onClick={() => void submit()}
-            className={`mt-4 w-full rounded-md py-2.5 text-[13px] font-semibold ${
+            className={`mt-4 w-full cursor-pointer rounded-md py-2.5 text-[13px] font-semibold ${
               canSubmit
                 ? "bg-primary text-primary-foreground hover:bg-brand-active"
                 : "bg-brand/30 text-white/80"
@@ -139,7 +174,7 @@ export function Login() {
             type="button"
             onClick={() => setShowPin((v) => !v)}
             aria-label={showPin ? "Hide PIN" : "Show PIN"}
-            className="absolute right-0 top-6 flex h-[42px] w-[42px] flex-shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground"
+            className="absolute right-0 top-6 flex h-[42px] w-[42px] flex-shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground"
           >
             {showPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
@@ -162,6 +197,14 @@ export function Login() {
       <div className="mt-6 text-center text-[11px] text-brand-muted">
         Internal use only · Access is provisioned by administrator.
       </div>
+
+      <SessionConflictDialog
+        open={Boolean(conflict)}
+        existingSession={conflict?.existingSession ?? null}
+        continuing={continuing}
+        onContinue={() => void onConflictContinue()}
+        onCancel={onConflictCancel}
+      />
     </AuthLayout>
   );
 }

@@ -31,7 +31,7 @@ const C = {
   warning: "#b45309",
   danger: "#dc2626",
   grid: "#eef0f3",
-  muted: "#9ca3af",
+  muted: "#6b7280",
   axis: "#6b7280",
 };
 

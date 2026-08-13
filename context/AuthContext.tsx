@@ -13,12 +13,16 @@ import { getSuperAdminAssignableKeys } from "../data/accessRights";
 import { getFirstAllowedRoute } from "../data/navConfig";
 import {
   clearTokens,
+  continueLoginApi,
   LOGIN_NOTICE_KEY,
   loginApi,
+  logoutApi,
   meApi,
   PERMISSIONS_STALE_EVENT,
   SESSION_EXPIRED_EVENT,
   setTokens,
+  type ExistingSessionInfo,
+  type LoginOkResponse,
 } from "../api/client";
 import { DATA_CHANGED_EVENT, type DataChangedEvent } from "../api/realtimeEvents";
 
@@ -48,7 +52,16 @@ interface AuthContextValue {
   mustChangePin: boolean;
   /** Prefer signInWithPin for production API auth */
   signIn: (email: string) => void;
-  signInWithPin: (email: string, pin: string) => Promise<string>;
+  /**
+   * Returns the post-login route on success, or a session_conflict payload when
+   * another active session already exists for this credential.
+   */
+  signInWithPin: (
+    email: string,
+    pin: string
+  ) => Promise<string | { status: "session_conflict"; continueToken: string; existingSession: ExistingSessionInfo; message: string }>;
+  /** Complete login after the user confirms replacing another active session. */
+  continueSignIn: (continueToken: string) => Promise<string>;
   clearMustChangePin: () => void;
   signOut: () => void;
   getDefaultLandingRoute: () => string;
@@ -161,8 +174,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const signInWithPin = useCallback(async (email: string, pin: string) => {
-    const res = await loginApi(email.trim().toLowerCase(), pin);
+  const applyLoginSuccess = useCallback((res: LoginOkResponse) => {
     setTokens(res.accessToken, res.refreshToken);
     const su: SessionUser = {
       id: res.user.id,
@@ -187,6 +199,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return getFirstAllowedRoute(keys, su.isSuperAdmin) ?? "/access-denied";
   }, []);
 
+  const signInWithPin = useCallback(
+    async (email: string, pin: string) => {
+      const res = await loginApi(email.trim().toLowerCase(), pin);
+      if (res.status === "session_conflict") {
+        return {
+          status: "session_conflict" as const,
+          continueToken: res.continueToken,
+          existingSession: res.existingSession,
+          message: res.message,
+        };
+      }
+      return applyLoginSuccess(res);
+    },
+    [applyLoginSuccess]
+  );
+
+  const continueSignIn = useCallback(
+    async (continueToken: string) => {
+      const res = await continueLoginApi(continueToken);
+      return applyLoginSuccess(res);
+    },
+    [applyLoginSuccess]
+  );
+
   const clearMustChangePin = useCallback(() => {
     setUser((prev) => {
       if (!prev) return prev;
@@ -201,6 +237,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(() => {
+    void logoutApi();
     setSessionEmail(null);
     setUser(null);
     clearTokens();
@@ -333,6 +370,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       mustChangePin,
       signIn,
       signInWithPin,
+      continueSignIn,
       clearMustChangePin,
       signOut,
       getDefaultLandingRoute,
@@ -346,6 +384,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       mustChangePin,
       signIn,
       signInWithPin,
+      continueSignIn,
       clearMustChangePin,
       signOut,
       getDefaultLandingRoute,

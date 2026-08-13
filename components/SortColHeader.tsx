@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 
 export type SortDir = "asc" | "desc";
@@ -27,7 +27,7 @@ export function SortColHeader<K extends string>({
   onSort,
   className = "",
 }: {
-  label: string;
+  label: ReactNode;
   col: K;
   sortKey: K;
   sortDir: SortDir;
@@ -41,11 +41,11 @@ export function SortColHeader<K extends string>({
     <button
       type="button"
       onClick={() => onSort(col)}
-      className={`group flex items-center gap-1 text-left transition-colors hover:text-foreground ${
+      className={`group inline-flex w-fit max-w-full items-center gap-1 text-left transition-colors hover:text-foreground ${
         active ? "text-foreground" : ""
       } ${className}`}
     >
-      {label}
+      <span className="min-w-0 leading-tight">{label}</span>
       <Icon
         className={`h-3 w-3 shrink-0 ${
           active ? "text-foreground" : "text-muted-foreground/50 group-hover:text-muted-foreground"

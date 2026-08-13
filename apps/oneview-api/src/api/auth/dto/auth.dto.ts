@@ -37,6 +37,12 @@ export class ResetPinDto {
   pin!: string;
 }
 
+export class LoginContinueDto {
+  @ApiProperty({ description: "Short-lived token from a session_conflict login response" })
+  @IsString()
+  continueToken!: string;
+}
+
 export class ChangePinDto {
   @ApiProperty({ example: "12345" })
   @IsString()

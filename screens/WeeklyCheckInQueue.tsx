@@ -22,6 +22,12 @@ import { matchesSearchQuery } from "../utils/textSearch";
 
 type FilterTab = "all" | "pending" | "completed";
 
+const FILTER_TABS: FilterTab[] = ["all", "pending", "completed"];
+
+function resolveFilterTab(raw: string | null): FilterTab {
+  return FILTER_TABS.includes(raw as FilterTab) ? (raw as FilterTab) : "all";
+}
+
 const QUEUE_GRID =
   "grid w-full grid-cols-[minmax(0,1.2fr)_minmax(0,0.85fr)_minmax(5.5rem,0.72fr)_minmax(0,1.85fr)_minmax(0,0.88fr)_minmax(5.75rem,0.75fr)] items-start gap-x-5 gap-y-1 px-4";
 
@@ -30,18 +36,26 @@ export function WeeklyCheckInQueue() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const weekStart = resolveReviewWeekStart(searchParams.get("week"));
-  const [filter, setFilter] = useState<FilterTab>("all");
+  const filter = resolveFilterTab(searchParams.get("tab"));
   const [search, setSearch] = useState("");
   const { sortKey, sortDir, handleSort } = useColumnSort<QueueSortKey>("reviewStatus", "asc");
   const [rows, setRows] = useState<QueueRow[]>([]);
   const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
-    const raw = searchParams.get("week");
-    if (raw !== weekStart) {
-      setSearchParams({ week: weekStart }, { replace: true });
+    const rawWeek = searchParams.get("week");
+    const rawTab = searchParams.get("tab");
+    if (rawWeek !== weekStart || rawTab !== filter) {
+      setSearchParams({ week: weekStart, tab: filter }, { replace: true });
     }
-  }, [searchParams, setSearchParams, weekStart]);
+  }, [searchParams, setSearchParams, weekStart, filter]);
+
+  const setFilter = useCallback(
+    (next: FilterTab) => {
+      setSearchParams({ week: weekStart, tab: next }, { replace: true });
+    },
+    [setSearchParams, weekStart]
+  );
 
   const loadQueue = useCallback(async () => {
     try {
@@ -128,11 +142,13 @@ export function WeeklyCheckInQueue() {
   );
 
   const setWeek = (w: string) => {
-    setSearchParams({ week: w });
+    setSearchParams({ week: w, tab: filter });
   };
 
   const openRow = (row: QueueRow) => {
-    navigate(`/my-team/weekly-check-in/${row.employeeId}?week=${weekStart}`);
+    navigate(
+      `/my-team/weekly-check-in/${row.employeeId}?week=${weekStart}&tab=${filter}`
+    );
   };
 
   if (!currentEmployee) {
@@ -183,35 +199,36 @@ export function WeeklyCheckInQueue() {
             </div>
           </div>
 
-          <div className={`${QUEUE_GRID} flex-shrink-0 border-b border-border-soft bg-surface-alt py-2 text-[11px] font-semibold text-muted`}>
-            <SortColHeader label="RESOURCE" col="resource" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
-            <SortColHeader label="LAST WEEK" col="lastWeek" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
-            <SortColHeader
-              label="CONFIRM %"
-              col="confirmationDiscipline"
-              sortKey={sortKey}
-              sortDir={sortDir}
-              onSort={handleSort}
-            />
-            <SortColHeader label="OPEN ACTION" col="openAction" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
-            <SortColHeader
-              label="REVIEW"
-              col="reviewStatus"
-              sortKey={sortKey}
-              sortDir={sortDir}
-              onSort={handleSort}
-            />
-            <SortColHeader
-              label="STATUS"
-              col="status"
-              sortKey={sortKey}
-              sortDir={sortDir}
-              onSort={handleSort}
-              className="justify-end"
-            />
-          </div>
-
+          {/* Single scrollport: sticky header + rows share width (scrollbar no longer shifts columns). */}
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            <div className={`${QUEUE_GRID} sticky top-0 z-10 border-b border-border-soft bg-surface-alt py-2 text-[11px] font-semibold text-muted`}>
+              <SortColHeader label="RESOURCE" col="resource" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+              <SortColHeader label="LAST WEEK" col="lastWeek" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+              <SortColHeader
+                label="CONFIRM %"
+                col="confirmationDiscipline"
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onSort={handleSort}
+              />
+              <SortColHeader label="OPEN ACTION" col="openAction" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+              <SortColHeader
+                label="REVIEW"
+                col="reviewStatus"
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onSort={handleSort}
+              />
+              <SortColHeader
+                label="STATUS"
+                col="status"
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onSort={handleSort}
+                className="justify-end"
+              />
+            </div>
+
             {sorted.length === 0 ? (
               <div className="px-4 py-10 text-center text-[13px] text-muted-foreground">
                 {rows.length === 0

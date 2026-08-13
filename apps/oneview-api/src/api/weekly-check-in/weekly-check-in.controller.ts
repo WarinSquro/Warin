@@ -58,6 +58,12 @@ function addDaysISO(iso: string, n: number): string {
   return `${y}-${m}-${dd}`;
 }
 
+/** Last two completed weeks (T-2, T-1). Current week is not assessable. */
+function assessableReviewWeekStarts(): string[] {
+  const current = mondayOf(todayLocalISO());
+  return [addDaysISO(current, -14), addDaysISO(current, -7)];
+}
+
 const DEFAULT_RANKING = [
   { value: 5, title: "Exceptional", color: "success" },
   { value: 4, title: "Strong", color: "accent" },
@@ -465,6 +471,12 @@ export class WeeklyCheckInController {
     const employee = await this.empByHrms(body.employeeHrmsId);
     const weekStart = parseDate(body.weekStart);
     if (!weekStart) throw new BadRequestException("weekStart is required");
+    const weekIso = body.weekStart.slice(0, 10);
+    if (!assessableReviewWeekStarts().includes(weekIso)) {
+      throw new BadRequestException(
+        "Assessments can only be submitted for the last two weeks"
+      );
+    }
     if (!body.roRemarks?.trim()) {
       throw new BadRequestException("RO Remarks are required");
     }

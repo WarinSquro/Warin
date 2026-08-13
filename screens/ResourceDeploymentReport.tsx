@@ -425,53 +425,52 @@ export function ResourceDeploymentReport() {
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-5 pb-4 pt-3">
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-border">
-          <div className={`${REPORT_GRID} flex-shrink-0 border-b border-border-soft bg-surface-alt py-2 text-[11px] font-semibold text-muted`}>
-            <SortColHeader
-              label="EMPLOYEE"
-              col="employee"
-              sortKey={sortKey}
-              sortDir={sortDir}
-              onSort={handleSort}
-            />
-            <SortColHeader
-              label="PROJECT"
-              col="project"
-              sortKey={sortKey}
-              sortDir={sortDir}
-              onSort={handleSort}
-            />
-            <SortColHeader
-              label="ALLOCATION"
-              col="allocation"
-              sortKey={sortKey}
-              sortDir={sortDir}
-              onSort={handleSort}
-              className="justify-end"
-            />
-            <SortColHeader
-              label="AVAILABLE FROM"
-              col="availableFrom"
-              sortKey={sortKey}
-              sortDir={sortDir}
-              onSort={handleSort}
-            />
-            <SortColHeader
-              label="PLANNING ACCURACY"
-              col="planningAccuracy"
-              sortKey={sortKey}
-              sortDir={sortDir}
-              onSort={handleSort}
-            />
-            <SortColHeader
-              label="CONFIRMATION DISCIPLINE"
-              col="confirmationDiscipline"
-              sortKey={sortKey}
-              sortDir={sortDir}
-              onSort={handleSort}
-            />
-          </div>
-
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            <div className={`${REPORT_GRID} sticky top-0 z-10 border-b border-border-soft bg-surface-alt py-2 text-[11px] font-semibold text-muted`}>
+              <SortColHeader
+                label="EMPLOYEE"
+                col="employee"
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onSort={handleSort}
+              />
+              <SortColHeader
+                label="PROJECT"
+                col="project"
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onSort={handleSort}
+              />
+              <SortColHeader
+                label="ALLOCATION"
+                col="allocation"
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onSort={handleSort}
+                className="justify-end"
+              />
+              <SortColHeader
+                label="AVAILABLE FROM"
+                col="availableFrom"
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onSort={handleSort}
+              />
+              <SortColHeader
+                label="PLANNING ACCURACY"
+                col="planningAccuracy"
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onSort={handleSort}
+              />
+              <SortColHeader
+                label="CONFIRMATION DISCIPLINE"
+                col="confirmationDiscipline"
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onSort={handleSort}
+              />
+            </div>
             {sorted.length === 0 ? (
               <div className="px-4 py-10 text-center text-[12px] text-muted-foreground">
                 No rows match the current filters.

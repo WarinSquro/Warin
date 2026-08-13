@@ -16,6 +16,8 @@ export interface Chip {
   kind: ChipKind;
   /** Postgres allocation id when chip is backed by a live allocation */
   allocationId?: string;
+  /** Saved overallocation reason (shown as red dot on planner chip when set) */
+  overallocationReason?: string;
 }
 
 export interface AllocationSlice {
@@ -514,10 +516,12 @@ function buildCellFromAllocations(
     const days = workingOverlapDays(a.startDate, a.endDate, cellStart, cellEnd, calendar);
     if (days <= 0) continue;
     const hours = view === "week" ? a.hoursPerDay * days : a.hoursPerDay;
+    const reason = a.reason?.trim();
     chips.push({
       label: formatChipLabel(a.projectName, hours),
       kind: "normal",
       allocationId: a.id,
+      ...(reason ? { overallocationReason: reason } : {}),
     });
   }
   const booked = cellBookedHours(chips);

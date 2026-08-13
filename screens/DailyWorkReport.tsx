@@ -464,14 +464,25 @@ export function DailyWorkReport() {
                 style={{ gridTemplateColumns: gridTemplate }}
               >
                 {visibleColDefs.map((col) => (
-                  <SortColHeader
-                    key={col.id}
-                    label={col.label}
-                    col={col.id}
-                    sortKey={sortKey}
-                    sortDir={sortDir}
-                    onSort={handleSort}
-                  />
+                  <div key={col.id} className="min-w-0 overflow-hidden">
+                    <SortColHeader
+                      label={
+                        col.stackedHeader ? (
+                          <span className="flex min-w-0 flex-col leading-tight">
+                            <span>{col.stackedHeader[0]}</span>
+                            <span>{col.stackedHeader[1]}</span>
+                          </span>
+                        ) : (
+                          col.label
+                        )
+                      }
+                      col={col.id}
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onSort={handleSort}
+                      className="max-w-full"
+                    />
+                  </div>
                 ))}
               </div>
 

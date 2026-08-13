@@ -8,6 +8,8 @@ import type {
   WeeklyCheckInSubmission,
   WeeklyEvidenceSnapshot,
 } from "../data/weeklyCheckIn";
+import { addWeeks, formatWeekLabel } from "../data/weeklyCheckIn";
+import { formatHoursDecimalLabel } from "../utils/formatHours";
 import { WeeklyConfidenceBadge, WeeklyStatusBadge } from "./WeeklyCheckInStatusPicker";
 
 const ACTION_REVIEW_STYLES: Record<ActionStatus, string> = {
@@ -28,6 +30,17 @@ const CARD_BAND_STYLES: Record<MetricBand, string> = {
   not_available: "border-border bg-surface",
 };
 
+/** Wrap at spaces; only ellipsize + hover when the whole string has no whitespace. */
+function ReviewProseText({ text, className = "" }: { text: string; className?: string }) {
+  const hasWhitespace = /\s/.test(text);
+  if (hasWhitespace) {
+    return (
+      <p className={`min-w-0 whitespace-pre-wrap break-words ${className}`.trim()}>{text}</p>
+    );
+  }
+  return <TruncateText text={text} className={`block ${className}`.trim()} />;
+}
+
 const VALUE_BAND_STYLES: Record<MetricBand, string> = {
   excellent: "text-success-fg",
   good: "text-accent-softfg",
@@ -39,6 +52,8 @@ const VALUE_BAND_STYLES: Record<MetricBand, string> = {
 interface WeeklyCheckInEvidencePanelProps {
   evidence: WeeklyEvidenceSnapshot;
   previousSubmission?: WeeklyCheckInSubmission;
+  /** Current review week (Monday ISO) — used to label previous week when no submission. */
+  weekStart?: string;
   frozen?: boolean;
   previousActionStatus?: "Completed" | "Still Pending";
   onPreviousActionStatusChange?: (status: "Completed" | "Still Pending") => void;
@@ -49,12 +64,20 @@ interface WeeklyCheckInEvidencePanelProps {
 export function WeeklyCheckInEvidencePanel({
   evidence,
   previousSubmission,
+  weekStart,
   frozen = false,
   previousActionStatus,
   onPreviousActionStatusChange,
   viewOnly = false,
   showReadOnlyBanner = true,
 }: WeeklyCheckInEvidencePanelProps) {
+  const { settings } = useSettings();
+  const previousWeekStart =
+    previousSubmission?.weekStart ?? (weekStart ? addWeeks(weekStart, -1) : undefined);
+  const previousWeekLabel = previousWeekStart
+    ? formatWeekLabel(previousWeekStart, settings.workingDays)
+    : null;
+
   return (
     <div className="space-y-4">
       {showReadOnlyBanner && (
@@ -94,8 +117,8 @@ export function WeeklyCheckInEvidencePanel({
           />
           <MetricCard
             label="Utilization"
-            value={`${evidence.utilizationHrs}h`}
-            sub={`of ${evidence.utilizationCapacityHrs}h capacity`}
+            value={formatHoursDecimalLabel(evidence.utilizationHrs)}
+            sub={`of ${formatHoursDecimalLabel(evidence.utilizationCapacityHrs)} capacity`}
           />
           <div className="rounded-lg border border-border bg-surface px-3 py-2.5 shadow-sm">
             <div className="mb-1.5 text-[11px] font-medium text-muted-foreground">
@@ -126,8 +149,11 @@ export function WeeklyCheckInEvidencePanel({
       <div className="min-w-0 overflow-hidden rounded-lg border border-border bg-surface px-3 py-2.5 shadow-sm">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
           <div className="flex min-w-0 items-center gap-2">
-            <div className="text-[10px] font-medium uppercase tracking-wide text-muted">
-              Previous week review
+            <div className="min-w-0 text-[10px] font-medium tracking-wide text-muted">
+              <span className="uppercase">Previous week review</span>
+              {previousWeekLabel ? (
+                <span className="normal-case"> ({previousWeekLabel})</span>
+              ) : null}
             </div>
             {previousSubmission && (
               <WeeklyStatusBadge status={previousSubmission.weeklyStatus} />
@@ -144,7 +170,7 @@ export function WeeklyCheckInEvidencePanel({
           <div className="text-[12px] text-muted-foreground">No previous review available.</div>
         ) : (
           <div className="min-w-0 space-y-2 text-[12px]">
-            <TruncateText text={previousSubmission.roRemarks} className="block text-foreground" />
+            <ReviewProseText text={previousSubmission.roRemarks} className="text-foreground" />
             <div className="min-w-0 overflow-hidden rounded-md border border-border-soft bg-surface-alt/70 px-2.5 py-2">
               <div
                 className={`text-[12px] font-medium ${
@@ -160,9 +186,9 @@ export function WeeklyCheckInEvidencePanel({
                   Action: {previousSubmission.actionType}
                 </div>
                 {previousSubmission.actionNotes && (
-                  <TruncateText
+                  <ReviewProseText
                     text={previousSubmission.actionNotes}
-                    className="mt-1 block text-muted-foreground"
+                    className="mt-1 text-muted-foreground"
                   />
                 )}
               </div>

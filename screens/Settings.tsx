@@ -24,6 +24,7 @@ import type { SettingsAuditEntry } from "../utils/settingsAudit";
 import { SmtpSettingsSection } from "../components/SmtpSettingsSection";
 import { useToast } from "../context/ToastContext";
 import { ConfirmDeleteDialog } from "../components/ConfirmDeleteDialog";
+import { AppDateInput } from "../components/AppDateInput";
 import { useAppDateFormat } from "../hooks/useAppDateFormat";
 import { usePauseSharedDataSync, useSharedDataSync, MASTER_TXN_SYNC_INTERVAL_MS } from "../hooks/useSharedDataSync";
 
@@ -214,14 +215,14 @@ export function Settings() {
         excellent = clampPct(p.excellent);
         // Excellent must be strictly greater than Good.
         if (excellent <= good) {
-          good = Math.max(0, excellent - 1);
-          if (good <= needsAttention) needsAttention = Math.max(0, good - 1);
+          good = Math.max(1, excellent - 1);
+          if (good <= needsAttention) needsAttention = Math.max(1, good - 1);
         }
       }
       if (p.good !== undefined && Number.isFinite(p.good)) {
         good = clampPct(p.good);
         if (good >= excellent) excellent = Math.min(100, good + 1);
-        if (good <= needsAttention) needsAttention = Math.max(0, good - 1);
+        if (good <= needsAttention) needsAttention = Math.max(1, good - 1);
       }
       if (p.needsAttention !== undefined && Number.isFinite(p.needsAttention)) {
         needsAttention = clampPct(p.needsAttention);
@@ -231,11 +232,11 @@ export function Settings() {
         }
       }
 
-      // Keep strict order: 0 ≤ Needs Attention < Good < Excellent ≤ 100
-      needsAttention = clampPct(needsAttention);
+      // Keep strict order: 1 ≤ Needs Attention < Good < Excellent ≤ 100
+      needsAttention = Math.max(1, clampPct(needsAttention));
       good = Math.max(needsAttention + 1, Math.min(99, good));
       excellent = Math.max(good + 1, Math.min(100, excellent));
-      needsAttention = Math.max(0, Math.min(good - 1, needsAttention));
+      needsAttention = Math.max(1, Math.min(good - 1, needsAttention));
 
       return { ...prev, metricBands: { excellent, good, needsAttention } };
     });
@@ -529,7 +530,7 @@ export function Settings() {
                 suffix="%"
                 required
                 integer
-                min={0}
+                min={1}
                 max={s.metricBands.good - 1}
                 onChange={(v) => patchMetricBandsDirty({ needsAttention: v })}
               />
@@ -1021,12 +1022,11 @@ function ImpactModal({
             {when === "future" && (
               <div className="mt-2.5">
                 <label className="mb-1.5 block text-[11px] font-medium text-foreground">Effective date</label>
-                <input
-                  type="date"
+                <AppDateInput
                   min={minDate}
                   value={scheduledDate}
-                  onChange={(e) => setScheduledDate(e.target.value || minDate)}
-                  className="w-full rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line [color-scheme:light]"
+                  onChange={(v) => setScheduledDate(v || minDate)}
+                  inputClassName="focus:border-accent-line"
                 />
               </div>
             )}
@@ -1180,13 +1180,11 @@ function CompanyCalendarModal({
                   <label className="mb-1.5 block text-[11px] font-medium text-foreground">
                     Date <span className="text-danger">*</span>
                   </label>
-                  <input
-                    type="date"
+                  <AppDateInput
                     value={date}
                     min={minOffDayDate}
                     disabled={saving}
-                    onChange={(e) => {
-                      const next = e.target.value;
+                    onChange={(next) => {
                       if (next && next < minOffDayDate) {
                         setError("Past dates cannot be added as holidays.");
                         return;
@@ -1194,7 +1192,7 @@ function CompanyCalendarModal({
                       setDate(next);
                       setError("");
                     }}
-                    className="w-full cursor-pointer rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line [color-scheme:light] disabled:cursor-not-allowed disabled:opacity-50"
+                    inputClassName="cursor-pointer focus:border-accent-line disabled:cursor-not-allowed disabled:opacity-50"
                   />
                 </div>
                 <div className="min-w-0 flex-1">

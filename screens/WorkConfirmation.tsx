@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, Plus, X, CheckCircle2, Bell } from "lucide-react";
+import { Check, Plus, X, CheckCircle2, Bell, Timer } from "lucide-react";
 import { formatAppDate, formatAppDateTime } from "../utils/formatAppDate";
 import { useAppDateFormat } from "../hooks/useAppDateFormat";
 import { useSharedDataSync, usePauseSharedDataSync, MASTER_TXN_SYNC_INTERVAL_MS } from "../hooks/useSharedDataSync";
+import { AppDateInput } from "../components/AppDateInput";
 import {
   DEVIATION_REASONS,
   MISS_POSTING_REASONS,
@@ -40,6 +41,7 @@ import {
   emptyFocusState,
   focusElapsedMs,
   getDayProductivity,
+  hasAnyUnstoppedFocusSession,
   loadProductivityStore,
   saveProductivityStore,
   upsertDayProductivity,
@@ -187,6 +189,7 @@ function EmployeeConfirm() {
   const [missDate, setMissDate] = useState("");
   const [fetchError, setFetchError] = useState("");
   const [fetchedMissDate, setFetchedMissDate] = useState("");
+  const [dayEndConfirmOpen, setDayEndConfirmOpen] = useState(false);
   const {
     sortKey: lineSortKey,
     sortDir: lineSortDir,
@@ -288,10 +291,78 @@ function EmployeeConfirm() {
   const stampWorkday = (key: WorkdayMarkKey) => {
     if (!canUseProductivity) return;
     if (!canStampWorkdayAction(todayProd.workday, key)) return;
+
+    if (key === "dayEnd") {
+      const allocationRunning = Object.values(todayProd.focusByAllocation).some(
+        (s) => !!s?.segmentStartedAt
+      );
+      if (allocationRunning) {
+        setDayEndConfirmOpen(true);
+        return;
+      }
+    }
+
     persistDay(workDate, {
       ...todayProd,
       workday: { ...todayProd.workday, [key]: new Date().toISOString() },
     });
+  };
+
+  /** Stop a running/paused allocation focus session (same rules as Stop button). */
+  const stopFocusTimerOnDay = (day: DayProductivity, allocationId: string): DayProductivity => {
+    const id = String(allocationId);
+    const current = day.focusByAllocation[id] ?? emptyFocusState();
+    let sessionMs = current.sessionAccumMs;
+    if (current.segmentStartedAt) {
+      sessionMs += Math.max(0, Date.now() - new Date(current.segmentStartedAt).getTime());
+    }
+    if (sessionMs <= 0 && current.laps.length === 0) {
+      return {
+        ...day,
+        activeTimerId: day.activeTimerId === id ? null : day.activeTimerId,
+        focusByAllocation: {
+          ...day.focusByAllocation,
+          [id]: emptyFocusState(),
+        },
+      };
+    }
+    const lap = {
+      id: `lap-${Date.now()}`,
+      startedAt: current.segmentStartedAt ?? new Date().toISOString(),
+      endedAt: new Date().toISOString(),
+      durationMs: sessionMs,
+    };
+    return {
+      ...day,
+      activeTimerId: day.activeTimerId === id ? null : day.activeTimerId,
+      focusByAllocation: {
+        ...day.focusByAllocation,
+        [id]: {
+          laps: [...current.laps, lap],
+          sessionAccumMs: 0,
+          segmentStartedAt: null,
+        },
+      },
+    };
+  };
+
+  const confirmDayEndWithAllocationStop = () => {
+    if (!canUseProductivity) return;
+    if (!canStampWorkdayAction(todayProd.workday, "dayEnd")) {
+      setDayEndConfirmOpen(false);
+      return;
+    }
+    let day: DayProductivity = { ...todayProd };
+    for (const [id, st] of Object.entries(day.focusByAllocation)) {
+      if (!st?.segmentStartedAt) continue;
+      day = stopFocusTimerOnDay(day, id);
+    }
+    day = {
+      ...day,
+      workday: { ...day.workday, dayEnd: new Date().toISOString() },
+    };
+    persistDay(workDate, day);
+    setDayEndConfirmOpen(false);
   };
 
   const pauseActiveTimer = (day: DayProductivity, exceptId?: string): DayProductivity => {
@@ -316,7 +387,7 @@ function EmployeeConfirm() {
 
   const handleFocusStartPause = (allocationId: string) => {
     const id = String(allocationId);
-    if (!hrmsId || !canUseProductivity) return;
+    if (!hrmsId || !canUseProductivity || submitted) return;
     setProdStore((prev) => {
       let day = { ...getDayProductivity(prev, workDate) };
       const current = day.focusByAllocation[id] ?? emptyFocusState();
@@ -357,43 +428,9 @@ function EmployeeConfirm() {
 
   const handleFocusStop = (allocationId: string) => {
     const id = String(allocationId);
-    if (!hrmsId || !canUseProductivity) return;
+    if (!hrmsId || !canUseProductivity || submitted) return;
     setProdStore((prev) => {
-      let day = { ...getDayProductivity(prev, workDate) };
-      const current = day.focusByAllocation[id] ?? emptyFocusState();
-      let sessionMs = current.sessionAccumMs;
-      if (current.segmentStartedAt) {
-        sessionMs += Math.max(0, Date.now() - new Date(current.segmentStartedAt).getTime());
-      }
-      if (sessionMs <= 0 && current.laps.length === 0) {
-        day = {
-          ...day,
-          activeTimerId: day.activeTimerId === id ? null : day.activeTimerId,
-          focusByAllocation: {
-            ...day.focusByAllocation,
-            [id]: emptyFocusState(),
-          },
-        };
-      } else {
-        const lap = {
-          id: `lap-${Date.now()}`,
-          startedAt: current.segmentStartedAt ?? new Date().toISOString(),
-          endedAt: new Date().toISOString(),
-          durationMs: sessionMs,
-        };
-        day = {
-          ...day,
-          activeTimerId: day.activeTimerId === id ? null : day.activeTimerId,
-          focusByAllocation: {
-            ...day.focusByAllocation,
-            [id]: {
-              laps: [...current.laps, lap],
-              sessionAccumMs: 0,
-              segmentStartedAt: null,
-            },
-          },
-        };
-      }
+      const day = stopFocusTimerOnDay({ ...getDayProductivity(prev, workDate) }, id);
       const next = upsertDayProductivity(prev, workDate, day);
       saveProductivityStore(hrmsId, next);
       syncProductivityToApi(workDate, day);
@@ -611,13 +648,21 @@ function EmployeeConfirm() {
     });
   }, [activeLines, lineSortKey, lineSortDir, states]);
 
+  const focusTimersAllStopped =
+    !canUseProductivity || !hasAnyUnstoppedFocusSession(todayProd.focusByAllocation);
+
   const canSubmit =
     activeLines.length + unplanned.length > 0 &&
     activeLines.every((l) => states[l.id]?.mode === "planned" || states[l.id]?.reason !== "") &&
-    unplanned.every((u) => u.project.trim() !== "" && u.reason !== "");
+    unplanned.every((u) => u.project.trim() !== "" && u.reason !== "") &&
+    focusTimersAllStopped;
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
+    if (canUseProductivity && hasAnyUnstoppedFocusSession(todayProd.focusByAllocation)) {
+      toast.error("Stop all focus timers before submitting confirmation.");
+      return;
+    }
     setSaving(true);
     setSaveError("");
     try {
@@ -759,6 +804,7 @@ function EmployeeConfirm() {
                         isActiveRunner={todayProd.activeTimerId === l.id}
                         onStartPause={handleFocusStartPause}
                         onStop={handleFocusStop}
+                        disabled
                       />
                     )}
                   </div>
@@ -835,17 +881,16 @@ function EmployeeConfirm() {
 
                 <div className="w-1/2">
                   <div className="mb-1.5 text-[11px] font-medium text-muted">Date to post</div>
-                  <input
-                    type="date"
+                  <AppDateInput
                     value={missDate}
                     max={maxMissDate}
                     disabled={missReason === ""}
-                    onChange={(e) => {
-                      setMissDate(e.target.value);
+                    onChange={(v) => {
+                      setMissDate(v);
                       setFetchError("");
                       if (fetchedMissDate) void loadTodayPlanForEdit();
                     }}
-                    className="w-full rounded-md border border-border bg-surface px-2.5 py-2 text-[12px] text-foreground outline-none focus:border-accent-line disabled:cursor-not-allowed disabled:bg-surface-alt disabled:text-muted-foreground"
+                    inputClassName="py-2 text-[12px] focus:border-accent-line disabled:bg-surface-alt disabled:text-muted-foreground"
                   />
                 </div>
               </div>
@@ -975,11 +1020,23 @@ function EmployeeConfirm() {
         </div>
 
         {saveError && <div className="mt-2 text-[12px] text-danger">{saveError}</div>}
+        {canUseProductivity &&
+          !focusTimersAllStopped &&
+          activeLines.length + unplanned.length > 0 && (
+            <div className="mt-2 text-[12px] text-warning">
+              Stop all focus timers before submitting confirmation.
+            </div>
+          )}
 
         <div className="mt-4 flex items-center gap-3">
           <button
             disabled={!canSubmit || saving}
             onClick={() => void handleSubmit()}
+            title={
+              !focusTimersAllStopped
+                ? "Stop all focus timers before submitting"
+                : undefined
+            }
             className={`flex items-center justify-center gap-2 rounded-md px-4 py-2.5 text-[13px] font-semibold ${
               deviationCount === 0 ? "flex-1 bg-primary text-primary-foreground" : "flex-1 bg-brand text-white"
             } ${!canSubmit || saving ? "cursor-not-allowed opacity-50" : ""}`}
@@ -995,6 +1052,52 @@ function EmployeeConfirm() {
       </div>
       {productivitySidebar}
       </div>
+
+      {dayEndConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+          <div
+            className="absolute inset-0 bg-brand/50"
+            onClick={() => setDayEndConfirmOpen(false)}
+            aria-hidden
+          />
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="day-end-alloc-title"
+            aria-describedby="day-end-alloc-desc"
+            className="relative z-10 w-full max-w-[420px] rounded-xl bg-surface p-5 text-center shadow-2xl"
+          >
+            <div className="flex justify-center">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-warning-soft">
+                <Timer className="h-5 w-5 text-warning" />
+              </div>
+            </div>
+            <div id="day-end-alloc-title" className="mt-3 text-[15px] font-semibold text-foreground">
+              Allocation timer running
+            </div>
+            <div id="day-end-alloc-desc" className="mt-1.5 text-[13px] text-muted-foreground">
+              Allocation timer is already running, and Day End will stop that timer. Do you want to
+              continue?
+            </div>
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setDayEndConfirmOpen(false)}
+                className="flex-1 cursor-pointer rounded-md border border-border py-2 text-[13px] text-foreground hover:bg-surface-alt"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDayEndWithAllocationStop}
+                className="flex-1 cursor-pointer rounded-md bg-primary py-2 text-[13px] font-medium text-primary-foreground hover:bg-brand-active"
+              >
+                Yes, Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1155,6 +1258,7 @@ function todayLabelClass(status: DayStatus) {
 function ManagerCompliance() {
   const navigate = useNavigate();
   const toast = useToast();
+  const { currentEmployee } = useAuth();
   const today = todayISO();
   const [kpis, setKpis] = useState({
     confirmedPct: 0,
@@ -1177,9 +1281,12 @@ function ManagerCompliance() {
   const loadTeam = useCallback(async () => {
     try {
       const res = await fetchTeamCompliance({ asOf: today });
+      const viewerHrmsId = currentEmployee?.id?.trim();
       setKpis(res.kpis);
       setRows(
-        res.rows.map((r) => ({
+        res.rows
+          .filter((r) => !viewerHrmsId || r.id !== viewerHrmsId)
+          .map((r) => ({
           id: r.id,
           name: r.name,
           initials: r.initials,
@@ -1212,7 +1319,7 @@ function ManagerCompliance() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load team compliance");
     }
-  }, [today]);
+  }, [today, currentEmployee?.id]);
 
   useEffect(() => {
     void loadTeam();
@@ -1281,32 +1388,32 @@ function ManagerCompliance() {
               ))}
             </div>
           </div>
-          <div className="flex flex-shrink-0 items-center border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold text-muted">
-            <SortColHeader
-              label="TEAM MEMBER"
-              col="member"
-              sortKey={complianceSortKey}
-              sortDir={complianceSortDir}
-              onSort={handleComplianceSort}
-              className="flex-1"
-            />
-            <div className="grid w-[120px] grid-cols-5 place-items-center">
-              {days.map((d, i) => (
-                <span key={i} className={i === todayIndex ? "text-foreground" : ""}>
-                  {d}
-                </span>
-              ))}
-            </div>
-            <SortColHeader
-              label="TODAY"
-              col="today"
-              sortKey={complianceSortKey}
-              sortDir={complianceSortDir}
-              onSort={handleComplianceSort}
-              className="w-[120px] justify-end"
-            />
-          </div>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            <div className="sticky top-0 z-10 flex items-center border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold text-muted">
+              <SortColHeader
+                label="TEAM MEMBER"
+                col="member"
+                sortKey={complianceSortKey}
+                sortDir={complianceSortDir}
+                onSort={handleComplianceSort}
+                className="flex-1"
+              />
+              <div className="grid w-[120px] grid-cols-5 place-items-center">
+                {days.map((d, i) => (
+                  <span key={i} className={i === todayIndex ? "text-foreground" : ""}>
+                    {d}
+                  </span>
+                ))}
+              </div>
+              <SortColHeader
+                label="TODAY"
+                col="today"
+                sortKey={complianceSortKey}
+                sortDir={complianceSortDir}
+                onSort={handleComplianceSort}
+                className="w-[120px] justify-end"
+              />
+            </div>
             {sortedCompliance.map((r) => (
               <ComplianceRowView
                 key={r.id}

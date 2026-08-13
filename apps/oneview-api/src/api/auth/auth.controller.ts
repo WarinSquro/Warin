@@ -1,10 +1,28 @@
 import { Body, Controller, Get, Post, Req, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
+import type { Request } from "express";
 import { AuthService } from "./auth.service";
-import { ChangePinDto, ForgotPinDto, LoginDto, RefreshDto, ResetPinDto, VerifyPinDto } from "./dto/auth.dto";
+import {
+  ChangePinDto,
+  ForgotPinDto,
+  LoginContinueDto,
+  LoginDto,
+  RefreshDto,
+  ResetPinDto,
+  VerifyPinDto,
+} from "./dto/auth.dto";
 import { JwtAuthGuard, Public } from "./guards";
 import type { JwtPayload } from "./jwt.strategy";
+import { parseSessionClientMeta } from "./session-client-meta";
+
+function clientMetaFromRequest(req: Request) {
+  const xf = req.headers["x-forwarded-for"];
+  const forwarded = Array.isArray(xf) ? xf[0] : xf;
+  const ip = forwarded || req.ip || req.socket?.remoteAddress || null;
+  const ua = req.headers["user-agent"] ?? null;
+  return parseSessionClientMeta(ua, ip);
+}
 
 @ApiTags("auth")
 @Controller("auth")
@@ -14,8 +32,15 @@ export class AuthController {
   @Public()
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Post("login")
-  login(@Body() dto: LoginDto) {
-    return this.auth.login(dto.email, dto.pin);
+  login(@Body() dto: LoginDto, @Req() req: Request) {
+    return this.auth.login(dto.email, dto.pin, clientMetaFromRequest(req));
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @Post("login/continue")
+  continueLogin(@Body() dto: LoginContinueDto, @Req() req: Request) {
+    return this.auth.continueLogin(dto.continueToken, clientMetaFromRequest(req));
   }
 
   @Public()

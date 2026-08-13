@@ -36,6 +36,8 @@ export type DailyWorkSortKey =
 export interface DailyWorkColumnDef {
   id: DailyWorkSortKey;
   label: string;
+  /** Optional two-line table header (picker/export still use `label`). */
+  stackedHeader?: [string, string];
   defaultVisible: boolean;
   width: string;
 }
@@ -52,13 +54,13 @@ export const DAILY_WORK_COLUMNS: DailyWorkColumnDef[] = [
   { id: "activity", label: "ACTIVITY", defaultVisible: true, width: "minmax(6rem,1fr)" },
   { id: "activityType", label: "ACTIVITY TYPE", defaultVisible: false, width: "5.5rem" },
   { id: "tasks", label: "TASKS", defaultVisible: true, width: "minmax(7rem,1.25fr)" },
-  { id: "plannedHrs", label: "PLANNED HRS", defaultVisible: true, width: "4.5rem" },
-  { id: "confirmation", label: "CONFIRMATION", defaultVisible: true, width: "4.5rem" },
-  { id: "confirmedOn", label: "CONFIRMED ON", defaultVisible: true, width: "6.5rem" },
+  { id: "plannedHrs", label: "PLANNED HRS", stackedHeader: ["PLANNED", "HRS"], defaultVisible: true, width: "4.75rem" },
+  { id: "confirmation", label: "CONFIRMATION", defaultVisible: true, width: "7.25rem" },
+  { id: "confirmedOn", label: "CONFIRMED ON", stackedHeader: ["CONFIRMED", "ON"], defaultVisible: true, width: "5.75rem" },
   { id: "delayReason", label: "DELAY REASON", defaultVisible: true, width: "minmax(6rem,1.1fr)" },
   { id: "deviationReason", label: "DEVIATION REASON", defaultVisible: true, width: "minmax(6rem,1.1fr)" },
-  { id: "actualHrs", label: "ACTUAL HRS", defaultVisible: true, width: "4.5rem" },
-  { id: "planUnplanned", label: "PLAN/UNPLANNED", defaultVisible: true, width: "6rem" },
+  { id: "actualHrs", label: "ACTUAL HRS", stackedHeader: ["ACTUAL", "HRS"], defaultVisible: true, width: "4.75rem" },
+  { id: "planUnplanned", label: "PLAN/UNPLANNED", stackedHeader: ["PLAN/", "UNPLANNED"], defaultVisible: true, width: "5.75rem" },
 ];
 
 export const DAILY_WORK_COLUMN_STORAGE_KEY = "oneview_daily_work_columns_v1";

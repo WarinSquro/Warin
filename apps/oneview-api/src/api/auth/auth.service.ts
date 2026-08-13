@@ -1,9 +1,22 @@
-import { BadRequestException, Injectable, ServiceUnavailableException, UnauthorizedException } from "@nestjs/common";
+import {
+  BadRequestException,
+  Injectable,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { HashingService } from "@oneview/security";
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { MailService, SmtpNotConfiguredError, SMTP_NOT_CONFIGURED_CODE } from "@oneview/mail";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
+import { SessionAuthCache } from "./session-auth.cache";
+import { parseSessionClientMeta, type SessionClientMeta } from "./session-client-meta";
+
+const SESSION_CONFLICT_MESSAGE =
+  "You are already logged in on another device or browser. Do you want to continue on this device? Continuing will log you out from all other active sessions.";
+
+const LOGIN_CONTINUE_PURPOSE = "login_continue";
+const LOGIN_CONTINUE_SECONDS = 120;
 
 function serializeBigInt<T>(value: T): T {
   return JSON.parse(
@@ -11,102 +24,336 @@ function serializeBigInt<T>(value: T): T {
   ) as T;
 }
 
+type EmployeeAuthRow = {
+  id: bigint;
+  email: string;
+  hrmsId: string;
+  name: string;
+  isSuperAdmin: boolean;
+  mustChangePin: boolean;
+  departmentId: bigint | null;
+  department: { name: string } | null;
+  permissions: { key: string }[];
+  pinHash: string;
+  activeSessionId: string | null;
+};
+
+export type ExistingSessionInfo = {
+  deviceName: string | null;
+  browser: string | null;
+  loginAt: string;
+  lastActivityAt: string;
+  ipAddress: string | null;
+};
+
 @Injectable()
 export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly hashing: HashingService,
     private readonly jwt: JwtService,
-    private readonly mail: MailService
+    private readonly mail: MailService,
+    private readonly sessionCache: SessionAuthCache
   ) {}
 
   private hashToken(token: string) {
     return createHash("sha256").update(token).digest("hex");
   }
 
-  async login(email: string, pin: string) {
-    const employee = await this.prisma.employee.findFirst({
-      where: { email: email.trim().toLowerCase(), isDeleted: false, isActive: true },
-      include: { permissions: true, department: true },
-    });
-    if (!employee) throw new UnauthorizedException({ error: "INVALID_CREDENTIALS", message: "Invalid email or PIN" });
+  private permissionKeysFor(employee: Pick<EmployeeAuthRow, "isSuperAdmin" | "permissions">) {
+    return employee.isSuperAdmin ? ["*"] : employee.permissions.map((p) => p.key);
+  }
 
-    const ok = await this.hashing.verify(employee.pinHash, pin);
-    if (!ok) throw new UnauthorizedException({ error: "INVALID_CREDENTIALS", message: "Invalid email or PIN" });
+  private userPayload(employee: EmployeeAuthRow, permissionKeys: string[]) {
+    return {
+      id: employee.id.toString(),
+      hrmsId: employee.hrmsId,
+      name: employee.name,
+      email: employee.email,
+      isSuperAdmin: employee.isSuperAdmin,
+      departmentId: employee.departmentId?.toString() ?? null,
+      departmentName: employee.department?.name ?? null,
+      permissionKeys: employee.isSuperAdmin ? permissionKeys : employee.permissions.map((p) => p.key),
+      mustChangePin: employee.mustChangePin,
+    };
+  }
 
-    const permissionKeys = employee.isSuperAdmin
-      ? ["*"]
-      : employee.permissions.map((p) => p.key);
-
-    const accessToken = await this.jwt.signAsync({
+  private async signAccessToken(employee: EmployeeAuthRow, sessionId: string, permissionKeys: string[]) {
+    return this.jwt.signAsync({
       sub: employee.id.toString(),
       email: employee.email,
       hrmsId: employee.hrmsId,
       isSuperAdmin: employee.isSuperAdmin,
       permissionKeys,
+      sid: sessionId,
     });
+  }
 
+  private toExistingSessionInfo(row: {
+    deviceLabel: string | null;
+    browserLabel: string | null;
+    createdAt: Date;
+    lastSeenAt: Date;
+    ipAddress: string | null;
+  }): ExistingSessionInfo {
+    return {
+      deviceName: row.deviceLabel,
+      browser: row.browserLabel,
+      loginAt: row.createdAt.toISOString(),
+      lastActivityAt: row.lastSeenAt.toISOString(),
+      ipAddress: row.ipAddress,
+    };
+  }
+
+  private async issueContinueToken(employeeId: bigint) {
+    return this.jwt.signAsync(
+      {
+        purpose: LOGIN_CONTINUE_PURPOSE,
+        sub: employeeId.toString(),
+      },
+      { expiresIn: LOGIN_CONTINUE_SECONDS }
+    );
+  }
+
+  private async verifyContinueToken(continueToken: string): Promise<bigint> {
+    let payload: { purpose?: string; sub?: string };
+    try {
+      payload = await this.jwt.verifyAsync(continueToken);
+    } catch {
+      throw new UnauthorizedException({
+        error: "INVALID_CONTINUE_TOKEN",
+        message: "Session confirmation expired. Please sign in again.",
+      });
+    }
+    if (payload.purpose !== LOGIN_CONTINUE_PURPOSE || !payload.sub) {
+      throw new UnauthorizedException({
+        error: "INVALID_CONTINUE_TOKEN",
+        message: "Session confirmation expired. Please sign in again.",
+      });
+    }
+    try {
+      return BigInt(payload.sub);
+    } catch {
+      throw new UnauthorizedException({
+        error: "INVALID_CONTINUE_TOKEN",
+        message: "Session confirmation expired. Please sign in again.",
+      });
+    }
+  }
+
+  /** Create the sole active session for an employee (revokes all prior refresh tokens). */
+  private async createExclusiveSession(employee: EmployeeAuthRow, meta: SessionClientMeta) {
+    const sessionId = randomUUID().replace(/-/g, "");
     const refreshRaw = randomBytes(48).toString("hex");
     const refreshDays = Number(process.env.JWT_REFRESH_DAYS ?? 7);
-    await this.prisma.refreshToken.create({
-      data: {
-        employeeId: employee.id,
-        tokenHash: this.hashToken(refreshRaw),
-        expiresAt: new Date(Date.now() + refreshDays * 24 * 60 * 60 * 1000),
-      },
+    const now = new Date();
+    const expiresAt = new Date(Date.now() + refreshDays * 24 * 60 * 60 * 1000);
+    const permissionKeys = this.permissionKeysFor(employee);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM employees WHERE id = ${employee.id} FOR UPDATE`;
+      await tx.refreshToken.updateMany({
+        where: { employeeId: employee.id, revokedAt: null },
+        data: { revokedAt: now },
+      });
+      await tx.refreshToken.create({
+        data: {
+          employeeId: employee.id,
+          sessionId,
+          tokenHash: this.hashToken(refreshRaw),
+          expiresAt,
+          userAgent: meta.userAgent,
+          ipAddress: meta.ipAddress,
+          deviceLabel: meta.deviceLabel,
+          browserLabel: meta.browserLabel,
+          lastSeenAt: now,
+        },
+      });
+      await tx.employee.update({
+        where: { id: employee.id },
+        data: { activeSessionId: sessionId },
+      });
     });
 
+    this.sessionCache.invalidate(employee.id);
+
+    const accessToken = await this.signAccessToken(employee, sessionId, permissionKeys);
     return serializeBigInt({
+      status: "ok" as const,
       accessToken,
       refreshToken: refreshRaw,
       expiresIn: Number(process.env.JWT_EXPIRES_SECONDS ?? 3600),
-      user: {
-        id: employee.id.toString(),
-        hrmsId: employee.hrmsId,
-        name: employee.name,
-        email: employee.email,
-        isSuperAdmin: employee.isSuperAdmin,
-        departmentId: employee.departmentId?.toString() ?? null,
-        departmentName: employee.department?.name ?? null,
-        permissionKeys: employee.isSuperAdmin ? permissionKeys : employee.permissions.map((p) => p.key),
-        mustChangePin: employee.mustChangePin,
-      },
+      user: this.userPayload(employee, permissionKeys),
+    });
+  }
+
+  async login(email: string, pin: string, meta: SessionClientMeta) {
+    const employee = await this.prisma.employee.findFirst({
+      where: { email: email.trim().toLowerCase(), isDeleted: false, isActive: true },
+      include: { permissions: true, department: true },
+    });
+    if (!employee) {
+      throw new UnauthorizedException({ error: "INVALID_CREDENTIALS", message: "Invalid email or PIN" });
+    }
+
+    const ok = await this.hashing.verify(employee.pinHash, pin);
+    if (!ok) {
+      throw new UnauthorizedException({ error: "INVALID_CREDENTIALS", message: "Invalid email or PIN" });
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM employees WHERE id = ${employee.id} FOR UPDATE`;
+
+      const active = await tx.refreshToken.findFirst({
+        where: {
+          employeeId: employee.id,
+          revokedAt: null,
+          expiresAt: { gt: new Date() },
+        },
+        orderBy: { lastSeenAt: "desc" },
+      });
+
+      if (active) {
+        const continueToken = await this.issueContinueToken(employee.id);
+        return {
+          status: "session_conflict" as const,
+          message: SESSION_CONFLICT_MESSAGE,
+          continueToken,
+          existingSession: this.toExistingSessionInfo(active),
+        };
+      }
+
+      // No active session — create inside the same locked transaction.
+      const sessionId = randomUUID().replace(/-/g, "");
+      const refreshRaw = randomBytes(48).toString("hex");
+      const refreshDays = Number(process.env.JWT_REFRESH_DAYS ?? 7);
+      const now = new Date();
+      const permissionKeys = this.permissionKeysFor(employee);
+
+      await tx.refreshToken.updateMany({
+        where: { employeeId: employee.id, revokedAt: null },
+        data: { revokedAt: now },
+      });
+      await tx.refreshToken.create({
+        data: {
+          employeeId: employee.id,
+          sessionId,
+          tokenHash: this.hashToken(refreshRaw),
+          expiresAt: new Date(Date.now() + refreshDays * 24 * 60 * 60 * 1000),
+          userAgent: meta.userAgent,
+          ipAddress: meta.ipAddress,
+          deviceLabel: meta.deviceLabel,
+          browserLabel: meta.browserLabel,
+          lastSeenAt: now,
+        },
+      });
+      await tx.employee.update({
+        where: { id: employee.id },
+        data: { activeSessionId: sessionId },
+      });
+
+      this.sessionCache.invalidate(employee.id);
+
+      const accessToken = await this.signAccessToken(employee, sessionId, permissionKeys);
+      return serializeBigInt({
+        status: "ok" as const,
+        accessToken,
+        refreshToken: refreshRaw,
+        expiresIn: Number(process.env.JWT_EXPIRES_SECONDS ?? 3600),
+        user: this.userPayload(employee, permissionKeys),
+      });
+    });
+  }
+
+  /** Accept takeover after session_conflict confirmation. */
+  async continueLogin(continueToken: string, meta: SessionClientMeta) {
+    const employeeId = await this.verifyContinueToken(continueToken);
+    const employee = await this.prisma.employee.findFirst({
+      where: { id: employeeId, isDeleted: false, isActive: true },
+      include: { permissions: true, department: true },
+    });
+    if (!employee) {
+      throw new UnauthorizedException({
+        error: "INVALID_CONTINUE_TOKEN",
+        message: "Session confirmation expired. Please sign in again.",
+      });
+    }
+    return this.createExclusiveSession(employee, meta);
+  }
+
+  private sessionRevokedElsewhere() {
+    return new UnauthorizedException({
+      error: "SESSION_REVOKED",
+      message: "Your session ended because you signed in elsewhere. Please sign in again.",
+    });
+  }
+
+  private sessionExpired() {
+    return new UnauthorizedException({
+      error: "SESSION_EXPIRED",
+      message: "Your session has expired. Please sign in again.",
     });
   }
 
   async refreshTokens(refreshToken: string) {
     const hash = this.hashToken(refreshToken);
     const row = await this.prisma.refreshToken.findUnique({ where: { tokenHash: hash } });
-    if (!row || row.revokedAt || row.expiresAt < new Date()) {
-      throw new UnauthorizedException("Invalid refresh token");
+    if (!row) throw this.sessionExpired();
+    if (row.expiresAt < new Date()) throw this.sessionExpired();
+
+    if (row.revokedAt) {
+      const emp = await this.prisma.employee.findUnique({
+        where: { id: row.employeeId },
+        select: { activeSessionId: true },
+      });
+      if (emp?.activeSessionId && emp.activeSessionId !== row.sessionId) {
+        throw this.sessionRevokedElsewhere();
+      }
+      throw this.sessionExpired();
     }
+
     const employee = await this.prisma.employee.findFirst({
       where: { id: row.employeeId, isDeleted: false, isActive: true },
       include: { permissions: true, department: true },
     });
-    if (!employee) throw new UnauthorizedException("Invalid refresh token");
+    if (!employee) throw this.sessionExpired();
 
-    await this.prisma.refreshToken.update({ where: { id: row.id }, data: { revokedAt: new Date() } });
+    if (!employee.activeSessionId || employee.activeSessionId !== row.sessionId) {
+      await this.prisma.refreshToken.update({
+        where: { id: row.id },
+        data: { revokedAt: new Date() },
+      });
+      throw this.sessionRevokedElsewhere();
+    }
 
-    const permissionKeys = employee.isSuperAdmin ? ["*"] : employee.permissions.map((p) => p.key);
-    const accessToken = await this.jwt.signAsync({
-      sub: employee.id.toString(),
-      email: employee.email,
-      hrmsId: employee.hrmsId,
-      isSuperAdmin: employee.isSuperAdmin,
-      permissionKeys,
+    const now = new Date();
+    await this.prisma.refreshToken.update({
+      where: { id: row.id },
+      data: { revokedAt: now },
     });
+
+    const permissionKeys = this.permissionKeysFor(employee);
     const refreshRaw = randomBytes(48).toString("hex");
     const refreshDays = Number(process.env.JWT_REFRESH_DAYS ?? 7);
     await this.prisma.refreshToken.create({
       data: {
         employeeId: employee.id,
+        sessionId: row.sessionId,
         tokenHash: this.hashToken(refreshRaw),
         expiresAt: new Date(Date.now() + refreshDays * 24 * 60 * 60 * 1000),
+        userAgent: row.userAgent,
+        ipAddress: row.ipAddress,
+        deviceLabel: row.deviceLabel,
+        browserLabel: row.browserLabel,
+        lastSeenAt: now,
       },
     });
 
+    const accessToken = await this.signAccessToken(employee, row.sessionId, permissionKeys);
+    this.sessionCache.invalidate(employee.id);
+
     return {
+      status: "ok" as const,
       accessToken,
       refreshToken: refreshRaw,
       expiresIn: Number(process.env.JWT_EXPIRES_SECONDS ?? 3600),
@@ -116,10 +363,27 @@ export class AuthService {
   async logout(refreshToken?: string) {
     if (!refreshToken) return { ok: true };
     const hash = this.hashToken(refreshToken);
-    await this.prisma.refreshToken.updateMany({
-      where: { tokenHash: hash, revokedAt: null },
-      data: { revokedAt: new Date() },
+    const row = await this.prisma.refreshToken.findUnique({ where: { tokenHash: hash } });
+    if (!row || row.revokedAt) return { ok: true };
+
+    const now = new Date();
+    await this.prisma.$transaction(async (tx) => {
+      await tx.refreshToken.update({
+        where: { id: row.id },
+        data: { revokedAt: now },
+      });
+      const emp = await tx.employee.findUnique({
+        where: { id: row.employeeId },
+        select: { activeSessionId: true },
+      });
+      if (emp?.activeSessionId === row.sessionId) {
+        await tx.employee.update({
+          where: { id: row.employeeId },
+          data: { activeSessionId: null },
+        });
+      }
     });
+    this.sessionCache.invalidate(row.employeeId);
     return { ok: true };
   }
 

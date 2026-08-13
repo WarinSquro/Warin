@@ -116,12 +116,13 @@ export function payloadFromBody(
     : fallbackOffDays;
   const excellentRaw = Math.max(0, Math.min(100, Math.trunc(Number(body.excellent ?? 95))));
   let goodRaw = Math.max(0, Math.min(100, Math.trunc(Number(body.good ?? 90))));
-  let needsRaw = Math.max(0, Math.min(100, Math.trunc(Number(body.needsAttention ?? 80))));
-  // Strict order: Needs Attention < Good < Excellent (0…100)
+  // Needs attention must stay > 0 (Critical band remains reachable below it).
+  let needsRaw = Math.max(1, Math.min(100, Math.trunc(Number(body.needsAttention ?? 80))));
+  // Strict order: Needs Attention < Good < Excellent (1…100)
   goodRaw = Math.max(needsRaw + 1, Math.min(99, goodRaw));
   const excellent = Math.max(goodRaw + 1, Math.min(100, excellentRaw));
   const good = Math.min(goodRaw, excellent - 1);
-  const needsAttention = Math.max(0, Math.min(needsRaw, good - 1));
+  const needsAttention = Math.max(1, Math.min(needsRaw, good - 1));
 
   return {
     idleBelow: Number(body.idleBelow ?? 70),

@@ -50,7 +50,7 @@ const CHART = {
   primary: "#152F39",
   success: "#16a34a",
   grid: "#eef0f3",
-  axis: "#9ca3af",
+  axis: "#6b7280",
 };
 
 const TREND_METRICS: Record<

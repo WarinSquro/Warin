@@ -8,6 +8,9 @@ export const PERMISSIONS_STALE_EVENT = "oneview:permissions-stale";
 /** sessionStorage key for a one-shot message shown on the Login screen after forced sign-out. */
 export const LOGIN_NOTICE_KEY = "oneview_login_notice";
 
+const SESSION_ELSEWHERE_NOTICE =
+  "Your session ended because you signed in elsewhere. Please sign in again.";
+
 function getAccessToken(): string | null {
   try {
     return sessionStorage.getItem("oneview_access_token");
@@ -51,6 +54,14 @@ function notifyPermissionsStale() {
   }
 }
 
+function setLoginNotice(message: string) {
+  try {
+    sessionStorage.setItem(LOGIN_NOTICE_KEY, message);
+  } catch {
+    /* ignore */
+  }
+}
+
 let refreshInFlight: Promise<boolean> | null = null;
 
 async function tryRefreshAccessToken(): Promise<boolean> {
@@ -64,8 +75,24 @@ async function tryRefreshAccessToken(): Promise<boolean> {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ refreshToken }),
       });
-      if (!res.ok) return false;
-      const body = (await res.json()) as LoginResponse;
+      if (!res.ok) {
+        let code = "";
+        let message = "";
+        try {
+          const body = (await res.json()) as ApiError;
+          code = body?.error?.code ?? "";
+          message = body?.error?.message ?? "";
+        } catch {
+          /* ignore */
+        }
+        if (code === "SESSION_REVOKED" || /signed in elsewhere/i.test(message)) {
+          setLoginNotice(SESSION_ELSEWHERE_NOTICE);
+        } else if (message) {
+          setLoginNotice(message);
+        }
+        return false;
+      }
+      const body = (await res.json()) as LoginOkResponse;
       setTokens(body.accessToken, body.refreshToken);
       return true;
     } catch {
@@ -108,6 +135,12 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}, allowRet
     } catch {
       /* ignore */
     }
+    if (
+      res.status === 401 &&
+      (body?.error?.code === "SESSION_REVOKED" || /signed in elsewhere/i.test(body?.error?.message ?? ""))
+    ) {
+      setLoginNotice(SESSION_ELSEWHERE_NOTICE);
+    }
     throw new Error(body?.error?.message ?? `API ${res.status}`);
   }
   if (res.status === 204) return undefined as T;
@@ -116,7 +149,16 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}, allowRet
   return JSON.parse(text) as T;
 }
 
-export type LoginResponse = {
+export type ExistingSessionInfo = {
+  deviceName: string | null;
+  browser: string | null;
+  loginAt: string;
+  lastActivityAt: string;
+  ipAddress: string | null;
+};
+
+export type LoginOkResponse = {
+  status?: "ok";
   accessToken: string;
   expiresIn: number;
   refreshToken: string;
@@ -132,6 +174,15 @@ export type LoginResponse = {
   };
 };
 
+export type LoginConflictResponse = {
+  status: "session_conflict";
+  message: string;
+  continueToken: string;
+  existingSession: ExistingSessionInfo;
+};
+
+export type LoginResponse = LoginOkResponse | LoginConflictResponse;
+
 export function loginApi(email: string, pin: string) {
   return apiFetch<LoginResponse>("/auth/login", {
     method: "POST",
@@ -139,8 +190,29 @@ export function loginApi(email: string, pin: string) {
   });
 }
 
+export function continueLoginApi(continueToken: string) {
+  return apiFetch<LoginOkResponse>("/auth/login/continue", {
+    method: "POST",
+    body: JSON.stringify({ continueToken }),
+  });
+}
+
+export async function logoutApi() {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return;
+  try {
+    await fetch(`${API_BASE.replace(/\/$/, "")}/auth/logout`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken }),
+    });
+  } catch {
+    /* best-effort server revoke */
+  }
+}
+
 export function meApi() {
-  return apiFetch<LoginResponse["user"]>("/auth/me");
+  return apiFetch<LoginOkResponse["user"]>("/auth/me");
 }
 
 export function forgotPinApi(email: string) {

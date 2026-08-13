@@ -499,13 +499,37 @@ export function getDefaultReviewWeekStart(): string {
   return addWeeks(getCurrentWeekStart(), -1);
 }
 
-/** Previous five weeks only (T-5 … T-1). Current week is excluded from review. */
+/** Weeks shown in the review week picker (T-5 … T-1). Current week excluded. */
+export const REVIEW_WEEK_PICKER_LOOKBACK = 5;
+
+/** How many of those completed weeks may still be assessed / submitted (T-2 … T-1). */
+export const REVIEW_WEEK_ASSESS_LOOKBACK = 2;
+
+/**
+ * Weeks available in the queue / workspace picker: last {@link REVIEW_WEEK_PICKER_LOOKBACK}
+ * completed weeks (T-5 … T-1). Current week is excluded.
+ */
 export function getReviewWeekStarts(): string[] {
   const current = getCurrentWeekStart();
-  return [-5, -4, -3, -2, -1].map((n) => addWeeks(current, n));
+  return Array.from({ length: REVIEW_WEEK_PICKER_LOOKBACK }, (_, i) =>
+    addWeeks(current, -(REVIEW_WEEK_PICKER_LOOKBACK - i))
+  );
 }
 
-/** Prefer URL week when it is in the review window; otherwise previous week. */
+/** Weeks that still accept a new assessment (last {@link REVIEW_WEEK_ASSESS_LOOKBACK}). */
+export function getAssessableReviewWeekStarts(): string[] {
+  const current = getCurrentWeekStart();
+  return Array.from({ length: REVIEW_WEEK_ASSESS_LOOKBACK }, (_, i) =>
+    addWeeks(current, -(REVIEW_WEEK_ASSESS_LOOKBACK - i))
+  );
+}
+
+/** True when a new assessment may be submitted for this Monday weekStart. */
+export function isAssessableReviewWeek(weekStart: string): boolean {
+  return getAssessableReviewWeekStarts().includes(weekStart);
+}
+
+/** Prefer URL week when it is in the picker window; otherwise previous week. */
 export function resolveReviewWeekStart(weekParam: string | null | undefined): string {
   const allowed = new Set(getReviewWeekStarts());
   if (weekParam && allowed.has(weekParam)) return weekParam;

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import {
   WEEKS,
@@ -205,6 +205,7 @@ export function ResourcePlanner() {
   const { settings } = useSettings();
   const toast = useToast();
   const location = useLocation();
+  const navigate = useNavigate();
   const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [view, setView] = useState<"day" | "week">("week");
   const [plannerRows, setPlannerRows] = useState<PlannerRow[]>([]);
@@ -215,6 +216,9 @@ export function ResourcePlanner() {
   const [matchesDemand, setMatchesDemand] = useState<Demand | null>(null);
   const [openDemandPanel, setOpenDemandPanel] = useState(false);
   const [highlightRowId, setHighlightRowId] = useState<string | null>(null);
+  /** After the user closes Open Demand, ignore ?panel=demand until the query changes. */
+  const demandPanelDismissedRef = useRef(false);
+  const demandPanelSearchRef = useRef(location.search);
 
   const calendarOpts: PlannerCalendarOpts = useMemo(
     () => ({
@@ -326,15 +330,48 @@ export function ResourcePlanner() {
   }, [visibleRows, sortKey, sortDir]);
 
   useEffect(() => {
+    const prevSearch = demandPanelSearchRef.current;
+    demandPanelSearchRef.current = location.search;
     const panel = getPanelParam(location.search);
+    const prevPanel = getPanelParam(prevSearch);
+
+    if (panel !== "demand") {
+      demandPanelDismissedRef.current = false;
+      return;
+    }
+    // Fresh deep-link navigation (e.g. Executive Cockpit → planner?panel=demand).
+    if (prevPanel !== "demand") {
+      demandPanelDismissedRef.current = false;
+    }
+    if (demandPanelDismissedRef.current) return;
+    setOpenDemandPanel(true);
+  }, [location.search]);
+
+  const openOpenDemandPanel = useCallback(() => {
+    demandPanelDismissedRef.current = false;
+    setOpenDemandPanel(true);
+  }, []);
+
+  const closeOpenDemandPanel = useCallback(() => {
+    demandPanelDismissedRef.current = true;
+    setOpenDemandPanel(false);
+    if (getPanelParam(location.search) !== "demand") return;
+    const params = new URLSearchParams(location.search);
+    params.delete("panel");
+    const next = params.toString();
+    navigate(
+      { pathname: location.pathname, search: next ? `?${next}` : "" },
+      { replace: true }
+    );
+  }, [location.pathname, location.search, navigate]);
+
+  useEffect(() => {
     const highlight = getHighlightParam(location.search);
-    if (panel === "demand") setOpenDemandPanel(true);
-    if (highlight) {
-      const row = plannerRows.find((r) => r.id === highlight);
-      if (row) {
-        setSelectedDepts((prev) => (prev.includes(row.dept) ? prev : [...prev, row.dept]));
-        setHighlightRowId(highlight);
-      }
+    if (!highlight) return;
+    const row = plannerRows.find((r) => r.id === highlight);
+    if (row) {
+      setSelectedDepts((prev) => (prev.includes(row.dept) ? prev : [...prev, row.dept]));
+      setHighlightRowId(highlight);
     }
   }, [location.search, plannerRows]);
 
@@ -533,7 +570,7 @@ export function ResourcePlanner() {
           </div>
           <button
             type="button"
-            onClick={() => setOpenDemandPanel(true)}
+            onClick={openOpenDemandPanel}
             className="text-[11px] text-primary hover:underline"
           >
             View all →
@@ -649,7 +686,7 @@ export function ResourcePlanner() {
       />
       <OpenDemandPanel
         open={openDemandPanel}
-        onClose={() => setOpenDemandPanel(false)}
+        onClose={closeOpenDemandPanel}
         onFindMatches={setMatchesDemand}
         demands={openDemand}
         rangeLabel={openDemandRangeLabel}
@@ -767,7 +804,19 @@ function PlannerGridRow({
                     }}
                     className={`rounded-sm px-1.5 py-1 text-left text-[10px] leading-tight ${chipClass(c.kind)} hover:brightness-95`}
                   >
-                    {c.label}
+                    <span className="inline-flex max-w-full items-center">
+                      <span className="truncate">{c.label}</span>
+                      {c.kind === "over" && c.overallocationReason?.trim() && (
+                        <>
+                          <span className="w-2 shrink-0" aria-hidden />
+                          <span
+                            className="h-1 w-1 shrink-0 rounded-full bg-danger"
+                            aria-hidden
+                            title={c.overallocationReason.trim()}
+                          />
+                        </>
+                      )}
+                    </span>
                   </button>
                 )
               )
