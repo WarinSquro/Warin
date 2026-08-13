@@ -32,6 +32,17 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-13 16:51 IST
+
+**Prompt:**  
+> OK. Now want to live on EC2. Start necessary process and let me know next step.
+
+**Output:**  
+- Committed local batch to `main` (`b7e0bd8`) and pushed to `origin/main`.
+- Next: EC2 `git pull` + rebuild API/worker (session migration) + SPA vite build → `/opt/warin/shared/web`. Do not re-seed.
+
+---
+
 ### 2026-08-13 16:45 IST
 
 **Prompt:**  
