@@ -32,6 +32,87 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-14 13:40 IST
+
+**Prompt:**  
+> KPI Result drawer: check whether it is workable; if not, identify the issue and fix it.
+
+**Output:**  
+- **Root cause:** Save was gated on the **assessment cycle** (Q3 = Jul–Sep) ending, not the **KPI period** (Jul 2026). On 14 Aug 2026 the July period had ended, but Q3 had not, so Result and Save stayed disabled.
+- **Fix:** Results can be submitted after the KPI period end (last day of `periodEndMonth`). Framework edit lock still uses full cycle end. Banner copy updated.
+- Files: `apps/oneview-api/src/api/kpi/kpi.util.ts`, `apps/oneview-api/src/api/kpi/kpi.controller.ts`, `api/domain.ts`, `screens/KpiResults.tsx`, `tests/unit/kpiPeriodExpiry.test.ts`, `docs/prompt-log.md`.
+
+### 2026-08-14 13:13 IST
+
+**Prompt:**  
+> KPI Framework masters: set character length — KPI Category 20, Measurement Method 200, Unit of Measurement 10.
+
+**Output:**  
+- **Root cause:** The Add name field and `POST/PUT /kpi/masters/:kind` had no max length.
+- **Fix:** Tab-specific `maxLength` on the Add input; API rejects names over the same limits.
+- Files: `screens/KpiFramework.tsx`, `utils/kpiMasterLimits.ts`, `apps/oneview-api/src/api/kpi/kpi.util.ts`, `apps/oneview-api/src/api/kpi/kpi.controller.ts`, `tests/unit/kpiMasterLimits.test.ts`, `docs/prompt-log.md`.
+
+### 2026-08-14 11:15 IST
+
+**Prompt:**  
+> Use Search Text box same as used in Resource Deployment Report for Employee, Daily Work Detail, Weekly Check-In pages.
+
+**Output:**  
+- **Root cause:** Those pages used the compact bordered search (icon + `bg-transparent` input) instead of the report control (icon inside a full-width input with focus border).
+- **Fix:** Same search markup as Resource Deployment Report. Placeholders unchanged. Weekly Check-In queue is the only check-in page with a search box.
+- Files: `screens/EmployeeMaster.tsx`, `screens/DailyWorkReport.tsx`, `screens/WeeklyCheckInQueue.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-14 11:12 IST
+
+**Prompt:**  
+> Projects search: (1) use the same search text box as Resource Deployment Report; (2) search only visible columns.
+
+**Output:**  
+- **Root cause:** Projects used a compact bordered search (`w-52`) unlike the report input, and matched id/type/demand-line skills even when those values were not on-screen.
+- **Fix:** Same full-width search input as Resource Deployment Report. Filter uses display text from currently visible columns only (not Action, not hidden project id).
+- Files: `screens/ProjectMaster.tsx`, `utils/projectVisibleSearch.ts`, `tests/unit/projectVisibleSearch.test.ts`, `docs/prompt-log.md`.
+
+### 2026-08-14 11:05 IST
+
+**Prompt:**  
+> Profile Access tree is perfect. Also show Settings and Profile if the user has those rights.
+
+**Output:**  
+- **Root cause:** Profile (`/account`) is not a permission key (any signed-in user can open it), so it was missing. Settings is a Setup key and was easy to miss; it belongs with Profile in the user menu.
+- **Fix:** Access tree adds an **Account** group: **Profile** always for non-admin; **Settings** when `settings` is granted. Settings is not duplicated under Setup.
+- Files: `data/navConfig.ts`, `tests/unit/navConfig.test.ts`, `docs/prompt-log.md`.
+- Tests: `npx vitest run tests/unit/navConfig.test.ts` — 9 passed.
+
+### 2026-08-14 10:56 IST
+
+**Prompt:**  
+> Profile Access: for users other than Administrator, show access rights in actual nav node–leaf form instead of alphabetical sort.
+
+**Output:**  
+- **Root cause:** `assignedPageLabels` flattened keys and `localeCompare`-sorted them, so the list did not match the Access Rights / sidebar tree.
+- **Fix:** Non-admin Access uses `getAssignedAccessTree` (group → page → child, nav order). Super Admin still shows “Full access (Super Admin)”.
+- Files: `data/navConfig.ts`, `screens/AccountSettings.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-14 10:51 IST
+
+**Prompt:**  
+> Create project: duplicate Project ID and Project Name not allowed.
+
+**Output:**  
+- **Root cause:** API only rejected duplicate `projectCode`. Name was not unique. The drawer did not check existing projects before Create.
+- **Fix:** API rejects duplicate ID (case-insensitive, including deleted codes) and duplicate name (case-insensitive, non-deleted), on create and update. Drawer disables Create, marks fields, and toasts if ID or name already exists.
+- Files: `apps/oneview-api/src/api/projects/projects.controller.ts`, `screens/ProjectMaster.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-14 10:50 IST
+
+**Prompt:**  
+> Settings Planning & confirmation bands helper: Needs Attention should be ≤80%, not ≥80%.
+
+**Output:**  
+- **Root cause:** Legend used ≥ for all three bands. Needs Attention is the lower band and should read at or below the threshold.
+- **Fix:** Helper is `≥{excellent}% Excellent · ≥{good}% Good · ≤{needsAttention}% Needs Attention`.
+- Files: `screens/Settings.tsx`, `docs/prompt-log.md`.
+
 ### 2026-08-14 09:57 IST
 
 **Prompt:**  

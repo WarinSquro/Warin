@@ -1126,6 +1126,7 @@ export type ApiKpiItem = {
   attachmentName: string | null;
   resultUpdatedAt: string | null;
   cycleExpired: boolean;
+  periodExpired: boolean;
   cycleMonths: number[];
 };
 

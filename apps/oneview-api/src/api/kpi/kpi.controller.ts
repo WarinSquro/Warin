@@ -28,9 +28,11 @@ import { EmitDataChange } from "../realtime/emit-data-change.decorator";
 import {
   CYCLE_MONTHS,
   isCycleExpired,
+  isPeriodExpired,
   monthsLabel,
   parseCycle,
   validatePeriodMonths,
+  assertKpiMasterNameLength,
 } from "./kpi.util";
 
 const Decimal = PrismaNS.Decimal;
@@ -69,10 +71,10 @@ export class KpiController {
   private async syncExpiredDrafts(where: Prisma.KpiFrameworkItemWhereInput) {
     const drafts = await this.prisma.kpiFrameworkItem.findMany({
       where: { ...where, status: "draft", isDeleted: false },
-      select: { id: true, calendarYear: true, assessmentCycle: true },
+      select: { id: true, calendarYear: true, periodEndMonth: true },
     });
     const ids = drafts
-      .filter((d) => isCycleExpired(d.calendarYear, d.assessmentCycle))
+      .filter((d) => isPeriodExpired(d.calendarYear, d.periodEndMonth))
       .map((d) => d.id);
     if (ids.length === 0) return;
     await this.prisma.kpiFrameworkItem.updateMany({
@@ -178,6 +180,7 @@ export class KpiController {
       resultUpdatedAt: row.resultUpdatedAt?.toISOString() ?? null,
       resultUpdatedById: row.resultUpdatedById?.toString() ?? null,
       cycleExpired: isCycleExpired(row.calendarYear, row.assessmentCycle),
+      periodExpired: isPeriodExpired(row.calendarYear, row.periodEndMonth),
       cycleMonths: CYCLE_MONTHS[row.assessmentCycle],
     };
   }
@@ -235,6 +238,11 @@ export class KpiController {
     const k = this.parseMasterKind(kind);
     const name = body.name?.trim();
     if (!name) throw new BadRequestException("name is required");
+    try {
+      assertKpiMasterNameLength(k, name);
+    } catch (e) {
+      throw new BadRequestException(e instanceof Error ? e.message : "Invalid name");
+    }
     const prefix = k === "categories" ? "kcat" : k === "methods" ? "kmeth" : "kunit";
     const data = { code: slugCode(prefix, name), name };
 
@@ -297,7 +305,15 @@ export class KpiController {
   ) {
     const k = this.parseMasterKind(kind);
     const data: { name?: string; status?: "active" | "inactive"; isActive?: boolean } = {};
-    if (body.name?.trim()) data.name = body.name.trim();
+    if (body.name?.trim()) {
+      const name = body.name.trim();
+      try {
+        assertKpiMasterNameLength(k, name);
+      } catch (e) {
+        throw new BadRequestException(e instanceof Error ? e.message : "Invalid name");
+      }
+      data.name = name;
+    }
     if (body.status === "active" || body.status === "inactive") {
       data.status = body.status;
       data.isActive = body.status === "active";
@@ -747,8 +763,8 @@ export class KpiController {
     if (existing.status === "completed") {
       throw new BadRequestException("KPI result is locked");
     }
-    if (!isCycleExpired(existing.calendarYear, existing.assessmentCycle)) {
-      throw new BadRequestException("Results can only be submitted after the assessment cycle ends");
+    if (!isPeriodExpired(existing.calendarYear, existing.periodEndMonth)) {
+      throw new BadRequestException("Results can only be submitted after the KPI period ends");
     }
     if (existing.status === "draft") {
       await this.prisma.kpiFrameworkItem.update({

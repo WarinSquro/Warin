@@ -417,7 +417,7 @@ function ResultDrawer({
 }) {
   const focusRef = useFocusFirstField<HTMLDivElement>();
   const locked = item.status === "completed";
-  const canSave = item.cycleExpired && !locked;
+  const canSave = item.periodExpired && !locked;
   const [kpiResult, setKpiResult] = useState(item.kpiResult != null ? String(item.kpiResult) : "");
   const [kpiScore, setKpiScore] = useState(item.kpiScore != null ? String(item.kpiScore) : "");
   const [remarks, setRemarks] = useState(item.remarks ?? "");
@@ -507,9 +507,9 @@ function ResultDrawer({
           <ReadOnly label="KPI Period" value={item.periodLabel} />
           <ReadOnly label="KPI Weightage" value={`${item.weightage}%`} />
 
-          {!item.cycleExpired && (
+          {!item.periodExpired && (
             <div className="rounded-md border border-warning-border bg-warning-soft px-3 py-2 text-[12px] text-warning">
-              Results can be submitted only after the assessment cycle ends.
+              Results can be submitted only after the KPI period ends.
             </div>
           )}
 
