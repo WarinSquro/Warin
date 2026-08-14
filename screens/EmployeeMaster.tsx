@@ -224,48 +224,53 @@ export function EmployeeMaster() {
 
           {/* Single scrollport: sticky header + rows share width (scrollbar no longer shifts columns). */}
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-            <div className="sticky top-0 z-10 flex border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold text-muted">
-              <SortColHeader
-                label="NAME"
-                col="name"
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onSort={handleSort}
-                className="w-[220px]"
-              />
-              <SortColHeader
-                label="HRMS ID"
-                col="id"
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onSort={handleSort}
-                className="w-[110px]"
-              />
-              <SortColHeader
-                label="DEPARTMENT"
-                col="department"
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onSort={handleSort}
-                className="w-[120px]"
-              />
-              <SortColHeader
-                label="SKILLS"
-                col="skills"
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onSort={handleSort}
-                className="flex-1"
-              />
-              <SortColHeader
-                label="RESOURCE OWNER"
-                col="resourceOwner"
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onSort={handleSort}
-                className="w-[140px]"
-              />
-              <div className="w-[90px] text-right">ACTION</div>
+            <div className="sticky top-0 z-10 flex items-center border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold text-muted">
+              <div className="w-[220px] shrink-0">
+                <SortColHeader
+                  label="NAME"
+                  col="name"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                />
+              </div>
+              <div className="w-[110px] shrink-0">
+                <SortColHeader
+                  label="HRMS ID"
+                  col="id"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                />
+              </div>
+              <div className="w-[120px] shrink-0">
+                <SortColHeader
+                  label="DEPARTMENT"
+                  col="department"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                />
+              </div>
+              <div className="min-w-0 flex-1">
+                <SortColHeader
+                  label="SKILLS"
+                  col="skills"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                />
+              </div>
+              <div className="w-[140px] shrink-0">
+                <SortColHeader
+                  label="RESOURCE OWNER"
+                  col="resourceOwner"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                />
+              </div>
+              <div className="w-[90px] shrink-0 text-right">ACTION</div>
             </div>
 
             {sorted.map((e) => (
@@ -308,25 +313,25 @@ function EmpRow({ e, employees, highlighted, onEdit, onToggle }: { e: Employee; 
         inactive ? "opacity-60" : ""
       } ${highlighted ? "bg-accent-soft ring-1 ring-inset ring-accent-line" : ""}`}
     >
-      <div className="flex w-[220px] items-center gap-2.5">
+      <div className="flex w-[220px] shrink-0 items-center gap-2.5">
         <div className={`flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-semibold ${inactive ? "bg-surface-alt text-muted" : "bg-accent-soft text-accent-softfg"}`}>
           {e.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
         </div>
-        <div>
+        <div className="min-w-0">
           <button onClick={onEdit} className="text-[13px] font-medium text-foreground hover:text-primary">{e.name}</button>
-          <div className="text-[11px] text-muted-foreground">{e.email}</div>
+          <div className="truncate text-[11px] text-muted-foreground">{e.email}</div>
         </div>
       </div>
-      <div className="w-[110px] font-mono text-[12px] text-foreground">{e.id}</div>
-      <div className="w-[120px] text-[12px] text-foreground">{e.department}</div>
-      <div className="flex flex-1 flex-wrap gap-1">
+      <div className="w-[110px] shrink-0 font-mono text-[12px] text-foreground">{e.id}</div>
+      <div className="w-[120px] shrink-0 truncate text-[12px] text-foreground">{e.department}</div>
+      <div className="flex min-w-0 flex-1 flex-wrap gap-1">
         {e.skills.slice(0, 3).map((s) => (
           <span key={s} className="rounded-sm bg-surface-alt px-1.5 py-0.5 text-[10px] text-muted">{s}</span>
         ))}
         {e.skills.length > 3 && <span className="text-[10px] text-muted-foreground">+{e.skills.length - 3}</span>}
       </div>
-      <div className="w-[140px] text-[12px] text-foreground">{resourceOwnerName(e.resourceOwnerId, employees)}</div>
-      <div className="w-[90px] text-right">
+      <div className="w-[140px] shrink-0 truncate text-[12px] text-foreground">{resourceOwnerName(e.resourceOwnerId, employees)}</div>
+      <div className="w-[90px] shrink-0 text-right">
         <button
           type="button"
           onClick={onToggle}
@@ -362,6 +367,7 @@ function EmployeeDrawer({
   onClose: () => void;
   onSave: (emp: Employee) => void;
 }) {
+  const toast = useToast();
   const { employees } = useEmployees();
   const { departments: deptRows, skills: skillRows } = useMasters();
   const departmentNames = deptRows.filter((d) => d.status === "active").map((d) => d.name);
@@ -391,10 +397,61 @@ function EmployeeDrawer({
   const [resourceOwnerId, setResourceOwnerId] = useState(employee?.resourceOwnerId ?? "");
   const isEdit = !!employee;
   const focusRef = useFocusFirstField<HTMLDivElement>();
+  const nameRef = useRef<HTMLInputElement>(null);
+  const idRef = useRef<HTMLInputElement>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
+  const deptRef = useRef<HTMLSelectElement>(null);
 
   const resourceOwners = employees
     .filter((e) => e.id !== employee?.id)
     .sort((a, b) => a.name.localeCompare(b.name));
+
+  const emailLooksValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+
+  const canSave =
+    Boolean(name.trim()) &&
+    Boolean(id.trim()) &&
+    Boolean(email.trim()) &&
+    emailLooksValid &&
+    Boolean(dept.trim());
+
+  const handleSave = () => {
+    if (saving) return;
+    if (!name.trim()) {
+      toast.error("Full name is required.");
+      nameRef.current?.focus();
+      return;
+    }
+    if (!id.trim()) {
+      toast.error("HRMS ID is required.");
+      idRef.current?.focus();
+      return;
+    }
+    if (!email.trim()) {
+      toast.error("Email is required.");
+      emailRef.current?.focus();
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      toast.error("Enter a valid email address.");
+      emailRef.current?.focus();
+      return;
+    }
+    if (!dept.trim()) {
+      toast.error("Department is required.");
+      deptRef.current?.focus();
+      return;
+    }
+    onSave({
+      id: id.trim(),
+      name: name.trim(),
+      email: email.trim(),
+      department: dept.trim(),
+      skills,
+      resourceOwnerId: resourceOwnerId || undefined,
+      status: employee?.status ?? "active",
+    });
+  };
 
   return (
     <div className="fixed inset-0 z-40">
@@ -407,17 +464,45 @@ function EmployeeDrawer({
 
         <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-5 py-4">
           <Field label="Full name" required>
-            <input value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line" placeholder="e.g. Ravi Sharma" />
+            <input
+              ref={nameRef}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line"
+              placeholder="e.g. Ravi Sharma"
+            />
           </Field>
           <Field label="HRMS ID" required>
-            <input value={id} disabled={isEdit} onChange={(e) => setId(e.target.value)} className={`w-full rounded-md border border-border px-3 py-2 font-mono text-[13px] outline-none focus:border-accent-line ${isEdit ? "cursor-not-allowed bg-surface-alt text-muted" : "bg-surface text-foreground"}`} placeholder="EMP-0000" />
+            <input
+              ref={idRef}
+              value={id}
+              disabled={isEdit}
+              onChange={(e) => setId(e.target.value)}
+              className={`w-full rounded-md border border-border px-3 py-2 font-mono text-[13px] outline-none focus:border-accent-line ${isEdit ? "cursor-not-allowed bg-surface-alt text-muted" : "bg-surface text-foreground"}`}
+              placeholder="EMP-0000"
+            />
           </Field>
           <Field label="Email" required>
-            <input value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line" placeholder="name@acme.io" />
+            <input
+              ref={emailRef}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line"
+              placeholder="name@acme.io"
+            />
           </Field>
           <Field label="Department" required>
-            <select value={dept} onChange={(e) => setDept(e.target.value)} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line">
-              {departmentNames.map((d) => <option key={d}>{d}</option>)}
+            <select
+              ref={deptRef}
+              value={dept}
+              onChange={(e) => setDept(e.target.value)}
+              className="w-full rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line"
+            >
+              {departmentNames.length === 0 ? (
+                <option value="">No departments available</option>
+              ) : (
+                departmentNames.map((d) => <option key={d}>{d}</option>)
+              )}
             </select>
           </Field>
           <Field label="Skills" hint="From skills master · feeds Find Matches & Availability">
@@ -447,22 +532,21 @@ function EmployeeDrawer({
         </div>
 
         <div className="flex flex-shrink-0 gap-2 border-t border-border-soft px-5 py-3.5">
-          <button onClick={onClose} disabled={saving} className="flex-1 rounded-md border border-border py-2 text-[13px] text-foreground hover:bg-surface-alt disabled:opacity-40">Cancel</button>
           <button
+            type="button"
+            onClick={onClose}
             disabled={saving}
-            onClick={() => {
-              if (!name.trim() || !id.trim() || !email.trim() || saving) return;
-              onSave({
-                id: id.trim(),
-                name: name.trim(),
-                email: email.trim(),
-                department: dept,
-                skills,
-                resourceOwnerId: resourceOwnerId || undefined,
-                status: employee?.status ?? "active",
-              });
-            }}
-            className="flex-1 rounded-md bg-primary py-2 text-[13px] font-medium text-primary-foreground disabled:opacity-40"
+            className="flex-1 cursor-pointer rounded-md border border-border py-2 text-[13px] text-foreground hover:bg-surface-alt disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={handleSave}
+            className={`flex-1 cursor-pointer rounded-md bg-primary py-2 text-[13px] font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-40 ${
+              !canSave && !saving ? "opacity-40" : ""
+            }`}
           >
             {saving ? "Saving…" : isEdit ? "Save changes" : "Create employee"}
           </button>

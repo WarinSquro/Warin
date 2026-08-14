@@ -3,7 +3,6 @@
  * allocations, and work confirmations.
  */
 import type { Employee } from "../data/employees";
-import type { Project } from "../data/projects";
 import type { AvailRow, RollingOffPerson } from "../data/availability";
 import type { Band, UtilRow } from "../data/utilization";
 import type { DeploymentRow, DeploymentStatus } from "../data/deploymentReport";
@@ -22,6 +21,7 @@ import type {
   ProjectHealth,
 } from "../data/executionReport";
 import type { ConfirmationCode, DailyWorkRow } from "../data/dailyWorkReport";
+import type { MilestoneKind, Project } from "../data/projects";
 import type { Candidate } from "../data/planner";
 import type { ApiAllocation, ApiConfirmation, ApiWeeklySubmission } from "./domain";
 import {
@@ -116,6 +116,10 @@ export function reportRange(
 const DOW_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 const DEFAULT_WORKING_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri"];
 
+function isoDay(value: string): string {
+  return value.slice(0, 10);
+}
+
 function weekdayHoursInRange(
   startDate: string,
   endDate: string,
@@ -127,6 +131,8 @@ function weekdayHoursInRange(
 ): number {
   const off = new Set((companyOffDays ?? []).map((d) => d.slice(0, 10)));
   const working = workingDays?.length ? workingDays : DEFAULT_WORKING_DAYS;
+  const hpd = Number(hoursPerDay);
+  if (!Number.isFinite(hpd) || hpd <= 0) return 0;
   let days = 0;
   for (let d = rangeFrom; d <= rangeTo; d = addDaysISO(d, 1)) {
     if (d < startDate || d > endDate) continue;
@@ -135,7 +141,19 @@ function weekdayHoursInRange(
     if (!working.includes(label)) continue;
     days += 1;
   }
-  return hoursPerDay * days;
+  return hpd * days;
+}
+
+const ALLOC_KEY_SEP = "\u0000";
+
+function allocationRowKey(employeeHrmsId: string, projectCode: string): string {
+  return `${employeeHrmsId}${ALLOC_KEY_SEP}${projectCode}`;
+}
+
+function parseAllocationRowKey(key: string): { employeeHrmsId: string; projectCode: string } {
+  const i = key.indexOf(ALLOC_KEY_SEP);
+  if (i === -1) return { employeeHrmsId: key, projectCode: "" };
+  return { employeeHrmsId: key.slice(0, i), projectCode: key.slice(i + 1) };
 }
 
 export function bookedHoursByEmployee(
@@ -458,8 +476,8 @@ export function buildDeploymentRowsFromEmployees(
   rangeTo = addDaysISO(mondayISO(), 6),
   calendar: DeploymentCalendarOpts = {}
 ): DeploymentRow[] {
-  const nameById = new Map(allEmployees.map((e) => [e.id, e.name]));
-  const empById = new Map(employees.map((e) => [e.id, e]));
+  const nameById = new Map(allEmployees.map((e) => [e.id.trim(), e.name]));
+  const empById = new Map(employees.map((e) => [e.id.trim(), e]));
   const confByEmp = new Map<string, ApiConfirmation[]>();
   for (const c of confirmations) {
     const list = confByEmp.get(c.employeeHrmsId) ?? [];
@@ -474,26 +492,29 @@ export function buildDeploymentRowsFromEmployees(
 
   for (const a of allocations) {
     const hours = weekdayHoursInRange(
-      a.startDate.slice(0, 10),
-      a.endDate.slice(0, 10),
+      isoDay(a.startDate),
+      isoDay(a.endDate),
       rangeFrom,
       rangeTo,
-      a.hoursPerDay
+      a.hoursPerDay,
+      calendar.companyOffDays,
+      calendar.workingDays
     );
     if (hours <= 0) continue;
-    const emp = empById.get(a.employeeHrmsId);
+    const empId = a.employeeHrmsId?.trim();
+    const emp = empId ? empById.get(empId) : undefined;
     if (!emp || emp.status !== "active") continue;
-    const key = `${a.employeeHrmsId}:${a.projectCode}`;
+    const key = allocationRowKey(emp.id, a.projectCode);
     hoursByKey.set(key, (hoursByKey.get(key) ?? 0) + hours);
-    const end = a.endDate.slice(0, 10);
+    const end = isoDay(a.endDate);
     const prevEnd = endByKey.get(key);
     if (!prevEnd || end > prevEnd) endByKey.set(key, end);
     if (!sampleByKey.has(key)) sampleByKey.set(key, a);
   }
 
   for (const [key, hours] of hoursByKey) {
-    const [empId, projectCode] = key.split(":");
-    const emp = empById.get(empId!);
+    const { employeeHrmsId: empId, projectCode } = parseAllocationRowKey(key);
+    const emp = empById.get(empId);
     if (!emp) continue;
     const sample = sampleByKey.get(key);
     const mine = confByEmp.get(emp.id) ?? [];
@@ -541,7 +562,7 @@ export function buildDeploymentRowsFromEmployees(
   }
 
   for (const e of employees.filter((x) => x.status === "active")) {
-    if ([...hoursByKey.keys()].some((k) => k.startsWith(`${e.id}:`))) continue;
+    if ([...hoursByKey.keys()].some((k) => k.startsWith(`${e.id}${ALLOC_KEY_SEP}`))) continue;
     rows.push({
       id: `dep-${e.id}`,
       employeeId: e.id,
@@ -873,6 +894,25 @@ export function buildPerformanceHistoryFromLive(
   return { employeeId, months, remainingCapacityHrs };
 }
 
+function resolveMilestoneType(
+  project: Project | undefined,
+  milestoneId?: string | null,
+  milestoneName?: string | null
+): MilestoneKind | undefined {
+  if (!project?.milestones?.length) return undefined;
+  const id = milestoneId?.trim();
+  if (id) {
+    const byId = project.milestones.find((m) => String(m.id) === id);
+    if (byId?.kind) return byId.kind;
+  }
+  const name = milestoneName?.trim();
+  if (name) {
+    const byName = project.milestones.find((m) => m.name === name);
+    if (byName?.kind) return byName.kind;
+  }
+  return undefined;
+}
+
 export function buildDailyWorkRows(
   employees: Employee[],
   projects: Project[],
@@ -920,6 +960,11 @@ export function buildDailyWorkRows(
         projectName: l.projectLabel,
         projectType: project?.type,
         milestoneName: l.milestoneLabel || undefined,
+        milestoneType: resolveMilestoneType(
+          project,
+          proj?.milestoneId,
+          l.milestoneLabel
+        ),
         activityName: l.activity,
         activityType: l.kind === "unplanned" ? "Internal" : "Billable",
         tasks: l.tasks,
@@ -967,6 +1012,11 @@ export function buildDailyWorkRows(
         projectName: a.projectName,
         projectType: project?.type,
         milestoneName: a.milestoneName,
+        milestoneType: resolveMilestoneType(
+          project,
+          a.milestoneId,
+          a.milestoneName
+        ),
         activityName: a.activity,
         activityType: "Billable",
         tasks: a.tasks,

@@ -1390,29 +1390,31 @@ function ManagerCompliance() {
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
             <div className="sticky top-0 z-10 flex items-center border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold text-muted">
-              <SortColHeader
-                label="TEAM MEMBER"
-                col="member"
-                sortKey={complianceSortKey}
-                sortDir={complianceSortDir}
-                onSort={handleComplianceSort}
-                className="flex-1"
-              />
-              <div className="grid w-[120px] grid-cols-5 place-items-center">
+              <div className="min-w-0 flex-1">
+                <SortColHeader
+                  label="TEAM MEMBER"
+                  col="member"
+                  sortKey={complianceSortKey}
+                  sortDir={complianceSortDir}
+                  onSort={handleComplianceSort}
+                />
+              </div>
+              <div className="grid w-[120px] shrink-0 grid-cols-5 place-items-center">
                 {days.map((d, i) => (
                   <span key={i} className={i === todayIndex ? "text-foreground" : ""}>
                     {d}
                   </span>
                 ))}
               </div>
-              <SortColHeader
-                label="TODAY"
-                col="today"
-                sortKey={complianceSortKey}
-                sortDir={complianceSortDir}
-                onSort={handleComplianceSort}
-                className="w-[120px] justify-end"
-              />
+              <div className="flex w-[120px] shrink-0 justify-end">
+                <SortColHeader
+                  label="TODAY"
+                  col="today"
+                  sortKey={complianceSortKey}
+                  sortDir={complianceSortDir}
+                  onSort={handleComplianceSort}
+                />
+              </div>
             </div>
             {sortedCompliance.map((r) => (
               <ComplianceRowView
@@ -1425,7 +1427,7 @@ function ManagerCompliance() {
             ))}
             {sortedCompliance.length === 0 && (
               <div className="px-4 py-10 text-center text-[13px] text-muted-foreground">
-                No active employees for compliance yet
+                No team members report to you yet
               </div>
             )}
           </div>
@@ -1485,7 +1487,7 @@ function ComplianceRowView({
           <div className={`text-[10px] ${todayLabelClass(todayStatus)}`}>{row.todayLabel}</div>
         </div>
       </div>
-      <div className="grid w-[120px] grid-cols-5 place-items-center">
+      <div className="grid w-[120px] shrink-0 grid-cols-5 place-items-center">
         {row.week.map((s, i) => (
           <span
             key={i}
@@ -1496,7 +1498,7 @@ function ComplianceRowView({
           />
         ))}
       </div>
-      <div className="w-[120px] text-right">
+      <div className="w-[120px] shrink-0 text-right">
         {pending && (
           <button
             type="button"

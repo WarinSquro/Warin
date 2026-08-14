@@ -13,6 +13,8 @@ export function Login() {
   const [pin, setPin] = useState<string[]>(["", "", "", "", ""]);
   const [error, setError] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  /** Informational (e.g. signed in elsewhere) — show message without marking PIN invalid. */
+  const [infoMsg, setInfoMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showPin, setShowPin] = useState(false);
   const [conflict, setConflict] = useState<{
@@ -27,8 +29,9 @@ export function Login() {
       const notice = sessionStorage.getItem(LOGIN_NOTICE_KEY);
       if (notice) {
         sessionStorage.removeItem(LOGIN_NOTICE_KEY);
-        setError(true);
-        setErrorMsg(notice);
+        setInfoMsg(notice);
+        setError(false);
+        setErrorMsg(null);
       }
     } catch {
       /* ignore */
@@ -43,6 +46,7 @@ export function Login() {
     if (!/^\d?$/.test(v)) return;
     setError(false);
     setErrorMsg(null);
+    setInfoMsg(null);
     const next = [...pin];
     next[i] = v;
     setPin(next);
@@ -63,6 +67,7 @@ export function Login() {
     }
     setLoading(true);
     setErrorMsg(null);
+    setInfoMsg(null);
     try {
       const result = await signInWithPin(email.trim().toLowerCase(), pin.join(""));
       if (typeof result !== "string") {
@@ -122,6 +127,7 @@ export function Login() {
             onChange={(e) => {
               setEmail(e.target.value);
               setError(false);
+              setInfoMsg(null);
             }}
             placeholder="name@acme.io"
             className="h-[42px] w-full rounded-md border border-brand-border/20 bg-white px-3 text-[13px] text-foreground outline-none focus:border-brand-border focus:ring-2 focus:ring-brand-muted/25"
@@ -186,9 +192,9 @@ export function Login() {
             Forgot PIN?
           </Link>
 
-          {error && (
+          {(error || infoMsg) && (
             <div className="mt-1.5 text-[11px] text-danger">
-              {errorMsg ?? "Enter a valid email and complete 5-digit PIN."}
+              {error ? errorMsg ?? "Enter a valid email and complete 5-digit PIN." : infoMsg}
             </div>
           )}
         </div>

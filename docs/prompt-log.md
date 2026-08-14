@@ -32,6 +32,149 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-14 09:57 IST
+
+**Prompt:**  
+> Push all local changes to git and give EC2 commands to build all Docker services for live.
+
+**Output:**  
+- Commit/push `main` (source + tests + prompt-log; exclude `warin-web.tgz` build artifact).
+- Live: `git pull` → `docker compose up -d --build` → SPA `VITE_API_BASE_URL=https://seworkspace.com/api/v1` vite build → `/opt/warin/shared/web`. Do not `db:seed`.
+
+### 2026-08-14 09:47 IST
+
+**Prompt:**  
+> Employees (EmployeeMaster): check column headers and align them with their data columns.
+
+**Output:**  
+- **Root cause:** Header `SortColHeader` is `inline-flex w-fit`, so `w-[220px]` / `flex-1` on the button did not occupy the same columns as `EmpRow` (NAME 220, HRMS ID 110, DEPARTMENT 120, SKILLS flex-1, RESOURCE OWNER 140, ACTION 90). SKILLS sat over the gap before the skill tags.
+- **Fix:** Wrap each header in the same column widths as the row; `shrink-0` on fixed columns; ACTION `text-right` over Disable.
+- Files: `screens/EmployeeMaster.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-14 09:45 IST
+
+**Prompt:**  
+> Org · Skills · Activities (SetupMasters): check column headers and align them with their data columns.
+
+**Output:**  
+- **Root cause:** Header `SortColHeader` is `inline-flex w-fit`, so `flex-1` / `w-[100px]` on the button did not occupy the same columns as the row cells (`flex-1`, `w-[100px]`, `w-[90px]`).
+- **Fix:** Wrap headers in the same column boxes as the rows on Departments, Skills, and Activities. ACTION stays `text-right` over Disable/Reactivate.
+- Files: `screens/SetupMasters.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-14 09:42 IST
+
+**Prompt:**  
+> Project Execution Report: check column headers and align them with their data columns.
+
+**Output:**  
+- **Root cause:** Header `SortColHeader` is `inline-flex w-fit` with `min-width: auto`, so the header grid sized PLANNING ACCURACY / CONFIRMATION DISCIPLINE to the long labels. Row grids use `min-w-0`, so tracks did not match. UTIL / RESOURCES `justify-end` on the button did not fill the cell.
+- **Fix:** Wrap each header in the same cell as `ExecutionReportRow` (`min-w-0`; UTIL and RESOURCES `flex justify-end pr-4`; BILLABLE SPLIT and HEALTH `pl-2`).
+- Files: `screens/ProjectExecutionReport.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-14 09:40 IST
+
+**Prompt:**  
+> Resource Performance Report: check column headers and align them with their data columns.
+
+**Output:**  
+- **Root cause:** Header `SortColHeader` is `inline-flex w-fit`, so it did not fill the grid cell. UTIL (HRS) and AVAIL CAP (HRS) values are `text-right` in the full cell; BILLABLE SPLIT uses `pl-2` like the bar. `justify-end` / `pr-4` on the button did not position it in the column.
+- **Fix:** Wrap each header in the same cell as `PerformanceReportRow` (`min-w-0`; UTIL `flex justify-end pr-4`; BILLABLE `pl-2`; AVAIL CAP `flex justify-end`).
+- Files: `screens/ResourcePerformanceReport.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-14 09:37 IST
+
+**Prompt:**  
+> Resource Deployment Report: check column headers and align them with their data columns.
+
+**Output:**  
+- **Root cause:** Header `SortColHeader` is `inline-flex w-fit`, so it was a grid item that did not fill the track (`min-width: auto`). ALLOCATION hours are `text-right` in the full cell, while the label sat on the left of the same column.
+- **Fix:** Wrap each header in the same `min-w-0` grid cell as `ReportRow`. ALLOCATION wrapper uses `flex justify-end` so the label sits over the hours.
+- Files: `screens/ResourceDeploymentReport.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-14 09:34 IST
+
+**Prompt:**  
+> Resource Deployment Report Allocation column empty for Today, This Week, and August 2026 despite Resource Planner allocations. Third report of this issue — trace the full data flow, not a temporary UI fix.
+
+**Output:**  
+- **Root cause (two layers):** (1) `GET /allocations?from&to` compared Prisma `@db.Date` values to UTC-midnight `Date`s. In IST that drops rows whose end date is the period start (Today), while Planner still showed them because it fetches a multi-week window. (2) Project filter `reconcileMultiSelect` auto-selected `["Unallocated"]` on the first empty paint; `filterDeploymentRows` then hid every allocated row (`[]` = all, non-empty = filter).
+- **API:** Widen overlap query ±1 day, then keep only calendar-overlapping rows; map `hoursPerDay` as a number. Report-only roles can `GET /employees`.
+- **Report:** Fetch allocations with ±1 day padding; hours still use the exact Today / week / month range. Empty project/dept/owner/skill selection means all (`emptyNeutral`). Ignore persisted `["Unallocated"]` sentinel. Stop auto-filling those filters from the current option list. Surface allocation fetch errors.
+- **Builder:** Match employees by trimmed HRMS id; stable emp+project key (not `split(":")`).
+- **Tests:** `tests/unit/deploymentReport.allocationHours.test.ts` — Today 18.5h, This week 78.5h, August includes hours beyond the current week; Unallocated-only filter hides allocated rows.
+- Files: `allocations.controller.ts`, `employees.controller.ts`, `api/liveViews.ts`, `screens/ResourceDeploymentReport.tsx`, `utils/reportFilterPersistence.ts`, `tests/unit/deploymentReport.allocationHours.test.ts`, `docs/prompt-log.md`.
+- Verify: `npx vitest run tests/unit/deploymentReport.allocationHours.test.ts` — 5 passed. Restart API (`docker compose up -d --build api` or `npm run api:dev`) and hard-refresh the SPA. If Allocation is still empty, the toast now shows a fetch error instead of failing silently.
+
+### 2026-08-14 09:24 IST
+
+**Prompt:**  
+> Resource Planner header date shall show last week Sunday (Aug 3 – Sep 6), not Aug 3 – Aug 31.
+
+**Output:**  
+- **Root cause:** Week-view header used Monday labels of the first and last columns (`WEEKS[0] – WEEKS[last]`), so the range ended on the last week’s Monday.
+- **Fix:** Label is first column Monday through last column Sunday (`WEEK_START_ISO[0]` … `+6` days).
+- Files: `screens/ResourcePlanner.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-14 09:20 IST
+
+**Prompt:**  
+> Availability table: check column headers and align them with their data columns.
+
+**Output:**  
+- **Root cause:** Header `SortColHeader` is `w-fit`, so width/`flex-1` classes did not occupy the same columns as the rows (200 / 160 / 130 / flex-1 / 100). Labels bunched left of the bars, “Now”, skills, and Allocate.
+- **Fix:** Wrap each header in the same column widths as `AvailTableRow`, with `shrink-0` on fixed columns.
+- Files: `screens/Availability.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-14 09:18 IST
+
+**Prompt:**  
+> Resource Deployment Report still shows 0h / Unallocated while Resource Planner has allocations — check and fix.
+
+**Output:**  
+- **Root cause:** Report defaulted to **Today** (and persisted that). Planner shows the **week**, so people allocated Mon–Thu appear as 0h on Friday. Project filter could also stick on `Unallocated` from the first empty paint. `toISOString()` on DATE values can shift the end date back one day in IST so “through today” allocations miss Today. Confirmations fetch failure also wiped allocations via `Promise.all`.
+- **Fix:** Default period **This week**; bump filter storage to v3; expand Unallocated-only selection when real projects load; calendar-safe allocation dates; count hours with working days/off days; load allocations even if confirmations fail; footer copy matches behavior.
+- Files: `screens/ResourceDeploymentReport.tsx`, `utils/reportFilterPersistence.ts`, `api/liveViews.ts`, `allocations.controller.ts`, `docs/prompt-log.md`.
+
+### 2026-08-14 09:12 IST
+
+**Prompt:**  
+> Work Confirmation Team Compliance: check and align header with column (M T W T F / TODAY vs status dots).
+
+**Output:**  
+- **Root cause:** Header used `SortColHeader` with `flex-1` / `w-[120px]`, but that component is `w-fit`, so TODAY was narrower than the Remind column and the weekday grid shifted right of the dots.
+- **Fix:** Wrap TEAM MEMBER / weekday grid / TODAY in the same `flex-1` + `w-[120px] shrink-0` + `w-[120px] shrink-0` columns as the rows.
+- Files: `screens/WorkConfirmation.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-14 09:08 IST
+
+**Prompt:**  
+> Project Execution Report: Project Name is going beyond width of the column. Check and correct.
+
+**Output:**  
+- **Root cause:** The project name was a `<button>` with `truncate` but no width constraint. Buttons are inline-block and grow to content, so ellipsis never applied and the name overlapped later columns.
+- **Fix:** Use `TruncateText` as a `block w-full` button so the name ellipsizes in the grid cell; full name still shows on hover.
+- Files: `screens/ProjectExecutionReport.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-14 09:05 IST
+
+**Prompt:**  
+> Resource Deployment Report shows Unallocated/0h despite Resource Planner having allocations — check and fix.
+
+**Output:**  
+- **Root cause:** After filter-persistence, project multi-select reconciled from a first paint of only `["Unallocated"]` (no allocations loaded yet). When real projects appeared, reconcile kept only `Unallocated`, so allocated rows were filtered out. Same class of bug on other reports’ expanding option lists.
+- **Fix:** `reconcileMultiSelect` treats prior full-selection as “all” and expands with new options; `serializeMultiSelect` stores `null` for “all”. Wired across Deployment/Performance/Execution/Daily Work. Bumped sessionStorage key to `v2`. Also allow report permission keys on `GET /allocations`.
+- Files: `utils/reportFilterPersistence.ts`, four report screens, `allocations.controller.ts`, `docs/prompt-log.md`.
+
+### 2026-08-13 23:20 IST
+
+**Prompt:**  
+> Fix login “Failed to fetch” on https://seworkspace.com/login
+
+**Output:**  
+- **Root cause:** Live SPA was still built with `VITE_API_BASE_URL=http://13.126.64.134/api/v1`. On HTTPS that is mixed content → browser blocks `fetch` → “Failed to fetch”. API/CORS were already healthy (`https://seworkspace.com/api/v1/health` ok; `CORS_ORIGIN=https://seworkspace.com`).
+- **Fix:** Rebuilt SPA on laptop with `VITE_API_BASE_URL=https://seworkspace.com/api/v1`, uploaded `warin-web.tgz`, extracted to `/opt/warin/shared/web`. Verified live bundle has HTTPS API URL (no IP). Login POST returns `session_conflict` (expected), not network failure.
+- Hard-refresh the browser (Ctrl+Shift+R) on https://seworkspace.com/login.
+
 ### 2026-08-13 22:55 IST
 
 **Prompt:**  
@@ -41,6 +184,69 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 - **Root cause:** Report filter state lived only in React `useState`, and `useEffect` hooks reset multi-selects to “all” whenever period/options changed — so a browser refresh (and data reload) wiped filters.
 - **Fix:** Added `utils/reportFilterPersistence.ts` (sessionStorage load/save + `reconcileMultiSelect`). Wired Deployment, Performance, Execution, and Daily Work reports to restore period/search/group/compare/multi-selects/sort (and Daily Work page size) on load, persist on change, and reconcile options without wiping picks. URL presets still apply when no stored filter exists.
 - Files: `utils/reportFilterPersistence.ts`, `screens/ResourceDeploymentReport.tsx`, `screens/ResourcePerformanceReport.tsx`, `screens/ProjectExecutionReport.tsx`, `screens/DailyWorkReport.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-13 20:02 IST
+
+**Prompt:**  
+> Work Confirmation ManagerCompliance: display only Team Members whose Resource Owner is the currently logged-in user.
+
+**Output:**  
+- **Root cause:** `/confirmations/team` used `immediateReportEmployeeIds`, which returns unrestricted (`null`) for super-admins — so Team Compliance listed all active employees (minus prior RO/self exclusions).
+- **Fix:** Always roster by `resourceOwnerId = signed-in employee`, including for super-admins. KPIs + deviation feed follow that roster. Empty copy updated in UI.
+- Files: `apps/oneview-api/src/api/confirmations/confirmations.controller.ts`, `screens/WorkConfirmation.tsx`, `docs/prompt-log.md`.
+- Rebuild API container/process for the endpoint change to take effect.
+
+### 2026-08-13 19:55 IST
+
+**Prompt:**  
+> Daily Work Report: Milestone Type column shows "—" — check and fix.
+
+**Output:**  
+- **Root cause:** Live row builder `buildDailyWorkRows` never set `milestoneType`; `mapApiProject` also dropped milestone `kind` from the API.
+- **Fix:** Map `kind` on project milestones in `api/domain.ts`; resolve `milestoneType` from project milestones (by id, then name) for confirmation and pending allocation rows in `api/liveViews.ts`.
+- Files: `api/domain.ts`, `api/liveViews.ts`, `docs/prompt-log.md`.
+
+### 2026-08-13 18:23 IST
+
+**Prompt:**  
+> Login: when session-elsewhere message shows, do not paint PIN boxes red — keep normal border color.
+
+**Output:**  
+- `screens/Login.tsx`: session `LOGIN_NOTICE` stored as `infoMsg` (not `error`).
+- PIN danger borders only when credential/validation `error` is true; info message still shows in red text below.
+
+---
+
+### 2026-08-13 18:16 IST
+
+**Prompt:**  
+> Resource Planner header arrows: disabled in Week view; in Day view navigate prev 1 / next 3 weeks; previous week view-only (no Allocate drawer); arrows change day-week dates.
+
+**Output:**  
+- `data/planner.ts`: `dayStripForWeekOffset` (−1…+3), optional `dayStartIso` on `buildPlannerRowsFromEmployees`, `allocationEffectiveDate` accepts day strip.
+- `ResourcePlanner.tsx`: Week → arrows disabled; Day → `<`/`>` shift week (min −1, max +3); past week cells/chips do not open Allocate; header label follows selected day week.
+
+---
+
+### 2026-08-13 18:04 IST
+
+**Prompt:**  
+> Employee drawer Email: validate email format; otherwise error and do not save.
+
+**Output:**  
+- `EmployeeDrawer`: require `local@domain.tld` pattern (same style as SMTP / bulk upload).
+- Invalid (e.g. `asdas`) → toast “Enter a valid email address.”, focus Email, no save; `canSave` stays false until format is valid.
+
+---
+
+### 2026-08-13 18:01 IST
+
+**Prompt:**  
+> EmployeeDrawer “Create employee”: enable only when mandatory fields filled; otherwise toast + focus that field.
+
+**Output:**  
+- `screens/EmployeeMaster.tsx` EmployeeDrawer: validate Full name, HRMS ID, Email, Department (in order).
+- Incomplete → `toast.error` with field message + focus that input; complete → save.
 
 ### 2026-08-13 16:51 IST
 

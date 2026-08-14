@@ -29,6 +29,7 @@ import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { useSettings } from "../context/SettingsContext";
 import {
+  addDaysISO,
   buildDeploymentRowsFromEmployees,
   reportRange,
 } from "../api/liveViews";
@@ -39,20 +40,21 @@ import type { ReportExportInput } from "../utils/reportExport";
 import { formatHoursLabel } from "../utils/formatHours";
 import { scopeEmployeesForViewer } from "../utils/reportVisibility";
 import {
+  forgetStaleUnallocatedSentinel,
   loadReportFilters,
-  reconcileMultiSelect,
   saveReportFilters,
+  serializeMultiSelect,
 } from "../utils/reportFilterPersistence";
 
 type DeploymentPersistedFilters = {
   periodId: ReportPeriodId;
   search: string;
   groupBy: DeploymentGroupBy;
-  departments: string[];
-  projects: string[];
-  resourceOwners: string[];
-  skills: string[];
-  statuses: string[];
+  departments: string[] | null;
+  projects: string[] | null;
+  resourceOwners: string[] | null;
+  skills: string[] | null;
+  statuses: string[] | null;
   sortKey: DeploymentSortKey;
   sortDir: "asc" | "desc";
 };
@@ -84,7 +86,7 @@ export function ResourceDeploymentReport() {
     []
   );
   const [periodId, setPeriodId] = useState<ReportPeriodId>(
-    () => storedFilters?.periodId ?? "today"
+    () => storedFilters?.periodId ?? "week"
   );
   const [search, setSearch] = useState(() => storedFilters?.search ?? "");
   const [groupBy, setGroupBy] = useState<DeploymentGroupBy>(
@@ -106,18 +108,25 @@ export function ResourceDeploymentReport() {
   }, [periodId, settings.workingDays]);
 
   const load = useCallback(async () => {
+    // Widen ±1 day so DATE/timestamptz TZ casts cannot drop rows that end on
+    // the period start (Planner already uses a multi-week window). Hours still
+    // use the exact period in buildDeploymentRowsFromEmployees.
+    const from = addDaysISO(range.from, -1);
+    const to = addDaysISO(range.to, 1);
     try {
-      const [a, c] = await Promise.all([
-        fetchAllocations({ from: range.from, to: range.to }),
-        fetchConfirmations({ from: range.from, to: range.to }),
-      ]);
-      setAllocations(a);
-      setConfirmations(c);
-    } catch {
+      const a = await fetchAllocations({ from, to });
+      setAllocations(Array.isArray(a) ? a : []);
+    } catch (e) {
       setAllocations([]);
+      toast.error(e instanceof Error ? e.message : "Failed to load allocations");
+    }
+    try {
+      const c = await fetchConfirmations({ from: range.from, to: range.to });
+      setConfirmations(Array.isArray(c) ? c : []);
+    } catch {
       setConfirmations([]);
     }
-  }, [range.from, range.to]);
+  }, [range.from, range.to, toast]);
 
   useEffect(() => {
     void load();
@@ -161,7 +170,9 @@ export function ResourceDeploymentReport() {
   const [departments, setDepartments] = useState<string[]>(
     () => storedFilters?.departments ?? []
   );
-  const [projects, setProjects] = useState<string[]>(() => storedFilters?.projects ?? []);
+  const [projects, setProjects] = useState<string[]>(() =>
+    forgetStaleUnallocatedSentinel(storedFilters?.projects)
+  );
   const [resourceOwners, setResourceOwners] = useState<string[]>(
     () => storedFilters?.resourceOwners ?? []
   );
@@ -175,11 +186,22 @@ export function ResourceDeploymentReport() {
   });
 
   useEffect(() => {
-    setDepartments((prev) => reconcileMultiSelect(prev, allDepts));
-    setProjects((prev) => reconcileMultiSelect(prev, allProjects));
-    setResourceOwners((prev) => reconcileMultiSelect(prev, ownerNames));
-    setSkills((prev) => reconcileMultiSelect(prev, allSkills));
-    setStatuses((prev) => reconcileMultiSelect(prev, [...DEPLOYMENT_STATUSES]));
+    const prune = (prev: string[], available: string[]) => {
+      if (prev.length === 0 || available.length === 0) return prev;
+      if (
+        available.length === 1 &&
+        available[0] === "Unallocated" &&
+        prev.some((v) => v !== "Unallocated")
+      ) {
+        return prev;
+      }
+      const next = prev.filter((v) => available.includes(v));
+      return next.length === prev.length && next.every((v, i) => v === prev[i]) ? prev : next;
+    };
+    setDepartments((prev) => prune(prev, allDepts));
+    setProjects((prev) => prune(prev, allProjects));
+    setResourceOwners((prev) => prune(prev, ownerNames));
+    setSkills((prev) => prune(prev, allSkills));
   }, [allDepts, allProjects, ownerNames, allSkills]);
 
   const { sortKey, sortDir, handleSort } = useColumnSort<DeploymentSortKey>(
@@ -192,11 +214,11 @@ export function ResourceDeploymentReport() {
       periodId,
       search,
       groupBy,
-      departments,
-      projects,
-      resourceOwners,
-      skills,
-      statuses,
+      departments: serializeMultiSelect(departments, allDepts),
+      projects: serializeMultiSelect(projects, allProjects),
+      resourceOwners: serializeMultiSelect(resourceOwners, ownerNames),
+      skills: serializeMultiSelect(skills, allSkills),
+      statuses: serializeMultiSelect(statuses, [...DEPLOYMENT_STATUSES]),
       sortKey,
       sortDir,
     } satisfies DeploymentPersistedFilters);
@@ -211,6 +233,10 @@ export function ResourceDeploymentReport() {
     statuses,
     sortKey,
     sortDir,
+    allDepts,
+    allProjects,
+    ownerNames,
+    allSkills,
   ]);
 
   const filters: DeploymentFilters = {
@@ -414,6 +440,7 @@ export function ResourceDeploymentReport() {
           counts={deptCounts}
           allLabel="All departments"
           pluralLabel="departments"
+          emptyNeutral
         />
         <FilterMultiSelect
           items={allProjects}
@@ -422,6 +449,7 @@ export function ResourceDeploymentReport() {
           counts={projectCounts}
           allLabel="All projects"
           pluralLabel="projects"
+          emptyNeutral
         />
         <FilterMultiSelect
           items={ownerItems}
@@ -430,6 +458,7 @@ export function ResourceDeploymentReport() {
           counts={ownerCounts}
           allLabel="All resource owners"
           pluralLabel="owners"
+          emptyNeutral
         />
         <FilterMultiSelect
           items={allSkills}
@@ -438,6 +467,7 @@ export function ResourceDeploymentReport() {
           counts={skillCounts}
           allLabel="All skills"
           pluralLabel="skills"
+          emptyNeutral
         />
         <FilterMultiSelect
           items={[...DEPLOYMENT_STATUSES]}
@@ -484,49 +514,61 @@ export function ResourceDeploymentReport() {
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-border">
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
             <div className={`${REPORT_GRID} sticky top-0 z-10 border-b border-border-soft bg-surface-alt py-2 text-[11px] font-semibold text-muted`}>
-              <SortColHeader
-                label="EMPLOYEE"
-                col="employee"
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onSort={handleSort}
-              />
-              <SortColHeader
-                label="PROJECT"
-                col="project"
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onSort={handleSort}
-              />
-              <SortColHeader
-                label="ALLOCATION"
-                col="allocation"
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onSort={handleSort}
-                className="justify-end"
-              />
-              <SortColHeader
-                label="AVAILABLE FROM"
-                col="availableFrom"
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onSort={handleSort}
-              />
-              <SortColHeader
-                label="PLANNING ACCURACY"
-                col="planningAccuracy"
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onSort={handleSort}
-              />
-              <SortColHeader
-                label="CONFIRMATION DISCIPLINE"
-                col="confirmationDiscipline"
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onSort={handleSort}
-              />
+              <div className="min-w-0">
+                <SortColHeader
+                  label="EMPLOYEE"
+                  col="employee"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                />
+              </div>
+              <div className="min-w-0">
+                <SortColHeader
+                  label="PROJECT"
+                  col="project"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                />
+              </div>
+              <div className="flex min-w-0 justify-end">
+                <SortColHeader
+                  label="ALLOCATION"
+                  col="allocation"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                  className="justify-end"
+                />
+              </div>
+              <div className="min-w-0">
+                <SortColHeader
+                  label="AVAILABLE FROM"
+                  col="availableFrom"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                />
+              </div>
+              <div className="min-w-0">
+                <SortColHeader
+                  label="PLANNING ACCURACY"
+                  col="planningAccuracy"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                />
+              </div>
+              <div className="min-w-0">
+                <SortColHeader
+                  label="CONFIRMATION DISCIPLINE"
+                  col="confirmationDiscipline"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                />
+              </div>
             </div>
             {sorted.length === 0 ? (
               <div className="px-4 py-10 text-center text-[12px] text-muted-foreground">
@@ -553,7 +595,7 @@ export function ResourceDeploymentReport() {
         </div>
 
         <p className="mt-2.5 text-[11px] text-muted-foreground">
-          Draft allocations excluded · shows approved allocations only
+          Hours are for the selected period, using the same allocations as Resource Planner
         </p>
       </div>
     </div>
@@ -598,7 +640,7 @@ function ReportRow({
           <span className="text-[12px] italic text-muted-foreground">{row.projectName}</span>
         )}
       </div>
-      <div className="text-right text-[12px] font-medium tabular-nums text-foreground">
+      <div className="min-w-0 text-right text-[12px] font-medium tabular-nums text-foreground">
         {formatHoursLabel(row.allocationHours)}
       </div>
       <div className="min-w-0 truncate text-[12px] text-foreground">{row.availableFrom}</div>

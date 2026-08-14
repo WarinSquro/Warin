@@ -18,7 +18,6 @@ import type { JwtPayload } from "../auth/jwt.strategy";
 import { RequirePermissions } from "../auth/guards";
 import {
   assertCanPlanForEmployee,
-  immediateReportEmployeeIds,
 } from "../auth/resource-scope";
 import { EmitDataChange } from "../realtime/emit-data-change.decorator";
 
@@ -785,44 +784,26 @@ export class ConfirmationsController {
     const fri = weekDates[weekDates.length - 1] ?? addDaysISO(mon, 4);
     const todayIndex = weekDates.indexOf(today);
 
-    const scopedIds = await immediateReportEmployeeIds(this.prisma, req.user);
-
     const viewer = await this.prisma.employee.findFirst({
       where: { hrmsId: req.user.hrmsId, isDeleted: false },
       select: { id: true },
     });
 
-    /** Anyone who owns ≥1 active report is an RO — team list is ICs / members only. */
-    const ownerRows = await this.prisma.employee.findMany({
-      where: {
-        isDeleted: false,
-        status: "active",
-        resourceOwnerId: { not: null },
-      },
-      select: { resourceOwnerId: true },
-      distinct: ["resourceOwnerId"],
-    });
-    const resourceOwnerIds = ownerRows
-      .map((r) => r.resourceOwnerId)
-      .filter((id): id is bigint => id != null);
-
-    const excludeIds = [
-      ...resourceOwnerIds,
-      ...(viewer ? [viewer.id] : []),
-    ];
-
-    const roster = await this.prisma.employee.findMany({
-      where: {
-        isDeleted: false,
-        status: "active",
-        ...(scopedIds ? { id: { in: scopedIds } } : {}),
-        ...(excludeIds.length > 0 ? { id: { notIn: excludeIds } } : {}),
-      },
-      include: {
-        skills: { include: { skill: true }, take: 1 },
-      },
-      orderBy: { name: "asc" },
-    });
+    /** Team compliance = immediate reports only (Resource Owner = signed-in user). */
+    const roster = !viewer
+      ? []
+      : await this.prisma.employee.findMany({
+          where: {
+            isDeleted: false,
+            status: "active",
+            resourceOwnerId: viewer.id,
+            id: { not: viewer.id },
+          },
+          include: {
+            skills: { include: { skill: true }, take: 1 },
+          },
+          orderBy: { name: "asc" },
+        });
 
     const confirmations = await this.prisma.workConfirmation.findMany({
       where: {

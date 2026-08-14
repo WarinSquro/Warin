@@ -120,7 +120,7 @@ function dayLabel(d: Date): string {
 }
 
 /** Rolling 5-week / 5-day window anchored on "today" so new allocations appear on the grid. */
-function buildPlannerWindow(anchor = new Date()) {
+export function buildPlannerWindow(anchor = new Date()) {
   const currentMonday = mondayOf(anchor);
   const weekStarts = [0, 1, 2, 3, 4].map((i) => addDays(currentMonday, (i - 1) * 7));
   const dayStarts = [0, 1, 2, 3, 4].map((i) => addDays(currentMonday, i));
@@ -133,6 +133,31 @@ function buildPlannerWindow(anchor = new Date()) {
     dayStartIso: dayStarts.map(toISODate),
     currentWeekIndex: 1,
     currentDayIndex,
+  };
+}
+
+/** Day-view nav: one previous week … current … next 3 weeks (matches Week columns). */
+export const DAY_WEEK_OFFSET_MIN = -1;
+export const DAY_WEEK_OFFSET_MAX = 3;
+
+/**
+ * Mon–Fri day strip for `currentMonday + weekOffset*7`.
+ * `currentDayIndex` is -1 when not the real current week (no “today” highlight).
+ */
+export function dayStripForWeekOffset(weekOffset: number, anchor = new Date()) {
+  const clamped = Math.max(DAY_WEEK_OFFSET_MIN, Math.min(DAY_WEEK_OFFSET_MAX, weekOffset));
+  const currentMonday = mondayOf(anchor);
+  const selectedMonday = addDays(currentMonday, clamped * 7);
+  const dayStarts = [0, 1, 2, 3, 4].map((i) => addDays(selectedMonday, i));
+  const weekday = anchor.getDay();
+  const todayIndex = weekday >= 1 && weekday <= 5 ? weekday - 1 : 0;
+  return {
+    weekOffset: clamped,
+    days: dayStarts.map(dayLabel),
+    dayStartIso: dayStarts.map(toISODate),
+    currentDayIndex: clamped === 0 ? todayIndex : -1,
+    /** Past week is view-only — no new/edit allocate from grid. */
+    allocateAllowed: clamped >= 0,
   };
 }
 
@@ -334,13 +359,15 @@ export function dayCapacityHours(iso: string, opts: PlannerCalendarOpts = {}): n
 export function allocationEffectiveDate(
   view: "day" | "week",
   cellIndex: number,
-  today = plannerTodayISO()
+  today = plannerTodayISO(),
+  dayStartIso: string[] = DAY_START_ISO,
+  weekStartIso: string[] = WEEK_START_ISO
 ): string {
   if (view === "day") {
-    const cell = DAY_START_ISO[cellIndex] ?? today;
+    const cell = dayStartIso[cellIndex] ?? today;
     return cell < today ? today : cell;
   }
-  const monday = WEEK_START_ISO[cellIndex] ?? today;
+  const monday = weekStartIso[cellIndex] ?? today;
   const sunday = toISODate(addDays(parseISO(monday), 6));
   if (today >= monday && today <= sunday) return today;
   if (today > sunday) return today;
@@ -549,7 +576,8 @@ export function buildPlannerRowsFromEmployees(
   employees: { id: string; name: string; department: string; status: string; skills: string[] }[],
   capacity = 40,
   allocations: AllocationSlice[] = [],
-  calendar: PlannerCalendarOpts = {}
+  calendar: PlannerCalendarOpts = {},
+  opts?: { dayStartIso?: string[]; weekStartIso?: string[] }
 ): PlannerRow[] {
   const byEmp = new Map<string, AllocationSlice[]>();
   for (const a of allocations) {
@@ -565,27 +593,30 @@ export function buildPlannerRowsFromEmployees(
     workingHoursPerDay: hpd,
   };
 
-  const dayRangeStart = DAY_START_ISO[0]!;
-  const dayRangeEnd = DAY_START_ISO[DAY_START_ISO.length - 1]!;
-  const weekRangeStart = WEEK_START_ISO[0]!;
-  const weekRangeEnd = toISODate(addDays(parseISO(WEEK_START_ISO[WEEK_START_ISO.length - 1]!), 6));
+  const dayStarts = opts?.dayStartIso?.length ? opts.dayStartIso : DAY_START_ISO;
+  const weekStarts = opts?.weekStartIso?.length ? opts.weekStartIso : WEEK_START_ISO;
+
+  const dayRangeStart = dayStarts[0]!;
+  const dayRangeEnd = dayStarts[dayStarts.length - 1]!;
+  const weekRangeStart = weekStarts[0]!;
+  const weekRangeEnd = toISODate(addDays(parseISO(weekStarts[weekStarts.length - 1]!), 6));
   const dayStripCapacity = Math.round(
-    DAY_START_ISO.reduce((sum, iso) => sum + dayCapacityHours(iso, cal), 0) * 10
+    dayStarts.reduce((sum, iso) => sum + dayCapacityHours(iso, cal), 0) * 10
   ) / 10;
   const weekWindowCapacity = Math.round(
-    WEEK_START_ISO.reduce((sum, start) => sum + weekCapacityHours(start, cal), 0) * 10
+    weekStarts.reduce((sum, start) => sum + weekCapacityHours(start, cal), 0) * 10
   ) / 10;
 
   return employees
     .filter((e) => e.status === "active")
     .map((e) => {
       const allocs = byEmp.get(e.id) ?? [];
-      const weeks = WEEK_START_ISO.map((start) => {
+      const weeks = weekStarts.map((start) => {
         const end = toISODate(addDays(parseISO(start), 6));
         const weekCap = weekCapacityHours(start, cal);
         return buildCellFromAllocations(allocs, "week", start, end, weekCap, cal);
       });
-      const days = DAY_START_ISO.map((start) => {
+      const days = dayStarts.map((start) => {
         const dayCap = dayCapacityHours(start, cal);
         return buildCellFromAllocations(allocs, "day", start, start, dayCap, cal);
       });
@@ -601,7 +632,7 @@ export function buildPlannerRowsFromEmployees(
         bookedHours: weekBookedHours,
         dayBookedHours,
         capacity: weekWindowCapacity > 0 ? weekWindowCapacity : capacity,
-        dayCapacity: dayStripCapacity > 0 ? dayStripCapacity : Math.round(hpd * DAY_START_ISO.length * 10) / 10,
+        dayCapacity: dayStripCapacity > 0 ? dayStripCapacity : Math.round(hpd * dayStarts.length * 10) / 10,
         weeks,
         days,
       };

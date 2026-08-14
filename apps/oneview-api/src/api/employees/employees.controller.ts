@@ -252,8 +252,17 @@ export class EmployeesController {
   }
 
   @Get()
-  // WCI reviewers + planner/availability need roster; write ops stay employees-only.
-  @RequirePermissions("employees", "my_team.weekly_check_in", "planner", "availability")
+  // WCI reviewers + planner/availability/reports need roster; write ops stay employees-only.
+  @RequirePermissions(
+    "employees",
+    "my_team.weekly_check_in",
+    "planner",
+    "availability",
+    "reports.deployment",
+    "reports.performance",
+    "reports.execution",
+    "reports.daily_work"
+  )
   async list(@Query("status") status?: string) {
     const [rows, txFlags] = await Promise.all([
       this.prisma.employee.findMany({

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { FileSpreadsheet, FileText, Search } from "lucide-react";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
@@ -9,6 +9,7 @@ import { BillableSplitBar } from "../components/BillableSplitBar";
 import { ProjectHealthBadge } from "../components/ProjectHealthBadge";
 import { ProjectTypeBadge } from "../components/ProjectTypeBadge";
 import { ProjectExecutionDrawer } from "../components/ProjectExecutionDrawer";
+import { TruncateText } from "../components/TruncateText";
 import {
   DEFAULT_EXECUTION_CUSTOM_MONTH,
   EXECUTION_CUSTOM_MONTHS,
@@ -62,6 +63,7 @@ import {
   loadReportFilters,
   reconcileMultiSelect,
   saveReportFilters,
+  serializeMultiSelect,
 } from "../utils/reportFilterPersistence";
 
 const REPORT_GRID =
@@ -75,11 +77,11 @@ type ExecutionPersistedFilters = {
   customMonthId: ExecutionCustomMonthId;
   compareOn: boolean;
   search: string;
-  projects: string[];
-  departments: string[];
-  resourceOwners: string[];
-  healthFilters: string[];
-  statusFilters: string[];
+  projects: string[] | null;
+  departments: string[] | null;
+  resourceOwners: string[] | null;
+  healthFilters: string[] | null;
+  statusFilters: string[] | null;
   sortKey: ExecutionSortKey;
   sortDir: "asc" | "desc";
 };
@@ -210,12 +212,38 @@ export function ProjectExecutionReport() {
     () => storedFilters?.statusFilters ?? [...STATUS_FILTER_ITEMS]
   );
 
+  const prevProjectsRef = useRef<string[]>([]);
+  const prevDeptsRef = useRef<string[]>([]);
+  const prevOwnersRef = useRef<string[]>([]);
+  const prevHealthRef = useRef<string[]>([]);
+  const prevStatusRef = useRef<string[]>([]);
+
   useEffect(() => {
-    setProjects((prev) => reconcileMultiSelect(prev, allProjects));
-    setDepartments((prev) => reconcileMultiSelect(prev, allDepts));
-    setResourceOwners((prev) => reconcileMultiSelect(prev, ownerNames));
-    setHealthFilters((prev) => reconcileMultiSelect(prev, HEALTH_FILTER_ITEMS));
-    setStatusFilters((prev) => reconcileMultiSelect(prev, STATUS_FILTER_ITEMS));
+    setProjects((prev) => {
+      const next = reconcileMultiSelect(prev, allProjects, prevProjectsRef.current);
+      prevProjectsRef.current = [...allProjects];
+      return next;
+    });
+    setDepartments((prev) => {
+      const next = reconcileMultiSelect(prev, allDepts, prevDeptsRef.current);
+      prevDeptsRef.current = [...allDepts];
+      return next;
+    });
+    setResourceOwners((prev) => {
+      const next = reconcileMultiSelect(prev, ownerNames, prevOwnersRef.current);
+      prevOwnersRef.current = [...ownerNames];
+      return next;
+    });
+    setHealthFilters((prev) => {
+      const next = reconcileMultiSelect(prev, HEALTH_FILTER_ITEMS, prevHealthRef.current);
+      prevHealthRef.current = [...HEALTH_FILTER_ITEMS];
+      return next;
+    });
+    setStatusFilters((prev) => {
+      const next = reconcileMultiSelect(prev, STATUS_FILTER_ITEMS, prevStatusRef.current);
+      prevStatusRef.current = [...STATUS_FILTER_ITEMS];
+      return next;
+    });
   }, [allProjects, allDepts, ownerNames]);
 
   const { sortKey, sortDir, handleSort } = useColumnSort<ExecutionSortKey>(
@@ -229,11 +257,11 @@ export function ProjectExecutionReport() {
       customMonthId,
       compareOn,
       search,
-      projects,
-      departments,
-      resourceOwners,
-      healthFilters,
-      statusFilters,
+      projects: serializeMultiSelect(projects, allProjects),
+      departments: serializeMultiSelect(departments, allDepts),
+      resourceOwners: serializeMultiSelect(resourceOwners, ownerNames),
+      healthFilters: serializeMultiSelect(healthFilters, HEALTH_FILTER_ITEMS),
+      statusFilters: serializeMultiSelect(statusFilters, STATUS_FILTER_ITEMS),
       sortKey,
       sortDir,
     } satisfies ExecutionPersistedFilters);
@@ -249,6 +277,9 @@ export function ProjectExecutionReport() {
     statusFilters,
     sortKey,
     sortDir,
+    allProjects,
+    allDepts,
+    ownerNames,
   ]);
 
   const healthStatuses = useMemo(
@@ -641,59 +672,71 @@ export function ProjectExecutionReport() {
             <div
               className={`${REPORT_GRID} sticky top-0 z-10 border-b border-border-soft bg-surface-alt py-2 text-[11px] font-semibold text-muted`}
             >
-              <SortColHeader
-                label="PROJECT"
-                col="project"
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onSort={handleSort}
-              />
-              <SortColHeader
-                label="PLANNING ACCURACY"
-                col="planningAccuracy"
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onSort={handleSort}
-              />
-              <SortColHeader
-                label="CONFIRMATION DISCIPLINE"
-                col="confirmationDiscipline"
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onSort={handleSort}
-              />
-              <SortColHeader
-                label="UTIL (HRS)"
-                col="utilizationHrs"
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onSort={handleSort}
-                className="justify-end pr-4"
-              />
-              <SortColHeader
-                label="BILLABLE SPLIT"
-                col="billablePct"
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onSort={handleSort}
-                className="pl-2"
-              />
-              <SortColHeader
-                label="RESOURCES"
-                col="resourceCount"
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onSort={handleSort}
-                className="justify-end pr-4"
-              />
-              <SortColHeader
-                label="HEALTH"
-                col="health"
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onSort={handleSort}
-                className="pl-2"
-              />
+              <div className="min-w-0">
+                <SortColHeader
+                  label="PROJECT"
+                  col="project"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                />
+              </div>
+              <div className="min-w-0">
+                <SortColHeader
+                  label="PLANNING ACCURACY"
+                  col="planningAccuracy"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                />
+              </div>
+              <div className="min-w-0">
+                <SortColHeader
+                  label="CONFIRMATION DISCIPLINE"
+                  col="confirmationDiscipline"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                />
+              </div>
+              <div className="flex min-w-0 justify-end pr-4">
+                <SortColHeader
+                  label="UTIL (HRS)"
+                  col="utilizationHrs"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                  className="justify-end"
+                />
+              </div>
+              <div className="min-w-0 pl-2">
+                <SortColHeader
+                  label="BILLABLE SPLIT"
+                  col="billablePct"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                />
+              </div>
+              <div className="flex min-w-0 justify-end pr-4">
+                <SortColHeader
+                  label="RESOURCES"
+                  col="resourceCount"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                  className="justify-end"
+                />
+              </div>
+              <div className="min-w-0 pl-2">
+                <SortColHeader
+                  label="HEALTH"
+                  col="health"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                />
+              </div>
             </div>
             {sorted.length === 0 ? (
               <div className="px-4 py-10 text-center text-[12px] text-muted-foreground">
@@ -781,16 +824,15 @@ function ExecutionReportRow({
       }`}
     >
       <div className="min-w-0">
-        <button
-          type="button"
+        <TruncateText
+          as="button"
+          text={row.projectName}
           onClick={(e) => {
             e.stopPropagation();
             navigate(`/projects?highlight=${row.projectId}`);
           }}
-          className="truncate text-left text-[13px] font-medium text-foreground hover:text-primary"
-        >
-          {row.projectName}
-        </button>
+          className="block w-full text-left text-[13px] font-medium text-foreground hover:text-primary"
+        />
         <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
           <ProjectTypeBadge type={row.projectType} />
           <span className="text-[10px] text-muted-foreground">·</span>
@@ -817,7 +859,7 @@ function ExecutionReportRow({
           show={compareOn}
         />
       </div>
-      <div className="pr-4 text-right text-[12px] font-medium tabular-nums text-foreground">
+      <div className="min-w-0 pr-4 text-right text-[12px] font-medium tabular-nums text-foreground">
         {formatHoursLabel(row.utilizationHrs)}
         <MetricDelta
           current={row.utilizationHrs}
@@ -833,7 +875,7 @@ function ExecutionReportRow({
           leaveException={row.unstaffedException}
         />
       </div>
-      <div className="pr-4 text-right text-[12px] font-medium tabular-nums text-foreground">
+      <div className="min-w-0 pr-4 text-right text-[12px] font-medium tabular-nums text-foreground">
         {row.resourceCount}
         <MetricDelta
           current={row.resourceCount}
@@ -842,7 +884,7 @@ function ExecutionReportRow({
           show={compareOn}
         />
       </div>
-      <div className="pl-2">
+      <div className="min-w-0 pl-2">
         <ProjectHealthBadge health={row.health} />
       </div>
     </div>

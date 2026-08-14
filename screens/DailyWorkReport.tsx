@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FileSpreadsheet, FileText, Search } from "lucide-react";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import { FilterMultiSelect } from "../components/FilterMultiSelect";
@@ -52,16 +52,17 @@ import {
   loadReportFilters,
   reconcileMultiSelect,
   saveReportFilters,
+  serializeMultiSelect,
 } from "../utils/reportFilterPersistence";
 
 type DailyWorkPersistedFilters = {
   periodId: DailyWorkPeriodId;
   search: string;
   pageSize: number;
-  departments: string[];
-  projects: string[];
-  confirmations: ConfirmationCode[];
-  planKinds: PlanKind[];
+  departments: string[] | null;
+  projects: string[] | null;
+  confirmations: ConfirmationCode[] | null;
+  planKinds: PlanKind[] | null;
   sortKey: DailyWorkSortKey;
   sortDir: "asc" | "desc";
 };
@@ -256,16 +257,34 @@ export function DailyWorkReport() {
     () => storedFilters?.planKinds ?? ["Plan", "Unplanned"]
   );
 
+  const prevDeptsRef = useRef<string[]>([]);
+  const prevProjectsRef = useRef<string[]>([]);
+  const prevConfirmRef = useRef<string[]>([]);
+  const prevPlanRef = useRef<string[]>([]);
+
   useEffect(() => {
-    setDepartments((prev) => reconcileMultiSelect(prev, allDepts));
-    setProjects((prev) => reconcileMultiSelect(prev, allProjects));
-    setConfirmations(
-      (prev) =>
-        reconcileMultiSelect(prev, [...CONFIRMATION_CODES]) as ConfirmationCode[]
-    );
-    setPlanKinds(
-      (prev) => reconcileMultiSelect(prev, ["Plan", "Unplanned"]) as PlanKind[]
-    );
+    setDepartments((prev) => {
+      const next = reconcileMultiSelect(prev, allDepts, prevDeptsRef.current);
+      prevDeptsRef.current = [...allDepts];
+      return next;
+    });
+    setProjects((prev) => {
+      const next = reconcileMultiSelect(prev, allProjects, prevProjectsRef.current);
+      prevProjectsRef.current = [...allProjects];
+      return next;
+    });
+    setConfirmations((prev) => {
+      const all = [...CONFIRMATION_CODES];
+      const next = reconcileMultiSelect(prev, all, prevConfirmRef.current) as ConfirmationCode[];
+      prevConfirmRef.current = all;
+      return next;
+    });
+    setPlanKinds((prev) => {
+      const all = ["Plan", "Unplanned"];
+      const next = reconcileMultiSelect(prev, all, prevPlanRef.current) as PlanKind[];
+      prevPlanRef.current = all;
+      return next;
+    });
   }, [allDepts, allProjects]);
 
   const { sortKey, sortDir, handleSort } = useColumnSort<DailyWorkSortKey>(
@@ -278,10 +297,12 @@ export function DailyWorkReport() {
       periodId,
       search,
       pageSize,
-      departments,
-      projects,
-      confirmations,
-      planKinds,
+      departments: serializeMultiSelect(departments, allDepts),
+      projects: serializeMultiSelect(projects, allProjects),
+      confirmations: serializeMultiSelect(confirmations, [...CONFIRMATION_CODES]) as
+        | ConfirmationCode[]
+        | null,
+      planKinds: serializeMultiSelect(planKinds, ["Plan", "Unplanned"]) as PlanKind[] | null,
       sortKey,
       sortDir,
     } satisfies DailyWorkPersistedFilters);
@@ -295,6 +316,8 @@ export function DailyWorkReport() {
     planKinds,
     sortKey,
     sortDir,
+    allDepts,
+    allProjects,
   ]);
 
   const filters: DailyWorkFilters = {

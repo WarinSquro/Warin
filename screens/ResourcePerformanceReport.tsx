@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { FileSpreadsheet, FileText, Search } from "lucide-react";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
@@ -48,6 +48,7 @@ import {
   loadReportFilters,
   reconcileMultiSelect,
   saveReportFilters,
+  serializeMultiSelect,
 } from "../utils/reportFilterPersistence";
 
 type PerformancePersistedFilters = {
@@ -55,10 +56,10 @@ type PerformancePersistedFilters = {
   customMonthId: PerformanceCustomMonthId;
   compareOn: boolean;
   search: string;
-  departments: string[];
-  resourceOwners: string[];
-  skills: string[];
-  employmentStatuses: string[];
+  departments: string[] | null;
+  resourceOwners: string[] | null;
+  skills: string[] | null;
+  employmentStatuses: string[] | null;
   sortKey: PerformanceSortKey;
   sortDir: "asc" | "desc";
 };
@@ -173,13 +174,33 @@ export function ResourcePerformanceReport() {
     () => storedFilters?.employmentStatuses ?? [...EMPLOYMENT_STATUS_OPTIONS]
   );
 
+  const prevDeptsRef = useRef<string[]>([]);
+  const prevOwnersRef = useRef<string[]>([]);
+  const prevSkillsRef = useRef<string[]>([]);
+  const prevEmploymentRef = useRef<string[]>([]);
+
   useEffect(() => {
-    setDepartments((prev) => reconcileMultiSelect(prev, allDepts));
-    setResourceOwners((prev) => reconcileMultiSelect(prev, ownerNames));
-    setSkills((prev) => reconcileMultiSelect(prev, allSkills));
-    setEmploymentStatuses((prev) =>
-      reconcileMultiSelect(prev, [...EMPLOYMENT_STATUS_OPTIONS])
-    );
+    setDepartments((prev) => {
+      const next = reconcileMultiSelect(prev, allDepts, prevDeptsRef.current);
+      prevDeptsRef.current = [...allDepts];
+      return next;
+    });
+    setResourceOwners((prev) => {
+      const next = reconcileMultiSelect(prev, ownerNames, prevOwnersRef.current);
+      prevOwnersRef.current = [...ownerNames];
+      return next;
+    });
+    setSkills((prev) => {
+      const next = reconcileMultiSelect(prev, allSkills, prevSkillsRef.current);
+      prevSkillsRef.current = [...allSkills];
+      return next;
+    });
+    setEmploymentStatuses((prev) => {
+      const all = [...EMPLOYMENT_STATUS_OPTIONS];
+      const next = reconcileMultiSelect(prev, all, prevEmploymentRef.current);
+      prevEmploymentRef.current = all;
+      return next;
+    });
   }, [allDepts, ownerNames, allSkills]);
 
   const { sortKey, sortDir, handleSort } = useColumnSort<PerformanceSortKey>(
@@ -193,10 +214,12 @@ export function ResourcePerformanceReport() {
       customMonthId,
       compareOn,
       search,
-      departments,
-      resourceOwners,
-      skills,
-      employmentStatuses,
+      departments: serializeMultiSelect(departments, allDepts),
+      resourceOwners: serializeMultiSelect(resourceOwners, ownerNames),
+      skills: serializeMultiSelect(skills, allSkills),
+      employmentStatuses: serializeMultiSelect(employmentStatuses, [
+        ...EMPLOYMENT_STATUS_OPTIONS,
+      ]),
       sortKey,
       sortDir,
     } satisfies PerformancePersistedFilters);
@@ -211,6 +234,9 @@ export function ResourcePerformanceReport() {
     employmentStatuses,
     sortKey,
     sortDir,
+    allDepts,
+    ownerNames,
+    allSkills,
   ]);
 
   const filters: PerformanceFilters = {
@@ -565,51 +591,62 @@ export function ResourcePerformanceReport() {
             <div
               className={`${REPORT_GRID} sticky top-0 z-10 border-b border-border-soft bg-surface-alt py-2 text-[11px] font-semibold text-muted`}
             >
-              <SortColHeader
-                label="EMPLOYEE"
-                col="employee"
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onSort={handleSort}
-              />
-              <SortColHeader
-                label="PLANNING ACCURACY"
-                col="planningAccuracy"
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onSort={handleSort}
-              />
-              <SortColHeader
-                label="CONFIRMATION DISCIPLINE"
-                col="confirmationDiscipline"
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onSort={handleSort}
-              />
-              <SortColHeader
-                label="UTIL (HRS)"
-                col="utilizationHrs"
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onSort={handleSort}
-                className="justify-end pr-4"
-              />
-              <SortColHeader
-                label="BILLABLE SPLIT"
-                col="billablePct"
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onSort={handleSort}
-                className="pl-2"
-              />
-              <SortColHeader
-                label="AVAIL CAP (HRS)"
-                col="availableCapacityHrs"
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onSort={handleSort}
-                className="justify-end"
-              />
+              <div className="min-w-0">
+                <SortColHeader
+                  label="EMPLOYEE"
+                  col="employee"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                />
+              </div>
+              <div className="min-w-0">
+                <SortColHeader
+                  label="PLANNING ACCURACY"
+                  col="planningAccuracy"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                />
+              </div>
+              <div className="min-w-0">
+                <SortColHeader
+                  label="CONFIRMATION DISCIPLINE"
+                  col="confirmationDiscipline"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                />
+              </div>
+              <div className="flex min-w-0 justify-end pr-4">
+                <SortColHeader
+                  label="UTIL (HRS)"
+                  col="utilizationHrs"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                  className="justify-end"
+                />
+              </div>
+              <div className="min-w-0 pl-2">
+                <SortColHeader
+                  label="BILLABLE SPLIT"
+                  col="billablePct"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                />
+              </div>
+              <div className="flex min-w-0 justify-end">
+                <SortColHeader
+                  label="AVAIL CAP (HRS)"
+                  col="availableCapacityHrs"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                  className="justify-end"
+                />
+              </div>
             </div>
             {sorted.length === 0 ? (
               <div className="px-4 py-10 text-center text-[12px] text-muted-foreground">
@@ -724,7 +761,7 @@ function PerformanceReportRow({
           show={compareOn}
         />
       </div>
-      <div className="pr-4 text-right text-[12px] font-medium tabular-nums text-foreground">
+      <div className="min-w-0 pr-4 text-right text-[12px] font-medium tabular-nums text-foreground">
         {formatHoursLabel(row.utilizationHrs)}
         <MetricDelta
           current={row.utilizationHrs}
@@ -740,7 +777,7 @@ function PerformanceReportRow({
           leaveException={row.leaveException}
         />
       </div>
-      <div className="text-right text-[12px] font-medium tabular-nums text-foreground">
+      <div className="min-w-0 text-right text-[12px] font-medium tabular-nums text-foreground">
         {row.leaveException || row.availableCapacityHrs == null ? (
           "—"
         ) : (

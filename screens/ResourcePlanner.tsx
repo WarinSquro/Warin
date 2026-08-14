@@ -3,11 +3,12 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import {
   WEEKS,
-  DAYS,
   CURRENT_WEEK_INDEX,
-  CURRENT_DAY_INDEX,
   WEEK_START_ISO,
   DAY_START_ISO,
+  DAY_WEEK_OFFSET_MIN,
+  DAY_WEEK_OFFSET_MAX,
+  dayStripForWeekOffset,
   parseChipLabel,
   resolveProjectName,
   cellBookedHours,
@@ -64,12 +65,14 @@ function shortMonthDay(iso: string) {
 function cellDateRange(
   view: "day" | "week",
   cellIndex: number,
-  workingDays?: string[]
+  workingDays?: string[],
+  dayStartIso: string[] = DAY_START_ISO,
+  weekStartIso: string[] = WEEK_START_ISO
 ) {
   const start =
     view === "week"
-      ? WEEK_START_ISO[cellIndex] ?? WEEK_START_ISO[CURRENT_WEEK_INDEX]
-      : DAY_START_ISO[cellIndex] ?? DAY_START_ISO[CURRENT_DAY_INDEX];
+      ? weekStartIso[cellIndex] ?? weekStartIso[CURRENT_WEEK_INDEX]
+      : dayStartIso[cellIndex] ?? dayStartIso[0];
   const end = view === "week" ? workingWeekEnd(start!, workingDays) : start!;
   return { start: start!, end };
 }
@@ -79,10 +82,11 @@ function buildNewPrefill(
   view: "day" | "week",
   cellIndex: number,
   cell: Chip[],
-  workingDays?: string[]
+  workingDays?: string[],
+  dayStartIso: string[] = DAY_START_ISO
 ): AllocationPrefill {
-  const { end: cellEnd } = cellDateRange(view, cellIndex, workingDays);
-  const effective = allocationEffectiveDate(view, cellIndex);
+  const { end: cellEnd } = cellDateRange(view, cellIndex, workingDays, dayStartIso);
+  const effective = allocationEffectiveDate(view, cellIndex, plannerTodayISO(), dayStartIso);
   const start = effective;
   const end = cellEnd < start ? start : cellEnd;
   const freeChip = cell.find((c) => c.kind === "free");
@@ -141,7 +145,8 @@ function buildEditPrefill(
   chipIndex: number,
   cell: Chip[],
   allocLookup: Map<string, AllocationSlice>,
-  workingDays?: string[]
+  workingDays?: string[],
+  dayStartIso: string[] = DAY_START_ISO
 ): AllocationPrefill | null {
   const parsed = parseChipLabel(chip.label);
   if (!parsed) return null;
@@ -151,8 +156,8 @@ function buildEditPrefill(
   const weekDayCount = workingDays?.length || 5;
   const hoursPerDay =
     live?.hoursPerDay ?? (view === "week" ? parsed.hours / weekDayCount : parsed.hours);
-  const { end: cellEnd } = cellDateRange(view, cellIndex, workingDays);
-  const effective = allocationEffectiveDate(view, cellIndex);
+  const { end: cellEnd } = cellDateRange(view, cellIndex, workingDays, dayStartIso);
+  const effective = allocationEffectiveDate(view, cellIndex, plannerTodayISO(), dayStartIso);
   const today = plannerTodayISO();
   // Prefill start = effective date (never past); keep original end (or cell end)
   const rawStart = live?.startDate ?? effective;
@@ -208,6 +213,13 @@ export function ResourcePlanner() {
   const navigate = useNavigate();
   const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [view, setView] = useState<"day" | "week">("week");
+  /** Day-view week nav: -1 previous … 0 current … +3 next (Week columns span). */
+  const [dayWeekOffset, setDayWeekOffset] = useState(0);
+  const dayStrip = useMemo(() => dayStripForWeekOffset(dayWeekOffset), [dayWeekOffset]);
+  const dayStartIso = dayStrip.dayStartIso;
+  const dayLabels = dayStrip.days;
+  const dayCurrentIndex = dayStrip.currentDayIndex;
+  const dayAllocateAllowed = dayStrip.allocateAllowed;
   const [plannerRows, setPlannerRows] = useState<PlannerRow[]>([]);
   const [allocations, setAllocations] = useState<AllocationSlice[]>([]);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -300,10 +312,12 @@ export function ResourcePlanner() {
   useEffect(() => {
     setPlannerRows(
       clonePlannerRows(
-        buildPlannerRowsFromEmployees(employees, weekCapacity, allocations, calendarOpts)
+        buildPlannerRowsFromEmployees(employees, weekCapacity, allocations, calendarOpts, {
+          dayStartIso,
+        })
       )
     );
-  }, [employees, weekCapacity, allocations, calendarOpts]);
+  }, [employees, weekCapacity, allocations, calendarOpts, dayStartIso]);
 
   useEffect(() => {
     if (departments.length === 0) return;
@@ -391,10 +405,11 @@ export function ResourcePlanner() {
 
   const handleCellClick = (row: PlannerRow, cellIndex: number, cell: Chip[]) => {
     if (view === "day") {
-      const iso = DAY_START_ISO[cellIndex];
+      if (!dayAllocateAllowed) return;
+      const iso = dayStartIso[cellIndex];
       if (iso && !isPlannerWorkingDay(iso, calendarOpts)) return;
     }
-    openAllocate(buildNewPrefill(row, view, cellIndex, cell, settings.workingDays));
+    openAllocate(buildNewPrefill(row, view, cellIndex, cell, settings.workingDays, dayStartIso));
   };
 
   const handleChipClick = (
@@ -405,6 +420,7 @@ export function ResourcePlanner() {
     cell: Chip[]
   ) => {
     if (chip.kind === "free") return;
+    if (view === "day" && !dayAllocateAllowed) return;
     const editPrefill = buildEditPrefill(
       row,
       chip,
@@ -413,7 +429,8 @@ export function ResourcePlanner() {
       chipIndex,
       cell,
       allocLookup,
-      settings.workingDays
+      settings.workingDays,
+      dayStartIso
     );
     if (editPrefill) openAllocate(editPrefill);
   };
@@ -514,8 +531,13 @@ export function ResourcePlanner() {
 
   const headerRangeLabel =
     view === "week"
-      ? `${WEEKS[0]} – ${WEEKS[WEEKS.length - 1]}`
-      : `${shortMonthDay(DAY_START_ISO[0]!)} – ${shortMonthDay(DAY_START_ISO[DAY_START_ISO.length - 1]!)}`;
+      ? `${shortMonthDay(WEEK_START_ISO[0]!)} – ${shortMonthDay(
+          addDaysToIso(WEEK_START_ISO[WEEK_START_ISO.length - 1]!, 6)
+        )}`
+      : `${shortMonthDay(dayStartIso[0]!)} – ${shortMonthDay(dayStartIso[dayStartIso.length - 1]!)}`;
+
+  const canGoPrevDayWeek = view === "day" && dayWeekOffset > DAY_WEEK_OFFSET_MIN;
+  const canGoNextDayWeek = view === "day" && dayWeekOffset < DAY_WEEK_OFFSET_MAX;
 
   return (
     <>
@@ -524,9 +546,25 @@ export function ResourcePlanner() {
         <div className="flex items-center gap-4">
           <div className="text-[15px] font-semibold tracking-tight text-foreground">Resource Planner</div>
           <div className="flex items-center gap-2 text-[12px] text-foreground">
-            <button className="text-muted-foreground hover:text-foreground"><ChevronLeft className="h-4 w-4" /></button>
+            <button
+              type="button"
+              disabled={!canGoPrevDayWeek}
+              onClick={() => setDayWeekOffset((o) => Math.max(DAY_WEEK_OFFSET_MIN, o - 1))}
+              className="text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Previous week"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
             <span className="font-medium">{headerRangeLabel}</span>
-            <button className="text-muted-foreground hover:text-foreground"><ChevronRight className="h-4 w-4" /></button>
+            <button
+              type="button"
+              disabled={!canGoNextDayWeek}
+              onClick={() => setDayWeekOffset((o) => Math.min(DAY_WEEK_OFFSET_MAX, o + 1))}
+              className="text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Next week"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
           </div>
           {saveError && (
             <div className="max-w-xs truncate text-[11px] text-danger" title={saveError}>
@@ -539,7 +577,10 @@ export function ResourcePlanner() {
             {(["day", "week"] as const).map((v) => (
               <button
                 key={v}
-                onClick={() => setView(v)}
+                onClick={() => {
+                  setView(v);
+                  if (v === "day") setDayWeekOffset(0);
+                }}
                 className={`px-3 py-1.5 capitalize ${view === v ? "bg-brand font-medium text-white" : "text-muted"}`}
               >
                 {v}
@@ -619,13 +660,13 @@ export function ResourcePlanner() {
                     {w}
                   </div>
                 ))
-              : DAYS.map((d, i) => {
-                  const iso = DAY_START_ISO[i]!;
+              : dayLabels.map((d, i) => {
+                  const iso = dayStartIso[i]!;
                   const holiday = !isPlannerWorkingDay(iso, calendarOpts);
-                  const isToday = i === CURRENT_DAY_INDEX;
+                  const isToday = i === dayCurrentIndex;
                   return (
                     <div
-                      key={d}
+                      key={`${iso}-${d}`}
                       className={`flex flex-1 border-r border-border-soft px-3 py-2.5 text-center text-[11px] ${
                         holiday
                           ? "bg-surface-alt font-medium text-muted-foreground"
@@ -665,6 +706,9 @@ export function ResourcePlanner() {
                     row={row}
                     view={view}
                     calendarOpts={calendarOpts}
+                    dayStartIso={dayStartIso}
+                    dayCurrentIndex={dayCurrentIndex}
+                    allocateAllowed={view === "week" || dayAllocateAllowed}
                     onCellClick={handleCellClick}
                     onChipClick={handleChipClick}
                   />
@@ -705,12 +749,18 @@ function PlannerGridRow({
   row,
   view,
   calendarOpts,
+  dayStartIso,
+  dayCurrentIndex,
+  allocateAllowed,
   onCellClick,
   onChipClick,
 }: {
   row: PlannerRow;
   view: "day" | "week";
   calendarOpts: PlannerCalendarOpts;
+  dayStartIso: string[];
+  dayCurrentIndex: number;
+  allocateAllowed: boolean;
   onCellClick: (row: PlannerRow, cellIndex: number, cell: Chip[]) => void;
   onChipClick: (row: PlannerRow, chip: Chip, cellIndex: number, chipIndex: number, cell: Chip[]) => void;
 }) {
@@ -721,7 +771,7 @@ function PlannerGridRow({
   const tone = loadTone(ratio);
   const pct = Math.min(ratio, 1.25) * 80; // cap visual width
   const cells = view === "week" ? row.weeks : row.days;
-  const currentIndex = view === "week" ? CURRENT_WEEK_INDEX : CURRENT_DAY_INDEX;
+  const currentIndex = view === "week" ? CURRENT_WEEK_INDEX : dayCurrentIndex;
   const fmtH = (n: number) =>
     Number.isInteger(n) ? String(n) : String(parseFloat(n.toFixed(1)));
   const bookedLabel = fmtH(bookedHours);
@@ -753,20 +803,21 @@ function PlannerGridRow({
       {/* Week or day cells */}
       {cells.map((cell, i) => {
         const hasOver = cell.some((c) => c.kind === "over");
-        const dayIso = view === "day" ? DAY_START_ISO[i] : undefined;
+        const dayIso = view === "day" ? dayStartIso[i] : undefined;
         const holiday = view === "day" && dayIso ? !isPlannerWorkingDay(dayIso, calendarOpts) : false;
         const isCurrent = i === currentIndex && !holiday;
+        const readOnly = !allocateAllowed || holiday;
         return (
           <div
             key={i}
-            role={holiday ? undefined : "button"}
-            tabIndex={holiday ? undefined : 0}
+            role={readOnly ? undefined : "button"}
+            tabIndex={readOnly ? undefined : 0}
             onClick={() => {
-              if (holiday) return;
+              if (readOnly) return;
               onCellClick(row, i, cell);
             }}
             onKeyDown={(e) => {
-              if (holiday) return;
+              if (readOnly) return;
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
                 onCellClick(row, i, cell);
@@ -775,11 +826,19 @@ function PlannerGridRow({
             className={`flex flex-1 flex-col justify-center gap-1 border-r border-border-soft p-1.5 ${
               holiday
                 ? "cursor-not-allowed bg-surface-alt"
-                : `cursor-pointer hover:bg-surface-alt/40 ${
-                    hasOver ? "bg-danger-soft/50" : isCurrent ? "bg-highlight" : ""
-                  }`
+                : !allocateAllowed
+                  ? "cursor-default bg-surface-alt/30"
+                  : `cursor-pointer hover:bg-surface-alt/40 ${
+                      hasOver ? "bg-danger-soft/50" : isCurrent ? "bg-highlight" : ""
+                    }`
             }`}
-            title={holiday ? "Holiday — no allocation" : undefined}
+            title={
+              holiday
+                ? "Holiday — no allocation"
+                : !allocateAllowed
+                  ? "Previous week — view only (allocation not allowed)"
+                  : undefined
+            }
           >
             {holiday ? (
               <div className="pointer-events-none rounded-sm border border-dashed border-border px-1.5 py-1 text-[10px] leading-tight text-muted-foreground">
@@ -798,11 +857,15 @@ function PlannerGridRow({
                   <button
                     key={j}
                     type="button"
+                    disabled={!allocateAllowed}
                     onClick={(e) => {
                       e.stopPropagation();
+                      if (!allocateAllowed) return;
                       onChipClick(row, c, i, j, cell);
                     }}
-                    className={`rounded-sm px-1.5 py-1 text-left text-[10px] leading-tight ${chipClass(c.kind)} hover:brightness-95`}
+                    className={`rounded-sm px-1.5 py-1 text-left text-[10px] leading-tight ${chipClass(c.kind)} ${
+                      allocateAllowed ? "hover:brightness-95" : "cursor-default opacity-90"
+                    }`}
                   >
                     <span className="inline-flex max-w-full items-center">
                       <span className="truncate">{c.label}</span>

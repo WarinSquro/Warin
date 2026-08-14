@@ -634,24 +634,26 @@ function DepartmentsList({
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        <div className="sticky top-0 z-10 flex border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold text-muted">
-          <SortColHeader
-            label="DEPARTMENT"
-            col="department"
-            sortKey={sortKey}
-            sortDir={sortDir}
-            onSort={handleSort}
-            className="flex-1"
-          />
-          <SortColHeader
-            label="MEMBERS"
-            col="members"
-            sortKey={sortKey}
-            sortDir={sortDir}
-            onSort={handleSort}
-            className="w-[100px]"
-          />
-          <div className="w-[90px] text-right">ACTION</div>
+        <div className="sticky top-0 z-10 flex items-center border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold text-muted">
+          <div className="min-w-0 flex-1">
+            <SortColHeader
+              label="DEPARTMENT"
+              col="department"
+              sortKey={sortKey}
+              sortDir={sortDir}
+              onSort={handleSort}
+            />
+          </div>
+          <div className="w-[100px] shrink-0">
+            <SortColHeader
+              label="MEMBERS"
+              col="members"
+              sortKey={sortKey}
+              sortDir={sortDir}
+              onSort={handleSort}
+            />
+          </div>
+          <div className="w-[90px] shrink-0 text-right">ACTION</div>
         </div>
         {sorted.map((d) => {
           const inactive = d.status === "inactive";
@@ -662,7 +664,7 @@ function DepartmentsList({
                 inactive ? "opacity-60" : ""
               }`}
             >
-              <div className="flex-1">
+              <div className="min-w-0 flex-1">
                 <button
                   onClick={() => onEdit(d)}
                   className="text-[13px] font-medium text-foreground hover:text-primary"
@@ -670,10 +672,10 @@ function DepartmentsList({
                   {d.name}
                 </button>
               </div>
-              <div className="w-[100px] text-[12px] text-muted-foreground">
+              <div className="w-[100px] shrink-0 text-[12px] text-muted-foreground">
                 {d.memberCount} {d.memberCount === 1 ? "person" : "people"}
               </div>
-              <div className="w-[90px] text-right">
+              <div className="w-[90px] shrink-0 text-right">
                 <button
                   onClick={() => onToggle(d.id)}
                   className={`text-[11px] ${
@@ -737,32 +739,35 @@ function SkillsList({
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        <div className="sticky top-0 z-10 flex border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold text-muted">
-          <SortColHeader
-            label="SKILL"
-            col="skill"
-            sortKey={sortKey}
-            sortDir={sortDir}
-            onSort={handleSort}
-            className="flex-1"
-          />
-          <SortColHeader
-            label="CATEGORY"
-            col="category"
-            sortKey={sortKey}
-            sortDir={sortDir}
-            onSort={handleSort}
-            className="w-[130px]"
-          />
-          <SortColHeader
-            label="PEOPLE"
-            col="people"
-            sortKey={sortKey}
-            sortDir={sortDir}
-            onSort={handleSort}
-            className="w-[100px]"
-          />
-          <div className="w-[90px] text-right">ACTION</div>
+        <div className="sticky top-0 z-10 flex items-center border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold text-muted">
+          <div className="min-w-0 flex-1">
+            <SortColHeader
+              label="SKILL"
+              col="skill"
+              sortKey={sortKey}
+              sortDir={sortDir}
+              onSort={handleSort}
+            />
+          </div>
+          <div className="w-[130px] shrink-0">
+            <SortColHeader
+              label="CATEGORY"
+              col="category"
+              sortKey={sortKey}
+              sortDir={sortDir}
+              onSort={handleSort}
+            />
+          </div>
+          <div className="w-[100px] shrink-0">
+            <SortColHeader
+              label="PEOPLE"
+              col="people"
+              sortKey={sortKey}
+              sortDir={sortDir}
+              onSort={handleSort}
+            />
+          </div>
+          <div className="w-[90px] shrink-0 text-right">ACTION</div>
         </div>
         {sorted.map((s) => {
           const inactive = s.status === "inactive";
@@ -773,7 +778,7 @@ function SkillsList({
                 inactive ? "opacity-60" : ""
               }`}
             >
-              <div className="flex-1">
+              <div className="min-w-0 flex-1">
                 <button
                   onClick={() => onEdit(s)}
                   className="text-[13px] font-medium text-foreground hover:text-primary"
@@ -781,15 +786,15 @@ function SkillsList({
                   {s.name}
                 </button>
               </div>
-              <div className="w-[130px]">
+              <div className="w-[130px] shrink-0">
                 <span className="rounded-sm bg-accent-soft px-1.5 py-0.5 text-[10px] text-accent-softfg">
                   {s.category}
                 </span>
               </div>
-              <div className="w-[100px] text-[12px] text-muted-foreground">
+              <div className="w-[100px] shrink-0 text-[12px] text-muted-foreground">
                 {s.peopleCount} {s.peopleCount === 1 ? "person" : "people"}
               </div>
-              <div className="w-[90px] text-right">
+              <div className="w-[90px] shrink-0 text-right">
                 <button
                   onClick={() => onToggle(s.id)}
                   className={`text-[11px] ${
@@ -891,44 +896,51 @@ function ActivitiesList({
         <div
           className={`${gridCols} sticky top-0 z-10 border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold text-muted`}
         >
-          <SortColHeader
-            label="ACTIVITY"
-            col="activity"
-            sortKey={sortKey}
-            sortDir={sortDir}
-            onSort={handleSort}
-            className="min-w-0"
-          />
-          <SortColHeader
-            label="TYPE"
-            col="type"
-            sortKey={sortKey}
-            sortDir={sortDir}
-            onSort={handleSort}
-          />
-          <SortColHeader
-            label="MILESTONE"
-            col="milestone"
-            sortKey={sortKey}
-            sortDir={sortDir}
-            onSort={handleSort}
-            className="min-w-0"
-          />
-          <SortColHeader
-            label="MILESTONE TYPE"
-            col="milestoneType"
-            sortKey={sortKey}
-            sortDir={sortDir}
-            onSort={handleSort}
-            className="min-w-0"
-          />
-          <SortColHeader
-            label="PROJECT TYPE"
-            col="projectType"
-            sortKey={sortKey}
-            sortDir={sortDir}
-            onSort={handleSort}
-          />
+          <div className="min-w-0">
+            <SortColHeader
+              label="ACTIVITY"
+              col="activity"
+              sortKey={sortKey}
+              sortDir={sortDir}
+              onSort={handleSort}
+            />
+          </div>
+          <div className="min-w-0">
+            <SortColHeader
+              label="TYPE"
+              col="type"
+              sortKey={sortKey}
+              sortDir={sortDir}
+              onSort={handleSort}
+            />
+          </div>
+          <div className="min-w-0">
+            <SortColHeader
+              label="MILESTONE"
+              col="milestone"
+              sortKey={sortKey}
+              sortDir={sortDir}
+              onSort={handleSort}
+            />
+          </div>
+          <div className="min-w-0">
+            <SortColHeader
+              label="MILESTONE TYPE"
+              col="milestoneType"
+              sortKey={sortKey}
+              sortDir={sortDir}
+              onSort={handleSort}
+            />
+          </div>
+          <div className="min-w-0">
+            <SortColHeader
+              label="PROJECT TYPE"
+              col="projectType"
+              sortKey={sortKey}
+              sortDir={sortDir}
+              onSort={handleSort}
+            />
+          </div>
           <div className="text-right">ACTION</div>
         </div>
         {sorted.map((a) => {

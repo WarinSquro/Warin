@@ -27,6 +27,37 @@ function parseDate(iso?: string | null): Date | null {
   return new Date(`${iso.slice(0, 10)}T00:00:00.000Z`);
 }
 
+function addUtcCalendarDays(iso: string, days: number): string {
+  const d = new Date(`${iso.slice(0, 10)}T12:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Calendar date for Prisma DATE columns (avoid UTC day-shift in local TZ). */
+function calendarDate(d: Date): string {
+  if (
+    d.getUTCHours() === 0 &&
+    d.getUTCMinutes() === 0 &&
+    d.getUTCSeconds() === 0 &&
+    d.getUTCMilliseconds() === 0
+  ) {
+    return d.toISOString().slice(0, 10);
+  }
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function overlapsRequestedRange(
+  start: string,
+  end: string,
+  from: string,
+  to: string
+): boolean {
+  return start <= to && end >= from;
+}
+
 type AllocBody = {
   employeeHrmsId: string;
   projectCode: string;
@@ -69,9 +100,9 @@ export class AllocationsController {
       activityId: a.activity.id.toString(),
       activity: a.activity.name,
       tasks: a.tasks,
-      startDate: a.startDate.toISOString().slice(0, 10),
-      endDate: a.endDate.toISOString().slice(0, 10),
-      hoursPerDay: a.hoursPerDay,
+      startDate: calendarDate(a.startDate),
+      endDate: calendarDate(a.endDate),
+      hoursPerDay: Number(a.hoursPerDay),
       reason: a.reason,
     };
   }
@@ -150,14 +181,27 @@ export class AllocationsController {
   }
 
   @Get()
-  @RequirePermissions("planner", "availability", "utilization", "confirmations")
+  @RequirePermissions(
+    "planner",
+    "availability",
+    "utilization",
+    "confirmations",
+    "reports.deployment",
+    "reports.performance",
+    "reports.execution",
+    "reports.daily_work"
+  )
   async list(
     @Query("employeeHrmsId") employeeHrmsId?: string,
     @Query("from") from?: string,
     @Query("to") to?: string
   ) {
-    const fromDate = parseDate(from);
-    const toDate = parseDate(to);
+    const fromDay = from?.slice(0, 10);
+    const toDay = to?.slice(0, 10);
+    // Widen Prisma DATE vs timestamptz comparison by 1 day so IST/UTC
+    // session casts do not drop rows that end on `from` (e.g. Today).
+    const fromDate = fromDay ? parseDate(addUtcCalendarDays(fromDay, -1)) : null;
+    const toDate = toDay ? parseDate(addUtcCalendarDays(toDay, 1)) : null;
 
     const rows = await this.prisma.allocation.findMany({
       where: {
@@ -175,7 +219,11 @@ export class AllocationsController {
       include: this.include(),
       orderBy: [{ startDate: "asc" }, { id: "asc" }],
     });
-    return ser(rows.map((a) => this.mapRow(a)));
+    const mapped = rows.map((a) => this.mapRow(a));
+    if (!fromDay || !toDay) return ser(mapped);
+    return ser(
+      mapped.filter((a) => overlapsRequestedRange(a.startDate, a.endDate, fromDay, toDay))
+    );
   }
 
   @Get(":id")
@@ -258,7 +306,7 @@ export class AllocationsController {
     if (!existing) throw new NotFoundException("Allocation not found");
     await assertCanPlanForEmployee(this.prisma, req.user, existing.employee);
 
-    const startIso = existing.startDate.toISOString().slice(0, 10);
+    const startIso = calendarDate(existing.startDate);
     const todayIso = new Intl.DateTimeFormat("en-CA", {
       timeZone: process.env.APP_DISPLAY_TIMEZONE || "Asia/Kolkata",
       year: "numeric",

@@ -307,7 +307,7 @@ function AvailTableRow({
   return (
     <div className="flex items-center border-b border-border-soft px-4 py-3 last:border-b-0">
       {/* Team member */}
-      <div className="flex w-[200px] items-center gap-2.5">
+      <div className="flex w-[200px] shrink-0 items-center gap-2.5">
         <div
           className={`flex h-[30px] w-[30px] flex-shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
             isNow
@@ -324,7 +324,7 @@ function AvailTableRow({
       </div>
 
       {/* Free capacity */}
-      <div className="w-[160px]">
+      <div className="w-[160px] shrink-0">
         <FreeCapacityBar freeHours={row.freeHours} capacity={row.capacity} />
         <div className="mt-0.5 text-[11px] text-muted-foreground">
           {row.bookedPct}% booked
@@ -332,7 +332,7 @@ function AvailTableRow({
       </div>
 
       {/* Available from */}
-      <div className="w-[130px]">
+      <div className="w-[130px] shrink-0">
         <span
           className={`text-[12px] font-medium ${
             isNow ? "text-success" : "text-muted-foreground"
@@ -350,7 +350,7 @@ function AvailTableRow({
       </div>
 
       {/* Action */}
-      <div className="w-[100px] text-right">
+      <div className="w-[100px] shrink-0 text-right">
         <button
           onClick={() => onAllocate(row)}
           className="inline-flex items-center gap-0.5 text-[11px] text-primary hover:underline"
@@ -727,40 +727,44 @@ export function Availability() {
 
           {/* Single scrollport: sticky header + rows share width (scrollbar no longer shifts columns). */}
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-            <div className="sticky top-0 z-10 flex border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold text-muted">
-              <SortColHeader
-                label="TEAM MEMBER"
-                col="name"
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onSort={handleSort}
-                className="w-[200px]"
-              />
-              <SortColHeader
-                label="FREE CAPACITY"
-                col="freeHours"
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onSort={handleSort}
-                className="w-[160px]"
-              />
-              <SortColHeader
-                label="AVAILABLE FROM"
-                col="availableFrom"
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onSort={handleSort}
-                className="w-[130px]"
-              />
-              <SortColHeader
-                label="SKILLS"
-                col="skills"
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onSort={handleSort}
-                className="flex-1"
-              />
-              <div className="w-[100px] text-right">ACTION</div>
+            <div className="sticky top-0 z-10 flex items-center border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold text-muted">
+              <div className="w-[200px] shrink-0">
+                <SortColHeader
+                  label="TEAM MEMBER"
+                  col="name"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                />
+              </div>
+              <div className="w-[160px] shrink-0">
+                <SortColHeader
+                  label="FREE CAPACITY"
+                  col="freeHours"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                />
+              </div>
+              <div className="w-[130px] shrink-0">
+                <SortColHeader
+                  label="AVAILABLE FROM"
+                  col="availableFrom"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                />
+              </div>
+              <div className="min-w-0 flex-1 pr-4">
+                <SortColHeader
+                  label="SKILLS"
+                  col="skills"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                />
+              </div>
+              <div className="w-[100px] shrink-0 text-right">ACTION</div>
             </div>
 
             {rows.length === 0 ? (

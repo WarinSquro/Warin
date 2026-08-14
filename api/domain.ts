@@ -94,7 +94,7 @@ type ApiProject = {
   modifiedAt?: string | null;
   createdByName?: string | null;
   modifiedByName?: string | null;
-  milestones: { id: string; name: string; date: string }[];
+  milestones: { id: string; name: string; date: string; kind?: MilestoneKind | null }[];
   demandLines: { id: string; skills: string[]; count: number }[];
   allocationCount?: number;
   _count?: { allocations?: number };
@@ -204,6 +204,7 @@ export function mapApiProject(p: ApiProject): Project {
       id: String(m.id),
       name: m.name,
       date: isoDate(m.date),
+      kind: m.kind ?? undefined,
     })),
     demandLines: (p.demandLines ?? []).map((l) => ({
       id: String(l.id),
