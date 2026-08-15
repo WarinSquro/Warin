@@ -549,11 +549,11 @@ export function DailyWorkReport() {
           <div className="min-h-0 flex-1 overflow-x-auto overflow-y-auto overscroll-contain">
             <div className="w-max min-w-max">
               <div
-                className="sticky top-0 z-10 grid w-max items-center justify-items-start gap-x-4 border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold text-muted"
+                className="sticky top-0 z-10 grid w-max items-center gap-x-4 border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold text-muted"
                 style={{ gridTemplateColumns: gridTemplate }}
               >
                 {visibleColDefs.map((col) => (
-                  <div key={col.id} className="min-w-0 overflow-hidden">
+                  <div key={col.id} className="min-w-0 w-full overflow-hidden">
                     <SortColHeader
                       label={
                         col.stackedHeader ? (
@@ -583,7 +583,7 @@ export function DailyWorkReport() {
                 paged.map((row) => (
                   <div
                     key={row.id}
-                    className="grid w-max items-center justify-items-start gap-x-4 border-b border-border-soft px-4 py-2.5 text-[12px] last:border-b-0 hover:bg-surface-alt/60"
+                    className="grid w-max items-start gap-x-4 border-b border-border-soft px-4 py-2.5 text-[12px] last:border-b-0 hover:bg-surface-alt/60"
                     style={{ gridTemplateColumns: gridTemplate }}
                   >
                     {visibleColDefs.map((col) => {
@@ -593,15 +593,13 @@ export function DailyWorkReport() {
                       return (
                         <div
                           key={col.id}
-                          className={`min-w-0 truncate ${
+                          className={`min-w-0 w-full overflow-hidden whitespace-normal break-words [overflow-wrap:anywhere] ${
                             isNumeric ? "tabular-nums" : ""
                           } ${col.id === "employeeName" ? "font-medium text-foreground" : "text-foreground"}`}
                           title={
                             isConfirmation
                               ? confirmationCodeLabel(row.confirmation)
-                              : col.id === "tasks"
-                                ? value
-                                : undefined
+                              : undefined
                           }
                         >
                           {isConfirmation ? (

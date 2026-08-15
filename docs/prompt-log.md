@@ -32,6 +32,17 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-15 15:55 IST
+
+**Prompt:**  
+> Daily Work Detail: when data does not fit the column width, wrap it (long Tasks text overflowed across columns).
+
+**Output:**  
+- **Root cause:** `justify-items-start` sized cells to content, so `truncate` had no width cap and long Tasks text overlapped later columns.
+- **Change:** Cells stretch to the column track and wrap (`break-words` / `overflow-wrap: anywhere`).
+- Files: `screens/DailyWorkReport.tsx`, `docs/prompt-log.md`.
+- Not committed (user did not ask).
+
 ### 2026-08-15 15:50 IST
 
 **Prompt:**  
