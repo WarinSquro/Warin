@@ -32,6 +32,82 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-15 16:34 IST
+
+**Prompt:**  
+> If user click on "Cancel" then focus on "Sign In" button. (`SessionConflictDialog`)
+
+**Output:**  
+- **Root cause:** Closing the dialog left focus nowhere (the Cancel button unmounts).
+- **Change:** `onConflictCancel` focuses the existing Sign In button after the dialog unmounts (double `requestAnimationFrame`).
+- Files: `screens/Login.tsx`, `docs/prompt-log.md`.
+- Not committed (user did not ask).
+
+### 2026-08-15 16:30 IST
+
+**Prompt:**  
+> When this popup open, set focus on "Cancel" button. (`SessionConflictDialog`)
+
+**Output:**  
+- **Root cause:** Dialog had no autofocus; Cancel was not focused on open. Shared `useFocusFirstField` only targets inputs, not buttons.
+- **Change:** Ref + `requestAnimationFrame` focus on Cancel when `open` is true; `autoFocus` as fallback.
+- Files: `components/SessionConflictDialog.tsx`, `docs/prompt-log.md`.
+- Not committed (user did not ask).
+
+### 2026-08-15 16:18 IST
+
+**Prompt:**  
+> Open Demand card: keep project name, health bubble, and HIGH on the same line — health text looks lower because of the bubble.
+
+**Output:**  
+- **Root cause:** Bubble used `py-0.5` plus default line-height, so “Needs Attention” sat below the project name / HIGH even with `items-center`.
+- **Change:** Bubble is `leading-none py-0`. Row uses `items-baseline` so the three labels share one baseline.
+- Files: `components/ProjectHealthBadge.tsx`, `components/DemandRequestCard.tsx`, `docs/prompt-log.md`.
+- Not committed (user did not ask).
+
+### 2026-08-15 16:15 IST
+
+**Prompt:**  
+> Week number text not showing properly (W26–W33 clipped at the bottom on Utilization Trend).
+
+**Output:**  
+- **Root cause:** BarChart `margin.bottom` was 0, so Recharts X-axis ticks (W26…) were clipped.
+- **Change:** Bottom margin 18, XAxis `height={22}` and `tickMargin={6}`.
+- Files: `components/CockpitUtilTrendChart.tsx`, `docs/prompt-log.md`.
+- Not committed (user did not ask).
+
+### 2026-08-15 16:10 IST
+
+**Prompt:**  
+> Daily Work Detail Allocated on column shows “—” — show the allocated on date.
+
+**Output:**  
+- **Root cause:** Column used only `createdAt`, which the running API does not yet return, so every cell was —.
+- **Change:** Use `createdAt` when present, otherwise allocation `startDate`. Confirmation lines also match allocation by employee/project/date if id lookup misses.
+- Files: `api/liveViews.ts`, `tests/unit/dailyWorkAllocatedOn.test.ts`, `docs/prompt-log.md`.
+- Not committed (user did not ask).
+
+### 2026-08-15 16:02 IST
+
+**Prompt:**  
+> Showing blank screen on /planner. Check and fix.
+
+**Output:**  
+- **Root cause:** Adding Allocated on dropped the `roundHoursToTenth` import from `api/liveViews.ts`. Planner always mounts Find Matches, which calls `buildCandidatesFromEmployees` → `ReferenceError` → blank app.
+- **Change:** Restored `import { roundHoursToTenth } from "../utils/formatHours"`. `tests/unit/findMatchesCandidates.test.ts` passes.
+- Files: `api/liveViews.ts`, `docs/prompt-log.md`.
+- Not committed (user did not ask).
+
+### 2026-08-15 15:56 IST
+
+**Prompt:**  
+> Daily Work Detail Columns picker: show “Allocated on” in all capitals.
+
+**Output:**  
+- **Change:** Picker label is `ALLOCATED ON` (same casing as TASKS / PLANNED HRS).
+- Files: `data/dailyWorkReport.ts`, `tests/unit/dailyWorkColumns.test.ts`, `docs/prompt-log.md`.
+- Not committed (user did not ask).
+
 ### 2026-08-15 15:55 IST
 
 **Prompt:**  

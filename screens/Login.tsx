@@ -23,6 +23,7 @@ export function Login() {
   } | null>(null);
   const [continuing, setContinuing] = useState(false);
   const refs = useRef<(HTMLInputElement | null)[]>([]);
+  const submitBtnRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     try {
@@ -37,6 +38,12 @@ export function Login() {
       /* ignore */
     }
   }, []);
+
+  useEffect(() => {
+    if (!pin.every((d) => d !== "")) return;
+    if (document.activeElement !== refs.current[4]) return;
+    submitBtnRef.current?.focus();
+  }, [pin]);
 
   if (isAuthenticated) {
     return <Navigate to={getDefaultLandingRoute()} replace />;
@@ -106,6 +113,9 @@ export function Login() {
     setConflict(null);
     setError(false);
     setErrorMsg(null);
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => submitBtnRef.current?.focus());
+    });
   };
 
   return (
@@ -165,9 +175,10 @@ export function Login() {
           </div>
 
           <button
+            ref={submitBtnRef}
             type="button"
             onClick={() => void submit()}
-            className={`mt-4 w-full cursor-pointer rounded-md py-2.5 text-[13px] font-semibold ${
+            className={`mt-4 w-full cursor-pointer rounded-md py-2.5 text-[13px] font-semibold outline-none focus:ring-2 focus:ring-brand-muted/25 ${
               canSubmit
                 ? "bg-primary text-primary-foreground hover:bg-brand-active"
                 : "bg-brand/30 text-white/80"
