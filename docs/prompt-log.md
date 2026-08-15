@@ -32,6 +32,16 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-15 18:02 IST
+
+**Prompt:**  
+> API container healthy, Nest started, but `curl http://127.0.0.1:8080/api/v1/health` still 502; login shows API 502.
+
+**Output:**  
+- **Root cause:** `oneview-nginx` was 11 days old. After API recreate it still proxied `api:3001` to the previous container IP. Nest was fine; Compose Nginx was stale.
+- **Now on EC2:** `docker compose restart nginx` then curl health.
+- **Code:** `infra/nginx/default.conf` uses Docker DNS `resolver 127.0.0.11`; deploy script reloads nginx after API is up.
+
 ### 2026-08-15 17:58 IST
 
 **Prompt:**  

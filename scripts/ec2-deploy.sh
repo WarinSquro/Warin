@@ -104,6 +104,7 @@ echo "SPA_PUBLISH_OK"
 # after Node has released SPA-build memory.
 echo "== ensure API/nginx are up =="
 docker compose up -d nginx api worker
+docker compose exec -T nginx nginx -s reload || docker compose restart nginx
 wait_for_api 24
 
 if [[ "$WITH_API" -eq 1 ]]; then
@@ -112,6 +113,7 @@ if [[ "$WITH_API" -eq 1 ]]; then
   wait_for_api 60
   docker compose exec -T api npx prisma migrate deploy --schema=/app/prisma/schema.prisma
   docker compose up -d nginx api worker
+  docker compose exec -T nginx nginx -s reload || docker compose restart nginx
   wait_for_api 24
   echo "API_OK"
 fi
