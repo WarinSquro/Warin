@@ -8,6 +8,7 @@ import type { Band, UtilRow } from "../data/utilization";
 import type { DeploymentRow, DeploymentStatus } from "../data/deploymentReport";
 import { workingWeekBounds } from "../utils/workingWeek";
 import { APP_DISPLAY_TIMEZONE } from "../utils/formatAppDate";
+import { roundHoursToTenth } from "../utils/formatHours";
 import { isWorkingWeekday, normalizedWorkingDays, workingDayStatus } from "../utils/workingCalendar";
 import type {
   PerformanceHistory,
@@ -921,11 +922,11 @@ function resolveMilestoneType(
 }
 
 /** Calendar date the allocation was saved, in the product display timezone. */
-function allocationDoneDate(createdAt?: string | null): string | undefined {
-  if (!createdAt) return undefined;
-  const d = new Date(createdAt);
+function allocationDoneDate(iso?: string | null): string | undefined {
+  if (!iso) return undefined;
+  const d = new Date(iso);
   if (Number.isNaN(d.getTime())) {
-    const m = /^(\d{4}-\d{2}-\d{2})/.exec(createdAt.trim());
+    const m = /^(\d{4}-\d{2}-\d{2})/.exec(iso.trim());
     return m?.[1];
   }
   return new Intl.DateTimeFormat("en-CA", {
@@ -934,6 +935,34 @@ function allocationDoneDate(createdAt?: string | null): string | undefined {
     month: "2-digit",
     day: "2-digit",
   }).format(d);
+}
+
+function allocationCreatedOn(
+  alloc?: Pick<ApiAllocation, "createdAt" | "startDate"> | null
+): string | undefined {
+  return allocationDoneDate(alloc?.createdAt ?? alloc?.startDate);
+}
+
+function resolveLineAllocation(
+  allocations: ApiAllocation[],
+  employeeHrmsId: string,
+  allocationId: string | null | undefined,
+  projectLabel: string | undefined,
+  workDate: string
+): ApiAllocation | undefined {
+  const id = allocationId != null ? String(allocationId).trim() : "";
+  if (id) {
+    const byId = allocations.find((a) => String(a.id) === id);
+    if (byId) return byId;
+  }
+  const day = workDate.slice(0, 10);
+  return allocations.find((a) => {
+    if (a.employeeHrmsId !== employeeHrmsId) return false;
+    if (projectLabel && a.projectName !== projectLabel) return false;
+    const from = a.startDate.slice(0, 10);
+    const to = a.endDate.slice(0, 10);
+    return day >= from && day <= to;
+  });
 }
 
 export function buildDailyWorkRows(
@@ -960,11 +989,15 @@ export function buildDailyWorkRows(
     for (const l of c.lines) {
       const code = confirmationCode(c, l.kind);
       const delayed = code === "CD" || code === "DD";
-      const proj = l.allocationId
-        ? allocations.find((a) => a.id === l.allocationId)
-        : undefined;
+      const alloc = resolveLineAllocation(
+        allocations,
+        c.employeeHrmsId,
+        l.allocationId,
+        l.projectLabel,
+        c.workDate
+      );
       const project =
-        (proj ? projectByCode.get(proj.projectCode) : undefined) ??
+        (alloc ? projectByCode.get(alloc.projectCode) : undefined) ??
         projectByName.get(l.projectLabel);
 
       if (l.allocationId) {
@@ -987,7 +1020,7 @@ export function buildDailyWorkRows(
         milestoneName: l.milestoneLabel || undefined,
         milestoneType: resolveMilestoneType(
           project,
-          proj?.milestoneId,
+          alloc?.milestoneId,
           l.milestoneLabel
         ),
         activityName: l.activity,
@@ -1005,7 +1038,7 @@ export function buildDailyWorkRows(
           l.kind === "deviation" || l.kind === "unplanned" ? l.reason : undefined,
         actualHours: l.actualHours,
         planKind: l.kind === "unplanned" ? "Unplanned" : "Plan",
-        allocatedOn: allocationDoneDate(proj?.createdAt),
+        allocatedOn: allocationCreatedOn(alloc),
       });
     }
   }
@@ -1051,7 +1084,7 @@ export function buildDailyWorkRows(
         plannedHours: a.hoursPerDay,
         confirmation: "Pending",
         planKind: "Plan",
-        allocatedOn: allocationDoneDate(a.createdAt),
+        allocatedOn: allocationCreatedOn(a),
       });
     }
   }
