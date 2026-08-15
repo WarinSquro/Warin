@@ -7,7 +7,8 @@ import type { AvailRow, RollingOffPerson } from "../data/availability";
 import type { Band, UtilRow } from "../data/utilization";
 import type { DeploymentRow, DeploymentStatus } from "../data/deploymentReport";
 import { workingWeekBounds } from "../utils/workingWeek";
-import { roundHoursToTenth } from "../utils/formatHours";
+import { APP_DISPLAY_TIMEZONE } from "../utils/formatAppDate";
+import { isWorkingWeekday, normalizedWorkingDays, workingDayStatus } from "../utils/workingCalendar";
 import type {
   PerformanceHistory,
   PerformanceHistoryMonth,
@@ -113,9 +114,6 @@ export function reportRange(
   };
 }
 
-const DOW_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
-const DEFAULT_WORKING_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri"];
-
 function isoDay(value: string): string {
   return value.slice(0, 10);
 }
@@ -130,15 +128,13 @@ function weekdayHoursInRange(
   workingDays?: string[]
 ): number {
   const off = new Set((companyOffDays ?? []).map((d) => d.slice(0, 10)));
-  const working = workingDays?.length ? workingDays : DEFAULT_WORKING_DAYS;
   const hpd = Number(hoursPerDay);
   if (!Number.isFinite(hpd) || hpd <= 0) return 0;
   let days = 0;
   for (let d = rangeFrom; d <= rangeTo; d = addDaysISO(d, 1)) {
     if (d < startDate || d > endDate) continue;
     if (off.has(d)) continue;
-    const label = DOW_SHORT[new Date(`${d}T12:00:00`).getDay()]!;
-    if (!working.includes(label)) continue;
+    if (!isWorkingWeekday(d, workingDays)) continue;
     days += 1;
   }
   return hpd * days;
@@ -230,13 +226,13 @@ function confirmationCode(c: ApiConfirmation, lineKind: string): ConfirmationCod
   return delayed ? "CD" : "C";
 }
 
-function weekdayCount(from: string, to: string): number {
-  let n = 0;
-  for (let d = from; d <= to; d = addDaysISO(d, 1)) {
-    const dow = new Date(`${d}T12:00:00`).getDay();
-    if (dow >= 1 && dow <= 5) n += 1;
-  }
-  return n;
+function weekdayCount(
+  from: string,
+  to: string,
+  workingDays?: string[],
+  companyOffDays?: string[]
+): number {
+  return workingDayCount(from, to, companyOffDays, workingDays);
 }
 
 export function buildAvailRowsFromEmployees(
@@ -336,8 +332,6 @@ function formatShortMonthDay(iso: string): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-const DOW_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
-
 export type DeploymentCalendarOpts = {
   /** Working weekdays e.g. Mon…Fri — from AppSettings.workingDays */
   workingDays?: string[];
@@ -348,14 +342,10 @@ export type DeploymentCalendarOpts = {
 };
 
 function isWorkingDay(iso: string, opts: DeploymentCalendarOpts): boolean {
-  const working = opts.workingDays?.length
-    ? opts.workingDays
-    : ["Mon", "Tue", "Wed", "Thu", "Fri"];
-  const dow = new Date(`${iso}T12:00:00`).getDay();
-  const label = DOW_LABELS[dow]!;
-  if (!working.includes(label)) return false;
-  if (opts.companyOffDays?.includes(iso)) return false;
-  return true;
+  return workingDayStatus(iso, {
+    workingDays: opts.workingDays,
+    companyOffDays: opts.companyOffDays,
+  }).ok;
 }
 
 /** First working day strictly after `iso` (RDR-013/014). */
@@ -395,12 +385,10 @@ function workingDayCount(
   workingDays?: string[]
 ): number {
   const off = new Set((companyOffDays ?? []).map((d) => d.slice(0, 10)));
-  const working = workingDays?.length ? workingDays : DEFAULT_WORKING_DAYS;
   let n = 0;
   for (let d = rangeFrom; d <= rangeTo; d = addDaysISO(d, 1)) {
     if (off.has(d)) continue;
-    const label = DOW_SHORT[new Date(`${d}T12:00:00`).getDay()]!;
-    if (working.includes(label)) n += 1;
+    if (isWorkingWeekday(d, workingDays)) n += 1;
   }
   return n;
 }
@@ -518,7 +506,7 @@ export function buildDeploymentRowsFromEmployees(
     if (!emp) continue;
     const sample = sampleByKey.get(key);
     const mine = confByEmp.get(emp.id) ?? [];
-    const weekdays = weekdayCount(rangeFrom, rangeTo);
+    const weekdays = weekdayCount(rangeFrom, rangeTo, calendar.workingDays, calendar.companyOffDays);
     const confirmedDays = mine.filter(
       (c) => c.workDate >= rangeFrom && c.workDate <= rangeTo
     ).length;
@@ -589,11 +577,14 @@ export function buildPerformanceRowsFromEmployees(
   allocations: ApiAllocation[] = [],
   confirmations: ApiConfirmation[] = [],
   rangeFrom = mondayISO(),
-  rangeTo = addDaysISO(mondayISO(), 6)
+  rangeTo = addDaysISO(mondayISO(), 6),
+  workingDays?: string[],
+  companyOffDays?: string[]
 ): PerformanceRow[] {
   const nameById = new Map(employees.map((e) => [e.id, e.name]));
-  const booked = bookedHoursInRange(allocations, rangeFrom, rangeTo);
-  const weekdays = weekdayCount(rangeFrom, rangeTo);
+  const booked = bookedHoursInRange(allocations, rangeFrom, rangeTo, companyOffDays, workingDays);
+  const weekdays = weekdayCount(rangeFrom, rangeTo, workingDays, companyOffDays);
+  const daysPerWeek = normalizedWorkingDays(workingDays).length || 5;
   const confByEmp = new Map<string, ApiConfirmation[]>();
   for (const c of confirmations) {
     const list = confByEmp.get(c.employeeHrmsId) ?? [];
@@ -620,8 +611,8 @@ export function buildPerformanceRowsFromEmployees(
     const accuracy =
       planned > 0 ? Math.round((Math.min(actual, planned) / planned) * 100) : undefined;
 
-    const capacityDays = weekdays || 5;
-    const periodCapacity = (weekCapacity / 5) * capacityDays;
+    const capacityDays = weekdays || daysPerWeek;
+    const periodCapacity = (weekCapacity / daysPerWeek) * capacityDays;
     const utilPct = periodCapacity > 0 ? Math.round((hours / periodCapacity) * 100) : 0;
 
     return {
@@ -650,7 +641,9 @@ export function buildExecutionRowsFromProjects(
   allocations: ApiAllocation[] = [],
   confirmations: ApiConfirmation[] = [],
   rangeFrom = mondayISO(),
-  rangeTo = addDaysISO(mondayISO(), 6)
+  rangeTo = addDaysISO(mondayISO(), 6),
+  workingDays?: string[],
+  companyOffDays?: string[]
 ): ExecutionRow[] {
   return projects
     .filter((p) => p.status === "active")
@@ -664,7 +657,9 @@ export function buildExecutionRowsFromProjects(
           a.endDate.slice(0, 10),
           rangeFrom,
           rangeTo,
-          a.hoursPerDay
+          a.hoursPerDay,
+          companyOffDays,
+          workingDays
         );
         if (h > 0) {
           hours += h;
@@ -688,7 +683,7 @@ export function buildExecutionRowsFromProjects(
         }
       }
 
-      const weekdays = weekdayCount(rangeFrom, rangeTo);
+      const weekdays = weekdayCount(rangeFrom, rangeTo, workingDays, companyOffDays);
       const discipline =
         weekdays > 0 && people.size > 0
           ? Math.round((confirmedLineDays / (weekdays * people.size)) * 100)
@@ -735,7 +730,9 @@ export function buildExecutionRosterFromLive(
   confirmations: ApiConfirmation[] = [],
   rangeFrom = mondayISO(),
   rangeTo = addDaysISO(mondayISO(), 6),
-  hoursPerDayCapacity = 8
+  hoursPerDayCapacity = 8,
+  workingDays?: string[],
+  companyOffDays?: string[]
 ): ExecutionRosterEntry[] {
   const empById = new Map(employees.map((e) => [e.id, e]));
   const projectAllocs = allocations.filter((a) => a.projectCode === projectId);
@@ -750,7 +747,9 @@ export function buildExecutionRosterFromLive(
       a.endDate.slice(0, 10),
       rangeFrom,
       rangeTo,
-      a.hoursPerDay
+      a.hoursPerDay,
+      companyOffDays,
+      workingDays
     );
     if (h <= 0) continue;
     const days = a.hoursPerDay > 0 ? h / a.hoursPerDay : 0;
@@ -765,7 +764,7 @@ export function buildExecutionRosterFromLive(
     byEmp.set(a.employeeHrmsId, prev);
   }
 
-  const weekdays = weekdayCount(rangeFrom, rangeTo);
+  const weekdays = weekdayCount(rangeFrom, rangeTo, workingDays, companyOffDays);
   const capacityHrs = weekdays * hoursPerDayCapacity;
   const allocIds = new Set(projectAllocs.map((a) => a.id));
 
@@ -818,7 +817,9 @@ export function buildExecutionHistoryFromLive(
   allocations: ApiAllocation[] = [],
   confirmations: ApiConfirmation[] = [],
   monthCount = 6,
-  anchorDate = new Date()
+  anchorDate = new Date(),
+  workingDays?: string[],
+  companyOffDays?: string[]
 ): ExecutionHistory | null {
   if (!projects.some((p) => p.id === projectId)) return null;
 
@@ -833,7 +834,9 @@ export function buildExecutionHistoryFromLive(
       allocations,
       confirmations,
       from,
-      to
+      to,
+      workingDays,
+      companyOffDays
     ).find((r) => r.projectId === projectId);
 
     months.push({
@@ -858,7 +861,9 @@ export function buildPerformanceHistoryFromLive(
   allocations: ApiAllocation[] = [],
   confirmations: ApiConfirmation[] = [],
   monthCount = 6,
-  anchorDate = new Date()
+  anchorDate = new Date(),
+  workingDays?: string[],
+  companyOffDays?: string[]
 ): PerformanceHistory | null {
   if (!employees.some((e) => e.id === employeeId)) return null;
 
@@ -876,7 +881,9 @@ export function buildPerformanceHistoryFromLive(
       allocations,
       confirmations,
       from,
-      to
+      to,
+      workingDays,
+      companyOffDays
     ).find((r) => r.employeeId === employeeId);
 
     months.push({
@@ -913,13 +920,31 @@ function resolveMilestoneType(
   return undefined;
 }
 
+/** Calendar date the allocation was saved, in the product display timezone. */
+function allocationDoneDate(createdAt?: string | null): string | undefined {
+  if (!createdAt) return undefined;
+  const d = new Date(createdAt);
+  if (Number.isNaN(d.getTime())) {
+    const m = /^(\d{4}-\d{2}-\d{2})/.exec(createdAt.trim());
+    return m?.[1];
+  }
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: APP_DISPLAY_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+}
+
 export function buildDailyWorkRows(
   employees: Employee[],
   projects: Project[],
   allocations: ApiAllocation[],
   confirmations: ApiConfirmation[],
   rangeFrom: string,
-  rangeTo: string
+  rangeTo: string,
+  workingDays?: string[],
+  companyOffDays?: string[]
 ): DailyWorkRow[] {
   const empById = new Map(employees.map((e) => [e.id, e]));
   const nameById = new Map(employees.map((e) => [e.id, e.name]));
@@ -980,6 +1005,7 @@ export function buildDailyWorkRows(
           l.kind === "deviation" || l.kind === "unplanned" ? l.reason : undefined,
         actualHours: l.actualHours,
         planKind: l.kind === "unplanned" ? "Unplanned" : "Plan",
+        allocatedOn: allocationDoneDate(proj?.createdAt),
       });
     }
   }
@@ -989,8 +1015,10 @@ export function buildDailyWorkRows(
     if (!emp || emp.status !== "active") continue;
     const project = projectByCode.get(a.projectCode);
     for (let d = rangeFrom; d <= rangeTo; d = addDaysISO(d, 1)) {
-      const dow = new Date(`${d}T12:00:00`).getDay();
-      if (dow < 1 || dow > 5) continue;
+      if (
+        !workingDayStatus(d, { workingDays, companyOffDays }).ok
+      )
+        continue;
       if (d < a.startDate.slice(0, 10) || d > a.endDate.slice(0, 10)) continue;
       if (confirmedAllocDay.has(`${a.employeeHrmsId}:${a.id}:${d}`)) continue;
       const empConfirmed = confirmations.some(
@@ -1023,6 +1051,7 @@ export function buildDailyWorkRows(
         plannedHours: a.hoursPerDay,
         confirmation: "Pending",
         planKind: "Plan",
+        allocatedOn: allocationDoneDate(a.createdAt),
       });
     }
   }
@@ -1180,14 +1209,10 @@ export function buildLiveWeeklyEvidence(
 
   let hours = 0;
   const projects = new Set<string>();
-  const workingSet = new Set(
-    (workingDays?.length ? workingDays : ["Mon", "Tue", "Wed", "Thu", "Fri"]).map(String)
-  );
-  const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+  const weekdays = workingDayCount(weekFrom, weekEnd, undefined, workingDays);
   for (const a of mineAlloc) {
     for (let d = weekFrom; d <= weekEnd; d = addDaysISO(d, 1)) {
-      const label = DOW[new Date(`${d}T12:00:00`).getDay()]!;
-      if (!workingSet.has(label)) continue;
+      if (!isWorkingWeekday(d, workingDays)) continue;
       if (d < a.startDate.slice(0, 10) || d > a.endDate.slice(0, 10)) continue;
       hours += a.hoursPerDay;
       projects.add(a.projectName);
@@ -1210,7 +1235,6 @@ export function buildLiveWeeklyEvidence(
     }
   }
 
-  const weekdays = workingSet.size || 5;
   const confirmationDiscipline =
     weekdays > 0 ? Math.round((mineConf.length / weekdays) * 100) : null;
   const planningAccuracy =

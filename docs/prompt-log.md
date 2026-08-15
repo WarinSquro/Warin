@@ -32,6 +32,358 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-15 15:50 IST
+
+**Prompt:**  
+> Daily Work Detail: add column “Allocated on” (date the work allocation was done). Show it after Tasks in Columns; selected by default.
+
+**Output:**  
+- **Change:** New `allocatedOn` column after Tasks, default on. Value is the allocation `created_at` date (IST). Unplanned lines without an allocation show —. GET `/allocations` now returns `createdAt`. Column storage key bumped to `v3`.
+- Files: `data/dailyWorkReport.ts`, `screens/DailyWorkReport.tsx`, `api/liveViews.ts`, `api/domain.ts`, `apps/oneview-api/src/api/allocations/allocations.controller.ts`, `tests/unit/dailyWorkColumns.test.ts`, `docs/prompt-log.md`.
+- API rebuild needed for live `createdAt`. Not committed (user did not ask).
+
+### 2026-08-15 15:45 IST
+
+**Prompt:**  
+> Daily Work Detail column widths have unnecessary space after each column. Match the attached screenshots.
+
+**Output:**  
+- **Root cause:** Tracks used `minmax(…rem, Nfr)`, so leftover card width inflated columns (Employee Name filled the view).
+- **Change:** Compact fixed `rem` widths sized to the screenshot content/headers. Grid is `w-max` so extra space is not distributed. Horizontal scroll remains when columns exceed the card.
+- Files: `data/dailyWorkReport.ts`, `screens/DailyWorkReport.tsx`, `tests/unit/dailyWorkColumns.test.ts`, `docs/prompt-log.md`.
+- Not committed (user did not ask).
+
+### 2026-08-15 15:40 IST
+
+**Prompt:**  
+> Daily Work Detail: set columns as per the screenshot; keep horizontal scroll for those columns; Department / Project Type / Activity Type stay unchecked in Columns.
+
+**Output:**  
+- **Root cause:** The prior “fit to card” change used `minmax(0, fr)` and dropped `min-w-max`, which crushed headers. Milestone / Milestone Type were also off by default.
+- **Change:** Default columns match the screenshot (Milestone + Milestone Type on). Department, Project Type, Activity Type stay optional/off. Solid min widths + `min-w-max` restore horizontal scroll. Storage key bumped to `v2` so the new defaults apply.
+- Files: `data/dailyWorkReport.ts`, `screens/DailyWorkReport.tsx`, `tests/unit/dailyWorkColumns.test.ts`, `docs/prompt-log.md`.
+- Not committed (user did not ask).
+
+### 2026-08-15 15:35 IST
+
+**Prompt:**  
+> Daily Work Detail: set the table columns to fit within the available screen width.
+
+**Output:**  
+- **Root cause:** The grid wrapper used `min-w-max` plus rem/`minmax(8rem, …)` tracks, so the table was always wider than the card (~876px) and needed a horizontal scrollbar.
+- **Change:** Tracks are `minmax(0, …fr)` so columns share card width. Wrapper is `w-full min-w-0`. Long cell text still truncates (hover shows full value).
+- Files: `data/dailyWorkReport.ts`, `screens/DailyWorkReport.tsx`, `tests/unit/dailyWorkColumns.test.ts`, `docs/prompt-log.md`.
+- Not committed (user did not ask).
+
+### 2026-08-15 15:25 IST
+
+**Prompt:**  
+> Utilization Avg Utilization KPI: “▲ 4% vs last mo” stays 4% when the month changes — calculate and show the real value.
+
+**Output:**  
+- **Root cause:** `computeUtilKpis` hardcoded `avgDelta: 4`.
+- **Change:** Fetch prior month + current allocations; avg delta = current avg − prior-month avg (same department filter). KPI shows ▲ / ▼ / — vs last mo. Hide when prior month has no people.
+- Files: `data/utilization.ts`, `screens/Utilization.tsx`, `utils/reportPeriods.ts` (`shiftMonthId`), `tests/unit/utilKpis.test.ts`, `docs/prompt-log.md`.
+- Not committed (user did not ask).
+
+### 2026-08-15 15:19 IST
+
+**Prompt:**  
+> Availability Avg Free Hrs / Person KPI: write “last 2 weeks” instead of “last mo”.
+
+**Output:**  
+- **Change:** Delta copy is now `▲ 6.0h vs last 2 weeks`.
+- Files: `screens/Availability.tsx`, `docs/prompt-log.md`.
+- Not committed (user did not ask).
+
+### 2026-08-15 15:18 IST
+
+**Prompt:**  
+> Availability header subtitle: remove “per week” from the end.
+
+**Output:**  
+- **Change:** Subtitle now ends with `hours free` (`Forward supply · {range} · hours free`).
+- Files: `screens/Availability.tsx`, `docs/prompt-log.md`.
+- Not committed (user did not ask).
+
+### 2026-08-15 15:16 IST
+
+**Prompt:**  
+> Availability Total Free Capacity KPI: remove “hrs/wk” from subtitle “hrs/wk across team”.
+
+**Output:**  
+- **Root cause:** Subtitle duplicated hours unit already shown in the KPI value (`3003.0h`).
+- **Change:** Subtitle is now `across team`.
+- Files: `screens/Availability.tsx`, `docs/prompt-log.md`.
+- Not committed (user did not ask).
+
+### 2026-08-15 15:15 IST
+
+**Prompt:**  
+> Availability Rolling off soon section: expandable/collapsible, collapsed by default, expand/collapse button after “View in planner →”.
+
+**Output:**  
+- **Root cause:** The rolling-off band always showed the carousel; no collapse control.
+- **Change:** Header stays visible; cards render only when expanded. Default `rollingOffExpanded = false`. Chevron toggle after View in planner (`aria-expanded` / `aria-label`).
+- Files: `screens/Availability.tsx`, `docs/prompt-log.md`.
+- Not committed (user did not ask).
+
+### 2026-08-15 15:10 IST
+
+**Prompt:**  
+> Availability Forward supply: take next two weeks only (not Aug 10 – Aug 30).
+
+**Output:**  
+- **Root cause:** Forward supply was current Monday + 20 days (3 weeks: Aug 10–30).
+- **Change:** Window is current Monday → Sunday of week 2 (`+13` days). Week picker is this week + next week. Rolling-off copy and `windowDays` are 14 / “2 weeks”.
+- Files: `screens/Availability.tsx`, `docs/prompt-log.md`.
+- Not committed (user did not ask).
+
+### 2026-08-15 14:48 IST
+
+**Prompt:**  
+> Remove 4. Low from Settings Demand priority order.
+
+**Output:**  
+- **Change:** Demand priority is Critical → High → Medium only. Low is stripped on GET/PUT/normalize and hidden in Settings. Seeds/defaults updated (no `db:seed`).
+- Files: `screens/Settings.tsx`, `data/settings.ts`, `api/domain.ts`, `apps/oneview-api/src/api/settings/settings-schedule.service.ts`, `prisma/seed.ts`, `prisma/seed-demo.ts`, `docs/prompt-log.md`.
+- Not committed (user did not ask).
+
+### 2026-08-15 14:46 IST
+
+**Prompt:**  
+> Settings Demand priority order: add text below the description — Project Health Critical → demand CRITICAL; Need Attention → HIGH; Healthy → MEDIUM
+
+**Output:**  
+- **Change:** Added that mapping line under the Demand priority description. Open Demand rank now follows it (Critical→critical, Needs Attention→high, Healthy→medium).
+- Files: `screens/Settings.tsx`, `data/planner.ts`, `tests/unit/openDemandStaffing.test.ts`, `docs/prompt-log.md`.
+- Not committed (user did not ask).
+
+### 2026-08-15 14:42 IST
+
+**Prompt:**  
+> Project health on Open Demand: show in bubble style and remove the dot.
+
+**Output:**  
+- **Change:** Open Demand uses `ProjectHealthBadge` `variant="bubble"` (pill, no leading dot). Dot+label remains the default on Project Master / reports.
+- Files: `components/ProjectHealthBadge.tsx`, `components/DemandRequestCard.tsx`, `docs/prompt-log.md`.
+- Not committed (user did not ask).
+
+### 2026-08-15 14:38 IST
+
+**Prompt:**  
+> Show Project Health after Project Name (Open Demand DemandRequestCard)
+
+**Output:**  
+- **Change:** Open Demand cards show `ProjectHealthBadge` immediately after the project name (same Healthy / Needs Attention / Critical as Project Master). Health comes from the project (`health`, default green).
+- Files: `data/planner.ts`, `components/DemandRequestCard.tsx`, `tests/unit/openDemandStaffing.test.ts`, `docs/prompt-log.md`.
+- Not committed (user did not ask).
+
+### 2026-08-15 14:35 IST
+
+**Prompt:**  
+> Cockpit Team Load shows 0%— though employee data is available. Find the correct value and show it.
+
+**Output:**  
+- **Root cause:** `buildLiveCockpitSnapshot` listed Team Load people but hardcoded `pct: 0` / `priorPct: 0` and never applied current-week allocation hours.
+- **Change:** Team Load % = booked hours this week ÷ Settings weekly capacity (same hours as Resource Performance). WoW delta from prior week. Tone from Settings util bands (idle / optimal / over).
+- Files: `data/cockpit.ts`, `screens/ExecutiveCockpit.tsx`, `tests/unit/cockpitTeamLoad.test.ts`, `docs/prompt-log.md`.
+- Tests: `npx vitest run tests/unit/cockpitTeamLoad.test.ts`.
+- Not committed (user did not ask).
+
+### 2026-08-15 14:30 IST
+
+**Prompt:**  
+> DemandRequestCard metadata line: after 200 characters show "..."
+
+**Output:**  
+- **Change:** Open Demand card detail (`count × skills · hours · by date`) truncates at 200 characters with `...`. Hover `title` shows the full line.
+- Files: `components/DemandRequestCard.tsx`, `docs/prompt-log.md`.
+- Not committed (user did not ask).
+
+### 2026-08-15 14:12 IST
+
+**Prompt:**  
+> Why tooltip showing, Non-working day? (Workday Timeline 15/08/2026)
+
+**Output:**  
+- **Why:** Settings calendar is Mon–Sat and 15 Aug 2026 is not a company off-day. The tooltip used default Mon–Fri because the running `oneview-api` container (3h old) still required `settings` permission on GET `/settings`. Work Confirmation users get 403; the UI keeps Mon–Fri defaults; Saturday is labeled “Non-working day”.
+- **Change:** Rebuilt `oneview-api` so GET `/settings` is JWT-only. Timeline no longer shows “Non-working day” while settings are still loading.
+- Files: `screens/WorkConfirmation.tsx`, `docs/prompt-log.md`. Docker: `docker compose up -d --build api`.
+- Not committed (user did not ask).
+
+### 2026-08-15 14:05 IST
+
+**Prompt:**  
+> Workday Timeline tooltip shows “Non-working day” for 15/08/2026. Check Settings → Working calendar. Entire app must decide working vs non-working days from that calendar.
+
+**Output:**  
+- **Root cause:** Settings DB is Mon–Sat and 15 Aug 2026 is not a company off-day. Work Confirmation still showed “Non-working day” because GET `/settings` was gated on `settings` permission, so users without Settings access kept default Mon–Fri. Several hour/day counters also hardcoded Mon–Fri (`dow 1–5`).
+- **Change:** GET `/settings` stays JWT-only (any signed-in user). Shared `utils/workingCalendar.ts` is the working-day source (weekdays + company off-days). Wired into Work Confirmation timeline, team-compliance week, planner, demand staffing, cockpit, daily work, and performance/execution reports.
+- Files: `apps/oneview-api/src/api/settings/settings.controller.ts`, `utils/workingCalendar.ts`, `api/domain.ts`, `api/liveViews.ts`, `api/cockpitDaily.ts`, `data/planner.ts`, `data/demandStaffing.ts`, `data/cockpit.ts`, confirmation/report screens, `tests/unit/workingCalendar.test.ts`, `docs/prompt-log.md`.
+- Tests: `npx vitest run tests/unit/workingCalendar.test.ts tests/unit/plannerDayStrip.test.ts`.
+- **API rebuild required** for GET `/settings` without `settings` permission (Docker `oneview-api`).
+- Not committed (user did not ask).
+
+### 2026-08-15 13:45 IST
+
+**Prompt:**  
+> After performing the Day End, if any task is allocated, it is not visible. We need to visible it. (Resource Planner Open Demand / Day grid)
+
+**Output:**  
+- **Root cause:** Planner listed only immediate reports, not the logged-in Resource Owner, so their own allocations never appeared as chips. Open Demand staffing also ignored Saturday (hardcoded Mon–Fri).
+- **Change:** Planning employee scope = self + immediate reports. Open Demand counts Settings working days (including Sat). After Day End, allocation rows/timers stay on Work Confirmation (Start locked).
+- Files: `data/employees.ts`, `hooks/usePlanningEmployees.ts`, `data/demandStaffing.ts`, `data/planner.ts`, `screens/ResourcePlanner.tsx`, `screens/WorkConfirmation.tsx`, `components/ConfirmationProductivity.tsx`, tests, `docs/prompt-log.md`.
+- Tests: `scopePlanningEmployees` + `openDemandStaffing` passed.
+- Not committed (user did not ask).
+
+### 2026-08-15 13:37 IST
+
+**Prompt:**  
+> rename it to Lunch End (Workday Timeline label currently “LUNCH IN”)
+
+**Output:**  
+- **Change:** Workday Timeline action label `lunchIn` is now “Lunch End” (renders as LUNCH END via uppercase CSS). Field key `lunchIn` unchanged.
+- Files: `utils/confirmationProductivity.ts`, `docs/prompt-log.md`.
+- Not committed (user did not ask).
+
+### 2026-08-15 13:36 IST
+
+**Prompt:**  
+> rename Lunch Start (Workday Timeline label currently “LUNCH OUT”)
+
+**Output:**  
+- **Change:** Workday Timeline action label `lunchOut` is now “Lunch Start” (renders as LUNCH START via uppercase CSS). Field key `lunchOut` unchanged.
+- Files: `utils/confirmationProductivity.ts`, `docs/prompt-log.md`.
+- Not committed (user did not ask).
+
+### 2026-08-15 13:04 IST
+
+**Prompt:**  
+> When user selects week days from Monday to Saturday all days working, then date range should be < Aug 10 - Aug 15 > and show all 6 days in table - upto Aug 15 (Sat 15). (Resource Planner Day view)
+
+**Output:**  
+- **Root cause:** Day-view strip was hardcoded to Mon–Fri (`[0,1,2,3,4]`), so Saturday never appeared even when Settings working days included Sat.
+- **Change:** `dayStripForWeekOffset` builds columns from Settings `workingDays`. Mon–Sat → header `Aug 10 – Aug 15` and six table columns through Sat 15. Mon–Fri unchanged.
+- Files: `data/planner.ts`, `screens/ResourcePlanner.tsx`, `tests/unit/plannerDayStrip.test.ts`, `docs/prompt-log.md`.
+- Tests: `npx vitest run tests/unit/plannerDayStrip.test.ts` — 4 passed.
+- Not committed (user did not ask).
+
+### 2026-08-15 12:57 IST
+
+**Prompt:**  
+> When the user enters the last PIN digit, automatically move focus to the “Sign In” button so the user can press Enter to sign in without using the mouse or pressing Tab.
+
+**Output:**  
+- **Root cause:** After the 5th digit, focus stayed on the last PIN box. Sign In is `type="button"` (not a form submit), so Enter did nothing until the user clicked or tabbed.
+- **Change:** When all 5 digits are filled and focus is still on the last PIN box, move focus to Sign In (after render, so Enter uses the completed PIN). Focus ring added on the button.
+- Files: `screens/Login.tsx`, `docs/prompt-log.md`.
+- Not committed (user did not ask).
+
+### 2026-08-14 18:31 IST
+
+**Prompt:**  
+> Keep Search Text box width to 1/3 of current width and location is same. (Project Master)
+
+**Output:**  
+- **Root cause:** Search wrapper used `flex-1` / `min-w-[180px]`, so the field stretched to ~528px.
+- **Change:** Fixed width `176px` (one-third of 528px). Still immediately after Active/Inactive tabs, before the column picker. Style unchanged.
+- Files: `screens/ProjectMaster.tsx`, `docs/prompt-log.md`.
+- Not committed (user did not ask).
+
+### 2026-08-14 18:30 IST
+
+**Prompt:**  
+> Keep Search Text box width to 1/3 of current width and location is same. (Employee Master)
+
+**Output:**  
+- **Root cause:** Search wrapper used `flex-1` / `min-w-[180px]`, so the field stretched to ~630px.
+- **Change:** Fixed width `210px` (one-third of 630px). Still immediately after Active/Inactive tabs. Style unchanged.
+- Files: `screens/EmployeeMaster.tsx`, `docs/prompt-log.md`.
+- Not committed (user did not ask).
+
+### 2026-08-14 18:16 IST
+
+**Prompt:**  
+> Keep Search Text Box style same as "Resource Deployment Report". Keep width and location as it is. (SetupMasters search)
+
+**Output:**  
+- **Root cause:** Org/Skills search used an outer bordered flex wrapper with a transparent inner input; Resource Deployment Report uses an input with border, focus ring, and an absolutely positioned search icon.
+- **Change:** Same markup/classes as Resource Deployment Report (`rounded-md border`, `pl-8`, `focus:border-primary`, icon `absolute left-2.5`). Width kept at 220px; still on the right of the Active/Inactive toolbar.
+- Files: `screens/SetupMasters.tsx`, `docs/prompt-log.md`.
+- Not committed (user did not ask).
+
+### 2026-08-14 16:59 IST
+
+**Prompt:**  
+> Show only those employees in “Resource” and “Copy from Resource” whose Resource Owner is the currently logged-in employee.
+
+**Output:**  
+- **Root cause:** KPI Framework listed all active employees (optional department filter only); it did not scope by Resource Owner.
+- **Change:** Both dropdowns use `getImmediateReports` for the logged-in employee (`resourceOwnerId === currentEmployee.id`). Super Admin still sees all active employees (setup). Department filter still applies. Invalid Resource / Copy-from selections are cleared.
+- Files: `screens/KpiFramework.tsx`, `docs/prompt-log.md`.
+- Not committed (user did not ask).
+
+### 2026-08-14 14:31 IST
+
+**Prompt:**  
+> Temporarily disable “Results can only be submitted after the assessment cycle ends” so Save can store KPI results in the database for testing.
+
+**Output:**  
+- **TEMPORARY (do not deploy):** Save no longer rejects before Q3/period end (`KPI_TEMP_UNLOCK_RESULTS_BEFORE_Q3_END`). Drawer Save stays enabled. Restore both flags before live.
+- Files: `apps/oneview-api/src/api/kpi/kpi.controller.ts`, `apps/oneview-api/src/api/kpi/kpi.util.ts`, `screens/KpiResults.tsx`, `docs/prompt-log.md`.
+- Action: rebuild API so the running server picks up the skip.
+
+### 2026-08-14 14:27 IST
+
+**Prompt:**  
+> KPI Result drawer: asterisk (*) on all mandatory fields.
+
+**Output:**  
+- **Root cause:** Required result fields had no asterisk.
+- **Fix:** Red `*` on **KPI Result** and **RO KPI Score** (required to save). Remarks and attachment stay optional (no *). Read-only fields unchanged.
+- Files: `screens/KpiResults.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-14 14:19 IST
+
+**Prompt:**  
+> KPI Result attachment: once a file is uploaded, provide View and Delete.
+
+**Output:**  
+- **Root cause:** Attachment was a file input plus filename only; no view/delete.
+- **Fix:** After a file is chosen or already saved: filename, **View** (new tab), **Delete** (confirm). Saved files use GET/DELETE `/kpi/results/:id/attachment`. Unsaved chosen files use a local blob; Delete clears the picker. Completed KPIs can View only.
+- Files: `screens/KpiResults.tsx`, `apps/oneview-api/src/api/kpi/kpi.controller.ts`, `api/client.ts`, `api/domain.ts`, `docs/prompt-log.md`.
+
+### 2026-08-14 14:16 IST
+
+**Prompt:**  
+> Resource Owner Remarks should be 200 characters. Show 0/200 (Max 200 char).
+
+**Output:**  
+- **Root cause:** KPI Result remarks had no max length or counter.
+- **Fix:** Cap at 200 with `maxLength` and label `{n}/200 (Max 200 char)`. API rejects longer remarks.
+- Files: `screens/KpiResults.tsx`, `apps/oneview-api/src/api/kpi/kpi.util.ts`, `apps/oneview-api/src/api/kpi/kpi.controller.ts`, `docs/prompt-log.md`.
+
+### 2026-08-14 14:11 IST
+
+**Prompt:**  
+> Global toast standard: 5s default; hover pauses; remaining time resumes on mouse leave. Document so new screens follow it automatically.
+
+**Output:**  
+- **Root cause:** Shared toasts auto-dismissed at 3s with no hover pause.
+- **Fix:** `ToastProvider` uses 5s; mouse enter pauses, mouse leave continues remaining time. × still dismisses immediately. Documented as an app-wide standard.
+- Files: `utils/toastTiming.ts`, `context/ToastContext.tsx`, `components/ToastViewport.tsx`, `docs/ui-toast.md`, `AGENTS.md`, `.cursor/rules/oneview-ui.mdc`, `.cursor/skills/oneview-dev/SKILL.md`, `docs/change-implementation-standards.md`, `tests/unit/toastTiming.test.ts`, `docs/prompt-log.md`.
+
+### 2026-08-14 14:02 IST
+
+**Prompt:**  
+> Temporary changes so KPI Results can be tested before Q3 ends (30 Sep). Restore original gating before live deploy when asked.
+
+**Output:**  
+- **TEMPORARY (do not deploy):** `KPI_TEMP_UNLOCK_RESULTS_BEFORE_Q3_END = true` in API `isPeriodExpired` and KPI Result drawer. Result/Save unlocked now; Framework cycle lock unchanged.
+- Restore: set both flags to `false` (or remove) before live.
+- Files: `apps/oneview-api/src/api/kpi/kpi.util.ts`, `screens/KpiResults.tsx`, `docs/prompt-log.md`.
+
 ### 2026-08-14 13:40 IST
 
 **Prompt:**  

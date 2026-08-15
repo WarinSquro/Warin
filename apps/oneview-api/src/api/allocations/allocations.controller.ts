@@ -84,6 +84,7 @@ export class AllocationsController {
     endDate: Date;
     hoursPerDay: number;
     reason: string;
+    createdAt: Date;
     employee: { hrmsId: string; name: string };
     project: { projectCode: string; name: string };
     milestone: { id: bigint; name: string };
@@ -104,6 +105,7 @@ export class AllocationsController {
       endDate: calendarDate(a.endDate),
       hoursPerDay: Number(a.hoursPerDay),
       reason: a.reason,
+      createdAt: a.createdAt.toISOString(),
     };
   }
 

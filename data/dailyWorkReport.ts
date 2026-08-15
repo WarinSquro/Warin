@@ -25,6 +25,7 @@ export type DailyWorkSortKey =
   | "activity"
   | "activityType"
   | "tasks"
+  | "allocatedOn"
   | "plannedHrs"
   | "confirmation"
   | "confirmedOn"
@@ -43,27 +44,28 @@ export interface DailyWorkColumnDef {
 }
 
 export const DAILY_WORK_COLUMNS: DailyWorkColumnDef[] = [
-  { id: "employeeName", label: "EMPLOYEE NAME", defaultVisible: true, width: "minmax(8rem,1.35fr)" },
-  { id: "department", label: "DEPARTMENT", defaultVisible: false, width: "minmax(5.5rem,0.9fr)" },
-  { id: "resourceOwner", label: "RESOURCE OWNER", defaultVisible: true, width: "minmax(7rem,1.1fr)" },
-  { id: "workDate", label: "WORK DATE", defaultVisible: true, width: "6.5rem" },
-  { id: "project", label: "PROJECT", defaultVisible: true, width: "minmax(7rem,1.15fr)" },
-  { id: "projectType", label: "PROJECT TYPE", defaultVisible: false, width: "5.5rem" },
-  { id: "milestone", label: "MILESTONE", defaultVisible: false, width: "minmax(6.5rem,1fr)" },
-  { id: "milestoneType", label: "MILESTONE TYPE", defaultVisible: false, width: "minmax(6rem,1fr)" },
-  { id: "activity", label: "ACTIVITY", defaultVisible: true, width: "minmax(6rem,1fr)" },
-  { id: "activityType", label: "ACTIVITY TYPE", defaultVisible: false, width: "5.5rem" },
-  { id: "tasks", label: "TASKS", defaultVisible: true, width: "minmax(7rem,1.25fr)" },
-  { id: "plannedHrs", label: "PLANNED HRS", stackedHeader: ["PLANNED", "HRS"], defaultVisible: true, width: "4.75rem" },
+  { id: "employeeName", label: "EMPLOYEE NAME", defaultVisible: true, width: "9.25rem" },
+  { id: "department", label: "DEPARTMENT", defaultVisible: false, width: "7rem" },
+  { id: "resourceOwner", label: "RESOURCE OWNER", defaultVisible: true, width: "9rem" },
+  { id: "workDate", label: "WORK DATE", defaultVisible: true, width: "7rem" },
+  { id: "project", label: "PROJECT", defaultVisible: true, width: "8rem" },
+  { id: "projectType", label: "PROJECT TYPE", defaultVisible: false, width: "6.5rem" },
+  { id: "milestone", label: "MILESTONE", defaultVisible: true, width: "11rem" },
+  { id: "milestoneType", label: "MILESTONE TYPE", defaultVisible: true, width: "8.5rem" },
+  { id: "activity", label: "ACTIVITY", defaultVisible: true, width: "10rem" },
+  { id: "activityType", label: "ACTIVITY TYPE", defaultVisible: false, width: "6.5rem" },
+  { id: "tasks", label: "TASKS", defaultVisible: true, width: "8rem" },
+  { id: "allocatedOn", label: "Allocated on", stackedHeader: ["ALLOCATED", "ON"], defaultVisible: true, width: "7rem" },
+  { id: "plannedHrs", label: "PLANNED HRS", stackedHeader: ["PLANNED", "HRS"], defaultVisible: true, width: "4.5rem" },
   { id: "confirmation", label: "CONFIRMATION", defaultVisible: true, width: "7.25rem" },
-  { id: "confirmedOn", label: "CONFIRMED ON", stackedHeader: ["CONFIRMED", "ON"], defaultVisible: true, width: "5.75rem" },
-  { id: "delayReason", label: "DELAY REASON", defaultVisible: true, width: "minmax(6rem,1.1fr)" },
-  { id: "deviationReason", label: "DEVIATION REASON", defaultVisible: true, width: "minmax(6rem,1.1fr)" },
-  { id: "actualHrs", label: "ACTUAL HRS", stackedHeader: ["ACTUAL", "HRS"], defaultVisible: true, width: "4.75rem" },
-  { id: "planUnplanned", label: "PLAN/UNPLANNED", stackedHeader: ["PLAN/", "UNPLANNED"], defaultVisible: true, width: "5.75rem" },
+  { id: "confirmedOn", label: "CONFIRMED ON", stackedHeader: ["CONFIRMED", "ON"], defaultVisible: true, width: "7rem" },
+  { id: "delayReason", label: "DELAY REASON", defaultVisible: true, width: "7.5rem" },
+  { id: "deviationReason", label: "DEVIATION REASON", defaultVisible: true, width: "9.5rem" },
+  { id: "actualHrs", label: "ACTUAL HRS", stackedHeader: ["ACTUAL", "HRS"], defaultVisible: true, width: "4.5rem" },
+  { id: "planUnplanned", label: "PLAN/UNPLANNED", stackedHeader: ["PLAN/", "UNPLANNED"], defaultVisible: true, width: "5.5rem" },
 ];
 
-export const DAILY_WORK_COLUMN_STORAGE_KEY = "oneview_daily_work_columns_v1";
+export const DAILY_WORK_COLUMN_STORAGE_KEY = "oneview_daily_work_columns_v3";
 
 import { dailyWorkPeriodOptions } from "../utils/reportPeriods";
 
@@ -114,6 +116,8 @@ export interface DailyWorkRow {
   deviationReason?: string;
   actualHours?: number;
   planKind: PlanKind;
+  /** Calendar date the allocation row was created (planner save). */
+  allocatedOn?: string;
 }
 
 export interface DailyWorkFilters {
@@ -214,6 +218,7 @@ function plannedLine(input: LineInput, seq: number): DailyWorkRow {
     deviationReason: deviation,
     actualHours: actual,
     planKind: "Plan",
+    allocatedOn: input.workDate,
   };
 }
 
@@ -363,6 +368,7 @@ export function filterDailyWorkRows(
         r.plannedHours,
         r.actualHours,
         r.confirmedOn,
+        r.allocatedOn,
         r.delayReason,
         r.deviationReason
       )
@@ -407,6 +413,8 @@ export function sortDailyWorkRows(
         return mul * str(a.activityType).localeCompare(str(b.activityType));
       case "tasks":
         return mul * (a.tasks ?? []).join(", ").localeCompare((b.tasks ?? []).join(", "));
+      case "allocatedOn":
+        return mul * str(a.allocatedOn).localeCompare(str(b.allocatedOn));
       case "plannedHrs":
         return mul * (num(a.plannedHours) - num(b.plannedHours));
       case "confirmation":

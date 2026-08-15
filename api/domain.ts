@@ -1,10 +1,11 @@
-import { apiFetch } from "./client";
+import { apiFetch, apiFetchBlob } from "./client";
 import type { Employee } from "../data/employees";
 import type { Project, ProjectType, MilestoneKind } from "../data/projects";
 import type { Activity, ActivityMilestone, Department, Skill, SetupStatus } from "../data/setup";
 import type { SettingsState } from "../data/settings";
-import { DEFAULT_SETTINGS } from "../data/settings";
+import { DEFAULT_SETTINGS, withoutLowDemandPriority } from "../data/settings";
 import { type SettingsAuditEntry } from "../utils/settingsAudit";
+import { normalizedWorkingDays } from "../utils/workingCalendar";
 
 function isoDate(v: string | Date | null | undefined): string {
   if (!v) return "";
@@ -249,8 +250,8 @@ export function mapApiSettings(res: ApiSettingsResponse): SettingsState {
     capacityBasis: s.capacityBasis,
     overallocationLimit: s.overallocationLimit,
     workingHoursPerDay: s.workingHoursPerDay,
-    workingDays: s.workingDays,
-    demandPriority: s.demandPriority,
+    workingDays: normalizedWorkingDays(s.workingDays),
+    demandPriority: withoutLowDemandPriority(s.demandPriority),
     dateFormat: normalizeDateFormat(s.dateFormat),
     companyOffDays: (res.companyOffDays ?? []).map((d) => ({
       id: String(d.id),
@@ -697,6 +698,7 @@ export type ApiAllocation = {
   endDate: string;
   hoursPerDay: number;
   reason: string;
+  createdAt?: string;
 };
 
 export type AllocationInput = {
@@ -1251,5 +1253,13 @@ export async function saveKpiResult(
   }
 ): Promise<ApiKpiItem> {
   return apiFetch(`/kpi/results/${id}`, { method: "PUT", body: JSON.stringify(body) });
+}
+
+export async function fetchKpiResultAttachment(id: string): Promise<Blob> {
+  return apiFetchBlob(`/kpi/results/${id}/attachment`);
+}
+
+export async function deleteKpiResultAttachment(id: string): Promise<{ ok: boolean }> {
+  return apiFetch(`/kpi/results/${id}/attachment`, { method: "DELETE" });
 }
 

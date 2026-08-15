@@ -85,6 +85,8 @@ function cellValue(
         return formatWorkDate(row.workDate, datePattern);
       case "tasks":
         return (row.tasks ?? []).join(", ");
+      case "allocatedOn":
+        return row.allocatedOn ? formatWorkDate(row.allocatedOn, datePattern) : "—";
       case "actualHrs":
         return row.actualHours != null ? String(row.actualHours) : "—";
       case "planUnplanned":
@@ -117,6 +119,8 @@ function cellValue(
       return row.activityType ?? "—";
     case "tasks":
       return (row.tasks ?? []).join(", ");
+    case "allocatedOn":
+      return row.allocatedOn ? formatWorkDate(row.allocatedOn, datePattern) : "—";
     case "plannedHrs":
       return row.plannedHours != null ? formatHours(row.plannedHours) : "—";
     case "confirmation":
@@ -216,7 +220,9 @@ export function DailyWorkReport() {
         allocations,
         apiConfirmations,
         range.from,
-        range.to
+        range.to,
+        settings.workingDays,
+        settings.companyOffDays.map((d) => d.date)
       ),
     [
       employees,
@@ -227,6 +233,8 @@ export function DailyWorkReport() {
       apiConfirmations,
       range.from,
       range.to,
+      settings.workingDays,
+      settings.companyOffDays,
     ]
   );
 
@@ -483,13 +491,13 @@ export function DailyWorkReport() {
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background p-5">
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-surface">
           <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-b border-border-soft px-4 py-2.5">
-            <div className="flex min-w-[200px] flex-1 items-center gap-2 rounded-md border border-border px-2.5 py-1.5">
-              <Search className="h-3.5 w-3.5 text-muted-foreground" />
+            <div className="relative min-w-[180px] flex-1">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search employee, project, tasks…"
-                className="w-full bg-transparent text-[12px] text-foreground outline-none placeholder:text-muted-foreground"
+                className="w-full rounded-md border border-border bg-surface py-1.5 pl-8 pr-2.5 text-[12px] text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
               />
             </div>
             <FilterMultiSelect
@@ -539,9 +547,9 @@ export function DailyWorkReport() {
           </div>
 
           <div className="min-h-0 flex-1 overflow-x-auto overflow-y-auto overscroll-contain">
-            <div className="min-w-max">
+            <div className="w-max min-w-max">
               <div
-                className="sticky top-0 z-10 grid items-center gap-x-3 border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold text-muted"
+                className="sticky top-0 z-10 grid w-max items-center justify-items-start gap-x-4 border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold text-muted"
                 style={{ gridTemplateColumns: gridTemplate }}
               >
                 {visibleColDefs.map((col) => (
@@ -575,7 +583,7 @@ export function DailyWorkReport() {
                 paged.map((row) => (
                   <div
                     key={row.id}
-                    className="grid items-center gap-x-3 border-b border-border-soft px-4 py-2.5 text-[12px] last:border-b-0 hover:bg-surface-alt/60"
+                    className="grid w-max items-center justify-items-start gap-x-4 border-b border-border-soft px-4 py-2.5 text-[12px] last:border-b-0 hover:bg-surface-alt/60"
                     style={{ gridTemplateColumns: gridTemplate }}
                   >
                     {visibleColDefs.map((col) => {
