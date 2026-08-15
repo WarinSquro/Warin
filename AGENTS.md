@@ -34,6 +34,7 @@ Setup guide: `docs/postgres-local-setup.md`. Monorepo: `docs/monorepo.md`.
 3b. **Git sync (required):** Keep laptop and `origin` synchronized. Before work: pull. After verified changes: add / commit / push. Include those commands in every codebase task. See `docs/git-sync-workflow.md`. Resolve merge conflicts before continuing.
 4. Theme: `docs/theme.md` + `theme/tokens.css` / `index.css`. Do not redesign brand colors.
 4b. **Truncated text:** Ellipsis (`truncate`) must show full value on hover — `docs/ui-truncate-tooltips.md` (`TruncateHoverTitles` / `TruncateText`).
+4c. **Toasts:** Shared `useToast()` only — 5s default, hover pauses, remaining time resumes on mouse leave. `docs/ui-toast.md`. Do not add one-off toasts.
 5. Preserve `AppShell`, `routes.tsx`, and permission keys in `data/navConfig.ts`.
 6. Treat `data/*.ts` as temporary mocks until API + Prisma replace them screen-by-screen.
 7. Prefer minimal diffs; do not mass-refactor folder structure (`src/`) unless asked.

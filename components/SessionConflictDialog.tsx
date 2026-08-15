@@ -1,4 +1,5 @@
 import { MonitorSmartphone } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { useAppDateFormat } from "../hooks/useAppDateFormat";
 import type { ExistingSessionInfo } from "../api/client";
 
@@ -19,6 +20,13 @@ export function SessionConflictDialog({
   onCancel: () => void;
 }) {
   const { formatDateTime } = useAppDateFormat();
+  const cancelRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const raf = window.requestAnimationFrame(() => cancelRef.current?.focus());
+    return () => window.cancelAnimationFrame(raf);
+  }, [open]);
 
   if (!open) return null;
 
@@ -73,7 +81,9 @@ export function SessionConflictDialog({
 
         <div className="mt-5 flex gap-2">
           <button
+            ref={cancelRef}
             type="button"
+            autoFocus
             onClick={onCancel}
             disabled={continuing}
             className="flex-1 cursor-pointer rounded-md border border-border py-2 text-[13px] text-foreground hover:bg-surface-alt disabled:opacity-60"

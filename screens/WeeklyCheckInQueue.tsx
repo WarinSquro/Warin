@@ -177,13 +177,13 @@ export function WeeklyCheckInQueue() {
         {loadError && <div className="mb-3 text-[12px] text-danger">{loadError}</div>}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
           <div className="flex flex-shrink-0 flex-wrap items-center gap-3 border-b border-border-soft px-4 py-2.5">
-            <div className="flex min-w-[220px] flex-1 items-center gap-2 rounded-md border border-border bg-surface px-2.5 py-1.5">
-              <Search className="pointer-events-none h-3.5 w-3.5 text-muted-foreground" />
+            <div className="relative min-w-[180px] flex-1">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search your reports…"
-                className="w-full bg-transparent text-[12px] text-foreground outline-none placeholder:text-muted-foreground"
+                className="w-full rounded-md border border-border bg-surface py-1.5 pl-8 pr-2.5 text-[12px] text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
               />
             </div>
             <div className="flex gap-1">

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowRight, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { MIN_FREE_HOUR_OPTIONS, computeAvailKpis } from "../data/availability";
 import type { AvailRow, RollingOffPerson } from "../data/availability";
 import { AllocationDrawer } from "../components/AllocationDrawer";
@@ -24,10 +24,10 @@ import { formatWeekLabel, type ReviewWeekOption } from "../data/weeklyCheckIn";
 type Segment = "all" | "now" | "rolling";
 type AvailSortKey = "name" | "freeHours" | "availableFrom" | "skills";
 
-/** Current week + next 2 weeks for the Availability week picker. */
+/** Current week + next week for the Availability week picker. */
 function getAvailabilityWeeks(workingDays?: string[]): ReviewWeekOption[] {
   const current = mondayISO();
-  return [0, 1, 2].map((offset) => {
+  return [0, 1].map((offset) => {
     const weekStart = addDaysISO(current, offset * 7);
     return {
       weekStart,
@@ -37,14 +37,14 @@ function getAvailabilityWeeks(workingDays?: string[]): ReviewWeekOption[] {
   });
 }
 
-/** Current-week Monday → Sunday of the 3rd week (21 calendar days). */
+/** Current-week Monday → Sunday of the 2nd week (14 calendar days). */
 function forwardSupplyBounds(from = new Date()) {
   const start = mondayISO(from);
-  const end = addDaysISO(start, 20);
+  const end = addDaysISO(start, 13);
   return { start, end };
 }
 
-/** e.g. "Aug 10 – Aug 30, 2026" */
+/** e.g. "Aug 10 – Aug 23, 2026" */
 function formatForwardSupplyRange(start: string, end: string): string {
   const a = new Date(`${start}T12:00:00`);
   const b = new Date(`${end}T12:00:00`);
@@ -253,7 +253,7 @@ function RollingOffCarousel({
   if (people.length === 0) {
     return (
       <div className="rounded-md border border-dashed border-border bg-surface px-3 py-4 text-center text-[12px] text-muted-foreground">
-        No allocations ending in the next 3 weeks
+        No allocations ending in the next 2 weeks
       </div>
     );
   }
@@ -451,7 +451,7 @@ export function Availability() {
     () =>
       buildRollingOffFromLive(employees, allocations, {
         windowFrom: supplyFrom,
-        windowDays: 21,
+        windowDays: 14,
         workingDaysPerWeek: settings.workingDays.length || 5,
       }),
     [employees, allocations, settings.workingDays.length, supplyFrom]
@@ -466,6 +466,7 @@ export function Availability() {
   );
 
   const [seg, setSeg] = useState<Segment>("all");
+  const [rollingOffExpanded, setRollingOffExpanded] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [prefill, setPrefill] = useState<AllocationPrefill | null>(null);
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
@@ -613,7 +614,7 @@ export function Availability() {
             Availability
           </div>
           <div className="text-[12px] text-muted-foreground">
-            Forward supply · {supplyRangeLabel} · hours free per week
+            Forward supply · {supplyRangeLabel} · hours free
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -650,7 +651,7 @@ export function Availability() {
           <Kpi
             label="Total Free Capacity"
             value={formatHoursDecimalLabel(kpis.totalFreeHrs)}
-            sub="hrs/wk across team"
+            sub="across team"
             accent="border-l-success"
             valueClass="text-success"
           />
@@ -664,7 +665,7 @@ export function Availability() {
           <Kpi
             label="Rolling Off Soon"
             value={kpis.rollingOffSoon}
-            sub="within 3 weeks"
+            sub="within 2 weeks"
             accent="border-l-warning"
             valueClass="text-warning"
           />
@@ -672,27 +673,49 @@ export function Availability() {
             label="Avg Free Hrs / Person"
             value={formatHoursDecimalLabel(kpis.avgFreeHrs)}
             sub="per week"
-            delta={allFiltersActive ? `▲ ${formatHoursDecimalLabel(6)} vs last mo` : undefined}
+            delta={allFiltersActive ? `▲ ${formatHoursDecimalLabel(6)} vs last 2 weeks` : undefined}
           />
         </div>
 
         {/* Rolling off soon band */}
         <div className="flex-shrink-0 rounded-lg border border-border bg-surface-alt px-4 py-3">
-          <div className="mb-2.5 flex items-center justify-between">
+          <div
+            className={`flex items-center justify-between ${rollingOffExpanded ? "mb-2.5" : ""}`}
+          >
             <div className="text-[12px] font-semibold text-foreground">
               Rolling off soon{" "}
               <span className="font-normal text-muted-foreground">
-                · {rollingOff.length} people freeing up within 3 weeks
+                · {rollingOff.length} people freeing up within 2 weeks
               </span>
             </div>
-            <button
-              onClick={() => navigate("/planner")}
-              className="text-[11px] text-primary"
-            >
-              View in planner →
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => navigate("/planner")}
+                className="cursor-pointer text-[11px] text-primary"
+              >
+                View in planner →
+              </button>
+              <button
+                type="button"
+                aria-expanded={rollingOffExpanded}
+                aria-label={
+                  rollingOffExpanded
+                    ? "Collapse rolling off soon"
+                    : "Expand rolling off soon"
+                }
+                onClick={() => setRollingOffExpanded((open) => !open)}
+                className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border border-border bg-surface text-foreground hover:bg-surface-alt"
+              >
+                <ChevronDown
+                  className={`h-4 w-4 transition-transform ${rollingOffExpanded ? "rotate-180" : ""}`}
+                />
+              </button>
+            </div>
           </div>
-          <RollingOffCarousel people={rollingOff} onPlanAhead={openPlanAhead} />
+          {rollingOffExpanded ? (
+            <RollingOffCarousel people={rollingOff} onPlanAhead={openPlanAhead} />
+          ) : null}
         </div>
 
         {/* Supply table */}

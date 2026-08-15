@@ -71,6 +71,14 @@ export function monthIdFromDate(d = new Date()): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+/** Shift a `YYYY-MM` month id by `delta` calendar months. */
+export function shiftMonthId(monthId: string, delta: number): string {
+  const [y, m] = monthId.split("-").map(Number);
+  const year = y || new Date().getFullYear();
+  const month = m || 1;
+  return monthIdFromDate(new Date(year, month - 1 + delta, 1));
+}
+
 /** Inclusive calendar bounds for a `YYYY-MM` month id. */
 export function monthBoundsFromId(monthId: string): { from: string; to: string } {
   const [y, m] = monthId.split("-").map(Number);

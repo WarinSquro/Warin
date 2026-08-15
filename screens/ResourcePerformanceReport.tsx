@@ -150,9 +150,11 @@ export function ResourcePerformanceReport() {
         allocations,
         confirmations,
         range.from,
-        range.to
+        range.to,
+        settings.workingDays,
+        settings.companyOffDays.map((d) => d.date)
       ),
-    [scopedEmployees, weekCapacity, allocations, confirmations, range.from, range.to]
+    [scopedEmployees, weekCapacity, allocations, confirmations, range.from, range.to, settings.workingDays, settings.companyOffDays]
   );
   const priorRows = undefined;
 
@@ -307,7 +309,9 @@ export function ResourcePerformanceReport() {
       allocations,
       confirmations,
       6,
-      anchor
+      anchor,
+      settings.workingDays,
+      settings.companyOffDays.map((d) => d.date)
     );
   }, [
     drawerRow,
@@ -316,6 +320,8 @@ export function ResourcePerformanceReport() {
     allocations,
     confirmations,
     range.to,
+    settings.workingDays,
+    settings.companyOffDays,
   ]);
 
   const showExportToast = (msg: string) => {

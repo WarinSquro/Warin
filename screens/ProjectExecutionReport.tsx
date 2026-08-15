@@ -177,7 +177,9 @@ export function ProjectExecutionReport() {
       scopedAllocations,
       scopedConfirmations,
       range.from,
-      range.to
+      range.to,
+      settings.workingDays,
+      settings.companyOffDays.map((d) => d.date)
     );
     if (visibleIds == null) return rows;
     // Non-superadmin: only projects with at least one visible allocated person in range
@@ -190,6 +192,8 @@ export function ProjectExecutionReport() {
     range.from,
     range.to,
     visibleIds,
+    settings.workingDays,
+    settings.companyOffDays,
   ]);
   const priorRows = undefined;
 
@@ -376,9 +380,11 @@ export function ProjectExecutionReport() {
       scopedAllocations,
       scopedConfirmations,
       6,
-      anchor
+      anchor,
+      settings.workingDays,
+      settings.companyOffDays.map((d) => d.date)
     );
-  }, [drawerRow, liveProjects, scopedAllocations, scopedConfirmations, range.to]);
+  }, [drawerRow, liveProjects, scopedAllocations, scopedConfirmations, range.to, settings.workingDays, settings.companyOffDays]);
 
   const drawerRoster = useMemo(
     () =>
@@ -393,7 +399,9 @@ export function ProjectExecutionReport() {
             scopedConfirmations,
             range.from,
             range.to,
-            hoursPerDay
+            hoursPerDay,
+            settings.workingDays,
+            settings.companyOffDays.map((d) => d.date)
           )
         : [],
     [
@@ -405,6 +413,8 @@ export function ProjectExecutionReport() {
       range.from,
       range.to,
       hoursPerDay,
+      settings.workingDays,
+      settings.companyOffDays,
     ]
   );
 

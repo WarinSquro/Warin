@@ -32,6 +32,51 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-15 17:35 IST
+
+**Prompt:**  
+> Investigate Git/CI/EC2: changes pushed but not on live; CI failing; must not be a workaround. Latest commit → CI → build → EC2.
+
+**Output:**  
+- **Where changes were lost:** GitHub CI **does not deploy**. EC2 only updates after a manual pull **and** SPA copy to `/opt/warin/shared/web`. Most laptop screen work was never committed, so live could not receive it. `npx vite build` also skipped `tsc`, so missing imports shipped and crashed `/planner`.
+- **CI root cause:** `packages:build` ran `npm run build --workspaces`, compiled Nest into `apps/oneview-api/dist`, then `eslint .` linted that CommonJS. 10 errors in generated JS (the 21 annotations). Lint never reached unit/build.
+- **CI fix:** Ignore generated `dist`, ops-console, and one-off scripts; `packages:build` now builds only `@oneview/*` packages (matches README). Product lint errors fixed (`prefer-const`, useless escape). `tsc -b` green (exclude ops-console; ConfirmDeleteDialog `itemLabel`; allocation test types). Unit tests 67 passed; eslint exit 0.
+- **Deploy fix:** `scripts/ec2-deploy.sh` pulls `origin/main`, verifies SHA, Vite-builds with `https://seworkspace.com/api/v1`, refuses to wipe `shared/web` unless the bundle is correct, writes `/version.json`.
+- **Not deployed:** `KPI_TEMP_UNLOCK_RESULTS_BEFORE_Q3_END` left off. `warin-web.tgz` not committed.
+- Files: `eslint.config.js`, `package.json`, `.github/workflows/ci.yml`, `scripts/ec2-deploy.sh`, docs, pending screen/API source.
+
+### 2026-08-15 17:27 IST
+
+**Prompt:**  
+> still not showing some screens. Why like this????? (blank `seworkspace.com/planner`)
+
+**Output:**  
+- **Root cause:** Live SPA was rebuilt from `main`, which still calls `roundHoursToTenth` in `api/liveViews.ts` with **no import**. Vite still “✓ built” (`npx vite build` does not typecheck). Planner always mounts Find Matches → `buildCandidatesFromEmployees` → `ReferenceError` → white page. Same crash on Availability/Utilization if they build live rows on mount.
+- The import was restored on the laptop earlier and **never pushed**. Only the three Vite-compile files were deployed.
+- **Fix to ship:** commit/push `api/liveViews.ts` (import + allocated-on fallback), then EC2 pull + Vite with `VITE_API_BASE_URL=https://seworkspace.com/api/v1`.
+- Not committed (user did not ask this turn).
+
+### 2026-08-15 17:19 IST
+
+**Prompt:**  
+> EC2 Vite: `"apiFetchBlob" is not exported by "api/client.ts"`. CI failed on `911aed0`. Git push/pull never looks successful. Zip if git is not usable.
+
+**Output:**  
+- **Git is usable.** EC2 `git pull` already succeeded (`5e7c065..911aed0`, Fast-forward `data/settings.ts`). There is no extra “success” banner — Fast-forward is the success.
+- **Root cause:** Same incomplete-commit class. `api/domain.ts` on `main` imports `apiFetchBlob`; the function exists only in uncommitted `api/client.ts` (+35 lines). HEAD SPA import scan found this as the **only** remaining named-export miss.
+- **Do not** `rm` `/opt/warin/shared/web` until Vite prints `✓ built`.
+- Files: `api/client.ts` (local, not committed), `docs/prompt-log.md`.
+
+### 2026-08-15 17:11 IST
+
+**Prompt:**  
+> EC2 Vite build: `"withoutLowDemandPriority" is not exported by "data/settings.ts"`, imported by `api/domain.ts`.
+
+**Output:**  
+- **Root cause:** Same class as `workingCalendar` — `api/domain.ts` on `main` already imports `withoutLowDemandPriority`, but the export lived only in uncommitted `data/settings.ts`.
+- **Change already on laptop:** helper + default demand priority without Low (`data/settings.ts` +9/−1). Must commit/push that file only, then rebuild SPA with `VITE_API_BASE_URL=https://seworkspace.com/api/v1`.
+- Not committed (user did not ask).
+
 ### 2026-08-15 16:34 IST
 
 **Prompt:**  

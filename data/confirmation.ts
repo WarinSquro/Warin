@@ -167,7 +167,7 @@ export interface ComplianceRow {
   name: string;
   initials: string;
   role: string;
-  week: DayStatus[]; // Mon–Fri
+  week: DayStatus[]; // Settings working days, Mon→Sun order
   todayLabel: string;
 }
 

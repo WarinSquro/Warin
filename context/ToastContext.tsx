@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { ToastViewport, type ToastItem, type ToastTone } from "../components/ToastViewport";
+import { remainingAfterElapsed, TOAST_DURATION_MS } from "../utils/toastTiming";
 
 const CRUD = {
   created: "Record created successfully.",
@@ -31,24 +32,74 @@ type ToastApi = {
 
 const ToastContext = createContext<ToastApi | null>(null);
 
-const DEFAULT_MS = 3000;
+type ToastTimer = {
+  remainingMs: number;
+  startedAt: number;
+  timeoutId: number | null;
+  paused: boolean;
+};
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([]);
-  const timers = useRef<Map<string, number>>(new Map());
+  const timers = useRef<Map<string, ToastTimer>>(new Map());
 
   const dismiss = useCallback((id: string) => {
-    const t = timers.current.get(id);
-    if (t) {
-      window.clearTimeout(t);
-      timers.current.delete(id);
+    const entry = timers.current.get(id);
+    if (entry?.timeoutId != null) {
+      window.clearTimeout(entry.timeoutId);
     }
+    timers.current.delete(id);
     setItems((prev) => prev.filter((x) => x.id !== id));
   }, []);
 
+  const armTimer = useCallback(
+    (id: string, remainingMs: number) => {
+      const timeoutId = window.setTimeout(() => dismiss(id), remainingMs);
+      const prev = timers.current.get(id);
+      timers.current.set(id, {
+        remainingMs,
+        startedAt: Date.now(),
+        timeoutId,
+        paused: false,
+      });
+      if (prev?.timeoutId != null && prev.timeoutId !== timeoutId) {
+        window.clearTimeout(prev.timeoutId);
+      }
+    },
+    [dismiss]
+  );
+
+  const pause = useCallback((id: string) => {
+    const entry = timers.current.get(id);
+    if (!entry || entry.paused) return;
+    if (entry.timeoutId != null) {
+      window.clearTimeout(entry.timeoutId);
+    }
+    const remainingMs = remainingAfterElapsed(entry.remainingMs, Date.now() - entry.startedAt);
+    timers.current.set(id, {
+      remainingMs,
+      startedAt: Date.now(),
+      timeoutId: null,
+      paused: true,
+    });
+  }, []);
+
+  const resume = useCallback(
+    (id: string) => {
+      const entry = timers.current.get(id);
+      if (!entry || !entry.paused) return;
+      if (entry.remainingMs <= 0) {
+        dismiss(id);
+        return;
+      }
+      armTimer(id, entry.remainingMs);
+    },
+    [armTimer, dismiss]
+  );
+
   const clear = useCallback(() => {
-    for (const t of timers.current.values()) {
-      window.clearTimeout(t);
+    for (const entry of timers.current.values()) {
+      if (entry.timeoutId != null) window.clearTimeout(entry.timeoutId);
     }
     timers.current.clear();
     setItems([]);
@@ -58,10 +109,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     (tone: ToastTone, message: string) => {
       const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       setItems((prev) => [...prev, { id, tone, message }]);
-      const handle = window.setTimeout(() => dismiss(id), DEFAULT_MS);
-      timers.current.set(id, handle);
+      armTimer(id, TOAST_DURATION_MS);
     },
-    [dismiss]
+    [armTimer]
   );
 
   const api = useMemo<ToastApi>(
@@ -82,7 +132,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={api}>
       {children}
-      <ToastViewport items={items} onDismiss={dismiss} />
+      <ToastViewport items={items} onDismiss={dismiss} onPause={pause} onResume={resume} />
     </ToastContext.Provider>
   );
 }

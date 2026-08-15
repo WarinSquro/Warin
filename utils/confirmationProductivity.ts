@@ -200,8 +200,8 @@ export function monthDays(year: number, monthIndex: number): (string | null)[] {
 
 export const WORKDAY_ACTIONS: { key: WorkdayMarkKey; label: string }[] = [
   { key: "dayStart", label: "Day Start" },
-  { key: "lunchOut", label: "Lunch Out" },
-  { key: "lunchIn", label: "Lunch In" },
+  { key: "lunchOut", label: "Lunch Start" },
+  { key: "lunchIn", label: "Lunch End" },
   { key: "dayEnd", label: "Day End" },
 ];
 

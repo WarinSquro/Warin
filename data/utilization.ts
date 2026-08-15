@@ -19,24 +19,45 @@ export interface UtilRow {
 export interface UtilKpis {
   total: number;
   avg: number;
-  avgDelta: number;
+  /** Current avg − prior-month avg; `null` when prior period has no people. */
+  avgDelta: number | null;
   over: number;
   optimal: number;
   idle: number;
 }
 
+export type UtilAvgDeltaTone = "success" | "danger" | "muted";
+
+/** Label + tone for Avg Utilization vs last month. */
+export function utilAvgDeltaDisplay(
+  avgDelta: number | null
+): { text: string; tone: UtilAvgDeltaTone } | null {
+  if (avgDelta == null) return null;
+  if (avgDelta === 0) return { text: "— vs last mo", tone: "muted" };
+  if (avgDelta > 0) return { text: `▲ ${avgDelta}% vs last mo`, tone: "success" };
+  return { text: `▼ ${Math.abs(avgDelta)}% vs last mo`, tone: "danger" };
+}
+
+function avgPct(rows: UtilRow[]): number {
+  if (!rows.length) return 0;
+  return Math.round(rows.reduce((sum, r) => sum + r.pct, 0) / rows.length);
+}
+
 /** Active departments — sorted alphabetically for filters. */
 export const UTIL_DEPARTMENTS = ["Design", "DevOps", "Engineering", "QA", "Support"];
 
-export function computeUtilKpis(rows: UtilRow[]): UtilKpis {
+export function computeUtilKpis(rows: UtilRow[], priorRows?: UtilRow[]): UtilKpis {
   const total = rows.length;
   if (total === 0) {
-    return { total: 0, avg: 0, avgDelta: 0, over: 0, optimal: 0, idle: 0 };
+    return { total: 0, avg: 0, avgDelta: null, over: 0, optimal: 0, idle: 0 };
   }
+  const avg = avgPct(rows);
+  const avgDelta =
+    priorRows && priorRows.length > 0 ? avg - avgPct(priorRows) : null;
   return {
     total,
-    avg: Math.round(rows.reduce((sum, r) => sum + r.pct, 0) / total),
-    avgDelta: 4,
+    avg,
+    avgDelta,
     over: rows.filter((r) => r.band === "over").length,
     optimal: rows.filter((r) => r.band === "optimal").length,
     idle: rows.filter((r) => r.band === "idle").length,

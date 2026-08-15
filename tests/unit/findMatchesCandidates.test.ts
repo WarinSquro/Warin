@@ -24,14 +24,12 @@ describe("buildCandidatesFromEmployees", () => {
         milestoneId: "m1",
         milestoneName: "Build",
         activity: "Dev",
-        activityId: "1",
         tasks: [],
         startDate: "2026-07-27",
         endDate: "2026-07-31",
         hoursPerDay: 2,
-        reason: null,
+        reason: "",
         createdAt: "",
-        modifiedAt: "",
       },
     ];
     const candidates = buildCandidatesFromEmployees(employees, 43, allocations, "2026-07-27");

@@ -29,7 +29,7 @@ import type { AllocationPrefill, AllocationSavePayload, AllocationEditRef } from
 import { FindMatchesPanel } from "../components/FindMatchesPanel";
 import { OpenDemandPanel } from "../components/OpenDemandPanel";
 import { getHighlightParam, getPanelParam } from "../utils/reportPresets";
-import { DemandRequestCard } from "../components/DemandRequestCard";
+import { DemandRequestCard, sortDemandsByPriority } from "../components/DemandRequestCard";
 import { DepartmentSelect } from "../components/DepartmentSelect";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import { useProjects } from "../context/ProjectsContext";
@@ -215,7 +215,10 @@ export function ResourcePlanner() {
   const [view, setView] = useState<"day" | "week">("week");
   /** Day-view week nav: -1 previous … 0 current … +3 next (Week columns span). */
   const [dayWeekOffset, setDayWeekOffset] = useState(0);
-  const dayStrip = useMemo(() => dayStripForWeekOffset(dayWeekOffset), [dayWeekOffset]);
+  const dayStrip = useMemo(
+    () => dayStripForWeekOffset(dayWeekOffset, new Date(), settings.workingDays),
+    [dayWeekOffset, settings.workingDays]
+  );
   const dayStartIso = dayStrip.dayStartIso;
   const dayLabels = dayStrip.days;
   const dayCurrentIndex = dayStrip.currentDayIndex;
@@ -267,17 +270,20 @@ export function ResourcePlanner() {
 
   const openDemand = useMemo(
     () =>
-      buildOpenDemandFromProjects(projects, {
-        allocations,
-        employees: employees.map((e) => ({
-          id: e.id,
-          status: e.status,
-          skills: e.skills,
-        })),
-        windowFrom: rangeFrom,
-        windowTo: rangeTo,
-      }),
-    [projects, allocations, employees, rangeFrom, rangeTo]
+      sortDemandsByPriority(
+        buildOpenDemandFromProjects(projects, {
+          allocations,
+          employees: employees.map((e) => ({
+            id: e.id,
+            status: e.status,
+            skills: e.skills,
+          })),
+          windowFrom: rangeFrom,
+          windowTo: rangeTo,
+          workingDays: settings.workingDays,
+        })
+      ),
+    [projects, allocations, employees, rangeFrom, rangeTo, settings.workingDays]
   );
   const ribbonDemand = openDemand.slice(0, OPEN_DEMAND_RIBBON_MAX);
 

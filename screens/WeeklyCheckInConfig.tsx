@@ -563,7 +563,6 @@ export function WeeklyCheckInConfig() {
       <ConfirmDeleteDialog
         open={!!pendingDelete}
         confirming={saving}
-        itemLabel={pendingDelete ? `${pendingDelete.label} (${pendingDelete.kind})` : undefined}
         onCancel={() => setPendingDelete(null)}
         onConfirm={confirmDeleteCompetency}
       />

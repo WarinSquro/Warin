@@ -18,9 +18,12 @@ import {
 import { ConfirmDeleteDialog } from "../components/ConfirmDeleteDialog";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import { useSharedDataSync, usePauseSharedDataSync, MASTER_TXN_SYNC_INTERVAL_MS } from "../hooks/useSharedDataSync";
+import { useAuth } from "../context/AuthContext";
 import { useEmployees } from "../context/EmployeesContext";
 import { useMasters } from "../context/MastersContext";
 import { useToast } from "../context/ToastContext";
+import { getImmediateReports } from "../data/employees";
+import { clampKpiMasterName, KPI_MASTER_NAME_MAX } from "../utils/kpiMasterLimits";
 
 type PageSeg = "framework" | "masters";
 type MasterTab = "categories" | "methods" | "units";
@@ -74,6 +77,7 @@ const fieldClass =
 
 export function KpiFramework() {
   const toast = useToast();
+  const { currentEmployee, isSuperAdmin } = useAuth();
   const { employees } = useEmployees();
   const { departments } = useMasters();
   const [seg, setSeg] = useState<PageSeg>("framework");
@@ -106,13 +110,24 @@ export function KpiFramework() {
   );
   const activeEmployees = useMemo(() => {
     let list = employees.filter((e) => e.status === "active");
+    if (!isSuperAdmin) {
+      list = currentEmployee
+        ? getImmediateReports(currentEmployee.id, list, { activeOnly: true })
+        : [];
+    }
     if (deptId) {
       const dept = activeDepts.find((d) => d.dbId === deptId || d.id === deptId);
       const name = dept?.name;
       if (name) list = list.filter((e) => e.department === name);
     }
     return list;
-  }, [employees, deptId, activeDepts]);
+  }, [employees, deptId, activeDepts, isSuperAdmin, currentEmployee]);
+
+  useEffect(() => {
+    const ids = new Set(activeEmployees.map((e) => e.id));
+    if (resourceId && !ids.has(resourceId)) setResourceId("");
+    if (copyFromId && (!ids.has(copyFromId) || copyFromId === resourceId)) setCopyFromId("");
+  }, [activeEmployees, resourceId, copyFromId]);
 
   const months = CYCLE_MONTHS[cycle];
   const periodOptions = useMemo(() => periodRangeOptions(months), [months]);
@@ -246,9 +261,10 @@ export function KpiFramework() {
   }, [masterList, masterSortKey, masterSortDir]);
 
   const addMaster = async () => {
-    if (!newMasterName.trim()) return;
+    const name = clampKpiMasterName(masterKind, newMasterName).trim();
+    if (!name) return;
     try {
-      await createKpiMaster(masterKind, newMasterName.trim());
+      await createKpiMaster(masterKind, name);
       setNewMasterName("");
       await loadMasters();
       toast.created();
@@ -394,18 +410,21 @@ export function KpiFramework() {
                   </button>
                 ))}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
                 <input
                   value={newMasterName}
-                  onChange={(e) => setNewMasterName(e.target.value)}
+                  maxLength={KPI_MASTER_NAME_MAX[masterTab]}
+                  onChange={(e) => setNewMasterName(clampKpiMasterName(masterTab, e.target.value))}
                   placeholder={
                     masterTab === "categories"
-                      ? "New kpi category…"
+                      ? `New kpi category (${KPI_MASTER_NAME_MAX.categories} chars)…`
                       : masterTab === "methods"
-                        ? "New measurement method…"
-                        : "New unit of measurement…"
+                        ? `New measurement method (${KPI_MASTER_NAME_MAX.methods} chars)…`
+                        : `New unit of measurement (${KPI_MASTER_NAME_MAX.units} chars)…`
                   }
-                  className="w-56 rounded-md border border-border bg-surface px-3 py-1.5 text-[12px] outline-none"
+                  className={`rounded-md border border-border bg-surface px-3 py-1.5 text-[12px] outline-none ${
+                    masterTab === "methods" ? "w-full min-w-[12rem] max-w-xl" : "w-56"
+                  }`}
                 />
                 <button
                   type="button"

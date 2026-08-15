@@ -18,21 +18,17 @@ import {
   countSkillMatchedStaff,
   staffedEmployeesOnProject,
 } from "../data/demandStaffing";
+import { isWorkingWeekday } from "../utils/workingCalendar";
 
-function isWeekday(iso: string): boolean {
-  const dow = new Date(`${iso}T12:00:00`).getDay();
-  return dow >= 1 && dow <= 5;
+function allocationCoversDay(a: ApiAllocation, day: string, workingDays?: string[]): boolean {
+  const s = a.startDate.slice(0, 10);
+  const e = a.endDate.slice(0, 10);
+  return day >= s && day <= e && isWorkingWeekday(day, workingDays);
 }
 
 function formatShortDate(iso: string): string {
   const d = new Date(`${iso}T12:00:00`);
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
-function allocationCoversDay(a: ApiAllocation, day: string): boolean {
-  const s = a.startDate.slice(0, 10);
-  const e = a.endDate.slice(0, 10);
-  return day >= s && day <= e && isWeekday(day);
 }
 
 /**
@@ -85,7 +81,8 @@ export function buildResourceShortagesFromLive(
   employees: Employee[],
   departments: string[] | null,
   windowFrom: string,
-  windowTo: string
+  windowTo: string,
+  workingDays?: string[]
 ): ResourceShortage[] {
   const shortages: ResourceShortage[] = [];
 
@@ -100,7 +97,8 @@ export function buildResourceShortagesFromLive(
       p.id,
       p.name,
       windowFrom,
-      windowTo
+      windowTo,
+      workingDays
     );
     // Preserve full Employee rows for department filtering below.
     const staffedFull = staffedEmps
@@ -161,14 +159,15 @@ export function buildAvailableResourcesFromLive(
   weekCapacityHours: number,
   windowFrom: string,
   windowTo: string,
-  hoursPerDay: number
+  hoursPerDay: number,
+  workingDays?: string[]
 ): AvailableResource[] {
   const weekdays: string[] = [];
   for (let d = windowFrom; d <= windowTo; d = addDaysISO(d, 1)) {
-    if (isWeekday(d)) weekdays.push(d);
+    if (isWorkingWeekday(d, workingDays)) weekdays.push(d);
   }
   const windowCapacity = weekdays.length * hoursPerDay;
-  const booked = bookedHoursInRange(allocations, windowFrom, windowTo);
+  const booked = bookedHoursInRange(allocations, windowFrom, windowTo, undefined, workingDays);
   const out: AvailableResource[] = [];
 
   for (const e of employees.filter((x) => x.status === "active")) {
@@ -178,7 +177,7 @@ export function buildAvailableResourcesFromLive(
 
     const thisWeekEnd = addDaysISO(mondayISO(new Date(`${windowFrom}T12:00:00`)), 6);
     const thisWeekBooked =
-      bookedHoursInRange(allocations, windowFrom, thisWeekEnd).get(e.id)?.hours ?? 0;
+      bookedHoursInRange(allocations, windowFrom, thisWeekEnd, undefined, workingDays).get(e.id)?.hours ?? 0;
     const thisWeekCap = Math.min(
       weekCapacityHours,
       weekdays.filter((d) => d <= thisWeekEnd).length * hoursPerDay
@@ -190,7 +189,7 @@ export function buildAvailableResourcesFromLive(
         let dayHours = 0;
         for (const a of allocations) {
           if (a.employeeHrmsId !== e.id) continue;
-          if (allocationCoversDay(a, day)) dayHours += a.hoursPerDay;
+          if (allocationCoversDay(a, day, workingDays)) dayHours += a.hoursPerDay;
         }
         if (dayHours < hoursPerDay - 0.01) {
           found = day;
@@ -225,12 +224,13 @@ export function buildPlanningConflictsFromLive(
   weekCapacityHours: number,
   weekFrom: string,
   weekTo: string,
-  hoursPerDay: number
+  hoursPerDay: number,
+  workingDays?: string[]
 ): PlanningConflictRow[] {
   const conflicts: PlanningConflictRow[] = [];
 
   for (const e of employees.filter((x) => x.status === "active")) {
-    const hours = bookedHoursInRange(allocations, weekFrom, weekTo).get(e.id)?.hours ?? 0;
+    const hours = bookedHoursInRange(allocations, weekFrom, weekTo, undefined, workingDays).get(e.id)?.hours ?? 0;
     const mine = allocations.filter((a) => a.employeeHrmsId === e.id);
     const projects = [
       ...new Set(
@@ -260,8 +260,8 @@ export function buildPlanningConflictsFromLive(
     const overlapDays: string[] = [];
     const overloadDays: string[] = [];
     for (let d = weekFrom; d <= weekTo; d = addDaysISO(d, 1)) {
-      if (!isWeekday(d)) continue;
-      const covering = mine.filter((a) => allocationCoversDay(a, d));
+      if (!isWorkingWeekday(d, workingDays)) continue;
+      const covering = mine.filter((a) => allocationCoversDay(a, d, workingDays));
       const projectCodes = new Set(covering.map((a) => a.projectCode));
       if (projectCodes.size >= 2) overlapDays.push(d);
       const dayHours = covering.reduce((s, a) => s + a.hoursPerDay, 0);

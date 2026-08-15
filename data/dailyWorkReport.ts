@@ -55,7 +55,7 @@ export const DAILY_WORK_COLUMNS: DailyWorkColumnDef[] = [
   { id: "activity", label: "ACTIVITY", defaultVisible: true, width: "10rem" },
   { id: "activityType", label: "ACTIVITY TYPE", defaultVisible: false, width: "6.5rem" },
   { id: "tasks", label: "TASKS", defaultVisible: true, width: "8rem" },
-  { id: "allocatedOn", label: "Allocated on", stackedHeader: ["ALLOCATED", "ON"], defaultVisible: true, width: "7rem" },
+  { id: "allocatedOn", label: "ALLOCATED ON", stackedHeader: ["ALLOCATED", "ON"], defaultVisible: true, width: "7rem" },
   { id: "plannedHrs", label: "PLANNED HRS", stackedHeader: ["PLANNED", "HRS"], defaultVisible: true, width: "4.5rem" },
   { id: "confirmation", label: "CONFIRMATION", defaultVisible: true, width: "7.25rem" },
   { id: "confirmedOn", label: "CONFIRMED ON", stackedHeader: ["CONFIRMED", "ON"], defaultVisible: true, width: "7rem" },

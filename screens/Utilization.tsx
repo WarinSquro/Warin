@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { CalendarClock, X, ArrowRight, FileSpreadsheet, FileText } from "lucide-react";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
@@ -7,6 +7,7 @@ import {
   UTIL_MONTHS,
   DEFAULT_UTIL_MONTH,
   computeUtilKpis,
+  utilAvgDeltaDisplay,
 } from "../data/utilization";
 import type { Band, UtilRow } from "../data/utilization";
 import { usePlanningEmployees } from "../hooks/usePlanningEmployees";
@@ -15,7 +16,7 @@ import { useSettings } from "../context/SettingsContext";
 import { useToast } from "../context/ToastContext";
 import { addDaysISO, buildUtilRowsFromEmployees } from "../api/liveViews";
 import { dayCapacityHours } from "../data/planner";
-import { monthBoundsFromId } from "../utils/reportPeriods";
+import { monthBoundsFromId, shiftMonthId } from "../utils/reportPeriods";
 import { fetchAllocations, fetchSettingsSchedules, type ApiAllocation, type SettingsSchedule } from "../api/domain";
 import { useSharedDataSync, MASTER_TXN_SYNC_INTERVAL_MS } from "../hooks/useSharedDataSync";
 import { runReportExport, summarizeFilter } from "../utils/reportExport";
@@ -46,6 +47,26 @@ function trendBarHeight(ratio: number) {
   return `${(Math.min(ratio, 1.2) / 1.2) * 100}%`;
 }
 
+function monthCapacityHours(
+  from: string,
+  to: string,
+  workingDays: string[],
+  companyOffDays: string[],
+  workingHoursPerDay: number
+) {
+  let hours = 0;
+  for (let d = from; d <= to; d = addDaysISO(d, 1)) {
+    hours += dayCapacityHours(d, { workingDays, companyOffDays, workingHoursPerDay });
+  }
+  return Math.round(hours * 10) / 10 || 40;
+}
+
+const DELTA_TONE: Record<string, string> = {
+  success: "text-success",
+  danger: "text-danger",
+  muted: "text-muted-foreground",
+};
+
 export function Utilization() {
   const navigate = useNavigate();
   const { employees } = usePlanningEmployees();
@@ -54,34 +75,55 @@ export function Utilization() {
   const [monthId, setMonthId] = useState(DEFAULT_UTIL_MONTH);
   const month = UTIL_MONTHS.find((m) => m.id === monthId) ?? UTIL_MONTHS[UTIL_MONTHS.length - 1];
   const monthRange = useMemo(() => monthBoundsFromId(month.id), [month.id]);
+  const priorMonthRange = useMemo(
+    () => monthBoundsFromId(shiftMonthId(month.id, -1)),
+    [month.id]
+  );
   const offDays = useMemo(
     () => settings.companyOffDays.map((d) => d.date.slice(0, 10)),
     [settings.companyOffDays]
   );
-  const periodCapacity = useMemo(() => {
-    let hours = 0;
-    for (let d = monthRange.from; d <= monthRange.to; d = addDaysISO(d, 1)) {
-      hours += dayCapacityHours(d, {
-        workingDays: settings.workingDays,
-        companyOffDays: offDays,
-        workingHoursPerDay: settings.workingHoursPerDay,
-      });
-    }
-    return Math.round(hours * 10) / 10 || 40;
-  }, [monthRange.from, monthRange.to, settings.workingDays, settings.workingHoursPerDay, offDays]);
+  const periodCapacity = useMemo(
+    () =>
+      monthCapacityHours(
+        monthRange.from,
+        monthRange.to,
+        settings.workingDays,
+        offDays,
+        settings.workingHoursPerDay
+      ),
+    [monthRange.from, monthRange.to, settings.workingDays, settings.workingHoursPerDay, offDays]
+  );
+  const priorPeriodCapacity = useMemo(
+    () =>
+      monthCapacityHours(
+        priorMonthRange.from,
+        priorMonthRange.to,
+        settings.workingDays,
+        offDays,
+        settings.workingHoursPerDay
+      ),
+    [
+      priorMonthRange.from,
+      priorMonthRange.to,
+      settings.workingDays,
+      settings.workingHoursPerDay,
+      offDays,
+    ]
+  );
   const [allocations, setAllocations] = useState<ApiAllocation[]>([]);
   const [pendingSchedule, setPendingSchedule] = useState<SettingsSchedule | null>(null);
 
   const load = useCallback(async () => {
     await Promise.all([
-      fetchAllocations({ from: monthRange.from, to: monthRange.to })
+      fetchAllocations({ from: priorMonthRange.from, to: monthRange.to })
         .then(setAllocations)
         .catch(() => setAllocations([])),
       fetchSettingsSchedules()
         .then((rows) => setPendingSchedule(rows[0] ?? null))
         .catch(() => setPendingSchedule(null)),
     ]);
-  }, [monthRange.from, monthRange.to]);
+  }, [priorMonthRange.from, monthRange.to]);
 
   useEffect(() => {
     void load();
@@ -105,6 +147,27 @@ export function Utilization() {
       ),
     [employees, periodCapacity, allocations, offDays, monthRange.from, monthRange.to, settings.workingDays]
   );
+  const priorUtilRows = useMemo(
+    () =>
+      buildUtilRowsFromEmployees(
+        employees,
+        priorPeriodCapacity,
+        allocations,
+        offDays,
+        priorMonthRange.from,
+        priorMonthRange.to,
+        settings.workingDays
+      ),
+    [
+      employees,
+      priorPeriodCapacity,
+      allocations,
+      offDays,
+      priorMonthRange.from,
+      priorMonthRange.to,
+      settings.workingDays,
+    ]
+  );
   const utilDepartments = useMemo(
     () => deptMaster.filter((d) => d.status === "active").map((d) => d.name),
     [deptMaster]
@@ -124,8 +187,13 @@ export function Utilization() {
     () => utilRows.filter((r) => selectedDepts.includes(r.department)),
     [utilRows, selectedDepts]
   );
+  const priorDeptRows = useMemo(
+    () => priorUtilRows.filter((r) => selectedDepts.includes(r.department)),
+    [priorUtilRows, selectedDepts]
+  );
 
-  const kpis = useMemo(() => computeUtilKpis(deptRows), [deptRows]);
+  const kpis = useMemo(() => computeUtilKpis(deptRows, priorDeptRows), [deptRows, priorDeptRows]);
+  const avgDeltaDisplay = useMemo(() => utilAvgDeltaDisplay(kpis.avgDelta), [kpis.avgDelta]);
 
   const deptCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -272,7 +340,11 @@ export function Utilization() {
           <Kpi
             label="Avg Utilization"
             value={`${kpis.avg}%`}
-            delta={kpis.total ? `▲ ${kpis.avgDelta}% vs last mo` : undefined}
+            delta={
+              kpis.total && avgDeltaDisplay ? (
+                <span className={DELTA_TONE[avgDeltaDisplay.tone]}>{avgDeltaDisplay.text}</span>
+              ) : undefined
+            }
             active={seg === "all"}
             onClick={() => setSeg("all")}
           />
@@ -500,7 +572,7 @@ function Kpi({
   label: string;
   value: string | number;
   sub?: string;
-  delta?: string;
+  delta?: ReactNode;
   accent?: string;
   valueClass?: string;
   onClick?: () => void;
@@ -519,7 +591,7 @@ function Kpi({
         <div className="mb-1.5 text-[11px] text-muted">{label}</div>
         <div className="flex items-baseline gap-1.5">
           <div className={`text-[23px] font-semibold ${valueClass ?? "text-foreground"}`}>{value}</div>
-          {delta && <div className="text-[11px] text-success">{delta}</div>}
+          {delta && <div className="text-[11px]">{delta}</div>}
         </div>
         {sub && <div className="mt-0.5 text-[11px] text-muted-foreground">{sub}</div>}
       </button>
@@ -531,7 +603,7 @@ function Kpi({
       <div className="mb-1.5 text-[11px] text-muted">{label}</div>
       <div className="flex items-baseline gap-1.5">
         <div className={`text-[23px] font-semibold ${valueClass ?? "text-foreground"}`}>{value}</div>
-        {delta && <div className="text-[11px] text-success">{delta}</div>}
+        {delta && <div className="text-[11px]">{delta}</div>}
       </div>
       {sub && <div className="mt-0.5 text-[11px] text-muted-foreground">{sub}</div>}
     </div>

@@ -40,7 +40,7 @@ describe("Daily Work Detail columns", () => {
     const ids = DAILY_WORK_COLUMNS.map((c) => c.id);
     expect(ids.indexOf("allocatedOn")).toBe(ids.indexOf("tasks") + 1);
     expect(DAILY_WORK_COLUMNS.find((c) => c.id === "allocatedOn")?.defaultVisible).toBe(true);
-    expect(DAILY_WORK_COLUMNS.find((c) => c.id === "allocatedOn")?.label).toBe("Allocated on");
+    expect(DAILY_WORK_COLUMNS.find((c) => c.id === "allocatedOn")?.label).toBe("ALLOCATED ON");
   });
 
   it("uses compact rem widths (no fr) so columns do not stretch with leftover space", () => {

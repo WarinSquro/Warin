@@ -50,6 +50,8 @@ export const KPI_MASTER_NAME_MAX = {
   units: 10,
 } as const;
 
+export const KPI_RO_REMARKS_MAX = 200;
+
 export type KpiMasterKind = keyof typeof KPI_MASTER_NAME_MAX;
 
 export function assertKpiMasterNameLength(kind: KpiMasterKind, name: string): void {

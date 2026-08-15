@@ -200,6 +200,30 @@ export class ProjectsController {
     throw new BadRequestException(`Customer not found: ${name}`);
   }
 
+  private async assertUniqueProjectCodeAndName(
+    projectCode: string,
+    name: string,
+    excludeId?: bigint
+  ) {
+    const notSelf = excludeId ? { NOT: { id: excludeId } } : {};
+    const codeTaken = await this.prisma.project.findFirst({
+      where: {
+        projectCode: { equals: projectCode, mode: "insensitive" },
+        ...notSelf,
+      },
+    });
+    if (codeTaken) throw new BadRequestException("Project ID already exists");
+
+    const nameTaken = await this.prisma.project.findFirst({
+      where: {
+        isDeleted: false,
+        name: { equals: name, mode: "insensitive" },
+        ...notSelf,
+      },
+    });
+    if (nameTaken) throw new BadRequestException("Project name already exists");
+  }
+
   @Get()
   @RequirePermissions("projects", "planner", "availability")
   async list(@Query("status") status?: string) {
@@ -250,11 +274,7 @@ export class ProjectsController {
       throw new BadRequestException("kickoffDate, startDate, and endDate are required");
     }
     assertMilestoneDatesNotBeforeProject(body.milestones, kickoffDate, startDate);
-
-    const exists = await this.prisma.project.findFirst({
-      where: { projectCode, isDeleted: false },
-    });
-    if (exists) throw new BadRequestException("Project code already exists");
+    await this.assertUniqueProjectCodeAndName(projectCode, name);
 
     const status = body.status === "inactive" ? "inactive" : "active";
     const health = parseHealth(body.health);
@@ -328,6 +348,7 @@ export class ProjectsController {
       name: nextName,
       poNumber: nextPo,
     });
+    await this.assertUniqueProjectCodeAndName(existing.projectCode, nextName, existing.id);
 
     const status = body.status ?? existing.status;
 

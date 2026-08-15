@@ -5,7 +5,7 @@ import { scopePlanningEmployees, type Employee } from "../data/employees";
 
 /**
  * Employees visible on Planning screens (Planner, Availability, Utilization,
- * Planning Conflicts): immediate Resource Owner reports, or all for super-admin.
+ * Planning Conflicts): self + immediate Resource Owner reports, or all for super-admin.
  */
 export function usePlanningEmployees(): {
   employees: Employee[];

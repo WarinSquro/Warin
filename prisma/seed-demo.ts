@@ -331,7 +331,7 @@ async function main() {
       overallocationLimit: 120,
       workingHoursPerDay: 8.5,
       workingDays: ["Mon", "Tue", "Wed", "Thu", "Fri"],
-      demandPriority: ["Critical", "High", "Medium", "Low"],
+      demandPriority: ["Critical", "High", "Medium"],
       dateFormat: "dd/MM/yyyy",
     },
   });

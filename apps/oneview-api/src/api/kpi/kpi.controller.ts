@@ -11,6 +11,7 @@ import {
   Put,
   Query,
   Req,
+  StreamableFile,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import type {
@@ -33,6 +34,7 @@ import {
   parseCycle,
   validatePeriodMonths,
   assertKpiMasterNameLength,
+  KPI_RO_REMARKS_MAX,
 } from "./kpi.util";
 
 const Decimal = PrismaNS.Decimal;
@@ -732,6 +734,58 @@ export class KpiController {
     return { items, summary };
   }
 
+  private async requireResultItem(req: { user: JwtPayload }, id: string) {
+    const actor = await this.actorEmployee(req.user);
+    const existing = await this.prisma.kpiFrameworkItem.findFirst({
+      where: { id: BigInt(id), isDeleted: false },
+      include: { employee: true },
+    });
+    if (!existing) throw new NotFoundException("KPI not found");
+    if (!req.user.isSuperAdmin) {
+      const scope = await this.subtreeEmployeeIds(actor.id);
+      if (!scope.some((x) => x === existing.employeeId)) {
+        throw new ForbiddenException("Employee is outside your resource ownership");
+      }
+    }
+    return { actor, existing };
+  }
+
+  @Get("results/:id/attachment")
+  @RequirePermissions("my_team.kpi_results")
+  async getResultAttachment(@Req() req: { user: JwtPayload }, @Param("id") id: string) {
+    const { existing } = await this.requireResultItem(req, id);
+    if (!existing.attachmentKey) throw new NotFoundException("No attachment");
+    let buf: Buffer;
+    try {
+      buf = await this.storage.getBuffer(existing.attachmentKey);
+    } catch {
+      throw new NotFoundException("Attachment file not found");
+    }
+    const rawName = existing.attachmentName || "attachment";
+    const safeName = rawName.replace(/["\r\n]+/g, "_");
+    return new StreamableFile(buf, {
+      type: existing.attachmentMime || "application/octet-stream",
+      disposition: `inline; filename="${safeName}"`,
+    });
+  }
+
+  @Delete("results/:id/attachment")
+  @RequirePermissions("my_team.kpi_results")
+  @EmitDataChange("kpi", "update")
+  async deleteResultAttachment(@Req() req: { user: JwtPayload }, @Param("id") id: string) {
+    const { existing } = await this.requireResultItem(req, id);
+    if (existing.status === "completed") {
+      throw new BadRequestException("KPI result is locked");
+    }
+    if (!existing.attachmentKey) throw new NotFoundException("No attachment");
+    await this.storage.delete(existing.attachmentKey);
+    await this.prisma.kpiFrameworkItem.update({
+      where: { id: existing.id },
+      data: { attachmentKey: null, attachmentName: null, attachmentMime: null },
+    });
+    return { ok: true };
+  }
+
   @Put("results/:id")
   @RequirePermissions("my_team.kpi_results")
   @EmitDataChange("kpi", "update")
@@ -799,7 +853,7 @@ export class KpiController {
       if (buf.length > ATTACH_MAX) {
         throw new BadRequestException("Attachment must be 5 MB or less");
       }
-      const safeName = (body.attachment.fileName || "attachment").replace(/[^\w.\-]+/g, "_");
+      const safeName = (body.attachment.fileName || "attachment").replace(/[^\w.-]+/g, "_");
       const key = `kpi-attachments/${existing.id}/${Date.now()}-${safeName}`;
       await this.storage.put(key, buf, { contentType: mime });
       attachmentKey = key;
@@ -807,12 +861,19 @@ export class KpiController {
       attachmentMime = mime;
     }
 
+    const remarks = body.remarks?.trim() || null;
+    if (remarks && remarks.length > KPI_RO_REMARKS_MAX) {
+      throw new BadRequestException(
+        `Resource Owner Remarks cannot exceed ${KPI_RO_REMARKS_MAX} characters`
+      );
+    }
+
     const row = await this.prisma.kpiFrameworkItem.update({
       where: { id: existing.id },
       data: {
         kpiResult: new Decimal(resultVal),
         kpiScore: new Decimal(score),
-        remarks: body.remarks?.trim() || null,
+        remarks,
         attachmentKey,
         attachmentName,
         attachmentMime,

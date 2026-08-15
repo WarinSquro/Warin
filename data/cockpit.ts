@@ -18,7 +18,7 @@ import {
 } from "../api/liveViews";
 import type { ProjectHealth, ExecutionStatus, ExecutionRow } from "./executionReport";
 import { computeExecutionSummary, getExecutionRowsForPeriod } from "./executionReport";
-import type { DateFormatPattern } from "./settings";
+import type { DateFormatPattern, UtilBands } from "./settings";
 import { formatAppDateTime } from "../utils/formatAppDate";
 import type { PerformanceRow } from "./performanceReport";
 import { computePerformanceSummary, getPerformanceRowsForPeriod } from "./performanceReport";
@@ -27,6 +27,7 @@ import type { Project, ProjectType } from "./projects";
 import { DEPT_CAPACITY } from "./executive";
 import { workingWeekEnd } from "../utils/workingWeek";
 import { currentWeekBounds, formatWeekSpan } from "../utils/reportPeriods";
+import { classifyUtilBand } from "../utils/settingsImpact";
 
 export type CockpitRoleId = "executive" | "delivery_head";
 
@@ -138,6 +139,47 @@ export interface TeamLoadRow {
   pct: number;
   priorPct: number;
   tone: TeamLoadTone;
+}
+
+function employeeInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    return `${parts[0][0] ?? ""}${parts[parts.length - 1][0] ?? ""}`.toUpperCase();
+  }
+  return name.slice(0, 2).toUpperCase();
+}
+
+/** Current-week allocation load vs Settings weekly capacity (uncapped, same hours as Performance). */
+export function teamLoadPctFromHours(hours: number, weekCapacityHours: number): number {
+  if (!(weekCapacityHours > 0) || !(hours >= 0)) return 0;
+  return Math.round((hours / weekCapacityHours) * 100);
+}
+
+export function buildTeamLoadRowsFromPerformance(
+  people: Employee[],
+  current: PerformanceRow[],
+  prior: PerformanceRow[],
+  weekCapacityHours: number,
+  bands: UtilBands = { idleBelow: 70, optimalTo: 100 }
+): TeamLoadRow[] {
+  const currentById = new Map(current.map((r) => [r.employeeId, r]));
+  const priorById = new Map(prior.map((r) => [r.employeeId, r]));
+  return people.map((e) => {
+    const pct = teamLoadPctFromHours(currentById.get(e.id)?.utilizationHrs ?? 0, weekCapacityHours);
+    const priorPct = teamLoadPctFromHours(priorById.get(e.id)?.utilizationHrs ?? 0, weekCapacityHours);
+    return {
+      id: `tl-${e.id}`,
+      plannerRowId: e.id,
+      employeeId: e.id,
+      name: e.name,
+      initials: employeeInitials(e.name),
+      role: e.skills[0] ?? "—",
+      department: e.department,
+      pct,
+      priorPct,
+      tone: classifyUtilBand(pct, bands),
+    };
+  });
 }
 
 export interface CockpitBottomMetricItem {
@@ -532,6 +574,8 @@ export function buildLiveCockpitSnapshot(
     weekCapacityHours?: number;
     hoursPerDay?: number;
     workingDays?: string[];
+    companyOffDays?: string[];
+    utilBands?: UtilBands;
     projects?: Project[];
     allocations?: ApiAllocation[];
     confirmations?: ApiConfirmation[];
@@ -545,6 +589,8 @@ export function buildLiveCockpitSnapshot(
   const capacity = input.weekCapacityHours ?? 40;
   const hoursPerDay = input.hoursPerDay ?? 8;
   const workingDays = input.workingDays;
+  const companyOffDays = input.companyOffDays;
+  const utilBands = input.utilBands ?? { idleBelow: 70, optimalTo: 100 };
   const active = input.employees.filter((e) => e.status === "active");
 
   // Scope: executive sees all; delivery_head sees recursive RO subtree (or dept fallback).
@@ -574,25 +620,13 @@ export function buildLiveCockpitSnapshot(
       !resourceOwnerIds.has(e.id)
   );
 
-  const teamLoad: TeamLoadRow[] = teamLoadPeople.map((e) => {
-    const parts = e.name.trim().split(/\s+/);
-    const initials =
-      parts.length >= 2
-        ? `${parts[0][0] ?? ""}${parts[parts.length - 1][0] ?? ""}`.toUpperCase()
-        : e.name.slice(0, 2).toUpperCase();
-    return {
-      id: `tl-${e.id}`,
-      plannerRowId: e.id,
-      employeeId: e.id,
-      name: e.name,
-      initials,
-      role: e.skills[0] ?? "—",
-      department: e.department,
-      pct: 0,
-      priorPct: 0,
-      tone: "idle" as const,
-    };
-  });
+  let teamLoad: TeamLoadRow[] = buildTeamLoadRowsFromPerformance(
+    teamLoadPeople,
+    [],
+    [],
+    capacity,
+    utilBands
+  );
 
   let departmentHealth: DeptHealthRow[] = deptNames.map((department) => {
     const people = scoped.filter((e) => e.department === department);
@@ -650,7 +684,9 @@ export function buildLiveCockpitSnapshot(
       allocations,
       confirmations,
       currentMon,
-      currentFri
+      currentFri,
+      workingDays,
+      companyOffDays
     );
     const perfPrior = buildPerformanceRowsFromEmployees(
       scoped,
@@ -658,7 +694,9 @@ export function buildLiveCockpitSnapshot(
       allocations,
       confirmations,
       priorMon,
-      priorFri
+      priorFri,
+      workingDays,
+      companyOffDays
     );
     const perfSummary = computePerformanceSummary(perfCurrent, perfPrior);
     confirmationDiscipline = toWeeklyMetric(
@@ -679,6 +717,13 @@ export function buildLiveCockpitSnapshot(
     );
 
     const priorByEmployeeId = new Map(perfPrior.map((r) => [r.employeeId, r]));
+    teamLoad = buildTeamLoadRowsFromPerformance(
+      teamLoadPeople,
+      perfCurrent,
+      perfPrior,
+      capacity,
+      utilBands
+    );
     worstConfirmationEmployees = getWorstConfirmationDisciplineEmployees(
       depts,
       3,
@@ -691,14 +736,16 @@ export function buildLiveCockpitSnapshot(
       allocations,
       confirmations,
       currentMon,
-      currentFri
+      currentFri,
+      workingDays
     );
     const execPriorAll = buildExecutionRowsFromProjects(
       projects,
       allocations,
       confirmations,
       priorMon,
-      priorFri
+      priorFri,
+      workingDays
     );
     const currentProjectScope = projectIdsForDepartments(
       allocations,
@@ -738,7 +785,8 @@ export function buildLiveCockpitSnapshot(
       scoped,
       depts,
       planFrom,
-      planTo
+      planTo,
+      workingDays
     );
     availableResources = buildAvailableResourcesFromLive(
       scoped,
@@ -746,7 +794,8 @@ export function buildLiveCockpitSnapshot(
       capacity,
       planFrom,
       planTo,
-      hoursPerDay
+      hoursPerDay,
+      workingDays
     );
     planningConflicts = buildPlanningConflictsFromLive(
       scoped,
@@ -754,7 +803,8 @@ export function buildLiveCockpitSnapshot(
       capacity,
       currentMon,
       currentFri,
-      hoursPerDay
+      hoursPerDay,
+      workingDays
     );
 
     // 8-week utilization bars (oldest → newest), same billable% path as Performance report.
@@ -767,7 +817,8 @@ export function buildLiveCockpitSnapshot(
         allocations,
         confirmations,
         mon,
-        fri
+        fri,
+        workingDays
       );
       const weekSummary = computePerformanceSummary(weekRows);
       utilizationTrend.push({

@@ -7,9 +7,18 @@ import {
   type DemandStaffingAllocation,
   type DemandStaffingEmployee,
 } from "./demandStaffing";
+import { normalizedWorkingDays, workingDayStatus } from "../utils/workingCalendar";
+import type { ProjectHealth } from "./executionReport";
 
 export type Priority = "critical" | "high" | "medium";
 export type ChipKind = "normal" | "over" | "free" | "internal";
+
+/** Project health → Open Demand rank (Settings → Demand priority order). */
+export function demandPriorityFromHealth(health?: ProjectHealth): Priority {
+  if (health === "red") return "critical";
+  if (health === "amber") return "high";
+  return "medium";
+}
 
 export interface Chip {
   label: string;
@@ -43,14 +52,14 @@ export interface PlannerRow {
   role: string; // derived from primary skill (no designation stored)
   /** Allocated hours for Week view (visible week window). */
   bookedHours: number;
-  /** Allocated hours for Day view (visible Mon–Fri strip). */
+  /** Allocated hours for Day view (visible working-day strip). */
   dayBookedHours: number;
   /** Capacity for Week view load bar (sum of holiday-aware week capacities). */
   capacity: number;
   /** Capacity for Day view load bar (sum of holiday-aware day capacities). */
   dayCapacity: number;
   weeks: Chip[][]; // 5 week columns
-  days: Chip[][]; // 5 day columns (current week)
+  days: Chip[][]; // working-day columns for the selected week
 }
 
 export interface Demand {
@@ -61,6 +70,8 @@ export interface Demand {
   count: number;
   byDate: string;
   priority: Priority;
+  /** Portfolio health of the project (FR-147). */
+  health?: ProjectHealth;
 }
 
 export interface Milestone {
@@ -119,6 +130,18 @@ function dayLabel(d: Date): string {
   return `${DAY_NAMES[d.getDay()]} ${d.getDate()}`;
 }
 
+const DOW_FROM_MONDAY = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+
+/** Offsets from Monday (0) for Settings working days, in calendar order. */
+export function workingDayOffsetsFromMonday(workingDays?: string[]): number[] {
+  const set = new Set(normalizedWorkingDays(workingDays));
+  const offsets: number[] = [];
+  DOW_FROM_MONDAY.forEach((label, i) => {
+    if (set.has(label)) offsets.push(i);
+  });
+  return offsets.length ? offsets : [0, 1, 2, 3, 4];
+}
+
 /** Rolling 5-week / 5-day window anchored on "today" so new allocations appear on the grid. */
 export function buildPlannerWindow(anchor = new Date()) {
   const currentMonday = mondayOf(anchor);
@@ -141,16 +164,22 @@ export const DAY_WEEK_OFFSET_MIN = -1;
 export const DAY_WEEK_OFFSET_MAX = 3;
 
 /**
- * Mon–Fri day strip for `currentMonday + weekOffset*7`.
+ * Day-view columns for `currentMonday + weekOffset*7`, using Settings working days
+ * (e.g. Mon–Sat → six columns through Saturday).
  * `currentDayIndex` is -1 when not the real current week (no “today” highlight).
  */
-export function dayStripForWeekOffset(weekOffset: number, anchor = new Date()) {
+export function dayStripForWeekOffset(
+  weekOffset: number,
+  anchor = new Date(),
+  workingDays?: string[]
+) {
   const clamped = Math.max(DAY_WEEK_OFFSET_MIN, Math.min(DAY_WEEK_OFFSET_MAX, weekOffset));
   const currentMonday = mondayOf(anchor);
   const selectedMonday = addDays(currentMonday, clamped * 7);
-  const dayStarts = [0, 1, 2, 3, 4].map((i) => addDays(selectedMonday, i));
-  const weekday = anchor.getDay();
-  const todayIndex = weekday >= 1 && weekday <= 5 ? weekday - 1 : 0;
+  const offsets = workingDayOffsetsFromMonday(workingDays);
+  const dayStarts = offsets.map((i) => addDays(selectedMonday, i));
+  const todayIso = toISODate(anchor);
+  const todayIndex = dayStarts.map(toISODate).indexOf(todayIso);
   return {
     weekOffset: clamped,
     days: dayStarts.map(dayLabel),
@@ -291,11 +320,11 @@ export function peakDailyAllocationHours(
   return Math.round(peak * 10) / 10;
 }
 
-export function capacityForView(capacity: number, view: "day" | "week") {
-  return view === "week" ? capacity : capacity / 5;
+export function capacityForView(capacity: number, view: "day" | "week", workingDays?: string[]) {
+  if (view === "week") return capacity;
+  const n = normalizedWorkingDays(workingDays).length || 5;
+  return capacity / n;
 }
-
-const DOW_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
 export type PlannerCalendarOpts = {
   workingDays?: string[];
@@ -310,13 +339,10 @@ export function plannerTodayISO(anchor = new Date()): string {
 
 /** Whether `iso` is a working day given Settings calendar. */
 export function isPlannerWorkingDay(iso: string, opts: PlannerCalendarOpts = {}): boolean {
-  const working = opts.workingDays?.length ? opts.workingDays : ["Mon", "Tue", "Wed", "Thu", "Fri"];
-  const off = new Set((opts.companyOffDays ?? []).map((d) => d.slice(0, 10)));
-  const day = parseISO(iso.slice(0, 10));
-  const label = DOW_SHORT[day.getDay()]!;
-  if (!working.includes(label)) return false;
-  if (off.has(iso.slice(0, 10))) return false;
-  return true;
+  return workingDayStatus(iso, {
+    workingDays: opts.workingDays,
+    companyOffDays: opts.companyOffDays,
+  }).ok;
 }
 
 /** Count working days in [rangeStart, rangeEnd] ∩ [cellStart, cellEnd]. */
@@ -586,9 +612,10 @@ export function buildPlannerRowsFromEmployees(
     byEmp.set(a.employeeHrmsId, list);
   }
 
-  const hpd = calendar.workingHoursPerDay ?? capacity / 5;
+  const daysPerWeek = normalizedWorkingDays(calendar.workingDays).length || 5;
+  const hpd = calendar.workingHoursPerDay ?? capacity / daysPerWeek;
   const cal: PlannerCalendarOpts = {
-    workingDays: calendar.workingDays ?? ["Mon", "Tue", "Wed", "Thu", "Fri"],
+    workingDays: normalizedWorkingDays(calendar.workingDays),
     companyOffDays: calendar.companyOffDays ?? [],
     workingHoursPerDay: hpd,
   };
@@ -645,6 +672,7 @@ export function buildOpenDemandFromProjects(
     id: string;
     name: string;
     status: string;
+    health?: ProjectHealth;
     demandLines?: { id: string; skills: string[]; count: number }[];
   }[],
   options?: {
@@ -652,9 +680,10 @@ export function buildOpenDemandFromProjects(
     employees?: DemandStaffingEmployee[];
     windowFrom?: string;
     windowTo?: string;
+    workingDays?: string[];
   }
 ): Demand[] {
-  const { allocations, employees, windowFrom, windowTo } = options ?? {};
+  const { allocations, employees, windowFrom, windowTo, workingDays } = options ?? {};
   const filterStaffed =
     allocations != null &&
     employees != null &&
@@ -674,7 +703,8 @@ export function buildOpenDemandFromProjects(
           p.id,
           p.name,
           windowFrom,
-          windowTo
+          windowTo,
+          workingDays
         );
         if (count <= 0) continue;
       }
@@ -685,7 +715,8 @@ export function buildOpenDemandFromProjects(
         hoursPerWeek: 40,
         count,
         byDate: "—",
-        priority: "medium",
+        health: p.health ?? "green",
+        priority: demandPriorityFromHealth(p.health),
       });
     }
   }

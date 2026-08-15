@@ -73,11 +73,13 @@ export function formatEffectiveLabel(iso: string): string {
   });
 }
 
-const DEFAULT_DEMAND_PRIORITY = ["Critical", "High", "Medium", "Low"];
+const DEFAULT_DEMAND_PRIORITY = ["Critical", "High", "Medium"];
 
 function normalizeDemandPriority(raw: unknown, fallback = DEFAULT_DEMAND_PRIORITY): string[] {
   if (!Array.isArray(raw) || raw.length === 0) return [...fallback];
-  const cleaned = raw.map((x) => String(x).trim()).filter(Boolean);
+  const cleaned = raw
+    .map((x) => String(x).trim())
+    .filter((x) => x.length > 0 && x.toLowerCase() !== "low");
   return cleaned.length > 0 ? cleaned : [...fallback];
 }
 
@@ -117,7 +119,7 @@ export function payloadFromBody(
   const excellentRaw = Math.max(0, Math.min(100, Math.trunc(Number(body.excellent ?? 95))));
   let goodRaw = Math.max(0, Math.min(100, Math.trunc(Number(body.good ?? 90))));
   // Needs attention must stay > 0 (Critical band remains reachable below it).
-  let needsRaw = Math.max(1, Math.min(100, Math.trunc(Number(body.needsAttention ?? 80))));
+  const needsRaw = Math.max(1, Math.min(100, Math.trunc(Number(body.needsAttention ?? 80))));
   // Strict order: Needs Attention < Good < Excellent (1…100)
   goodRaw = Math.max(needsRaw + 1, Math.min(99, goodRaw));
   const excellent = Math.max(goodRaw + 1, Math.min(100, excellentRaw));

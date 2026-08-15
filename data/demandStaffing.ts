@@ -3,6 +3,8 @@
  * Kept in `data/` so planner mocks do not import `api/`.
  */
 
+import { isWorkingWeekday } from "../utils/workingCalendar";
+
 export type DemandStaffingAllocation = {
   employeeHrmsId: string;
   projectCode: string;
@@ -18,11 +20,6 @@ export type DemandStaffingEmployee = {
   skills: string[];
 };
 
-function isWeekday(iso: string): boolean {
-  const dow = new Date(`${iso}T12:00:00`).getDay();
-  return dow >= 1 && dow <= 5;
-}
-
 function addDaysISO(iso: string, days: number): string {
   const date = new Date(`${iso}T12:00:00`);
   date.setDate(date.getDate() + days);
@@ -32,20 +29,25 @@ function addDaysISO(iso: string, days: number): string {
   return `${y}-${m}-${d}`;
 }
 
-function allocationCoversDay(a: DemandStaffingAllocation, day: string): boolean {
+function allocationCoversDay(
+  a: DemandStaffingAllocation,
+  day: string,
+  workingDays?: string[]
+): boolean {
   const s = a.startDate.slice(0, 10);
   const e = a.endDate.slice(0, 10);
-  return day >= s && day <= e && isWeekday(day);
+  return day >= s && day <= e && isWorkingWeekday(day, workingDays);
 }
 
-/** Active employees with any weekday hours on the project inside [windowFrom, windowTo]. */
+/** Active employees with any working-day hours on the project inside [windowFrom, windowTo]. */
 export function staffedEmployeesOnProject(
   allocations: DemandStaffingAllocation[],
   employees: DemandStaffingEmployee[],
   projectId: string,
   projectName: string,
   windowFrom: string,
-  windowTo: string
+  windowTo: string,
+  workingDays?: string[]
 ): DemandStaffingEmployee[] {
   const empById = new Map(employees.map((e) => [e.id, e]));
   const staffed = new Set<string>();
@@ -54,7 +56,7 @@ export function staffedEmployeesOnProject(
     if (a.projectCode !== projectId && a.projectName !== projectName) continue;
     let hours = 0;
     for (let d = windowFrom; d <= windowTo; d = addDaysISO(d, 1)) {
-      if (!allocationCoversDay(a, d)) continue;
+      if (!allocationCoversDay(a, d, workingDays)) continue;
       hours += a.hoursPerDay;
     }
     if (hours <= 0) continue;
@@ -84,7 +86,8 @@ export function unmetDemandHeadcount(
   projectId: string,
   projectName: string,
   windowFrom: string,
-  windowTo: string
+  windowTo: string,
+  workingDays?: string[]
 ): number {
   const staffed = staffedEmployeesOnProject(
     allocations,
@@ -92,7 +95,8 @@ export function unmetDemandHeadcount(
     projectId,
     projectName,
     windowFrom,
-    windowTo
+    windowTo,
+    workingDays
   );
   const matched = countSkillMatchedStaff(staffed, demandSkills);
   return Math.max(0, lineCount - matched);

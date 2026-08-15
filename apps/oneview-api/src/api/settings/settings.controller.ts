@@ -64,8 +64,8 @@ export class SettingsController {
     private readonly schedules: SettingsScheduleService
   ) {}
 
+  /** Working calendar is used app-wide; any authenticated user may read it. */
   @Get()
-  @RequirePermissions("settings")
   async get() {
     await this.schedules.applyDueSchedules();
     const settings = await this.prisma.appSettings.findFirst({ where: { code: "default", isDeleted: false } });

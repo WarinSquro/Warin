@@ -47,8 +47,15 @@ import {
   upsertDayProductivity,
   canStampWorkdayAction,
 } from "../utils/confirmationProductivity";
+import { workingDayHeaderLetters, weekStartMonday, workingDatesInWeek, workingDayStatus } from "../utils/workingCalendar";
 
 const EMPTY_LINES: PlannedLine[] = [];
+
+function complianceWeekGridClass(dayCount: number): string {
+  if (dayCount >= 7) return "grid w-[168px] shrink-0 grid-cols-7 place-items-center";
+  if (dayCount === 6) return "grid w-[144px] shrink-0 grid-cols-6 place-items-center";
+  return "grid w-[120px] shrink-0 grid-cols-5 place-items-center";
+}
 
 function todayISO() {
   const d = new Date();
@@ -170,7 +177,7 @@ function initLineStates(lines: PlannedLine[]): Record<string, LineState> {
 
 function EmployeeConfirm() {
   const { currentEmployee } = useAuth();
-  const { settings } = useSettings();
+  const { settings, loading: settingsLoading } = useSettings();
   const dateFmt = settings.dateFormat ?? "dd/MM/yyyy";
   const toast = useToast();
   const today = todayISO();
@@ -200,30 +207,30 @@ function EmployeeConfirm() {
   const workDate = fetchedMissDate || today;
   const isTodayWorkDate = workDate === today;
 
-  /** Working Calendar (Settings): working weekdays + company off-days. */
-  const workingCalendar = useMemo(() => {
-    const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
-    const dow = DOW[new Date(`${workDate}T12:00:00`).getDay()]!;
-    const working =
-      settings.workingDays?.length > 0
-        ? settings.workingDays
-        : ["Mon", "Tue", "Wed", "Thu", "Fri"];
-    if (!working.includes(dow)) {
-      return { ok: false as const, reason: "Non-working day" };
-    }
-    const hit = settings.companyOffDays.find((d) => d.date.slice(0, 10) === workDate);
-    if (hit) {
-      return { ok: false as const, reason: `Holiday · ${hit.label}` };
-    }
-    return { ok: true as const, reason: null };
-  }, [settings.companyOffDays, settings.workingDays, workDate]);
-
-  /** Timers + Workday Timeline: today only, and only on Working Calendar days. */
-  const canUseProductivity = isTodayWorkDate && workingCalendar.ok;
-
   const [prodStore, setProdStore] = useState<ProductivityStore>({ days: {} });
   const [calendarDate, setCalendarDate] = useState(today);
   const [tick, setTick] = useState(0);
+
+  /** Working Calendar (Settings): working weekdays + company off-days. */
+  const workingCalendar = useMemo(
+    () =>
+      workingDayStatus(calendarDate, {
+        workingDays: settings.workingDays,
+        companyOffDays: settings.companyOffDays,
+      }),
+    [settings.companyOffDays, settings.workingDays, calendarDate]
+  );
+  const todayWorkingCalendar = useMemo(
+    () =>
+      workingDayStatus(workDate, {
+        workingDays: settings.workingDays,
+        companyOffDays: settings.companyOffDays,
+      }),
+    [settings.companyOffDays, settings.workingDays, workDate]
+  );
+
+  /** Timers + Workday Timeline: today only, and only on Working Calendar days. */
+  const canUseProductivity = isTodayWorkDate && todayWorkingCalendar.ok;
 
   useEffect(() => {
     if (!hrmsId) return;
@@ -388,6 +395,7 @@ function EmployeeConfirm() {
   const handleFocusStartPause = (allocationId: string) => {
     const id = String(allocationId);
     if (!hrmsId || !canUseProductivity || submitted) return;
+    if (todayProd.workday.dayEnd) return;
     setProdStore((prev) => {
       let day = { ...getDayProductivity(prev, workDate) };
       const current = day.focusByAllocation[id] ?? emptyFocusState();
@@ -723,9 +731,15 @@ function EmployeeConfirm() {
       <WorkdayTimelinePanel
         marks={getDayProductivity(prodStore, calendarDate).workday}
         onStamp={stampWorkday}
-        disabled={!canUseProductivity || calendarDate !== workDate}
+        disabled={settingsLoading || !canUseProductivity || calendarDate !== workDate}
         disabledReason={
-          !workingCalendar.ok ? workingCalendar.reason ?? "Unavailable" : undefined
+          settingsLoading
+            ? undefined
+            : !workingCalendar.ok
+              ? workingCalendar.reason ?? "Unavailable"
+              : calendarDate !== workDate
+                ? "Select today to log times"
+                : undefined
         }
         selectedDate={calendarDate}
         dateLabel={formatAppDate(calendarDate, dateFmt)}
@@ -967,6 +981,7 @@ function EmployeeConfirm() {
               isActiveRunner={canUseProductivity && todayProd.activeTimerId === l.id}
               onFocusStartPause={canUseProductivity ? handleFocusStartPause : undefined}
               onFocusStop={canUseProductivity ? handleFocusStop : undefined}
+              focusDisabled={Boolean(todayProd.workday.dayEnd)}
             />
           ))}
 
@@ -1111,6 +1126,7 @@ function LineRow({
   isActiveRunner,
   onFocusStartPause,
   onFocusStop,
+  focusDisabled = false,
 }: {
   line: PlannedLine;
   state: LineState | undefined;
@@ -1120,6 +1136,7 @@ function LineRow({
   isActiveRunner?: boolean;
   onFocusStartPause?: (allocationId: string) => void;
   onFocusStop?: (allocationId: string) => void;
+  focusDisabled?: boolean;
 }) {
   const { settings } = useSettings();
   const dateFmt = settings.dateFormat ?? "dd/MM/yyyy";
@@ -1145,6 +1162,7 @@ function LineRow({
               isActiveRunner={!!isActiveRunner}
               onStartPause={onFocusStartPause}
               onStop={onFocusStop}
+              disabled={focusDisabled}
             />
           )}
         </div>
@@ -1259,6 +1277,7 @@ function ManagerCompliance() {
   const navigate = useNavigate();
   const toast = useToast();
   const { currentEmployee } = useAuth();
+  const { settings } = useSettings();
   const today = todayISO();
   const [kpis, setKpis] = useState({
     confirmedPct: 0,
@@ -1330,13 +1349,14 @@ function ManagerCompliance() {
     intervalMs: MASTER_TXN_SYNC_INTERVAL_MS,
   });
 
+  const days = useMemo(
+    () => workingDayHeaderLetters(settings.workingDays),
+    [settings.workingDays]
+  );
   const todayIndex = useMemo(() => {
-    const d = new Date(`${today}T12:00:00`);
-    const day = d.getDay();
-    return day >= 1 && day <= 5 ? day - 1 : 0;
-  }, [today]);
-
-  const days = ["M", "T", "W", "T", "F"];
+    const weekDates = workingDatesInWeek(weekStartMonday(today), settings.workingDays);
+    return weekDates.indexOf(today);
+  }, [today, settings.workingDays]);
 
   const sortedCompliance = useMemo(() => {
     const mul = complianceSortDir === "asc" ? 1 : -1;
@@ -1399,7 +1419,7 @@ function ManagerCompliance() {
                   onSort={handleComplianceSort}
                 />
               </div>
-              <div className="grid w-[120px] shrink-0 grid-cols-5 place-items-center">
+              <div className={complianceWeekGridClass(days.length)}>
                 {days.map((d, i) => (
                   <span key={i} className={i === todayIndex ? "text-foreground" : ""}>
                     {d}
@@ -1421,6 +1441,7 @@ function ManagerCompliance() {
                 key={r.id}
                 row={r}
                 todayIndex={todayIndex}
+                weekDayCount={days.length}
                 reminding={remindingId === r.id}
                 onRemind={() => void handleRemind(r)}
               />
@@ -1461,11 +1482,13 @@ function ManagerCompliance() {
 function ComplianceRowView({
   row,
   todayIndex,
+  weekDayCount,
   reminding,
   onRemind,
 }: {
   row: ComplianceRow;
   todayIndex: number;
+  weekDayCount: number;
   reminding: boolean;
   onRemind: () => void;
 }) {
@@ -1487,7 +1510,7 @@ function ComplianceRowView({
           <div className={`text-[10px] ${todayLabelClass(todayStatus)}`}>{row.todayLabel}</div>
         </div>
       </div>
-      <div className="grid w-[120px] shrink-0 grid-cols-5 place-items-center">
+      <div className={complianceWeekGridClass(weekDayCount)}>
         {row.week.map((s, i) => (
           <span
             key={i}

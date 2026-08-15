@@ -19,6 +19,7 @@ import { useMasters } from "../context/MastersContext";
 import { useToast } from "../context/ToastContext";
 import { useFocusFirstField } from "../hooks/useFocusFirstField";
 import { matchesSearchQuery } from "../utils/textSearch";
+import { projectVisibleSearchFields } from "../utils/projectVisibleSearch";
 import { useAppDateFormat } from "../hooks/useAppDateFormat";
 import { AppDateInput } from "../components/AppDateInput";
 import { usePauseSharedDataSync, useSharedDataSync, MASTER_TXN_SYNC_INTERVAL_MS } from "../hooks/useSharedDataSync";
@@ -390,11 +391,13 @@ function ProjectRow({
 
 function ProjectDrawer({
   project,
+  existingProjects,
   saving,
   onClose,
   onSave,
 }: {
   project: Project | null;
+  existingProjects: Project[];
   saving?: boolean;
   onClose: () => void;
   onSave: (project: Project) => void;
@@ -661,6 +664,15 @@ function ProjectDrawer({
     !!approvedByDate &&
     (!!approvalSnapPreview || !!approvalSnapName.trim());
   const healthRemarksRequired = health === "amber" || health === "red";
+  const duplicateId =
+    !isEdit &&
+    !!id.trim() &&
+    existingProjects.some((p) => p.id.trim().toLowerCase() === id.trim().toLowerCase());
+  const duplicateName =
+    !!name.trim() &&
+    existingProjects.some(
+      (p) => p.id !== project?.id && p.name.trim().toLowerCase() === name.trim().toLowerCase()
+    );
   const canSave =
     !!id.trim() &&
     id.trim().length <= PROJECT_ID_MAX &&
@@ -673,9 +685,20 @@ function ProjectDrawer({
     milestonesDatesValid &&
     (!poRequired || !!poNumber.trim()) &&
     (!pocRequired || pocComplete) &&
-    (!healthRemarksRequired || !!healthRemarks.trim());
+    (!healthRemarksRequired || !!healthRemarks.trim()) &&
+    !duplicateId &&
+    !duplicateName;
 
   const handleSave = () => {
+    if (saving) return;
+    if (duplicateId) {
+      toast.error("Project ID already exists.");
+      return;
+    }
+    if (duplicateName) {
+      toast.error("Project name already exists.");
+      return;
+    }
     if (!canSave) return;
     onSave({
       id: id.trim().slice(0, PROJECT_ID_MAX),
@@ -719,13 +742,15 @@ function ProjectDrawer({
         {/* body */}
         <div className="flex flex-1 flex-col gap-4 overflow-x-hidden overflow-y-auto px-5 py-4">
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Project ID" required hint={isEdit ? undefined : "Unique"}>
+            <Field label="Project ID" required hint={isEdit ? undefined : duplicateId ? "Already exists" : "Unique"}>
               <input
                 value={id}
                 disabled={coreLocked}
                 maxLength={PROJECT_ID_MAX}
                 onChange={(e) => setId(e.target.value.slice(0, PROJECT_ID_MAX))}
-                className={`w-full rounded-md border border-border px-3 py-2 font-mono text-[13px] outline-none focus:border-accent-line ${coreInputClass}`}
+                className={`w-full rounded-md border px-3 py-2 font-mono text-[13px] outline-none focus:border-accent-line ${coreInputClass} ${
+                  duplicateId ? "border-danger" : "border-border"
+                }`}
                 placeholder="PRJ-019"
               />
             </Field>
@@ -754,13 +779,15 @@ function ProjectDrawer({
             </Field>
           </div>
 
-          <Field label="Project Name" required>
+          <Field label="Project Name" required hint={duplicateName ? "Already exists" : undefined}>
             <input
               value={name}
               disabled={coreLocked}
               maxLength={PROJECT_NAME_MAX}
               onChange={(e) => setName(e.target.value.slice(0, PROJECT_NAME_MAX))}
-              className={`w-full rounded-md border border-border px-3 py-2 text-[13px] outline-none focus:border-accent-line ${coreInputClass}`}
+              className={`w-full rounded-md border px-3 py-2 text-[13px] outline-none focus:border-accent-line ${coreInputClass} ${
+                duplicateName ? "border-danger" : "border-border"
+              }`}
               placeholder="e.g. Project Nova"
             />
           </Field>
@@ -1224,6 +1251,7 @@ export function ProjectMaster() {
   const scrolledRef = useRef<string | null>(null);
 
   const { projects: rows, refresh } = useProjects();
+  const { formatDate, formatDateTime } = useAppDateFormat();
   const toast = useToast();
   const [tab, setTab] = useState<Tab>("active");
   const [q, setQ] = useState("");
@@ -1257,20 +1285,14 @@ export function ProjectMaster() {
     return `calc(100% + ${extraCount * 9}rem)`;
   }, [visibleColDefs]);
 
-  const filtered = rows.filter(
-    (p) =>
-      p.status === tab &&
-      matchesSearchQuery(
-        q,
-        p.name,
-        p.id,
-        p.customer,
-        p.poNumber,
-        p.type,
-        p.demand,
-        p.health,
-        ...(p.demandLines ?? []).flatMap((l) => [String(l.count), ...l.skills])
-      )
+  const filtered = useMemo(
+    () =>
+      rows.filter(
+        (p) =>
+          p.status === tab &&
+          matchesSearchQuery(q, ...projectVisibleSearchFields(p, visibleColumns, formatDate, formatDateTime))
+      ),
+    [rows, tab, q, visibleColumns, formatDate, formatDateTime]
   );
 
   const sorted = [...filtered].sort((a, b) => {
@@ -1428,13 +1450,13 @@ export function ProjectMaster() {
                   Inactive {inactiveCount}
                 </TabBtn>
               </div>
-              <div className="flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5">
-                <Search className="pointer-events-none h-3.5 w-3.5 text-muted-foreground" />
+              <div className="relative w-[176px] shrink-0">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                 <input
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
-                  placeholder="Search project or customer…"
-                  className="w-52 bg-transparent text-[12px] text-foreground outline-none placeholder:text-muted-foreground"
+                  placeholder="Search…"
+                  className="w-full rounded-md border border-border bg-surface py-1.5 pl-8 pr-2.5 text-[12px] text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
                 />
               </div>
             </div>
@@ -1499,6 +1521,7 @@ export function ProjectMaster() {
         <ProjectDrawer
           key={editing?.id ?? "new-project"}
           project={editing}
+          existingProjects={rows}
           saving={saving}
           onClose={() => setDrawerOpen(false)}
           onSave={saveProject}

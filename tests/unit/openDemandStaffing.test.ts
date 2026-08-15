@@ -41,6 +41,25 @@ describe("buildOpenDemandFromProjects staffing filter", () => {
     expect(demands[0]!.project).toBe("Amul");
     expect(demands[0]!.role).toBe("React");
     expect(demands[0]!.count).toBe(1);
+    expect(demands[0]!.health).toBe("green");
+    expect(demands[0]!.priority).toBe("medium");
+  });
+
+  it("copies project health onto the demand card", () => {
+    const demands = buildOpenDemandFromProjects(
+      [{ ...project, health: "amber" }],
+      { allocations: [], employees, windowFrom, windowTo }
+    );
+    expect(demands[0]!.health).toBe("amber");
+    expect(demands[0]!.priority).toBe("high");
+  });
+
+  it("ranks Critical project health as CRITICAL demand", () => {
+    const demands = buildOpenDemandFromProjects(
+      [{ ...project, health: "red" }],
+      { allocations: [], employees, windowFrom, windowTo }
+    );
+    expect(demands[0]!.priority).toBe("critical");
   });
 
   it("hides demand when enough skill-matched staff are allocated in window", () => {
@@ -98,6 +117,26 @@ describe("buildOpenDemandFromProjects staffing filter", () => {
     });
     expect(demands).toHaveLength(1);
     expect(demands[0]!.count).toBe(1);
+  });
+
+  it("counts Saturday allocations when Saturday is a working day", () => {
+    const allocations = [
+      alloc({
+        employeeHrmsId: "EMP-KARAN",
+        projectCode: "PRJ-AMUL",
+        projectName: "Amul",
+        startDate: "2026-08-15",
+        endDate: "2026-08-15",
+      }),
+    ];
+    const demands = buildOpenDemandFromProjects([project], {
+      allocations,
+      employees,
+      windowFrom: "2026-08-10",
+      windowTo: "2026-08-15",
+      workingDays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+    });
+    expect(demands).toHaveLength(0);
   });
 
   it("keeps all lines when staffing options are omitted (backward compatible)", () => {

@@ -38,9 +38,13 @@ const TONE_STYLE: Record<
 export function ToastViewport({
   items,
   onDismiss,
+  onPause,
+  onResume,
 }: {
   items: ToastItem[];
   onDismiss: (id: string) => void;
+  onPause: (id: string) => void;
+  onResume: (id: string) => void;
 }) {
   if (items.length === 0) return null;
 
@@ -57,6 +61,8 @@ export function ToastViewport({
           <div
             key={item.id}
             role="status"
+            onMouseEnter={() => onPause(item.id)}
+            onMouseLeave={() => onResume(item.id)}
             className={`toast-enter pointer-events-auto flex items-start gap-2.5 rounded-lg border px-3.5 py-3 shadow-lg ${style.wrap}`}
           >
             <Icon className={`mt-0.5 h-4 w-4 flex-shrink-0 ${style.icon}`} aria-hidden />

@@ -209,7 +209,7 @@ export function AllocationFocusTimer({
             aria-label={running ? "Pause" : "Start"}
             title={
               disabled
-                ? "Focus timer locked after confirmation is submitted"
+                ? "Focus timer locked"
                 : running
                   ? "Pause"
                   : "Start"
@@ -227,7 +227,7 @@ export function AllocationFocusTimer({
             aria-label="Stop"
             title={
               disabled
-                ? "Focus timer locked after confirmation is submitted"
+                ? "Focus timer locked"
                 : "Stop · complete lap"
             }
             className="inline-flex h-8 w-9 cursor-pointer items-center justify-center border-l border-border bg-surface text-danger hover:bg-danger-soft disabled:cursor-not-allowed disabled:opacity-40"

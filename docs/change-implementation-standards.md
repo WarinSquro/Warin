@@ -149,6 +149,7 @@ Every new or modified screen must:
 - Follow the existing application theme (`docs/theme.md`, brand tokens).
 - Maintain consistent spacing and alignment.
 - Be responsive; no overlapping controls; truncated text must expose the full value on hover (see `docs/ui-truncate-tooltips.md`).
+- Toasts use `useToast()` only: 5 seconds by default; hover pauses; remaining time resumes when the pointer leaves (`docs/ui-toast.md`).
 - No vertical text unless explicitly required.
 - Proper loading, empty, error, and success states.
 - Keyboard navigation and correct tab order.

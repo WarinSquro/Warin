@@ -211,14 +211,21 @@ export function EmployeeMaster() {
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background p-5">
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-surface">
-          <div className="flex flex-shrink-0 items-center justify-between border-b border-border-soft px-4 py-2.5">
-            <div className="flex gap-1">
-              <Tab active={tab === "active"} onClick={() => setTab("active")}>Active {activeCount}</Tab>
-              <Tab active={tab === "inactive"} onClick={() => setTab("inactive")} tone="muted">Inactive {inactiveCount}</Tab>
-            </div>
-            <div className="flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5">
-              <Search className="pointer-events-none h-3.5 w-3.5 text-muted-foreground" />
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name or ID…" className="w-48 bg-transparent text-[12px] text-foreground outline-none placeholder:text-muted-foreground" />
+          <div className="flex flex-shrink-0 items-center justify-between gap-3 border-b border-border-soft px-4 py-2.5">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
+              <div className="flex gap-1">
+                <Tab active={tab === "active"} onClick={() => setTab("active")}>Active {activeCount}</Tab>
+                <Tab active={tab === "inactive"} onClick={() => setTab("inactive")} tone="muted">Inactive {inactiveCount}</Tab>
+              </div>
+              <div className="relative w-[210px] shrink-0">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="Search name or ID…"
+                  className="w-full rounded-md border border-border bg-surface py-1.5 pl-8 pr-2.5 text-[12px] text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
+                />
+              </div>
             </div>
           </div>
 

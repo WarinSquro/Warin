@@ -4,12 +4,8 @@ import { Eye, EyeOff, KeyRound, LogOut, Shield } from "lucide-react";
 import { changePinApi, verifyPinApi } from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
-import { PERMISSION_PAGES, type PermissionPage } from "../data/navConfig";
+import { PERMISSION_PAGES, getAssignedAccessTree } from "../data/navConfig";
 import { useFocusFirstField } from "../hooks/useFocusFirstField";
-
-function pageLabel(page: PermissionPage): string {
-  return page.label;
-}
 
 function assignedPageLabels(allowedKeys: Set<string>, isSuperAdmin: boolean): string[] {
   if (isSuperAdmin || allowedKeys.has("*")) {
@@ -25,7 +21,7 @@ function assignedPageLabels(allowedKeys: Set<string>, isSuperAdmin: boolean): st
         .map((c) => `${page.label} · ${c.label}`);
       labels.push(...childLabels);
     } else if (allowedKeys.has(page.key)) {
-      labels.push(pageLabel(page));
+      labels.push(page.label);
     }
   }
   return labels.sort((a, b) => a.localeCompare(b));
@@ -46,10 +42,16 @@ export function AccountSettings() {
   const [pinSaving, setPinSaving] = useState(false);
   const [logoutConfirm, setLogoutConfirm] = useState(false);
 
+  const isAdminAccess = isSuperAdmin || allowedKeys.has("*");
   const accessLabels = useMemo(
     () => assignedPageLabels(allowedKeys, isSuperAdmin),
     [allowedKeys, isSuperAdmin]
   );
+  const accessTree = useMemo(
+    () => (isAdminAccess ? [] : getAssignedAccessTree(allowedKeys)),
+    [allowedKeys, isAdminAccess]
+  );
+  const accessEmpty = isAdminAccess ? accessLabels.length === 0 : accessTree.length === 0;
 
   const pinReady =
     /^\d{5}$/.test(currentPin) && /^\d{5}$/.test(newPin) && /^\d{5}$/.test(confirmPin) && !pinSaving;
@@ -196,14 +198,38 @@ export function AccountSettings() {
             <div className="mt-1 text-[12px] text-muted-foreground">
               Pages you can open · assigned by Super Admin via Access Rights
             </div>
-            {accessLabels.length === 0 ? (
+            {accessEmpty ? (
               <div className="mt-3 text-[12px] text-muted-foreground">No pages assigned yet.</div>
-            ) : (
+            ) : isAdminAccess ? (
               <ul className="mt-3 max-h-48 list-inside list-disc space-y-1 overflow-y-auto text-[12px] text-foreground">
                 {accessLabels.map((label) => (
                   <li key={label}>{label}</li>
                 ))}
               </ul>
+            ) : (
+              <div className="mt-3 max-h-48 space-y-2.5 overflow-y-auto text-[12px] text-foreground">
+                {accessTree.map((group) => (
+                  <div key={group.heading}>
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      {group.heading}
+                    </div>
+                    <ul className="mt-1 space-y-0.5 border-l border-border-soft pl-3">
+                      {group.pages.map((page) => (
+                        <li key={page.key}>
+                          <span className="font-medium">{page.label}</span>
+                          {page.children && page.children.length > 0 && (
+                            <ul className="mt-0.5 space-y-0.5 border-l border-border-soft pl-3 text-muted-foreground">
+                              {page.children.map((child) => (
+                                <li key={child.key}>{child.label}</li>
+                              ))}
+                            </ul>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
             )}
           </section>
 

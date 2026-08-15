@@ -59,7 +59,7 @@ export function getImmediateReports(
 
 /**
  * Planning screens: super-admin sees all active employees; Resource Owners see
- * only their immediate reports.
+ * themselves plus their immediate reports (so their own allocations stay visible).
  */
 export function scopePlanningEmployees(
   employees: Employee[],
@@ -68,7 +68,12 @@ export function scopePlanningEmployees(
   const active = employees.filter((e) => e.status === "active");
   if (opts.isSuperAdmin) return active;
   if (!opts.ownerHrmsId) return [];
-  return getImmediateReports(opts.ownerHrmsId, active, { activeOnly: true });
+  const reports = getImmediateReports(opts.ownerHrmsId, active, { activeOnly: true });
+  const self = active.find((e) => e.id === opts.ownerHrmsId);
+  if (self && !reports.some((e) => e.id === self.id)) {
+    return [self, ...reports];
+  }
+  return reports;
 }
 
 // Simulated result of an XLS bulk upload preview.

@@ -5,7 +5,23 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import eslintConfigPrettier from "eslint-config-prettier";
 
 export default tseslint.config(
-  { ignores: ["dist", "node_modules", "__MACOSX", "eslint.config.js", "prisma/migrations", "playwright-report", "test-results", "packages/*/dist", "data"] },
+  {
+    ignores: [
+      "dist",
+      "**/dist/**",
+      "node_modules",
+      "__MACOSX",
+      "eslint.config.js",
+      "prisma/migrations",
+      "playwright-report",
+      "test-results",
+      "packages/*/dist",
+      "apps/*/dist",
+      "ops-console/**",
+      "scripts/**",
+      "data",
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

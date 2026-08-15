@@ -74,11 +74,19 @@ git push origin main
 
 ### Then live (EC2)
 
+GitHub CI does **not** copy files to EC2. After a green (or at least pushed) `main`:
+
 ```bash
-cd /opt/warin/app && git pull origin main
-# SPA UI: export VITE_API_BASE_URL=http://PUBLIC_IP/api/v1 && npx vite build && copy dist → /opt/warin/shared/web
-# API/Compose: docker compose up -d --build …
+# SPA + version stamp (always)
+bash /opt/warin/app/scripts/ec2-deploy.sh
+# also rebuild API/worker when Nest/Prisma changed:
+# bash /opt/warin/app/scripts/ec2-deploy.sh --with-api
+
+curl -sS https://seworkspace.com/version.json
+# commit must match: git -C /opt/warin/app rev-parse HEAD
 ```
+
+Do **not** `db:seed` on live. SPA API URL is `https://seworkspace.com/api/v1` (never the public IP).
 
 ---
 

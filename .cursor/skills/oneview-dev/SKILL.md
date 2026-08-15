@@ -67,6 +67,7 @@ apps/           # Future Nest APIs (see apps/README.md)
 7. **Orphan screens** — `ExecutiveDashboard`, `ManagerDashboard`, `Placeholder` are unused; do not wire them unless requested.
 8. Read `docs/theme.md` and `.cursor/rules/*` before large UI or DB changes. For route/permission detail, see [reference.md](reference.md).
 8b. **FRD / UI specs** — Phase-1 PDFs in `docs/specs/`; how to apply: `docs/specs/HOW-TO-USE-FRD.md`; living gaps: `docs/frd-gap-checklist.md`. When behavior is ambiguous, FRD wins over mocks unless the user overrides.
+8c. **Toasts** — `useToast()` only; 5s default; hover pauses; remaining time on mouse leave. See `docs/ui-toast.md`.
 9. **Prompt log** — after every coding prompt, append prompt + output + date/time to `docs/prompt-log.md` (newest first).
 10. **Delete requires confirmation** — any user-triggered delete (soft or hard) must confirm with the user before executing.
 

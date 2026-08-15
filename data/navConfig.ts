@@ -181,6 +181,39 @@ export function getPermissionGroups(includeSuperAdminOnly: boolean): { heading?:
   }));
 }
 
+export type AssignedAccessLeaf = { key: string; label: string };
+export type AssignedAccessPage = AssignedAccessLeaf & { children?: AssignedAccessLeaf[] };
+export type AssignedAccessGroup = { heading: string; pages: AssignedAccessPage[] };
+
+/** Assigned pages in nav/Access Rights order (group → page → child), not alphabetical. */
+export function getAssignedAccessTree(allowedKeys: Set<string>): AssignedAccessGroup[] {
+  const groups = getPermissionGroups(false)
+    .map((group) => ({
+      heading: group.heading ?? "My Workspace",
+      pages: group.pages.flatMap((page): AssignedAccessPage[] => {
+        if (page.superAdminOnly) return [];
+        // Settings is listed under Account with Profile (user menu), not Setup.
+        if (page.key === "settings") return [];
+        if (page.children?.length) {
+          const children = page.children
+            .filter((c) => allowedKeys.has(c.key))
+            .map((c) => ({ key: c.key, label: c.label }));
+          if (children.length === 0) return [];
+          return [{ key: page.key, label: page.label, children }];
+        }
+        if (!allowedKeys.has(page.key)) return [];
+        return [{ key: page.key, label: page.label }];
+      }),
+    }))
+    .filter((g) => g.pages.length > 0);
+
+  const accountPages: AssignedAccessPage[] = [{ key: "account", label: "Profile" }];
+  if (allowedKeys.has("settings")) {
+    accountPages.push({ key: "settings", label: "Settings" });
+  }
+  return [...groups, { heading: "Account", pages: accountPages }];
+}
+
 /** All assignable permission keys (leaves; parent pages with children use child keys). */
 export function getAllAssignableKeys(includeSuperAdminOnly: boolean): string[] {
   const keys: string[] = [];

@@ -156,9 +156,9 @@ Until staging exists: treat `main` carefully; deploy in a maintenance window; al
 
 ```text
 Laptop: pull → change → verify locally → commit → push origin main
-EC2:    pre-deploy backup → git pull → migrate (if any) → rebuild API (if needed)
-        → rebuild SPA with real VITE_API_BASE_URL → copy to shared/web
-        → smoke test → monitor
+EC2:    bash /opt/warin/app/scripts/ec2-deploy.sh
+        # add --with-api when Nest/Prisma changed
+        → curl https://seworkspace.com/version.json (commit must match origin/main)
 ```
 
 **Never** bake `YOUR_DOMAIN` or `localhost` into the SPA build for live.

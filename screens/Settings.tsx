@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { CalendarClock, History, AlertTriangle, X, ArrowRight } from "lucide-react";
-import { ALL_DAYS, DEFAULT_SETTINGS } from "../data/settings";
+import { ALL_DAYS, DEFAULT_SETTINGS, withoutLowDemandPriority } from "../data/settings";
 import type { SettingsState, ImpactRow, CompanyOffDay, DateFormatPattern } from "../data/settings";
 import { useSettings } from "../context/SettingsContext";
 import {
@@ -536,7 +536,7 @@ export function Settings() {
               />
             </div>
             <div className="mt-2 text-[11px] text-muted-foreground">
-              ≥{s.metricBands.excellent}% Excellent · ≥{s.metricBands.good}% Good · ≥
+              ≥{s.metricBands.excellent}% Excellent · ≥{s.metricBands.good}% Good · ≤
               {s.metricBands.needsAttention}% Needs Attention
             </div>
           </Card>
@@ -705,14 +705,24 @@ export function Settings() {
           </Card>
 
           {/* Demand priorities */}
-          <Card title="Demand priority order" desc="How open demand is ranked in the Planner and dashboards.">
+          <Card
+            title="Demand priority order"
+            desc={
+              <>
+                How open demand is ranked in the Planner and dashboards.
+                <div className="mt-0.5">
+                  Project Health Critical → demand CRITICAL; Need Attention → HIGH; Healthy → MEDIUM
+                </div>
+              </>
+            }
+          >
             <div className="flex items-center gap-2">
-              {s.demandPriority.map((p, i) => (
+              {withoutLowDemandPriority(s.demandPriority).map((p, i, list) => (
                 <div key={p} className="flex items-center gap-2">
                   <span className="rounded-md border border-border bg-surface px-2.5 py-1.5 text-[12px] text-foreground">
                     {i + 1}. {p}
                   </span>
-                  {i < s.demandPriority.length - 1 && (
+                  {i < list.length - 1 && (
                     <span className="text-muted-foreground">→</span>
                   )}
                 </div>
@@ -1350,7 +1360,7 @@ function Card({
   children,
 }: {
   title: string;
-  desc: string;
+  desc: ReactNode;
   action?: React.ReactNode;
   children: React.ReactNode;
 }) {

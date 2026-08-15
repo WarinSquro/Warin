@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 import {
+  deleteKpiResultAttachment,
+  fetchKpiResultAttachment,
   fetchKpiResults,
   saveKpiResult,
   type ApiKpiItem,
@@ -8,6 +10,7 @@ import {
   type AssessmentCycle,
   type KpiRowStatus,
 } from "../api/domain";
+import { ConfirmDeleteDialog } from "../components/ConfirmDeleteDialog";
 import { useEmployees } from "../context/EmployeesContext";
 import { useMasters } from "../context/MastersContext";
 import { useToast } from "../context/ToastContext";
@@ -20,6 +23,8 @@ import { useSharedDataSync, usePauseSharedDataSync, MASTER_TXN_SYNC_INTERVAL_MS 
 const CYCLES: AssessmentCycle[] = ["Q1", "Q2", "Q3", "Q4"];
 const fieldClass =
   "w-full rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none";
+
+const KPI_RO_REMARKS_MAX = 200;
 
 type KpiResultsSortKey =
   | "resource"
@@ -420,9 +425,65 @@ function ResultDrawer({
   const canSave = item.periodExpired && !locked;
   const [kpiResult, setKpiResult] = useState(item.kpiResult != null ? String(item.kpiResult) : "");
   const [kpiScore, setKpiScore] = useState(item.kpiScore != null ? String(item.kpiScore) : "");
-  const [remarks, setRemarks] = useState(item.remarks ?? "");
+  const [remarks, setRemarks] = useState(() => (item.remarks ?? "").slice(0, KPI_RO_REMARKS_MAX));
   const [file, setFile] = useState<File | null>(null);
+  const [savedAttachment, setSavedAttachment] = useState(item.hasAttachment);
+  const [savedAttachmentName, setSavedAttachmentName] = useState(item.attachmentName);
+  const [confirmDeleteAttach, setConfirmDeleteAttach] = useState(false);
+  const [deletingAttach, setDeletingAttach] = useState(false);
   const [saving, setSaving] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const attachmentName = file?.name ?? (savedAttachment ? savedAttachmentName : null);
+  const hasAttachment = Boolean(file) || savedAttachment;
+
+  const viewAttachment = async () => {
+    try {
+      if (file) {
+        const url = URL.createObjectURL(file);
+        const opened = window.open(url, "_blank", "noopener,noreferrer");
+        if (!opened) {
+          URL.revokeObjectURL(url);
+          onError("Pop-up blocked — allow pop-ups to view the file.");
+          return;
+        }
+        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+        return;
+      }
+      const blob = await fetchKpiResultAttachment(item.id);
+      const url = URL.createObjectURL(blob);
+      const opened = window.open(url, "_blank", "noopener,noreferrer");
+      if (!opened) {
+        URL.revokeObjectURL(url);
+        onError("Pop-up blocked — allow pop-ups to view the file.");
+        return;
+      }
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "Failed to open attachment");
+    }
+  };
+
+  const confirmDeleteAttachment = async () => {
+    if (deletingAttach) return;
+    if (file) {
+      setFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      setConfirmDeleteAttach(false);
+      return;
+    }
+    setDeletingAttach(true);
+    try {
+      await deleteKpiResultAttachment(item.id);
+      setSavedAttachment(false);
+      setSavedAttachmentName(null);
+      setConfirmDeleteAttach(false);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "Failed to delete attachment");
+    } finally {
+      setDeletingAttach(false);
+    }
+  };
 
   const title = locked ? "KPI Result" : canSave ? "Update KPI Result" : "KPI Result";
 
@@ -465,7 +526,7 @@ function ResultDrawer({
       await saveKpiResult(item.id, {
         kpiResult: resultNum,
         kpiScore: scoreNum,
-        remarks: remarks.trim() || undefined,
+        remarks: remarks.trim().slice(0, KPI_RO_REMARKS_MAX) || undefined,
         attachment,
       });
       await onSaved();
@@ -514,7 +575,9 @@ function ResultDrawer({
           )}
 
           <label className="flex flex-col">
-            <span className="mb-1.5 text-[11px] text-muted">KPI Result</span>
+            <span className="mb-1.5 text-[11px] text-muted">
+              KPI Result <span className="text-danger">*</span>
+            </span>
             <input
               type="number"
               step="any"
@@ -525,7 +588,9 @@ function ResultDrawer({
             />
           </label>
           <label className="flex flex-col">
-            <span className="mb-1.5 text-[11px] text-muted">RO KPI Score (0–100)</span>
+            <span className="mb-1.5 text-[11px] text-muted">
+              RO KPI Score (0–100) <span className="text-danger">*</span>
+            </span>
             <input
               type="number"
               min={0}
@@ -538,30 +603,60 @@ function ResultDrawer({
             />
           </label>
           <label className="flex flex-col">
-            <span className="mb-1.5 text-[11px] text-muted">Resource Owner Remarks</span>
+            <span className="mb-1.5 flex items-baseline justify-between gap-2 text-[11px] text-muted">
+              <span>Resource Owner Remarks</span>
+              <span className="text-muted-foreground">
+                {remarks.length}/{KPI_RO_REMARKS_MAX} (Max {KPI_RO_REMARKS_MAX} char)
+              </span>
+            </span>
             <textarea
               disabled={locked || !canSave}
               value={remarks}
-              onChange={(e) => setRemarks(e.target.value)}
+              maxLength={KPI_RO_REMARKS_MAX}
+              onChange={(e) => setRemarks(e.target.value.slice(0, KPI_RO_REMARKS_MAX))}
               rows={3}
               className={`${fieldClass} focus:border-accent-line disabled:cursor-not-allowed disabled:bg-surface-alt disabled:text-muted`}
             />
           </label>
-          <label className="flex flex-col">
+          <div className="flex flex-col">
             <span className="mb-1.5 text-[11px] text-muted">
               Attachment (PDF / XLSX / JPG · max 5 MB)
             </span>
-            {item.hasAttachment && !file && (
-              <div className="mb-1 text-[12px] text-muted-foreground">{item.attachmentName}</div>
+            {hasAttachment && (
+              <div className="mb-1.5 flex min-w-0 items-center justify-between gap-2">
+                <span className="min-w-0 truncate text-[12px] text-foreground" title={attachmentName ?? undefined}>
+                  {attachmentName || "Attachment"}
+                </span>
+                <div className="flex shrink-0 items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => void viewAttachment()}
+                    className="cursor-pointer text-[12px] text-primary hover:underline"
+                  >
+                    View
+                  </button>
+                  {!locked && canSave && (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteAttach(true)}
+                      className="cursor-pointer text-[12px] text-danger hover:underline"
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
+              </div>
             )}
-            <input
-              type="file"
-              disabled={locked || !canSave}
-              accept=".pdf,.xlsx,.xls,.jpg,.jpeg,application/pdf,image/jpeg"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              className="block w-full cursor-pointer text-[12px] disabled:cursor-not-allowed"
-            />
-          </label>
+            {!locked && canSave && (
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.xlsx,.xls,.jpg,.jpeg,application/pdf,image/jpeg"
+                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                className="block w-full cursor-pointer text-[12px]"
+              />
+            )}
+          </div>
         </div>
 
         <div className="flex flex-shrink-0 gap-2 border-t border-border-soft px-5 py-3.5">
@@ -583,6 +678,12 @@ function ResultDrawer({
           </button>
         </div>
       </div>
+      <ConfirmDeleteDialog
+        open={confirmDeleteAttach}
+        confirming={deletingAttach}
+        onCancel={() => setConfirmDeleteAttach(false)}
+        onConfirm={() => void confirmDeleteAttachment()}
+      />
     </div>
   );
 }

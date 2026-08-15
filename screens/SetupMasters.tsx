@@ -1329,13 +1329,13 @@ export function SetupMasters() {
                 Inactive {inactiveCountFor(segment)}
               </TabBtn>
             </div>
-            <div className="flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5">
-              <Search className="pointer-events-none h-3.5 w-3.5 text-muted-foreground" />
+            <div className="relative w-[220px] shrink-0">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder={`Search ${segmentLabels[segment].toLowerCase()}…`}
-                className="w-44 bg-transparent text-[12px] text-foreground outline-none placeholder:text-muted-foreground"
+                className="w-full rounded-md border border-border bg-surface py-1.5 pl-8 pr-2.5 text-[12px] text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
               />
             </div>
           </div>

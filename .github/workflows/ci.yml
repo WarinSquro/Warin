@@ -1,5 +1,9 @@
 name: CI
 
+# Quality gate only — this workflow does not publish to EC2.
+# Live publish: on the server run `bash /opt/warin/app/scripts/ec2-deploy.sh`
+# (add `--with-api` when Nest/Prisma changed). Confirm https://seworkspace.com/version.json.
+
 on:
   push:
     branches: [main, master]

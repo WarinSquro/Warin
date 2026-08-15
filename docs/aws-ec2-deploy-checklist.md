@@ -193,11 +193,20 @@ git commit -m "Describe why"
 git push origin main
 ```
 
-### B) EC2 — always pull
+### B) EC2 — one command (pull + build + publish)
+
+GitHub Actions CI is a **quality gate only**. It never updates `/opt/warin/shared/web` or Docker images.
 
 ```bash
-cd /opt/warin/app && git pull
+bash /opt/warin/app/scripts/ec2-deploy.sh
+# Nest/Prisma changes:
+# bash /opt/warin/app/scripts/ec2-deploy.sh --with-api
+
+curl -sS https://seworkspace.com/version.json
+git -C /opt/warin/app rev-parse HEAD
 ```
+
+The script refuses to wipe `shared/web` unless Vite produced `dist/index.html` and the bundle contains `https://seworkspace.com/api/v1` (not the Elastic IP).
 
 ### C) What to rebuild (depends on what changed)
 
@@ -219,19 +228,10 @@ docker compose restart api worker
 
 **Do not** run `npm run db:seed` on live QA/prod — it can wipe or overwrite operational data.
 
-**SPA publish (most UI fixes):**
-
-```bash
-cd /opt/warin/app
-export VITE_API_BASE_URL="http://PUBLIC_IP/api/v1"   # e.g. 13.126.64.134
-npx vite build
-rm -rf /opt/warin/shared/web/*
-cp -a dist/. /opt/warin/shared/web/
-# hard-refresh browser (Ctrl+Shift+R)
-```
+**SPA publish (most UI fixes):** use `scripts/ec2-deploy.sh` (HTTPS API URL + `version.json`). Do not publish with `http://13.126.64.134/api/v1`.
 
 Hard-refresh the browser after SPA deploy so cached JS is not reused.
 
 ---
 
-*Last updated: 2026-08-04 — Live SPA up; Profile rename + logout copy; document local→live.*
+*Last updated: 2026-08-15 — CI is quality-only; live publish via `scripts/ec2-deploy.sh`; `https://seworkspace.com`.*
