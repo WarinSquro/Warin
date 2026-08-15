@@ -149,6 +149,41 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}, allowRet
   return JSON.parse(text) as T;
 }
 
+export async function apiFetchBlob(path: string, allowRetry = true): Promise<Blob> {
+  const headers = new Headers();
+  const token = getAccessToken();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+
+  const res = await fetch(`${API_BASE.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`, {
+    headers,
+  });
+
+  if (res.status === 401 && allowRetry && !path.includes("/auth/login") && !path.includes("/auth/refresh")) {
+    const refreshed = await tryRefreshAccessToken();
+    if (refreshed) {
+      return apiFetchBlob(path, false);
+    }
+    clearTokens();
+    notifySessionExpired();
+  }
+
+  if (res.status === 403 && !path.includes("/auth/")) {
+    notifyPermissionsStale();
+  }
+
+  if (!res.ok) {
+    let message = `API ${res.status}`;
+    try {
+      const body = (await res.json()) as ApiError;
+      if (body?.error?.message) message = body.error.message;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(message);
+  }
+  return res.blob();
+}
+
 export type ExistingSessionInfo = {
   deviceName: string | null;
   browser: string | null;
