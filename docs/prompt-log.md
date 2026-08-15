@@ -32,6 +32,16 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-15 17:58 IST
+
+**Prompt:**  
+> Login on https://seworkspace.com/login shows **API 502**.
+
+**Output:**  
+- **Root cause:** 502 is host Nginx → Compose `:8080` with Nest down. `--with-api` rebuilds API then the script ran `vite` with `NODE_OPTIONS=1536MB` on t3.small, which OOM-kills `oneview-api`. Extra `docker compose restart` added more downtime. `version.json` HTML was SPA fallback because EC2 was still on `160c7d3`.
+- **Change:** `ec2-deploy.sh` publishes SPA first, brings API back, waits for `/api/v1/health`, then optional image rebuild + migrate (no extra restart).
+- **Recover now (EC2):** `docker compose up -d nginx api worker` then `curl -sS http://127.0.0.1:8080/api/v1/health`.
+
 ### 2026-08-15 17:35 IST
 
 **Prompt:**  

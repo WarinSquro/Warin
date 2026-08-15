@@ -48,18 +48,27 @@ if [[ "$HEAD" != "$ORIGIN" ]]; then
 fi
 echo "SOURCE_OK commit=$HEAD"
 
-if [[ "$WITH_API" -eq 1 ]]; then
-  echo "== API/worker rebuild + migrate (no seed) =="
-  docker compose up -d --build api worker
-  docker compose exec -T api npx prisma migrate deploy --schema=/app/prisma/schema.prisma
-  docker compose restart api worker
-  echo "API_OK"
-fi
+wait_for_api() {
+  local tries="${1:-36}"
+  local i
+  for i in $(seq 1 "$tries"); do
+    if curl -fsS "http://127.0.0.1:8080/api/v1/health" >/dev/null 2>&1; then
+      echo "API_HEALTH_OK"
+      return 0
+    fi
+    sleep 5
+  done
+  echo "API did not become healthy on http://127.0.0.1:8080/api/v1/health" >&2
+  docker compose ps api nginx || true
+  docker compose logs api --tail 80 || true
+  return 1
+}
 
 echo "== SPA vite build =="
 export VITE_API_BASE_URL="$API_BASE"
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=1536}"
 npx vite build
+unset NODE_OPTIONS
 
 if [[ ! -f dist/index.html ]]; then
   echo "Vite did not produce dist/index.html — refusing to touch $WEB" >&2
@@ -90,6 +99,24 @@ rm -rf "$STAGE"
 test -f "$WEB/index.html"
 test -f "$WEB/version.json"
 echo "SPA_PUBLISH_OK"
+
+# Vite can OOM-kill Nest on t3.small. Bring the API back, then optionally rebuild it
+# after Node has released SPA-build memory.
+echo "== ensure API/nginx are up =="
+docker compose up -d nginx api worker
+wait_for_api 24
+
+if [[ "$WITH_API" -eq 1 ]]; then
+  echo "== API/worker rebuild + migrate (no seed) =="
+  docker compose up -d --build api worker
+  wait_for_api 60
+  docker compose exec -T api npx prisma migrate deploy --schema=/app/prisma/schema.prisma
+  docker compose up -d nginx api worker
+  wait_for_api 24
+  echo "API_OK"
+fi
+
 echo "LIVE_COMMIT=$(git -C "$APP" rev-parse --short HEAD)"
 echo "Verify: curl -sS https://seworkspace.com/version.json"
+echo "Health: curl -sS http://127.0.0.1:8080/api/v1/health"
 echo "Then hard-refresh https://seworkspace.com/ (Ctrl+Shift+R)"
