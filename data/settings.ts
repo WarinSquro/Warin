@@ -40,7 +40,7 @@ export const DEFAULT_SETTINGS: SettingsState = {
   overallocationLimit: 120,
   workingHoursPerDay: 8.5,
   workingDays: ["Mon", "Tue", "Wed", "Thu", "Fri"],
-  demandPriority: ["Critical", "High", "Medium", "Low"],
+  demandPriority: ["Critical", "High", "Medium"],
   dateFormat: "dd/MM/yyyy",
   companyOffDays: [
     { id: "off1", date: "2026-01-01", label: "New Year's Day" },
@@ -49,6 +49,14 @@ export const DEFAULT_SETTINGS: SettingsState = {
 };
 
 export const ALL_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+/** Open Demand rank: Critical / High / Medium only (no Low). */
+export function withoutLowDemandPriority(raw?: string[] | null): string[] {
+  const cleaned = (raw ?? [])
+    .map((x) => String(x).trim())
+    .filter((x) => x.length > 0 && x.toLowerCase() !== "low");
+  return cleaned.length > 0 ? cleaned : ["Critical", "High", "Medium"];
+}
 
 // A pending future-dated change (drives the scheduled-change banner elsewhere).
 export interface ScheduledChange {
