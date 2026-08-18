@@ -32,6 +32,16 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-18 13:33 IST
+
+**Prompt:**  
+> Milestone must be in sorting order (M1, M2...). Activity must be as uploaded (not in sorted order).
+
+**Output:**  
+- Changed `GET /masters/activity-milestones` orderBy from `name: "asc"` → `id: "asc"` (creation/upload order = M1, M2, M3... M10, M11, M12).
+- Changed `GET /masters/activities` orderBy from `name: "asc"` → `id: "asc"` (upload order preserved).
+- File: `apps/oneview-api/src/api/masters/masters.controller.ts`. Commit `c491c02`.
+
 ### 2026-08-18 12:19 IST
 
 **Prompt:**  
