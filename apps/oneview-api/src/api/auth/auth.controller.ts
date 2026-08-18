@@ -14,14 +14,12 @@ import {
 } from "./dto/auth.dto";
 import { JwtAuthGuard, Public } from "./guards";
 import type { JwtPayload } from "./jwt.strategy";
+import { requestClientIp } from "./client-ip";
 import { parseSessionClientMeta } from "./session-client-meta";
 
 function clientMetaFromRequest(req: Request) {
-  const xf = req.headers["x-forwarded-for"];
-  const forwarded = Array.isArray(xf) ? xf[0] : xf;
-  const ip = forwarded || req.ip || req.socket?.remoteAddress || null;
   const ua = req.headers["user-agent"] ?? null;
-  return parseSessionClientMeta(ua, ip);
+  return parseSessionClientMeta(ua, requestClientIp(req));
 }
 
 @ApiTags("auth")

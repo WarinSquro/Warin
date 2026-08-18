@@ -19,6 +19,7 @@ import { ConfirmationsModule } from "./api/confirmations/confirmations.module";
 import { WeeklyCheckInModule } from "./api/weekly-check-in/weekly-check-in.module";
 import { KpiModule } from "./api/kpi/kpi.module";
 import { RealtimeModule } from "./api/realtime/realtime.module";
+import { HardDeleteModule } from "./api/hard-delete/hard-delete.module";
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { RealtimeModule } from "./api/realtime/realtime.module";
     ConfirmationsModule,
     WeeklyCheckInModule,
     KpiModule,
+    HardDeleteModule,
   ],
   controllers: [HealthController],
 })

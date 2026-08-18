@@ -9,7 +9,9 @@ import { MIN_FREE_HOUR_OPTIONS } from "../data/availability";
 import { usePlanningEmployees } from "../hooks/usePlanningEmployees";
 import { useMasters } from "../context/MastersContext";
 import { useSettings } from "../context/SettingsContext";
+import { useAuth } from "../context/AuthContext";
 import { buildCandidatesFromEmployees } from "../api/liveViews";
+import { isSelfAllocation, SELF_ALLOCATION_MESSAGE } from "../utils/selfAllocation";
 
 interface Props {
   demand: Demand | null;
@@ -61,6 +63,8 @@ function minFreeHourOptionsForDemand(_hoursPerWeek: number) {
 export function FindMatchesPanel({ demand, allocations = [], onClose, onAllocate }: Props) {
   const open = !!demand;
   const { employees } = usePlanningEmployees();
+  const { currentEmployee } = useAuth();
+  const selfHrmsId = currentEmployee?.id;
   const { departments: deptRows, skills: skillRows } = useMasters();
   const { settings } = useSettings();
   const weekCapacity = Math.round(settings.workingHoursPerDay * settings.workingDays.length) || 40;
@@ -214,13 +218,22 @@ export function FindMatchesPanel({ demand, allocations = [], onClose, onAllocate
                         </div>
                       </div>
                     </div>
+                    {isSelfAllocation(selfHrmsId, c.id) ? (
+                      <span
+                        className="text-[11px] text-muted-foreground"
+                        title={SELF_ALLOCATION_MESSAGE}
+                      >
+                        You
+                      </span>
+                    ) : (
                     <button
                       type="button"
                       onClick={() => onAllocate(c)}
-                      className="inline-flex items-center gap-1 rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground"
+                      className="inline-flex cursor-pointer items-center gap-1 rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground"
                     >
                       <Plus className="h-3 w-3" /> Allocate
                     </button>
+                    )}
                   </div>
                   <div className="mt-1.5 text-[11px] text-muted-foreground">
                     {c.freeHours}h free · {c.availability}

@@ -18,6 +18,7 @@ import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { RequirePermissions } from "../auth/guards";
 import { SessionAuthCache } from "../auth/session-auth.cache";
 import { EmitDataChange } from "../realtime/emit-data-change.decorator";
+import { parseAllowedIpInput } from "../auth/client-ip";
 
 function ser<T>(v: T): T {
   return JSON.parse(JSON.stringify(v, (_k, x) => (typeof x === "bigint" ? x.toString() : x))) as T;
@@ -49,6 +50,7 @@ type EmpBody = {
   skills?: string[];
   resourceOwnerHrmsId?: string | null;
   status?: "active" | "inactive";
+  allowedIp?: string | null;
 };
 
 @ApiTags("employees")
@@ -77,6 +79,7 @@ export class EmployeesController {
     isSuperAdmin: boolean;
     utilization: number | null;
     skills: { skill: { name: string } }[];
+    allowedIp?: string | null;
     _count?: {
       allocations?: number;
       workConfirmations?: number;
@@ -105,6 +108,7 @@ export class EmployeesController {
       isSuperAdmin: e.isSuperAdmin,
       utilization: e.utilization,
       skills: e.skills.map((s) => s.skill.name),
+      allowedIp: e.allowedIp ?? null,
       transactionCount,
     };
   }
@@ -318,6 +322,11 @@ export class EmployeesController {
       throw new BadRequestException("hrmsId, name, and email are required");
     }
 
+    const allowedParsed = parseAllowedIpInput(body.allowedIp);
+    if (!allowedParsed.ok) {
+      throw new BadRequestException("Enter a valid IPv4 or IPv6 address for Allowed IP, or leave it blank.");
+    }
+
     const existing = await this.prisma.employee.findFirst({
       where: { OR: [{ hrmsId }, { email }], isDeleted: false },
     });
@@ -361,6 +370,7 @@ export class EmployeesController {
         resourceOwnerId,
         status,
         isActive: status === "active",
+        allowedIp: allowedParsed.value,
         skills: {
           create: skills.map((s) => ({ skillId: s.id })),
         },
@@ -408,6 +418,15 @@ export class EmployeesController {
   async update(@Param("id") id: string, @Body() body: Partial<EmpBody>) {
     const emp = await this.findEmp(id);
     if (!emp) throw new NotFoundException("Employee not found");
+
+    let allowedIp = emp.allowedIp;
+    if (body.allowedIp !== undefined) {
+      const allowedParsed = parseAllowedIpInput(body.allowedIp);
+      if (!allowedParsed.ok) {
+        throw new BadRequestException("Enter a valid IPv4 or IPv6 address for Allowed IP, or leave it blank.");
+      }
+      allowedIp = allowedParsed.value;
+    }
 
     let departmentId = emp.departmentId;
     if (body.department) {
@@ -463,6 +482,7 @@ export class EmployeesController {
         resourceOwnerId,
         status,
         isActive: status === "active",
+        allowedIp,
         version: { increment: 1 },
       },
       include: {

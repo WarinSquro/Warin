@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
-import { MIN_FREE_HOUR_OPTIONS, computeAvailKpis } from "../data/availability";
+import {
+  MIN_FREE_HOUR_OPTIONS,
+  computeAvailKpis,
+  filterAvailRowsRollingOffSoon,
+} from "../data/availability";
 import type { AvailRow, RollingOffPerson } from "../data/availability";
 import { AllocationDrawer } from "../components/AllocationDrawer";
 import type { AllocationPrefill, AllocationSavePayload } from "../components/AllocationDrawer";
@@ -15,6 +19,8 @@ import { useSharedDataSync, usePauseSharedDataSync, MASTER_TXN_SYNC_INTERVAL_MS 
 import { useMasters } from "../context/MastersContext";
 import { useSettings } from "../context/SettingsContext";
 import { useToast } from "../context/ToastContext";
+import { useAuth } from "../context/AuthContext";
+import { isSelfAllocation, SELF_ALLOCATION_MESSAGE } from "../utils/selfAllocation";
 import { WeeklyCheckInWeekPicker } from "../components/WeeklyCheckInWeekPicker";
 import { buildAvailRowsFromEmployees, buildRollingOffFromLive, addDaysISO, mondayISO } from "../api/liveViews";
 import { createAllocation, fetchAllocations, type ApiAllocation } from "../api/domain";
@@ -298,9 +304,11 @@ function RollingOffCarousel({
 
 function AvailTableRow({
   row,
+  canAllocate,
   onAllocate,
 }: {
   row: AvailRow;
+  canAllocate: boolean;
   onAllocate: (row: AvailRow) => void;
 }) {
   const isNow = row.availableFrom === "Now";
@@ -351,12 +359,22 @@ function AvailTableRow({
 
       {/* Action */}
       <div className="w-[100px] shrink-0 text-right">
+        {canAllocate ? (
         <button
+          type="button"
           onClick={() => onAllocate(row)}
-          className="inline-flex items-center gap-0.5 text-[11px] text-primary hover:underline"
+          className="inline-flex cursor-pointer items-center gap-0.5 text-[11px] text-primary hover:underline"
         >
           Allocate <ArrowRight className="h-3 w-3" />
         </button>
+        ) : (
+          <span
+            className="text-[11px] text-muted-foreground"
+            title={SELF_ALLOCATION_MESSAGE}
+          >
+            —
+          </span>
+        )}
       </div>
     </div>
   );
@@ -367,6 +385,8 @@ function AvailTableRow({
 export function Availability() {
   const navigate = useNavigate();
   const { employees } = usePlanningEmployees();
+  const { currentEmployee } = useAuth();
+  const selfHrmsId = currentEmployee?.id;
   const { departments: deptRows, skills: skillRows } = useMasters();
   const { settings } = useSettings();
   const toast = useToast();
@@ -493,16 +513,28 @@ export function Availability() {
   );
 
   const openAllocate = (row: AvailRow) => {
+    if (isSelfAllocation(selfHrmsId, row.id)) {
+      toast.warning(SELF_ALLOCATION_MESSAGE);
+      return;
+    }
     setPrefill({ personName: row.name, hoursPerDay: 8 });
     setDrawerOpen(true);
   };
 
   const openPlanAhead = (person: RollingOffPerson) => {
+    if (isSelfAllocation(selfHrmsId, person.id)) {
+      toast.warning(SELF_ALLOCATION_MESSAGE);
+      return;
+    }
     setPrefill({ personName: person.name, hoursPerDay: 8 });
     setDrawerOpen(true);
   };
 
   const handleAllocationSave = async (payload: AllocationSavePayload) => {
+    if (isSelfAllocation(selfHrmsId, payload.personId)) {
+      toast.warning(SELF_ALLOCATION_MESSAGE);
+      throw new Error(SELF_ALLOCATION_MESSAGE);
+    }
     await createAllocation({
       employeeHrmsId: payload.personId,
       projectCode: payload.projectId,
@@ -563,24 +595,34 @@ export function Availability() {
     [applyListFilters, summaryRows]
   );
 
-  const rollingOff = useMemo(() => {
-    return rollingOffAll.filter((p) => {
-      const emp = employees.find((e) => e.id === p.id);
-      return emp ? selectedDepts.includes(emp.department) : false;
-    });
-  }, [rollingOffAll, employees, selectedDepts]);
+  const rollingOffIds = useMemo(
+    () => new Set(rollingOffAll.map((p) => p.id)),
+    [rollingOffAll]
+  );
 
-  const kpis = useMemo(() => {
-    const base = computeAvailKpis(summaryFilteredRows);
-    return { ...base, rollingOffSoon: rollingOff.length };
-  }, [summaryFilteredRows, rollingOff]);
+  /** Same people as the KPI card: 14-day allocation end, plus list filters. */
+  const rollingOffRows = useMemo(
+    () => filterAvailRowsRollingOffSoon(filteredRows, rollingOffIds),
+    [filteredRows, rollingOffIds]
+  );
+
+  const rollingOff = useMemo(() => {
+    const visible = new Set(rollingOffRows.map((r) => r.id));
+    return rollingOffAll.filter((p) => visible.has(p.id));
+  }, [rollingOffAll, rollingOffRows]);
+
+  const kpis = useMemo(
+    () => computeAvailKpis(summaryFilteredRows, rollingOffRows.length),
+    [summaryFilteredRows, rollingOffRows]
+  );
 
   const rows = useMemo(() => {
-    const filtered = filteredRows.filter((r) => {
-      if (seg === "now") return r.availableFrom === "Now";
-      if (seg === "rolling") return r.availableFrom !== "Now";
-      return true;
-    });
+    const filtered =
+      seg === "now"
+        ? filteredRows.filter((r) => r.availableFrom === "Now")
+        : seg === "rolling"
+          ? rollingOffRows
+          : filteredRows;
 
     return [...filtered].sort((a, b) => {
       const mul = sortDir === "asc" ? 1 : -1;
@@ -596,10 +638,10 @@ export function Availability() {
       }
       return mul * a.skills.join(", ").localeCompare(b.skills.join(", "));
     });
-  }, [filteredRows, seg, sortKey, sortDir]);
+  }, [filteredRows, rollingOffRows, seg, sortKey, sortDir]);
 
   const nowCount = filteredRows.filter((r) => r.availableFrom === "Now").length;
-  const rollingCount = filteredRows.filter((r) => r.availableFrom !== "Now").length;
+  const rollingCount = rollingOffRows.length;
   const allFiltersActive =
     selectedDepts.length === availDepartments.length &&
     selectedSkills.length === availSkills.length &&
@@ -796,7 +838,12 @@ export function Availability() {
               </div>
             ) : (
               rows.map((r) => (
-                <AvailTableRow key={r.id} row={r} onAllocate={openAllocate} />
+                <AvailTableRow
+                  key={r.id}
+                  row={r}
+                  canAllocate={!isSelfAllocation(selfHrmsId, r.id)}
+                  onAllocate={openAllocate}
+                />
               ))
             )}
           </div>

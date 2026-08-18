@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   ServiceUnavailableException,
   UnauthorizedException,
@@ -10,7 +11,8 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { MailService, SmtpNotConfiguredError, SMTP_NOT_CONFIGURED_CODE } from "@oneview/mail";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { SessionAuthCache } from "./session-auth.cache";
-import { parseSessionClientMeta, type SessionClientMeta } from "./session-client-meta";
+import { isAllowedIpSatisfied } from "./client-ip";
+import type { SessionClientMeta } from "./session-client-meta";
 
 const SESSION_CONFLICT_MESSAGE =
   "You are already logged in on another device or browser. Do you want to continue on this device? Continuing will log you out from all other active sessions.";
@@ -36,6 +38,7 @@ type EmployeeAuthRow = {
   permissions: { key: string }[];
   pinHash: string;
   activeSessionId: string | null;
+  allowedIp: string | null;
 };
 
 export type ExistingSessionInfo = {
@@ -62,6 +65,15 @@ export class AuthService {
 
   private permissionKeysFor(employee: Pick<EmployeeAuthRow, "isSuperAdmin" | "permissions">) {
     return employee.isSuperAdmin ? ["*"] : employee.permissions.map((p) => p.key);
+  }
+
+  private assertAllowedClientIp(allowedIp: string | null | undefined, requestIp: string | null) {
+    if (isAllowedIpSatisfied(allowedIp, requestIp)) return;
+    throw new ForbiddenException({
+      error: "IP_NOT_ALLOWED",
+      message:
+        "You cannot sign in from this network. Your current IP address is not allowed for this account. Contact your administrator.",
+    });
   }
 
   private userPayload(employee: EmployeeAuthRow, permissionKeys: string[]) {
@@ -201,6 +213,8 @@ export class AuthService {
       throw new UnauthorizedException({ error: "INVALID_CREDENTIALS", message: "Invalid email or PIN" });
     }
 
+    this.assertAllowedClientIp(employee.allowedIp, meta.ipAddress);
+
     return this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM employees WHERE id = ${employee.id} FOR UPDATE`;
 
@@ -278,6 +292,7 @@ export class AuthService {
         message: "Session confirmation expired. Please sign in again.",
       });
     }
+    this.assertAllowedClientIp(employee.allowedIp, meta.ipAddress);
     return this.createExclusiveSession(employee, meta);
   }
 

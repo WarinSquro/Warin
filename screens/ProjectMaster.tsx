@@ -7,7 +7,10 @@ import {
   ReportColumnPicker,
   type ReportColumnOption,
 } from "../components/ReportColumnPicker";
-import { createCustomer, createProject, fetchCustomers, updateProject } from "../api/domain";
+import { useToast } from "../context/ToastContext";
+import { useAuth } from "../context/AuthContext";
+import { HardDeleteButton, HardDeleteDialog } from "../components/HardDeleteDialog";
+import { createCustomer, createProject, fetchCustomers, hardDeleteRecord, updateProject } from "../api/domain";
 import { useProjects } from "../context/ProjectsContext";
 import { milestoneKindLabel, formatResourceDemand } from "../data/projects";
 import { HEALTH_LABELS, HEALTH_OPTIONS } from "../data/executionReport";
@@ -16,7 +19,6 @@ import { ProjectHealthBadge } from "../components/ProjectHealthBadge";
 import { milestonesForProjectType } from "../data/setup";
 import type { Project, Milestone, ProjectStatus, ResourceDemandLine } from "../data/projects";
 import { useMasters } from "../context/MastersContext";
-import { useToast } from "../context/ToastContext";
 import { useFocusFirstField } from "../hooks/useFocusFirstField";
 import { matchesSearchQuery } from "../utils/textSearch";
 import { projectVisibleSearchFields } from "../utils/projectVisibleSearch";
@@ -91,7 +93,7 @@ const PROJECT_COLUMNS: ProjectColumnDef[] = [
     label: "ACTION",
     defaultVisible: true,
     locked: true,
-    width: "5.5rem",
+    width: "7.5rem",
   },
 ];
 
@@ -207,11 +209,13 @@ function ProjectCell({
   p,
   onEdit,
   onToggle,
+  onHardDelete,
 }: {
   colId: ProjectColId;
   p: Project;
   onEdit: () => void;
   onToggle: () => void;
+  onHardDelete?: () => void;
 }) {
   const { formatDate, formatDateTime } = useAppDateFormat();
   const inactive = p.status === "inactive";
@@ -321,7 +325,7 @@ function ProjectCell({
     case "action": {
       const disableBlocked = !inactive && (p.allocationCount ?? 0) > 0;
       return (
-        <div className="text-right">
+        <div className="flex flex-col items-end gap-0.5 text-right">
           <button
             type="button"
             onClick={onToggle}
@@ -341,6 +345,7 @@ function ProjectCell({
           >
             {inactive ? "Reactivate" : "Disable"}
           </button>
+          {onHardDelete ? <HardDeleteButton onClick={onHardDelete} /> : null}
         </div>
       );
     }
@@ -356,6 +361,7 @@ function ProjectRow({
   gridTemplate,
   onEdit,
   onToggle,
+  onHardDelete,
 }: {
   p: Project;
   highlighted?: boolean;
@@ -363,6 +369,7 @@ function ProjectRow({
   gridTemplate: string;
   onEdit: () => void;
   onToggle: () => void;
+  onHardDelete?: () => void;
 }) {
   const inactive = p.status === "inactive";
 
@@ -381,6 +388,7 @@ function ProjectRow({
           p={p}
           onEdit={onEdit}
           onToggle={onToggle}
+          onHardDelete={onHardDelete}
         />
       ))}
     </div>
@@ -1251,6 +1259,7 @@ export function ProjectMaster() {
   const scrolledRef = useRef<string | null>(null);
 
   const { projects: rows, refresh } = useProjects();
+  const { isSuperAdmin, currentEmployee } = useAuth();
   const { formatDate, formatDateTime } = useAppDateFormat();
   const toast = useToast();
   const [tab, setTab] = useState<Tab>("active");
@@ -1258,11 +1267,14 @@ export function ProjectMaster() {
   const [editing, setEditing] = useState<Project | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [hardDelete, setHardDelete] = useState<{ id: string; name: string } | null>(null);
+  const [hardDeleting, setHardDeleting] = useState(false);
+  const [hardDeleteError, setHardDeleteError] = useState<string | null>(null);
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
     () => defaultProjectVisibleColumns()
   );
 
-  usePauseSharedDataSync(drawerOpen);
+  usePauseSharedDataSync(drawerOpen || !!hardDelete);
   useSharedDataSync(!drawerOpen, () => refresh(), {
     resources: ["projects"],
     intervalMs: MASTER_TXN_SYNC_INTERVAL_MS,
@@ -1367,6 +1379,23 @@ export function ProjectMaster() {
       toast.updated();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to update status");
+    }
+  };
+
+  const confirmHardDelete = async (email: string, pin: string) => {
+    if (!hardDelete) return;
+    setHardDeleting(true);
+    setHardDeleteError(null);
+    try {
+      const res = await hardDeleteRecord("projects", hardDelete.id, { email, pin });
+      setHardDelete(null);
+      await refresh();
+      toast.success(res.message);
+    } catch (err) {
+      setHardDeleteError(err instanceof Error ? err.message : "Hard delete failed");
+      toast.error(err instanceof Error ? err.message : "Hard delete failed");
+    } finally {
+      setHardDeleting(false);
     }
   };
 
@@ -1505,6 +1534,14 @@ export function ProjectMaster() {
                   gridTemplate={gridTemplate}
                   onEdit={() => openEdit(p)}
                   onToggle={() => toggleStatus(p.id)}
+                  onHardDelete={
+                    isSuperAdmin
+                      ? () => {
+                          setHardDeleteError(null);
+                          setHardDelete({ id: p.id, name: p.name });
+                        }
+                      : undefined
+                  }
                 />
               ))}
               {filtered.length === 0 && (
@@ -1527,6 +1564,20 @@ export function ProjectMaster() {
           onSave={saveProject}
         />
       )}
+      <HardDeleteDialog
+        open={!!hardDelete}
+        entityLabel="project"
+        recordName={hardDelete?.name ?? ""}
+        expectedEmail={currentEmployee?.email}
+        confirming={hardDeleting}
+        error={hardDeleteError}
+        onCancel={() => {
+          if (hardDeleting) return;
+          setHardDelete(null);
+          setHardDeleteError(null);
+        }}
+        onConfirm={(email, pin) => void confirmHardDelete(email, pin)}
+      />
     </div>
   );
 }

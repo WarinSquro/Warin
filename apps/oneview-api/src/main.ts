@@ -10,6 +10,10 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true, bodyParser: false });
   const logger = new Logger("Bootstrap");
 
+  // Trust private reverse-proxy hops (Compose nginx, host nginx) so req.ip is the
+  // real client. Do not trust all proxies — that would honor a spoofed X-Forwarded-For.
+  app.getHttpAdapter().getInstance().set("trust proxy", ["loopback", "linklocal", "uniquelocal"]);
+
   // POC email snaps are stored as data URLs in project payloads (TEXT column).
   app.use(json({ limit: "5mb" }));
   app.use(urlencoded({ extended: true, limit: "5mb" }));

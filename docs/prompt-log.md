@@ -32,6 +32,15 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-18 10:25 IST
+
+**Prompt:**  
+> I want to live on EC2 now. (followed by `git checkout main` / `git pull` / `git status`)
+
+**Output:**  
+- Committed pending Hard Delete, Allowed IP (Prisma + login), self-allocation, rolling-off alignment, ops-console dump download, and deploy docs. Did **not** commit `warin-web.tgz`.
+- Push `origin/main`, then EC2: `bash scripts/ec2-deploy.sh --with-api` (Nest + `employees.allowed_ip` migration). Never `db:seed` on live.
+
 ### 2026-08-17 23:56 IST
 
 **Prompt:**  

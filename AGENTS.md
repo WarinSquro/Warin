@@ -32,6 +32,7 @@ Setup guide: `docs/postgres-local-setup.md`. Monorepo: `docs/monorepo.md`.
 2. Follow `.cursor/rules/` (`oneview-ui`, `oneview-api`, `oneview-postgres`, `typescript-react`, `oneview-prompt-log`, `oneview-change-standards`, `oneview-git-sync`).
 3. **Change standards (required for fixes/features):** `docs/change-implementation-standards.md` — investigate root cause, smallest change, verify no regressions, report cause/files/tests/result.
 3b. **Git sync (required):** Keep laptop and `origin` synchronized. Before work: pull. After verified changes: add / commit / push. Include those commands in every codebase task. See `docs/git-sync-workflow.md`. Resolve merge conflicts before continuing.
+3c. **Live EC2:** `docs/live-deployment.md` — one complete commit, CI gate, `scripts/ec2-deploy.sh`, verify SHA.
 4. Theme: `docs/theme.md` + `theme/tokens.css` / `index.css`. Do not redesign brand colors.
 4b. **Truncated text:** Ellipsis (`truncate`) must show full value on hover — `docs/ui-truncate-tooltips.md` (`TruncateHoverTitles` / `TruncateText`).
 4c. **Toasts:** Shared `useToast()` only — 5s default, hover pauses, remaining time resumes on mouse leave. `docs/ui-toast.md`. Do not add one-off toasts.
@@ -52,6 +53,7 @@ Phase plan (ONE PROMPT adapted): Foundation → Database → Auth/JWT → Domain
 Local/Docker: `docker compose up -d --build` → `npx prisma migrate deploy` → `npm run db:seed` → `npm run api:dev` / `npm run dev`.
 
 See `docs/docker-deployment.md`, `docs/acceptance-checklist.md`, `docs/monorepo.md`.  
+**Live EC2 deploy (required path):** [`docs/live-deployment.md`](docs/live-deployment.md).  
 **Production backup / deploy / DR:** `docs/production-backup-and-deployment.md`.  
 **Standalone Backup & Deployment console:** `ops-console/` (own JSON store; not WARIN DB).
 

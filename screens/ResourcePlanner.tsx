@@ -38,6 +38,8 @@ import { useSharedDataSync, usePauseSharedDataSync, MASTER_TXN_SYNC_INTERVAL_MS 
 import { useMasters } from "../context/MastersContext";
 import { useSettings } from "../context/SettingsContext";
 import { useToast } from "../context/ToastContext";
+import { useAuth } from "../context/AuthContext";
+import { isSelfAllocation, SELF_ALLOCATION_MESSAGE } from "../utils/selfAllocation";
 import {
   createAllocation,
   deleteAllocation,
@@ -206,6 +208,8 @@ function loadTone(ratio: number) {
 export function ResourcePlanner() {
   const { projects } = useProjects();
   const { employees } = usePlanningEmployees();
+  const { currentEmployee } = useAuth();
+  const selfHrmsId = currentEmployee?.id;
   const { departments: deptRows } = useMasters();
   const { settings } = useSettings();
   const toast = useToast();
@@ -410,6 +414,7 @@ export function ResourcePlanner() {
   };
 
   const handleCellClick = (row: PlannerRow, cellIndex: number, cell: Chip[]) => {
+    if (isSelfAllocation(selfHrmsId, row.id)) return;
     if (view === "day") {
       if (!dayAllocateAllowed) return;
       const iso = dayStartIso[cellIndex];
@@ -425,6 +430,7 @@ export function ResourcePlanner() {
     chipIndex: number,
     cell: Chip[]
   ) => {
+    if (isSelfAllocation(selfHrmsId, row.id)) return;
     if (chip.kind === "free") return;
     if (view === "day" && !dayAllocateAllowed) return;
     const editPrefill = buildEditPrefill(
@@ -442,6 +448,10 @@ export function ResourcePlanner() {
   };
 
   const handleAllocationSave = async (payload: AllocationSavePayload) => {
+    if (isSelfAllocation(selfHrmsId, payload.personId)) {
+      setSaveError(SELF_ALLOCATION_MESSAGE);
+      throw new Error(SELF_ALLOCATION_MESSAGE);
+    }
     const project = projects.find((p) => p.id === payload.projectId);
     if (!project) return;
 
@@ -530,6 +540,10 @@ export function ResourcePlanner() {
   };
 
   const onCandidateAllocate = (c: Candidate) => {
+    if (isSelfAllocation(selfHrmsId, c.id)) {
+      toast.warning(SELF_ALLOCATION_MESSAGE);
+      return;
+    }
     const demand = matchesDemand;
     setMatchesDemand(null);
     openAllocate({ personName: c.name, projectName: demand?.project, hoursPerDay: 8 });
@@ -696,7 +710,9 @@ export function ResourcePlanner() {
                 No team members match the selected departments.
               </div>
             ) : (
-              sortedRows.map((row) => (
+              sortedRows.map((row) => {
+                const selfRow = isSelfAllocation(selfHrmsId, row.id);
+                return (
                 <div
                   key={row.id}
                   ref={(el) => {
@@ -714,12 +730,20 @@ export function ResourcePlanner() {
                     calendarOpts={calendarOpts}
                     dayStartIso={dayStartIso}
                     dayCurrentIndex={dayCurrentIndex}
-                    allocateAllowed={view === "week" || dayAllocateAllowed}
+                    allocateAllowed={!selfRow && (view === "week" || dayAllocateAllowed)}
+                    blockedReason={
+                      selfRow
+                        ? SELF_ALLOCATION_MESSAGE
+                        : view === "day" && !dayAllocateAllowed
+                          ? "Previous week — view only (allocation not allowed)"
+                          : undefined
+                    }
                     onCellClick={handleCellClick}
                     onChipClick={handleChipClick}
                   />
                 </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
@@ -758,6 +782,7 @@ function PlannerGridRow({
   dayStartIso,
   dayCurrentIndex,
   allocateAllowed,
+  blockedReason,
   onCellClick,
   onChipClick,
 }: {
@@ -767,6 +792,7 @@ function PlannerGridRow({
   dayStartIso: string[];
   dayCurrentIndex: number;
   allocateAllowed: boolean;
+  blockedReason?: string;
   onCellClick: (row: PlannerRow, cellIndex: number, cell: Chip[]) => void;
   onChipClick: (row: PlannerRow, chip: Chip, cellIndex: number, chipIndex: number, cell: Chip[]) => void;
 }) {
@@ -842,7 +868,7 @@ function PlannerGridRow({
               holiday
                 ? "Holiday — no allocation"
                 : !allocateAllowed
-                  ? "Previous week — view only (allocation not allowed)"
+                  ? blockedReason ?? "Allocation not allowed"
                   : undefined
             }
           >

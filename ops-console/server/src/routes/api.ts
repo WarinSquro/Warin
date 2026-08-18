@@ -8,6 +8,7 @@ import {
   createDatabaseBackup,
   createDockerBackup,
   createPredeployBackup,
+  latestDatabaseDump,
   restoreDatabase,
   scanFilesystemBackups,
 } from "../ops/backups.js";
@@ -145,6 +146,42 @@ api.post("/backups/predeploy", requireAuth, async (req, res) => {
     res.json({ ok: true, record });
   } catch (e) {
     res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+api.get("/backups/database/latest/download", requireAuth, (req, res) => {
+  const r = req as typeof req & { opsUser: string };
+  try {
+    const dump = latestDatabaseDump();
+    if (!dump) {
+      appendAudit(r.opsUser, "backup.database.download", "failed", { error: "No database dump available" });
+      res.status(404).json({ error: "No database dump is available. Create a database backup first." });
+      return;
+    }
+
+    appendAudit(r.opsUser, "backup.database.download.started", "info", {
+      detail: dump.name,
+    });
+    res.download(dump.path, dump.name, (error) => {
+      if (!error) {
+        appendAudit(r.opsUser, "backup.database.download.completed", "success", {
+          detail: dump.name,
+        });
+        return;
+      }
+
+      appendAudit(r.opsUser, "backup.database.download.failed", "failed", {
+        detail: dump.name,
+        error: error.message,
+      });
+      if (!res.headersSent) {
+        res.status(500).json({ error: "Database dump download failed" });
+      }
+    });
+  } catch (e) {
+    const error = e instanceof Error ? e.message : String(e);
+    appendAudit(r.opsUser, "backup.database.download.failed", "failed", { error });
+    res.status(500).json({ error });
   }
 });
 

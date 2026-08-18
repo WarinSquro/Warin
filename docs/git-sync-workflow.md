@@ -7,7 +7,7 @@
 **Laptop path:** `D:\Amit\AI\Web\OneView`  
 **EC2 app path:** `/opt/warin/app` (pull-only after laptop push)
 
-Related: `docs/warin-local-git-setup.md`, `docs/aws-ec2-deploy-checklist.md` (Local changes → live).
+Related: `docs/warin-local-git-setup.md`, **`docs/live-deployment.md`** (laptop → CI → EC2), `docs/aws-ec2-deploy-checklist.md` (instance setup).
 
 ---
 
@@ -17,7 +17,7 @@ Related: `docs/warin-local-git-setup.md`, `docs/aws-ec2-deploy-checklist.md` (Lo
 2. **After completing and verifying** — add, commit, and push to `origin`.
 3. **Merge conflicts** — resolve them before continuing coding or deploying. Do not push a broken merge.
 4. **Secrets** — never commit `.env`, PEM keys, or production passwords.
-5. **EC2** — after a successful push, deploy with `git pull` (+ SPA rebuild / Compose rebuild as needed). See checklist.
+5. **EC2** — after a successful push, publish with **one** command: `bash scripts/ec2-deploy.sh` (add `--with-api` when Nest/Prisma changed). Full process: [`docs/live-deployment.md`](./live-deployment.md).
 
 Agents and developers must **include the exact commands** for the current branch/repo in every task that touches the shared codebase.
 

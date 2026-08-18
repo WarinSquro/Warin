@@ -15,12 +15,16 @@ export interface Employee {
   utilization?: number;
   /** Non-deleted allocations + confirmations + WCI + KPI items; blocks Disable when > 0 */
   transactionCount?: number;
+  /** When set, login is allowed only from this IP. Empty = any IP. */
+  allowedIp?: string | null;
+  /** Administrator account — cannot be disabled from Employee Master. */
+  isSuperAdmin?: boolean;
 }
 
 export const DEPARTMENTS = ["Engineering", "QA", "Design", "DevOps", "Support"];
 
 export const EMPLOYEES: Employee[] = [
-  { id: "EMP-0001", name: "Administrator", email: "admin@acme.io", department: "Engineering", skills: ["Administration"], status: "active" },
+  { id: "EMP-0001", name: "Administrator", email: "admin@acme.io", department: "Engineering", skills: ["Administration"], status: "active", isSuperAdmin: true },
   { id: "EMP-1042", name: "Ravi Sharma", email: "ravi.sharma@acme.io", department: "Engineering", skills: ["React", "Node.js", "AWS"], resourceOwnerId: "EMP-1088", status: "active", utilization: 110 },
   { id: "EMP-1043", name: "Arjun Mehta", email: "arjun.mehta@acme.io", department: "Engineering", skills: ["React", "TypeScript"], resourceOwnerId: "EMP-1042", status: "active", utilization: 105 },
   { id: "EMP-1051", name: "Priya Nair", email: "priya.nair@acme.io", department: "QA", skills: ["Automation", "Selenium", "API testing"], resourceOwnerId: "EMP-0991", status: "active", utilization: 80 },

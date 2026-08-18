@@ -26,6 +26,7 @@ type ApiEmployee = {
   utilization?: number | null;
   isSuperAdmin?: boolean;
   transactionCount?: number;
+  allowedIp?: string | null;
 };
 
 type ApiDepartment = {
@@ -131,6 +132,8 @@ export function mapApiEmployee(e: ApiEmployee): Employee {
     status: e.status,
     utilization: e.utilization ?? undefined,
     transactionCount: e.transactionCount ?? 0,
+    allowedIp: e.allowedIp ?? null,
+    isSuperAdmin: Boolean(e.isSuperAdmin),
   };
 }
 
@@ -277,6 +280,8 @@ function mapEmployeeRow(
     status: e.status,
     utilization: e.utilization ?? undefined,
     transactionCount: e.transactionCount ?? 0,
+    allowedIp: e.allowedIp ?? null,
+    isSuperAdmin: Boolean(e.isSuperAdmin),
   };
 }
 
@@ -298,6 +303,7 @@ export type EmployeeWriteBody = {
   skills?: string[];
   resourceOwnerHrmsId?: string | null;
   status?: "active" | "inactive";
+  allowedIp?: string | null;
 };
 
 export type CreateEmployeeResult = Employee & {
@@ -340,6 +346,19 @@ export async function updateEmployee(
     body: JSON.stringify(body),
   });
   return mapEmployeeRow(row);
+}
+
+export type HardDeleteKind = "employees" | "projects" | "departments" | "skills" | "activities";
+
+export async function hardDeleteRecord(
+  kind: HardDeleteKind,
+  id: string,
+  credentials: { email: string; pin: string }
+): Promise<{ ok: boolean; message: string }> {
+  return apiFetch(`/admin/hard-delete/${kind}`, {
+    method: "POST",
+    body: JSON.stringify({ ...credentials, id }),
+  });
 }
 
 export async function fetchDepartments(includeInactive = true): Promise<Department[]> {

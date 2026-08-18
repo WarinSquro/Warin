@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { RefreshCw, LogOut, ShieldAlert, X } from "lucide-react";
+import { Download, RefreshCw, LogOut, ShieldAlert, X } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { useBusy } from "../lib/busy";
 import { api, formatBytes, formatWhen } from "../lib/api";
@@ -111,6 +111,18 @@ export function DashboardPage() {
   if (!userId) return <Navigate to="/login" replace />;
 
   const summary = backups?.summary;
+  const latestDatabaseDump = backups?.filesystem?.[0];
+
+  const downloadLatestDatabaseDump = () => {
+    setErr(null);
+    setMsg("Latest database dump download started");
+    const link = document.createElement("a");
+    link.href = "/api/ops/backups/database/latest/download";
+    link.download = "";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
@@ -247,6 +259,14 @@ export function DashboardPage() {
                   busy={busy}
                   progressing={activeBackup === "database"}
                   onBackup={() => void runBackup("database", "Database backup", "/backups/database")}
+                  download={{
+                    available: Boolean(latestDatabaseDump),
+                    label: "Download latest dump",
+                    detail: latestDatabaseDump
+                      ? `${formatWhen(latestDatabaseDump.createdAt)} · ${formatBytes(latestDatabaseDump.sizeBytes)}`
+                      : "Create a database backup first",
+                    onDownload: downloadLatestDatabaseDump,
+                  }}
                 />
                 <BackupCard
                   title="Application Backup"
@@ -693,6 +713,7 @@ function BackupCard({
   busy,
   progressing,
   onBackup,
+  download,
 }: {
   title: string;
   hint: string;
@@ -701,6 +722,12 @@ function BackupCard({
   busy: boolean;
   progressing: boolean;
   onBackup: () => void;
+  download?: {
+    available: boolean;
+    label: string;
+    detail: string;
+    onDownload: () => void;
+  };
 }) {
   return (
     <div className={`rounded-lg border bg-white p-4 ${progressing ? "border-primary/40" : "border-border"}`}>
@@ -731,9 +758,26 @@ function BackupCard({
           </div>
         </div>
       )}
-      <button type="button" className="btn btn-primary mt-4 w-full" disabled={busy} onClick={onBackup}>
-        {progressing ? "Creating backup…" : "Create backup"}
-      </button>
+      <div className="mt-4 space-y-2">
+        <button type="button" className="btn btn-primary w-full" disabled={busy} onClick={onBackup}>
+          {progressing ? "Creating backup…" : "Create backup"}
+        </button>
+        {download && (
+          <>
+            <button
+              type="button"
+              className="btn btn-ghost w-full cursor-pointer"
+              disabled={busy || !download.available}
+              onClick={download.onDownload}
+            >
+              <span className="inline-flex items-center gap-1">
+                <Download size={14} /> {download.label}
+              </span>
+            </button>
+            <div className="text-center text-[11px] text-muted">{download.detail}</div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

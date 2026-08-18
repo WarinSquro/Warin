@@ -35,15 +35,23 @@ export const AVAIL_KPIS = {
   avgFreeHrs: 22,
 };
 
-export function computeAvailKpis(rows: AvailRow[]) {
+/** Rows whose allocation ends within the rolling-off window (not Partial/Fully booked). */
+export function filterAvailRowsRollingOffSoon(
+  rows: AvailRow[],
+  rollingOffIds: ReadonlySet<string>
+): AvailRow[] {
+  return rows.filter((r) => rollingOffIds.has(r.id));
+}
+
+export function computeAvailKpis(rows: AvailRow[], rollingOffSoon = 0) {
   if (rows.length === 0) {
-    return { totalFreeHrs: 0, fullyAvailable: 0, rollingOffSoon: 0, avgFreeHrs: 0 };
+    return { totalFreeHrs: 0, fullyAvailable: 0, rollingOffSoon, avgFreeHrs: 0 };
   }
   const totalFreeHrs = rows.reduce((sum, r) => sum + r.freeHours, 0);
   return {
     totalFreeHrs: roundHoursToTenth(totalFreeHrs),
     fullyAvailable: rows.filter((r) => r.bookedPct === 0).length,
-    rollingOffSoon: rows.filter((r) => r.availableFrom !== "Now").length,
+    rollingOffSoon,
     avgFreeHrs: roundHoursToTenth(totalFreeHrs / rows.length),
   };
 }

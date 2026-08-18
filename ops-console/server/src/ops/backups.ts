@@ -362,6 +362,25 @@ export function scanFilesystemBackups(): Partial<BackupRecord>[] {
   return out.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
 }
 
+export function latestDatabaseDump(): { path: string; name: string; sizeBytes: number; createdAt: string } | null {
+  const latest = scanFilesystemBackups()[0];
+  if (!latest.location) return null;
+
+  const resolved = assertPathInsideBackupRoot(latest.location);
+  if (!resolved.endsWith(".dump") || !fs.existsSync(resolved)) return null;
+  const realPath = assertPathInsideBackupRoot(fs.realpathSync(resolved));
+
+  const stat = fs.statSync(realPath);
+  if (!stat.isFile()) return null;
+
+  return {
+    path: realPath,
+    name: path.basename(realPath),
+    sizeBytes: stat.size,
+    createdAt: stat.mtime.toISOString(),
+  };
+}
+
 export function backupSummary() {
   const store = loadStore();
   const fsScan = scanFilesystemBackups();

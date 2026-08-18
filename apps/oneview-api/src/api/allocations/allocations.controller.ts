@@ -15,7 +15,7 @@ import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { RequirePermissions } from "../auth/guards";
 import type { JwtPayload } from "../auth/jwt.strategy";
-import { assertCanPlanForEmployee } from "../auth/resource-scope";
+import { assertCanPlanForEmployee, assertNotSelfAllocation } from "../auth/resource-scope";
 import { EmitDataChange } from "../realtime/emit-data-change.decorator";
 
 function ser<T>(v: T): T {
@@ -246,6 +246,7 @@ export class AllocationsController {
   async create(@Req() req: { user: JwtPayload }, @Body() body: AllocBody) {
     const refs = await this.resolveRefs(body);
     await assertCanPlanForEmployee(this.prisma, req.user, refs.employee);
+    assertNotSelfAllocation(req.user, refs.employee);
     const created = await this.prisma.allocation.create({
       data: {
         employeeId: refs.employee.id,
@@ -274,9 +275,11 @@ export class AllocationsController {
     });
     if (!existing) throw new NotFoundException("Allocation not found");
     await assertCanPlanForEmployee(this.prisma, req.user, existing.employee);
+    assertNotSelfAllocation(req.user, existing.employee);
 
     const refs = await this.resolveRefs(body);
     await assertCanPlanForEmployee(this.prisma, req.user, refs.employee);
+    assertNotSelfAllocation(req.user, refs.employee);
     const updated = await this.prisma.allocation.update({
       where: { id: existing.id },
       data: {
@@ -307,6 +310,7 @@ export class AllocationsController {
     });
     if (!existing) throw new NotFoundException("Allocation not found");
     await assertCanPlanForEmployee(this.prisma, req.user, existing.employee);
+    assertNotSelfAllocation(req.user, existing.employee);
 
     const startIso = calendarDate(existing.startDate);
     const todayIso = new Intl.DateTimeFormat("en-CA", {

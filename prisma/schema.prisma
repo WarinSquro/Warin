@@ -97,6 +97,8 @@ model Employee {
   version         Int        @default(1)
   /** Current single active login session id (matches refresh_tokens.session_id + JWT sid). */
   activeSessionId String?    @map("active_session_id")
+  /** When set, login is allowed only from this client IP. Null/empty = any IP. */
+  allowedIp       String?    @map("allowed_ip") @db.VarChar(45)
 
   department      Department? @relation(fields: [departmentId], references: [id])
   resourceOwner   Employee?   @relation("ResourceOwner", fields: [resourceOwnerId], references: [id])

@@ -56,3 +56,16 @@ export class PermissionsGuard implements CanActivate {
     return true;
   }
 }
+
+/** Restricts a handler/controller to `isSuperAdmin` (Administrator login). */
+@Injectable()
+export class SuperAdminGuard implements CanActivate {
+  canActivate(context: ExecutionContext): boolean {
+    const req = context.switchToHttp().getRequest<{ user?: JwtPayload }>();
+    if (!req.user) throw new UnauthorizedException();
+    if (!req.user.isSuperAdmin) {
+      throw new ForbiddenException("Administrator access required");
+    }
+    return true;
+  }
+}

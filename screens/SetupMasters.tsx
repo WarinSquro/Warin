@@ -26,10 +26,12 @@ import {
   createSkill,
   createSkillCategory,
   fetchSkillCategories,
+  hardDeleteRecord,
   updateActivity,
   updateDepartment,
   updateSkill,
 } from "../api/domain";
+import { HardDeleteButton, HardDeleteDialog } from "../components/HardDeleteDialog";
 
 type Segment = "departments" | "skills" | "activities";
 
@@ -609,12 +611,14 @@ function DepartmentsList({
   rows,
   onEdit,
   onToggle,
+  onHardDelete,
 }: {
   tab: Tab;
   q: string;
   rows: Department[];
   onEdit: (d: Department) => void;
   onToggle: (id: string) => void;
+  onHardDelete?: (id: string, name: string) => void;
 }) {
   const { sortKey, sortDir, handleSort } = useColumnSort<DepartmentSortKey>("department");
 
@@ -653,7 +657,7 @@ function DepartmentsList({
               onSort={handleSort}
             />
           </div>
-          <div className="w-[90px] shrink-0 text-right">ACTION</div>
+          <div className={`shrink-0 text-right ${onHardDelete ? "w-[110px]" : "w-[90px]"}`}>ACTION</div>
         </div>
         {sorted.map((d) => {
           const inactive = d.status === "inactive";
@@ -675,10 +679,12 @@ function DepartmentsList({
               <div className="w-[100px] shrink-0 text-[12px] text-muted-foreground">
                 {d.memberCount} {d.memberCount === 1 ? "person" : "people"}
               </div>
-              <div className="w-[90px] shrink-0 text-right">
+              <div className={`shrink-0 text-right ${onHardDelete ? "w-[110px]" : "w-[90px]"}`}>
+                <div className="flex flex-col items-end gap-0.5">
                 <button
+                  type="button"
                   onClick={() => onToggle(d.id)}
-                  className={`text-[11px] ${
+                  className={`cursor-pointer text-[11px] ${
                     inactive
                       ? "text-success hover:underline"
                       : "text-muted-foreground hover:text-danger hover:underline"
@@ -686,6 +692,10 @@ function DepartmentsList({
                 >
                   {inactive ? "Reactivate" : "Disable"}
                 </button>
+                {onHardDelete ? (
+                  <HardDeleteButton onClick={() => onHardDelete(d.id, d.name)} />
+                ) : null}
+                </div>
               </div>
             </div>
           );
@@ -710,12 +720,14 @@ function SkillsList({
   rows,
   onEdit,
   onToggle,
+  onHardDelete,
 }: {
   tab: Tab;
   q: string;
   rows: Skill[];
   onEdit: (s: Skill) => void;
   onToggle: (id: string) => void;
+  onHardDelete?: (id: string, name: string) => void;
 }) {
   const { sortKey, sortDir, handleSort } = useColumnSort<SkillSortKey>("skill");
 
@@ -767,7 +779,7 @@ function SkillsList({
               onSort={handleSort}
             />
           </div>
-          <div className="w-[90px] shrink-0 text-right">ACTION</div>
+          <div className={`shrink-0 text-right ${onHardDelete ? "w-[110px]" : "w-[90px]"}`}>ACTION</div>
         </div>
         {sorted.map((s) => {
           const inactive = s.status === "inactive";
@@ -794,10 +806,12 @@ function SkillsList({
               <div className="w-[100px] shrink-0 text-[12px] text-muted-foreground">
                 {s.peopleCount} {s.peopleCount === 1 ? "person" : "people"}
               </div>
-              <div className="w-[90px] shrink-0 text-right">
+              <div className={`shrink-0 text-right ${onHardDelete ? "w-[110px]" : "w-[90px]"}`}>
+                <div className="flex flex-col items-end gap-0.5">
                 <button
+                  type="button"
                   onClick={() => onToggle(s.id)}
-                  className={`text-[11px] ${
+                  className={`cursor-pointer text-[11px] ${
                     inactive
                       ? "text-success hover:underline"
                       : "text-muted-foreground hover:text-danger hover:underline"
@@ -805,6 +819,10 @@ function SkillsList({
                 >
                   {inactive ? "Reactivate" : "Disable"}
                 </button>
+                {onHardDelete ? (
+                  <HardDeleteButton onClick={() => onHardDelete(s.id, s.name)} />
+                ) : null}
+                </div>
               </div>
             </div>
           );
@@ -830,6 +848,7 @@ function ActivitiesList({
   milestones,
   onEdit,
   onToggle,
+  onHardDelete,
 }: {
   tab: Tab;
   q: string;
@@ -837,6 +856,7 @@ function ActivitiesList({
   milestones: ActivityMilestone[];
   onEdit: (a: Activity) => void;
   onToggle: (id: string) => void;
+  onHardDelete?: (id: string, name: string) => void;
 }) {
   const { sortKey, sortDir, handleSort } = useColumnSort<ActivitySortKey>("activity");
 
@@ -980,9 +1000,11 @@ function ActivitiesList({
                 )}
               </div>
               <div className="text-right">
+                <div className="flex flex-col items-end gap-0.5">
                 <button
+                  type="button"
                   onClick={() => onToggle(a.id)}
-                  className={`text-[11px] ${
+                  className={`cursor-pointer text-[11px] ${
                     inactive
                       ? "text-success hover:underline"
                       : "text-muted-foreground hover:text-danger hover:underline"
@@ -990,6 +1012,10 @@ function ActivitiesList({
                 >
                   {inactive ? "Reactivate" : "Disable"}
                 </button>
+                {onHardDelete ? (
+                  <HardDeleteButton onClick={() => onHardDelete(a.id, a.name)} />
+                ) : null}
+                </div>
               </div>
             </div>
           );
@@ -1007,7 +1033,7 @@ function ActivitiesList({
 // ─── screen ─────────────────────────────────────────────────────────────────
 
 export function SetupMasters() {
-  const { allowedKeys, isSuperAdmin } = useAuth();
+  const { allowedKeys, isSuperAdmin, currentEmployee } = useAuth();
   const [segment, setSegment] = useState<Segment>("departments");
   const [tab, setTab] = useState<Tab>("active");
   const [q, setQ] = useState("");
@@ -1058,6 +1084,14 @@ export function SetupMasters() {
   }, [segment, segmentAllowed, depts.length, skills.length, activities.length, refresh]);
 
   const [saving, setSaving] = useState(false);
+  const [hardDelete, setHardDelete] = useState<{
+    kind: "departments" | "skills" | "activities";
+    id: string;
+    name: string;
+    label: string;
+  } | null>(null);
+  const [hardDeleting, setHardDeleting] = useState(false);
+  const [hardDeleteError, setHardDeleteError] = useState<string | null>(null);
 
   // departments state
   const [editingDept, setEditingDept] = useState<Department | null>(null);
@@ -1071,8 +1105,11 @@ export function SetupMasters() {
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
   const [activityDrawer, setActivityDrawer] = useState(false);
 
-  usePauseSharedDataSync(deptDrawer || skillDrawer || activityDrawer);
-  useSharedDataSync(!(deptDrawer || skillDrawer || activityDrawer), () => refresh(), {
+  usePauseSharedDataSync(deptDrawer || skillDrawer || activityDrawer || !!hardDelete);
+  useSharedDataSync(
+    !(deptDrawer || skillDrawer || activityDrawer || !!hardDelete),
+    () => refresh(),
+    {
     resources: ["masters"],
     intervalMs: MASTER_TXN_SYNC_INTERVAL_MS,
   });
@@ -1123,6 +1160,33 @@ export function SetupMasters() {
       toast.updated();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to update activity");
+    }
+  };
+
+  const openHardDelete = (
+    kind: "departments" | "skills" | "activities",
+    id: string,
+    name: string,
+    label: string
+  ) => {
+    setHardDeleteError(null);
+    setHardDelete({ kind, id, name, label });
+  };
+
+  const confirmHardDelete = async (email: string, pin: string) => {
+    if (!hardDelete) return;
+    setHardDeleting(true);
+    setHardDeleteError(null);
+    try {
+      const res = await hardDeleteRecord(hardDelete.kind, hardDelete.id, { email, pin });
+      setHardDelete(null);
+      await refresh();
+      toast.success(res.message);
+    } catch (err) {
+      setHardDeleteError(err instanceof Error ? err.message : "Hard delete failed");
+      toast.error(err instanceof Error ? err.message : "Hard delete failed");
+    } finally {
+      setHardDeleting(false);
     }
   };
 
@@ -1348,6 +1412,11 @@ export function SetupMasters() {
               rows={depts}
               onEdit={(d) => { setEditingDept(d); setDeptDrawer(true); }}
               onToggle={toggleDept}
+              onHardDelete={
+                isSuperAdmin
+                  ? (id, name) => openHardDelete("departments", id, name, "department")
+                  : undefined
+              }
             />
           )}
           {segmentAllowed[segment] && segment === "skills" && (
@@ -1357,6 +1426,11 @@ export function SetupMasters() {
               rows={skills}
               onEdit={(s) => { setEditingSkill(s); setSkillDrawer(true); }}
               onToggle={toggleSkill}
+              onHardDelete={
+                isSuperAdmin
+                  ? (id, name) => openHardDelete("skills", id, name, "skill")
+                  : undefined
+              }
             />
           )}
           {segmentAllowed[segment] && segment === "activities" && (
@@ -1367,6 +1441,11 @@ export function SetupMasters() {
               milestones={activityMilestones}
               onEdit={(a) => { setEditingActivity(a); setActivityDrawer(true); }}
               onToggle={toggleActivity}
+              onHardDelete={
+                isSuperAdmin
+                  ? (id, name) => openHardDelete("activities", id, name, "activity")
+                  : undefined
+              }
             />
           )}
           {!segmentAllowed[segment] && (
@@ -1413,6 +1492,20 @@ export function SetupMasters() {
           onCreateMilestone={handleCreateMilestone}
         />
       )}
+      <HardDeleteDialog
+        open={!!hardDelete}
+        entityLabel={hardDelete?.label ?? "record"}
+        recordName={hardDelete?.name ?? ""}
+        expectedEmail={currentEmployee?.email}
+        confirming={hardDeleting}
+        error={hardDeleteError}
+        onCancel={() => {
+          if (hardDeleting) return;
+          setHardDelete(null);
+          setHardDeleteError(null);
+        }}
+        onConfirm={(email, pin) => void confirmHardDelete(email, pin)}
+      />
     </div>
   );
 }

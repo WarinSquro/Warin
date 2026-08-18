@@ -10,6 +10,8 @@ import { activitiesForProjectMilestone } from "../data/setup";
 import type { Activity, ActivityMilestone } from "../data/setup";
 import { useFocusFirstField } from "../hooks/useFocusFirstField";
 import { formatHours } from "../utils/formatHours";
+import { isSelfAllocation } from "../utils/selfAllocation";
+import { useAuth } from "../context/AuthContext";
 import { X, TriangleAlert, Info, Trash2 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 
@@ -115,7 +117,13 @@ export function AllocationDrawer({ open, onClose, prefill, people, allocations =
   const { projects, refresh: refreshProjects } = useProjects();
   const { activities, activityMilestones, refresh: refreshMasters } = useMasters();
   const { settings } = useSettings();
+  const { currentEmployee } = useAuth();
+  const selfHrmsId = currentEmployee?.id;
   const roster = people ?? [];
+  const assignableRoster = useMemo(
+    () => roster.filter((p) => !isSelfAllocation(selfHrmsId, p.id)),
+    [roster, selfHrmsId]
+  );
   const isEdit = prefill?.mode === "edit";
   const [form, setForm] = useState({ ...EMPTY });
   const [taskInput, setTaskInput] = useState("");
@@ -151,7 +159,7 @@ export function AllocationDrawer({ open, onClose, prefill, people, allocations =
 
   useEffect(() => {
     if (open) {
-      const person = roster.find((p) => p.name === prefill?.personName);
+      const person = assignableRoster.find((p) => p.name === prefill?.personName);
       const project = projects.find((p) => p.name === prefill?.projectName);
       const defaults = createEmptyForm();
       const milestoneId =
@@ -177,9 +185,9 @@ export function AllocationDrawer({ open, onClose, prefill, people, allocations =
       });
       setTaskInput("");
     }
-  }, [open, prefill, projects, roster, activities, activityMilestones]);
+  }, [open, prefill, projects, assignableRoster, activities, activityMilestones]);
 
-  const person = roster.find((p) => p.id === form.personId);
+  const person = assignableRoster.find((p) => p.id === form.personId);
   const project = projects.find((p) => p.id === form.projectId);
   const projectMilestones = project?.milestones ?? [];
   const selectedProjectMilestone = projectMilestones.find((m) => m.id === form.milestoneId);
@@ -254,6 +262,7 @@ export function AllocationDrawer({ open, onClose, prefill, people, allocations =
 
   const canSave =
     !!form.personId &&
+    !isSelfAllocation(selfHrmsId, form.personId) &&
     !!form.projectId &&
     !noProjectMilestones &&
     !!form.milestoneId &&
@@ -267,6 +276,7 @@ export function AllocationDrawer({ open, onClose, prefill, people, allocations =
 
   const handleSave = async () => {
     if (!canSave) return;
+    if (isSelfAllocation(selfHrmsId, form.personId)) return;
     try {
       await onSave?.({
         personId: form.personId,
@@ -367,7 +377,7 @@ export function AllocationDrawer({ open, onClose, prefill, people, allocations =
         <div className="flex flex-1 flex-col gap-3.5 overflow-y-auto px-[18px] py-[18px]">
           <Field label="Team Member" required>
             <Select value={form.personId} onChange={(v) => set("personId", v)} placeholder="Select person">
-              {roster.map((p) => (
+              {assignableRoster.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </Select>

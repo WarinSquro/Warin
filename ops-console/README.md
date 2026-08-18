@@ -57,7 +57,42 @@ sudo systemctl status ops-console
 curl -sf http://127.0.0.1:9191/api/ops/health
 ```
 
-**Do not** expose port 9191 on the security group. Proxy via host Nginx (localhost only), preferably IP allowlist or VPN.
+### Access the EC2 console safely
+
+**Do not expose port 9191 in the EC2 security group.** The service deliberately binds to localhost.
+
+The simplest and safest option is an SSH tunnel from the local computer:
+
+```powershell
+ssh -i "<path-to-key.pem>" -L 9191:127.0.0.1:9191 ubuntu@<EC2-public-IP>
+```
+
+Keep that terminal open, then browse to <http://127.0.0.1:9191/login>. Login and click **Backup Management → Download latest dump** to stream the newest `.dump` file from EC2 to the browser's local download folder. If no dump is available, create a Database Backup first.
+
+For a permanent URL, use a dedicated HTTPS hostname such as `ops.example.com` and proxy its root to `127.0.0.1:9191`:
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name ops.example.com;
+
+    # Keep the console private: replace with the office/VPN public CIDR.
+    allow 203.0.113.0/24;
+    deny all;
+
+    location / {
+        proxy_pass http://127.0.0.1:9191;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_buffering off;
+        proxy_read_timeout 3600s;
+    }
+}
+```
+
+Use Certbot or the existing certificate process for TLS. For HTTPS access, add `OPS_COOKIE_SECURE=1` to `/opt/warin/shared/ops-console.env`, then restart the service. Prefer a VPN or strict IP allowlist in addition to console authentication.
 
 ### Manual start (without systemd)
 
@@ -86,10 +121,11 @@ Manual Commands in the UI show **EC2/POSIX** commands (production runbook). Runn
 
 1. Secure login (independent of WARIN auth)  
 2. Database / Application / Docker / Pre-deploy backups  
-3. Docker container status  
-4. Allowlisted manual commands  
-5. Production deploy sequence with mandatory pre-backup gate  
-6. Go-live checklist, history, retention, audit  
+3. Authenticated download of the latest database dump to the local computer
+4. Docker container status  
+5. Allowlisted manual commands  
+6. Production deploy sequence with mandatory pre-backup gate  
+7. Go-live checklist, history, retention, audit  
 
 Reference: `docs/production-backup-and-deployment.md`.
 

@@ -2,9 +2,21 @@ import { ForbiddenException } from "@nestjs/common";
 import type { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import type { JwtPayload } from "../auth/jwt.strategy";
 
+/** Block create/update/delete of allocations on the logged-in employee's own row. */
+export function assertNotSelfAllocation(
+  user: JwtPayload,
+  target: { hrmsId?: string; id?: bigint }
+): void {
+  const sameHrms = !!target.hrmsId && target.hrmsId === user.hrmsId;
+  const sameId = target.id != null && target.id.toString() === user.sub;
+  if (sameHrms || sameId) {
+    throw new ForbiddenException("You cannot allocate work to yourself");
+  }
+}
+
 /**
  * Resource Owners may only act on immediate reports (`resource_owner_id` = self).
- * Super-admins are unrestricted.
+ * Super-admins are unrestricted for others, but still cannot self-allocate.
  */
 export async function assertCanPlanForEmployee(
   prisma: PrismaService,
