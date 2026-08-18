@@ -12,15 +12,19 @@ import {
   Download,
   Loader2,
 } from "lucide-react";
+import { TruncateText } from "../components/TruncateText";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import { FilterMultiSelect } from "../components/FilterMultiSelect";
 import { resourceOwnerName } from "../data/employees";
 import type { Employee } from "../data/employees";
 import { initEmptyEmployeeRights } from "../data/accessRights";
-import { createEmployee, updateEmployee } from "../api/domain";
+import { maskIpAddress } from "../utils/ipAddressMask";
+import { createEmployee, hardDeleteRecord, updateEmployee } from "../api/domain";
 import { useEmployees } from "../context/EmployeesContext";
 import { useMasters } from "../context/MastersContext";
 import { useToast } from "../context/ToastContext";
+import { useAuth } from "../context/AuthContext";
+import { HardDeleteButton, HardDeleteDialog } from "../components/HardDeleteDialog";
 import { useFocusFirstField } from "../hooks/useFocusFirstField";
 import { usePauseSharedDataSync, useSharedDataSync, MASTER_TXN_SYNC_INTERVAL_MS } from "../hooks/useSharedDataSync";
 import {
@@ -31,7 +35,7 @@ import {
 import { matchesSearchQuery } from "../utils/textSearch";
 
 type Tab = "active" | "inactive";
-type EmployeeSortKey = "name" | "id" | "resourceOwner" | "department" | "skills";
+type EmployeeSortKey = "name" | "id" | "resourceOwner" | "department" | "skills" | "allowedIp";
 
 export function EmployeeMaster() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -40,6 +44,7 @@ export function EmployeeMaster() {
   const scrolledRef = useRef<string | null>(null);
 
   const { employees, refresh } = useEmployees();
+  const { isSuperAdmin, currentEmployee } = useAuth();
   const toast = useToast();
 
   const rows = employees;
@@ -49,9 +54,12 @@ export function EmployeeMaster() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [hardDelete, setHardDelete] = useState<{ id: string; name: string } | null>(null);
+  const [hardDeleting, setHardDeleting] = useState(false);
+  const [hardDeleteError, setHardDeleteError] = useState<string | null>(null);
 
-  usePauseSharedDataSync(drawerOpen || uploadOpen);
-  useSharedDataSync(!(drawerOpen || uploadOpen), () => refresh(), {
+  usePauseSharedDataSync(drawerOpen || uploadOpen || !!hardDelete);
+  useSharedDataSync(!(drawerOpen || uploadOpen || !!hardDelete), () => refresh(), {
     resources: ["employees"],
     intervalMs: MASTER_TXN_SYNC_INTERVAL_MS,
   });
@@ -88,6 +96,11 @@ export function EmployeeMaster() {
     }
     if (sortKey === "department") {
       return mul * a.department.localeCompare(b.department);
+    }
+    if (sortKey === "allowedIp") {
+      const ia = a.allowedIp?.trim() || "—";
+      const ib = b.allowedIp?.trim() || "—";
+      return mul * ia.localeCompare(ib);
     }
     return mul * a.skills.join(", ").localeCompare(b.skills.join(", "));
   });
@@ -128,6 +141,7 @@ export function EmployeeMaster() {
   const toggleStatus = async (id: string) => {
     const emp = rows.find((e) => e.id === id);
     if (!emp) return;
+    if (emp.isSuperAdmin) return;
     const next = emp.status === "active" ? "inactive" : "active";
     if (next === "inactive" && (emp.transactionCount ?? 0) > 0) {
       toast.error(
@@ -144,6 +158,23 @@ export function EmployeeMaster() {
     }
   };
 
+  const confirmHardDelete = async (email: string, pin: string) => {
+    if (!hardDelete) return;
+    setHardDeleting(true);
+    setHardDeleteError(null);
+    try {
+      const res = await hardDeleteRecord("employees", hardDelete.id, { email, pin });
+      setHardDelete(null);
+      await refresh();
+      toast.success(res.message);
+    } catch (err) {
+      setHardDeleteError(err instanceof Error ? err.message : "Hard delete failed");
+      toast.error(err instanceof Error ? err.message : "Hard delete failed");
+    } finally {
+      setHardDeleting(false);
+    }
+  };
+
   const saveEmployee = async (emp: Employee) => {
     setSaving(true);
     try {
@@ -155,6 +186,7 @@ export function EmployeeMaster() {
           skills: emp.skills,
           resourceOwnerHrmsId: emp.resourceOwnerId ?? null,
           status: emp.status,
+          allowedIp: emp.allowedIp?.trim() ? emp.allowedIp.trim() : null,
         });
         await refresh();
         setDrawerOpen(false);
@@ -168,6 +200,7 @@ export function EmployeeMaster() {
           skills: emp.skills,
           resourceOwnerHrmsId: emp.resourceOwnerId ?? null,
           status: emp.status,
+          allowedIp: emp.allowedIp?.trim() ? emp.allowedIp.trim() : null,
         }).then((created) => {
           toast.created();
           if (created.welcomeEmailSent) {
@@ -277,7 +310,16 @@ export function EmployeeMaster() {
                   onSort={handleSort}
                 />
               </div>
-              <div className="w-[90px] shrink-0 text-right">ACTION</div>
+              <div className="w-[140px] shrink-0">
+                <SortColHeader
+                  label="IP ADDRESS"
+                  col="allowedIp"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                />
+              </div>
+              <div className="w-[110px] shrink-0 text-right">ACTION</div>
             </div>
 
             {sorted.map((e) => (
@@ -288,6 +330,14 @@ export function EmployeeMaster() {
                 highlighted={flashId === e.id}
                 onEdit={() => openEdit(e)}
                 onToggle={() => toggleStatus(e.id)}
+                onHardDelete={
+                  isSuperAdmin && currentEmployee?.id !== e.id
+                    ? () => {
+                        setHardDeleteError(null);
+                        setHardDelete({ id: e.id, name: e.name });
+                      }
+                    : undefined
+                }
               />
             ))}
             {filtered.length === 0 && (
@@ -306,11 +356,39 @@ export function EmployeeMaster() {
         />
       )}
       {uploadOpen && <UploadModal onClose={() => setUploadOpen(false)} />}
+      <HardDeleteDialog
+        open={!!hardDelete}
+        entityLabel="employee"
+        recordName={hardDelete?.name ?? ""}
+        expectedEmail={currentEmployee?.email}
+        confirming={hardDeleting}
+        error={hardDeleteError}
+        onCancel={() => {
+          if (hardDeleting) return;
+          setHardDelete(null);
+          setHardDeleteError(null);
+        }}
+        onConfirm={(email, pin) => void confirmHardDelete(email, pin)}
+      />
     </div>
   );
 }
 
-function EmpRow({ e, employees, highlighted, onEdit, onToggle }: { e: Employee; employees: Employee[]; highlighted?: boolean; onEdit: () => void; onToggle: () => void }) {
+function EmpRow({
+  e,
+  employees,
+  highlighted,
+  onEdit,
+  onToggle,
+  onHardDelete,
+}: {
+  e: Employee;
+  employees: Employee[];
+  highlighted?: boolean;
+  onEdit: () => void;
+  onToggle: () => void;
+  onHardDelete?: () => void;
+}) {
   const inactive = e.status === "inactive";
   const disableBlocked = !inactive && (e.transactionCount ?? 0) > 0;
   return (
@@ -338,7 +416,12 @@ function EmpRow({ e, employees, highlighted, onEdit, onToggle }: { e: Employee; 
         {e.skills.length > 3 && <span className="text-[10px] text-muted-foreground">+{e.skills.length - 3}</span>}
       </div>
       <div className="w-[140px] shrink-0 truncate text-[12px] text-foreground">{resourceOwnerName(e.resourceOwnerId, employees)}</div>
-      <div className="w-[90px] shrink-0 text-right">
+      <div className="w-[140px] shrink-0 pr-2 font-mono text-[12px] text-foreground">
+        <TruncateText as="div" text={e.allowedIp?.trim() || "—"} />
+      </div>
+      <div className="w-[110px] shrink-0 text-right">
+        <div className="flex flex-col items-end gap-0.5">
+        {!e.isSuperAdmin && (
         <button
           type="button"
           onClick={onToggle}
@@ -358,6 +441,9 @@ function EmpRow({ e, employees, highlighted, onEdit, onToggle }: { e: Employee; 
         >
           {inactive ? "Reactivate" : "Disable"}
         </button>
+        )}
+        {onHardDelete ? <HardDeleteButton onClick={onHardDelete} /> : null}
+        </div>
       </div>
     </div>
   );
@@ -402,6 +488,7 @@ function EmployeeDrawer({
     (employee?.skills ?? []).filter((s) => activeSkillNames.includes(s))
   );
   const [resourceOwnerId, setResourceOwnerId] = useState(employee?.resourceOwnerId ?? "");
+  const [allowedIp, setAllowedIp] = useState(employee?.allowedIp ?? "");
   const isEdit = !!employee;
   const focusRef = useFocusFirstField<HTMLDivElement>();
   const nameRef = useRef<HTMLInputElement>(null);
@@ -456,6 +543,7 @@ function EmployeeDrawer({
       department: dept.trim(),
       skills,
       resourceOwnerId: resourceOwnerId || undefined,
+      allowedIp: allowedIp.trim() || null,
       status: employee?.status ?? "active",
     });
   };
@@ -535,6 +623,18 @@ function EmployeeDrawer({
                 <option key={e.id} value={e.id}>{e.name}</option>
               ))}
             </select>
+          </Field>
+          <Field label="Allowed IP" hint="Optional · blank allows login from any IP">
+            <input
+              value={allowedIp}
+              onChange={(e) => setAllowedIp(maskIpAddress(e.target.value))}
+              inputMode="decimal"
+              autoComplete="off"
+              spellCheck={false}
+              maxLength={45}
+              placeholder="e.g. 203.0.113.10"
+              className="w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-[13px] text-foreground outline-none focus:border-accent-line"
+            />
           </Field>
         </div>
 

@@ -32,6 +32,127 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-17 23:56 IST
+
+**Prompt:**  
+> Check and fix. (blank `/employees` page)
+
+**Output:**  
+- Root cause: adding the IP Address column replaced the `SortColHeader` / `useColumnSort` import with `TruncateText`, so Employee Master crashed on render (`SortColHeader is not defined`).
+- Restored both imports. Refresh `/employees`.
+
+### 2026-08-17 23:55 IST
+
+**Prompt:**  
+> Add IP Address column after Resource Owner column (Employee Master header).
+
+**Output:**  
+- Employee Master grid shows **IP ADDRESS** after Resource Owner, bound to `allowedIp` (blank → —). Sortable; long IPv6 values truncate with hover title.
+- Files: `screens/EmployeeMaster.tsx`.
+
+### 2026-08-17 20:50 IST
+
+**Prompt:**  
+> Never show the “Disable” link for the Administrator account on the Employee Master page.
+
+**Output:**  
+- Root cause: EmpRow always rendered Disable/Reactivate, including for `isSuperAdmin` (Administrator / EMP-0001).
+- Hide Disable/Reactivate when `e.isSuperAdmin`. Map `isSuperAdmin` on the employee list. `toggleStatus` no-ops for that account.
+- Files: `screens/EmployeeMaster.tsx`, `api/domain.ts`, `data/employees.ts`.
+
+### 2026-08-17 20:30 IST
+
+**Prompt:**  
+> Implement Employee IP Address Access Control: Allowed IP field on Employee Master drawer (optional, input mask, end of form); login only when request IP matches if configured; empty = any IP; server-side IPv4/IPv6 validation; do not trust client-supplied IP; reverse-proxy aware; nullable DB column; existing employees unchanged.
+
+**Output:**  
+- DB: nullable `employees.allowed_ip` VARCHAR(45). Migration `20260817144500_employee_allowed_ip` applied locally (`npx prisma migrate deploy`). Existing rows stay NULL (no restriction). Workbook `docs/OneView_Table_Structure.xlsx` updated.
+- Employee Master drawer: **Allowed IP** at the end, optional, IPv4/IPv6 input mask. Invalid values rejected by the API (`Enter a valid IPv4 or IPv6 address…`).
+- Login (`POST /auth/login` and `/auth/login/continue`): after PIN verify, if Allowed IP is set, compare with Express `req.ip` (trust private reverse-proxy hops). Mismatch → 403 user-friendly message. Empty Allowed IP → login from any IP.
+- Does not read IP from the request body. Compose nginx already forwards `X-Forwarded-For`.
+- Tests: `npx vitest run tests/unit/allowedIp.test.ts` — 9 passed. Nest `npx nest build` succeeded.
+- Docker API rebuild required for Vite `:5173` → `:8080`.
+
+### 2026-08-17 20:15 IST
+
+**Prompt:**  
+> still error. Check and fix. (`Cannot POST /api/v1/admin/hard-delete/projects`)
+
+**Output:**  
+- Root cause: Vite (`:5173`) calls Docker nginx `:8080`. The `oneview-api` image was from 15 Aug and had no `hard-delete` module, so Nest returned 404. SPA HMR already had the new UI.
+- Rebuilt and restarted the API: `docker compose up -d --build api`. Unauthenticated POST now returns **401** (route exists), not 404. Health check OK.
+- Retry Hard Delete in the browser; no further SPA change required.
+
+### 2026-08-17 20:05 IST
+
+**Prompt:**  
+> fix (Hard Delete project — `Cannot POST /api/v1/admin/hard-delete/projects/Project%20ID%20-%200001`)
+
+**Output:**  
+- Root cause: project code (`Project ID - 0001`) was in the URL path. Nest did not match `POST …/projects/:projectCode` for codes with spaces, so the API returned 404 `Cannot POST`.
+- Hard Delete now uses static paths `POST /api/v1/admin/hard-delete/{employees|projects|departments|skills|activities}` with `{ email, pin, id }` in the JSON body.
+- Files: `apps/oneview-api/src/api/hard-delete/hard-delete.controller.ts`, `hard-delete.dto.ts`, `api/domain.ts`.
+- API must be restarted/rebuilt for the new routes (SPA refresh alone is not enough).
+
+### 2026-08-17 19:38 IST
+
+**Prompt:**  
+> Implement a Hard Delete facility that is available only to Admin users on Projects, Employee, Org, Skills, Activities. Re-enter login credentials, transaction + rollback, hide from non-admin including API.
+
+**Output:**  
+- Admin-only (`isSuperAdmin`) Hard Delete on Projects, Employees, Org/Departments, Skills, Activities. Non-admin UI has no control; API uses `SuperAdminGuard` (403).
+- Dialog requires the signed-in admin’s email + 5-digit PIN. Invalid credentials stop the delete (`401 Invalid login credentials`).
+- `POST /api/v1/admin/hard-delete/{employees|projects|departments|skills|activities}/:id` runs Prisma `$transaction` (rollback on any failure). Related allocations / WCI competencies / employee-skills detached or removed per FKs.
+- Blocks hard-delete of the logged-in user and of other administrator accounts.
+- Files: `apps/oneview-api/src/api/hard-delete/*`, `guards.ts`, `app.module.ts`, `components/HardDeleteDialog.tsx`, `screens/{ProjectMaster,EmployeeMaster,SetupMasters}.tsx`, `api/domain.ts`, `utils/hardDeleteCredentials.ts`, `tests/unit/hardDeleteCredentials.test.ts`.
+- Tests: `npx vitest run tests/unit/hardDeleteCredentials.test.ts`. API `npx nest build` succeeded.
+
+### 2026-08-17 19:11 IST
+
+**Prompt:**  
+> Add a facility in the standalone Backup & Deployment console to take the latest data dump to the local computer, and provide EC2 deployment guidance.
+
+**Output:**  
+- Added authenticated, streamed download of the newest database `.dump` under the configured backup root; missing dumps return a clear 404 and download attempts/completion/failures are audited.
+- Added **Download latest dump** to the Database Backup card with availability, timestamp, size, disabled/empty state, and browser download behavior.
+- Documented EC2 installation, safe SSH-tunnel access, optional restricted HTTPS reverse proxy, secure-cookie configuration, and the local download workflow.
+- Files: `ops-console/server/src/ops/backups.ts`, `ops-console/server/src/routes/api.ts`, `ops-console/web/src/pages/DashboardPage.tsx`, `ops-console/.env.example`, `ops-console/README.md`.
+- Validation: `cd ops-console && npm run build` — Vite production build and server TypeScript check passed.
+- No database schema or WARIN application API changes.
+
+### 2026-08-17 18:19 IST
+
+**Prompt:**  
+> Logged In Employee can not do self work allocation... (check "Digant Shah" is currently logged in and he can do self allocation)
+
+**Output:**  
+- Root cause: planner (and Availability / Find Matches) allowed allocate/edit on the logged-in user's own row. API `assertCanPlanForEmployee` also skipped super-admins and did not block self when `resource_owner_id` was self.
+- Own planner row is view-only; self is removed from the allocation person list; Availability Allocate / Plan ahead / Find Matches blocked for self.
+- API create/update/delete allocations reject the caller's own HRMS id (`assertNotSelfAllocation`).
+- Files: `utils/selfAllocation.ts`, `screens/ResourcePlanner.tsx`, `screens/Availability.tsx`, `components/AllocationDrawer.tsx`, `components/FindMatchesPanel.tsx`, `apps/oneview-api/src/api/auth/resource-scope.ts`, `apps/oneview-api/src/api/allocations/allocations.controller.ts`, `tests/unit/selfAllocation.test.ts`.
+- Test: `npx vitest run tests/unit/selfAllocation.test.ts`.
+
+### 2026-08-17 17:55 IST
+
+**Prompt:**  
+> Rolling Off soon shows count 10, while in above 3rd card (Rolling Off Soon) showing 9. Can you check and fix? Check also in the table for count as well
+
+**Output:**  
+- Root cause: KPI card used allocations ending within 14 days (`buildRollingOffFromLive`); tab + table counted week-grid `availableFrom !== "Now"` (Partial + Fully booked).
+- Card, tab, table, and the rolling-off band now share `filterAvailRowsRollingOffSoon` (same IDs + list filters).
+- Files: `data/availability.ts`, `screens/Availability.tsx`, `tests/unit/availRollingOffSoon.test.ts`.
+- Test: `npx vitest run tests/unit/availRollingOffSoon.test.ts`.
+
+### 2026-08-15 18:23 IST
+
+**Prompt:**  
+> Create document with proper name. (reliable live Git/CI/EC2 deployment process)
+
+**Output:**  
+- Added `docs/live-deployment.md` — one complete commit → CI gate → `scripts/ec2-deploy.sh` → SHA verify. Records why pull/push looked unreliable (Git vs three live artifacts).
+- Linked from `AGENTS.md` and `docs/git-sync-workflow.md`.
+- Not committed (user did not ask).
+
 ### 2026-08-15 18:02 IST
 
 **Prompt:**  
