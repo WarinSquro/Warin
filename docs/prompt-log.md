@@ -32,6 +32,31 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-18 12:19 IST
+
+**Prompt:**  
+> We also need Billable/Internal(Non-Billable) in Activity. I added in Excel as last column "Type" for that. Please update as per this change. Also see attached excel file for your reference. d:\Users\AMIT\Downloads\Warin-Activity-Upload.xlsx
+
+**Output:**  
+- Parsed user workbook (90 rows): columns Milestone, Milestone Type, Activity Type, Activity Name, **Type** (`Billable` / `Internal (Non-billable)`).
+- **Type** column now drives the activity billable flag; **Activity Type** stays Paid / POC / Product for milestone project type.
+- Short milestone labels accepted: Sign-off, Checkpoint, Sign-off & Commercial.
+- Template download, bulk-upload modal copy, and preview show Billable/Internal.
+- Files: `utils/activityBulkUpload.ts`, `tests/unit/activityBulkUpload.test.ts`, `components/ActivityBulkUploadModal.tsx`.
+- Tests: `npx vitest run tests/unit/activityBulkUpload.test.ts` — 7 passed.
+
+### 2026-08-18 11:44 IST
+
+**Prompt:**  
+> I can see still Milestones are already showing on EC2 so on live. also remove Customer from EC2. I want to now upload Milestone, Milestone Type, Activity Type, Activity Name in EC2. I have excel file.
+
+**Output:**  
+- Root cause: live dropdown reads `activity_milestones` (activity catalog), not `project_milestones`. Earlier wipe SQL did not clear those 17 catalog rows. Activities list can be empty while the catalog still has names.
+- Added Activities **Bulk upload** (Excel/CSV: Milestone, Milestone Type, Activity Type, Activity Name) plus template download. Same-milestone rows reuse the catalog entry. Creating a milestone now revives a soft-deleted unique `name + project type` row instead of failing.
+- Files: `utils/activityBulkUpload.ts`, `tests/unit/activityBulkUpload.test.ts`, `components/ActivityBulkUploadModal.tsx`, `screens/SetupMasters.tsx`, `apps/oneview-api/src/api/masters/masters.controller.ts`.
+- Tests: `npx vitest run tests/unit/activityBulkUpload.test.ts` — 4 passed.
+- Live wipe is SQL on EC2 (not `db:seed`): delete unused `activity_milestones`, then unused `customers` (only those with no `projects.customer_id`). After commit/push, `bash scripts/ec2-deploy.sh --with-api`, then upload the Excel on Setup → Activities.
+
 ### 2026-08-18 10:50 IST
 
 **Prompt:**  
