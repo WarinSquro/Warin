@@ -32,6 +32,26 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-18 15:10 IST
+
+**Prompt:**  
+> We need only 3 Milestone types: Sign-off, Checkpoint, Sign-off & Commercial.
+
+**Output:**  
+- Milestone Type picker and grid labels now show only those 3 options; removed standalone Commercial.
+- Bulk upload maps Commercial / Commercial Only to Sign-off & Commercial (`commercial_signoff`).
+- Legacy `commercial_only` rows display as Sign-off & Commercial; EC2 SQL provided to remap DB rows.
+- Files: `data/projects.ts`, `utils/activityBulkUpload.ts`, `tests/unit/activityBulkUpload.test.ts`.
+
+### 2026-08-18 15:05 IST
+
+**Prompt:**  
+> Remove "Only" words from Milestone Type tables rows from EC2
+
+**Output:**  
+- Milestone Type display labels updated: Commercial / Sign-off / Checkpoint (no "Only"). Enum values unchanged; Excel upload still accepts old labels.
+- Files: `data/projects.ts`, `utils/activityBulkUpload.ts` (template instructions).
+
 ### 2026-08-18 15:02 IST
 
 **Prompt:**  

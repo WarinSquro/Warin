@@ -9,7 +9,7 @@ import {
 
 describe("parseMilestoneKind", () => {
   it("maps Excel labels", () => {
-    expect(parseMilestoneKind("Commercial Only")).toBe("commercial_only");
+    expect(parseMilestoneKind("Commercial Only")).toBe("commercial_signoff");
     expect(parseMilestoneKind("Commercial & Sign-off")).toBe("commercial_signoff");
     expect(parseMilestoneKind("Checkpoint Only")).toBe("checkpoint_only");
     expect(parseMilestoneKind("Sign-off Only")).toBe("signoff_only");

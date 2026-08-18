@@ -13,13 +13,15 @@ export type MilestoneKind =
   | "checkpoint_only";
 
 export const MILESTONE_KIND_OPTIONS: { value: MilestoneKind; label: string }[] = [
-  { value: "commercial_only", label: "Commercial Only" },
-  { value: "signoff_only", label: "Sign-off Only" },
-  { value: "commercial_signoff", label: "Commercial & Sign-off" },
-  { value: "checkpoint_only", label: "Checkpoint Only" },
+  { value: "signoff_only", label: "Sign-off" },
+  { value: "checkpoint_only", label: "Checkpoint" },
+  { value: "commercial_signoff", label: "Sign-off & Commercial" },
 ];
 
 export function milestoneKindLabel(kind: MilestoneKind | undefined) {
+  if (!kind) return "—";
+  // Legacy enum value — remapped on live via SQL; display as Sign-off & Commercial.
+  if (kind === "commercial_only") return "Sign-off & Commercial";
   return MILESTONE_KIND_OPTIONS.find((o) => o.value === kind)?.label ?? "—";
 }
 
