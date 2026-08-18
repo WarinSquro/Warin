@@ -48,12 +48,23 @@ export function availAvgDeltaDisplay(
   return { text: `▼ ${abs} vs last 2 weeks`, tone: "danger" };
 }
 
-/** Rows whose allocation ends within the rolling-off window (not Partial/Fully booked). */
+/** Rows whose allocation ends within the rolling-off window. */
 export function filterAvailRowsRollingOffSoon(
   rows: AvailRow[],
   rollingOffIds: ReadonlySet<string>
 ): AvailRow[] {
   return rows.filter((r) => rollingOffIds.has(r.id));
+}
+
+/**
+ * All tab = Available now ∪ Rolling off soon (unique).
+ * Excludes Partial / Fully booked people who are not rolling off.
+ */
+export function filterAvailRowsAllSegments(
+  rows: AvailRow[],
+  rollingOffIds: ReadonlySet<string>
+): AvailRow[] {
+  return rows.filter((r) => r.availableFrom === "Now" || rollingOffIds.has(r.id));
 }
 
 export function computeAvailKpis(

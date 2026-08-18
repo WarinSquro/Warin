@@ -32,6 +32,18 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-18 19:32 IST
+
+**Prompt:**  
+> Availability All tab should be the sum of Available now + Rolling off soon (20 vs 15+4=19).
+
+**Output:**  
+- Root cause: All listed every filtered team member, including Partial / Fully booked people who are not rolling off (the extra 1 of 20).
+- All tab + count is now Available now ∪ Rolling off soon (unique). That extra booked person is no longer in All. Available now and Rolling off soon tabs unchanged.
+- Files: `data/availability.ts`, `screens/Availability.tsx`, `tests/unit/availRollingOffSoon.test.ts`. 7 tests passed.
+
+---
+
 ### 2026-08-18 19:29 IST
 
 **Prompt:**  

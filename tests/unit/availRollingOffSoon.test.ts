@@ -3,6 +3,7 @@ import {
   AVAIL_ROWS,
   availAvgDeltaDisplay,
   computeAvailKpis,
+  filterAvailRowsAllSegments,
   filterAvailRowsRollingOffSoon,
   type AvailRow,
 } from "../../data/availability";
@@ -40,6 +41,19 @@ describe("filterAvailRowsRollingOffSoon", () => {
       row({ id: "b", availableFrom: "Fully booked" }),
     ];
     expect(filterAvailRowsRollingOffSoon(rows, new Set()).map((r) => r.id)).toEqual([]);
+  });
+});
+
+describe("filterAvailRowsAllSegments", () => {
+  it("All is Available now ∪ Rolling off soon, excluding other booked people", () => {
+    const rows = [
+      row({ id: "now", availableFrom: "Now", freeHours: 40, bookedPct: 0 }),
+      row({ id: "rolling", availableFrom: "Partial", freeHours: 8, bookedPct: 80 }),
+      row({ id: "both", availableFrom: "Now", freeHours: 40, bookedPct: 0 }),
+      row({ id: "booked", availableFrom: "Fully booked", freeHours: 0, bookedPct: 100 }),
+    ];
+    const all = filterAvailRowsAllSegments(rows, new Set(["rolling", "both"]));
+    expect(all.map((r) => r.id).sort()).toEqual(["both", "now", "rolling"]);
   });
 });
 

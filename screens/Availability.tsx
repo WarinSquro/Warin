@@ -5,6 +5,7 @@ import {
   MIN_FREE_HOUR_OPTIONS,
   availAvgDeltaDisplay,
   computeAvailKpis,
+  filterAvailRowsAllSegments,
   filterAvailRowsRollingOffSoon,
 } from "../data/availability";
 import type { AvailRow, RollingOffPerson } from "../data/availability";
@@ -640,6 +641,12 @@ export function Availability() {
     [filteredRows, rollingOffIds]
   );
 
+  /** All tab = Available now ∪ Rolling off soon (no ongoing Partial / Fully booked). */
+  const allSegmentRows = useMemo(
+    () => filterAvailRowsAllSegments(filteredRows, rollingOffIds),
+    [filteredRows, rollingOffIds]
+  );
+
   const rollingOff = useMemo(() => {
     const visible = new Set(rollingOffRows.map((r) => r.id));
     return rollingOffAll.filter((p) => visible.has(p.id));
@@ -656,7 +663,7 @@ export function Availability() {
         ? filteredRows.filter((r) => r.availableFrom === "Now")
         : seg === "rolling"
           ? rollingOffRows
-          : filteredRows;
+          : allSegmentRows;
 
     return [...filtered].sort((a, b) => {
       const mul = sortDir === "asc" ? 1 : -1;
@@ -672,7 +679,7 @@ export function Availability() {
       }
       return mul * a.skills.join(", ").localeCompare(b.skills.join(", "));
     });
-  }, [filteredRows, rollingOffRows, seg, sortKey, sortDir]);
+  }, [allSegmentRows, filteredRows, rollingOffRows, seg, sortKey, sortDir]);
 
   const nowCount = filteredRows.filter((r) => r.availableFrom === "Now").length;
   const rollingCount = rollingOffRows.length;
@@ -811,7 +818,7 @@ export function Availability() {
           <div className="flex flex-shrink-0 items-center justify-between border-b border-border-soft px-4 py-2.5">
             <div className="flex gap-1">
               <Tab active={seg === "all"} onClick={() => setSeg("all")}>
-                All {filteredRows.length}
+                All {allSegmentRows.length}
               </Tab>
               <Tab
                 active={seg === "now"}
