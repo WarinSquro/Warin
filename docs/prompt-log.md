@@ -32,6 +32,18 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-18 23:15 IST
+
+**Prompt:**  
+> Check and correct > Project Execution Report > Drawer > 6-month execution trend > months in X-axis does not looks properly. Check and fix
+
+**Output:**  
+- Root cause: Recharts `BarChart` used `margin.bottom: 0` in a 120px box, so month ticks sat on the container edge and used light `#6b7280` ticks (poor contrast on `surface-alt`). Recharts also hid some ticks without `interval={0}`.
+- Fix in `components/ProjectExecutionDrawer.tsx`: extra bottom margin (22) and chart height (148), darker X ticks (`#374151`, 11px), `interval={0}`, `height={28}`, `tickMargin={8}` — same pattern as `CockpitUtilTrendChart`.
+- Y-axis styling unchanged. No API/DB change.
+
+---
+
 ### 2026-08-18 19:50 IST
 
 **Prompt:**  

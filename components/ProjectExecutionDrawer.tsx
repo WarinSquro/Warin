@@ -51,6 +51,8 @@ const CHART = {
   success: "#16a34a",
   grid: "#eef0f3",
   axis: "#6b7280",
+  /** Month labels on X — darker than Y ticks so they stay readable on surface-alt. */
+  xTick: "#374151",
 };
 
 const TREND_METRICS: Record<
@@ -219,19 +221,22 @@ export function ProjectExecutionDrawer({ open, onClose, row, history, roster, pe
               </div>
               <div className="rounded-md border border-border-soft bg-surface-alt p-3">
                 <div className="mb-1 text-[11px] font-medium text-foreground">{chartConfig.title}</div>
-                <div className="h-[120px] w-full">
+                <div className="h-[148px] w-full">
                   <ResponsiveContainer
                     key={`${row.projectId}-${trendMetric}`}
                     width="100%"
-                    height={120}
+                    height={148}
                   >
-                    <BarChart data={trendData} margin={{ top: 8, right: 4, left: -20, bottom: 0 }}>
+                    <BarChart data={trendData} margin={{ top: 8, right: 4, left: -20, bottom: 22 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
                       <XAxis
                         dataKey="label"
-                        tick={{ fontSize: 10, fill: CHART.axis }}
+                        tick={{ fontSize: 11, fill: CHART.xTick, fontWeight: 500 }}
                         axisLine={false}
                         tickLine={false}
+                        interval={0}
+                        height={28}
+                        tickMargin={8}
                       />
                       <YAxis
                         domain={chartConfig.yDomain}
