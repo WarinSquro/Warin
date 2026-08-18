@@ -408,7 +408,10 @@ function ActivityDrawer({
   const toast = useToast();
   const isEdit = !!activity;
   const [name, setName] = useState(activity?.name ?? "");
-  const [milestoneId, setMilestoneId] = useState(activity?.milestoneId ?? milestones[0]?.id ?? "");
+  const editMilestone = activity ? milestones.find((m) => m.id === activity.milestoneId) : undefined;
+  const [projectType, setProjectType] = useState<ProjectType>(editMilestone?.projectType ?? "paid");
+  const filteredMilestones = milestones.filter((m) => m.projectType === projectType);
+  const [milestoneId, setMilestoneId] = useState(activity?.milestoneId ?? filteredMilestones[0]?.id ?? "");
   const [billable, setBillable] = useState(activity?.billable ?? true);
   const [addingMilestone, setAddingMilestone] = useState(false);
   const [newMilestoneName, setNewMilestoneName] = useState("");
@@ -507,6 +510,30 @@ function ActivityDrawer({
           </div>
 
           <div className="border-t border-border-soft pt-4">
+            <Field label="Project type" required>
+              <div className="flex gap-2">
+                {(["paid", "poc", "product"] as ProjectType[]).map((pt) => (
+                  <button
+                    key={pt}
+                    type="button"
+                    onClick={() => {
+                      setProjectType(pt);
+                      const first = milestones.find((m) => m.projectType === pt);
+                      setMilestoneId(first?.id ?? "");
+                    }}
+                    disabled={saving}
+                    className={`flex-1 cursor-pointer rounded-md border py-2 text-[12px] font-medium disabled:opacity-60 ${
+                      projectType === pt
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border text-muted hover:bg-surface-alt"
+                    }`}
+                  >
+                    {projectTypeLabel(pt)}
+                  </button>
+                ))}
+              </div>
+            </Field>
+
             <Field label="Milestone" required>
               <select
                 value={milestoneId}
@@ -514,9 +541,9 @@ function ActivityDrawer({
                 disabled={saving}
                 className="w-full cursor-pointer rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line disabled:opacity-60"
               >
-                {milestones.map((m) => (
+                {filteredMilestones.map((m) => (
                   <option key={m.id} value={m.id}>
-                    {m.name} · {projectTypeLabel(m.projectType)} · {milestoneKindLabel(m.kind)}
+                    {m.name} · {milestoneKindLabel(m.kind)}
                   </option>
                 ))}
               </select>
