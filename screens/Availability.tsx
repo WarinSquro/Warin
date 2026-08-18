@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowRight, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   MIN_FREE_HOUR_OPTIONS,
+  availAvgDeltaDisplay,
   computeAvailKpis,
   filterAvailRowsRollingOffSoon,
 } from "../data/availability";
@@ -76,6 +77,7 @@ function Kpi({
   value,
   sub,
   delta,
+  deltaClass,
   accent,
   valueClass,
 }: {
@@ -83,6 +85,7 @@ function Kpi({
   value: string | number;
   sub?: string;
   delta?: string;
+  deltaClass?: string;
   accent?: string;
   valueClass?: string;
 }) {
@@ -97,7 +100,9 @@ function Kpi({
         <div className={`text-[23px] font-semibold ${valueClass ?? "text-foreground"}`}>
           {value}
         </div>
-        {delta && <div className="text-[11px] text-success">{delta}</div>}
+        {delta && (
+          <div className={`text-[11px] ${deltaClass ?? "text-success"}`}>{delta}</div>
+        )}
       </div>
       {sub && <div className="mt-0.5 text-[11px] text-muted-foreground">{sub}</div>}
     </div>
@@ -455,6 +460,30 @@ export function Availability() {
     [employees, summaryWeekCapacity, allocations, offDayIsos, supplyFrom, settings.workingDays]
   );
 
+  /** Same people/filters as the KPI, for the two weeks before the forward-supply window. */
+  const priorSummaryRows = useMemo(() => {
+    const weeks = [addDaysISO(supplyFrom, -14), addDaysISO(supplyFrom, -7)];
+    return weeks.flatMap((ws) => {
+      const cap = weekCapacityHours(ws, calendarOpts) || fallbackWeekCapacity;
+      return buildAvailRowsFromEmployees(
+        employees,
+        cap,
+        allocations,
+        offDayIsos,
+        ws,
+        settings.workingDays
+      );
+    });
+  }, [
+    employees,
+    allocations,
+    offDayIsos,
+    supplyFrom,
+    settings.workingDays,
+    calendarOpts,
+    fallbackWeekCapacity,
+  ]);
+
   const availRows = useMemo(
     () =>
       buildAvailRowsFromEmployees(
@@ -595,6 +624,11 @@ export function Availability() {
     [applyListFilters, summaryRows]
   );
 
+  const priorFilteredRows = useMemo(
+    () => applyListFilters(priorSummaryRows),
+    [applyListFilters, priorSummaryRows]
+  );
+
   const rollingOffIds = useMemo(
     () => new Set(rollingOffAll.map((p) => p.id)),
     [rollingOffAll]
@@ -612,8 +646,8 @@ export function Availability() {
   }, [rollingOffAll, rollingOffRows]);
 
   const kpis = useMemo(
-    () => computeAvailKpis(summaryFilteredRows, rollingOffRows.length),
-    [summaryFilteredRows, rollingOffRows]
+    () => computeAvailKpis(summaryFilteredRows, rollingOffRows.length, priorFilteredRows),
+    [summaryFilteredRows, rollingOffRows, priorFilteredRows]
   );
 
   const rows = useMemo(() => {
@@ -646,6 +680,10 @@ export function Availability() {
     selectedDepts.length === availDepartments.length &&
     selectedSkills.length === availSkills.length &&
     minFreeHours === 0;
+  const avgDeltaDisplay = useMemo(
+    () => (allFiltersActive ? availAvgDeltaDisplay(kpis.avgDelta) : null),
+    [allFiltersActive, kpis.avgDelta]
+  );
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -715,7 +753,14 @@ export function Availability() {
             label="Avg Free Hrs / Person"
             value={formatHoursDecimalLabel(kpis.avgFreeHrs)}
             sub="per week"
-            delta={allFiltersActive ? `▲ ${formatHoursDecimalLabel(6)} vs last 2 weeks` : undefined}
+            delta={avgDeltaDisplay?.text}
+            deltaClass={
+              avgDeltaDisplay?.tone === "danger"
+                ? "text-danger"
+                : avgDeltaDisplay?.tone === "muted"
+                  ? "text-muted-foreground"
+                  : "text-success"
+            }
           />
         </div>
 

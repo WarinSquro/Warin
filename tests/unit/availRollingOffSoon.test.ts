@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   AVAIL_ROWS,
+  availAvgDeltaDisplay,
   computeAvailKpis,
   filterAvailRowsRollingOffSoon,
   type AvailRow,
@@ -48,5 +49,35 @@ describe("computeAvailKpis rollingOffSoon", () => {
     const kpis = computeAvailKpis(AVAIL_ROWS, 9);
     expect(kpis.rollingOffSoon).toBe(9);
     expect(notNow).not.toBe(9);
+  });
+});
+
+describe("computeAvailKpis avgDelta", () => {
+  it("is current avg free hrs minus prior 2-week avg", () => {
+    const current = [row({ id: "a", freeHours: 40 }), row({ id: "b", freeHours: 20 })];
+    const prior = [row({ id: "a", freeHours: 30 }), row({ id: "b", freeHours: 10 })];
+    const kpis = computeAvailKpis(current, 0, prior);
+    expect(kpis.avgFreeHrs).toBe(30);
+    expect(kpis.avgDelta).toBe(10);
+  });
+
+  it("is null when there is no prior-period roster", () => {
+    expect(computeAvailKpis([row({ id: "a", freeHours: 40 })]).avgDelta).toBeNull();
+    expect(computeAvailKpis([row({ id: "a", freeHours: 40 })], 0, []).avgDelta).toBeNull();
+  });
+});
+
+describe("availAvgDeltaDisplay", () => {
+  it("formats up, down, and unchanged vs last 2 weeks", () => {
+    expect(availAvgDeltaDisplay(6)).toEqual({
+      text: "▲ 6.0h vs last 2 weeks",
+      tone: "success",
+    });
+    expect(availAvgDeltaDisplay(-2.5)).toEqual({
+      text: "▼ 2.5h vs last 2 weeks",
+      tone: "danger",
+    });
+    expect(availAvgDeltaDisplay(0)).toEqual({ text: "— vs last 2 weeks", tone: "muted" });
+    expect(availAvgDeltaDisplay(null)).toBeNull();
   });
 });

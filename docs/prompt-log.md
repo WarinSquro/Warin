@@ -32,6 +32,32 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-18 19:26 IST
+
+**Prompt:**  
+> For any user in "Avg Free Hrs / Person" it shows fix "▲ 6.0h vs last 2 weeks". Can you check and fix?
+
+**Output:**  
+- Root cause: Availability KPI delta was hardcoded (`formatHoursDecimalLabel(6)`), leftover from a copy change (“last mo” → “last 2 weeks”). Administrator and Digant therefore always saw ▲ 6.0h.
+- Delta is now current avg free hrs/person minus the average over the previous two weeks (same skill/dept/min filters). Shows ▲ / ▼ / — with success/danger/muted. Hidden when prior weeks have no people (or when filters are not at defaults).
+- Files: `data/availability.ts`, `screens/Availability.tsx`, `tests/unit/availRollingOffSoon.test.ts`. 6 unit tests passed.
+- Frontend-only; Vite HMR on `:5173` is enough locally. No API rebuild.
+
+---
+
+### 2026-08-18 18:13 IST
+
+**Prompt:**  
+> Not showing in local. ???
+
+**Output:**  
+- Root cause: Vite (`:5173`) calls Docker API via `http://127.0.0.1:8080/api/v1`. The `oneview-api` image was from 17 Aug (immediate reports only), so Team Members still showed only Digant / Manya / Nirali. SPA HMR already had the new UI.
+- Rebuilt local API: `docker compose up -d --build api`, recreated nginx, health `ok`. Image now includes `descendantEmployeeIds` / `resource-owner-tree`.
+- Roster uses the tested JS Resource Owner walk (not a Prisma CTE) so the running Nest process matches unit tests. Digant still has the same 6 reports in local Postgres (21 active employees).
+- Hard-refresh Work Confirmation on `http://127.0.0.1:5173`.
+
+---
+
 ### 2026-08-18 17:42 IST
 
 **Prompt:**  

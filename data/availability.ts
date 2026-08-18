@@ -2,7 +2,7 @@
 // Free capacity is the supply-side mirror of Utilization (demand/load view).
 
 import { UTIL_DEPARTMENTS } from "./utilization";
-import { roundHoursToTenth } from "../utils/formatHours";
+import { formatHoursDecimalLabel, roundHoursToTenth } from "../utils/formatHours";
 
 export { UTIL_DEPARTMENTS as AVAIL_DEPARTMENTS };
 
@@ -35,6 +35,19 @@ export const AVAIL_KPIS = {
   avgFreeHrs: 22,
 };
 
+export type AvailAvgDeltaTone = "success" | "danger" | "muted";
+
+/** Label + tone for Avg Free Hrs / Person vs the previous 2 weeks. */
+export function availAvgDeltaDisplay(
+  avgDelta: number | null
+): { text: string; tone: AvailAvgDeltaTone } | null {
+  if (avgDelta == null) return null;
+  if (avgDelta === 0) return { text: "— vs last 2 weeks", tone: "muted" };
+  const abs = formatHoursDecimalLabel(Math.abs(avgDelta));
+  if (avgDelta > 0) return { text: `▲ ${abs} vs last 2 weeks`, tone: "success" };
+  return { text: `▼ ${abs} vs last 2 weeks`, tone: "danger" };
+}
+
 /** Rows whose allocation ends within the rolling-off window (not Partial/Fully booked). */
 export function filterAvailRowsRollingOffSoon(
   rows: AvailRow[],
@@ -43,16 +56,32 @@ export function filterAvailRowsRollingOffSoon(
   return rows.filter((r) => rollingOffIds.has(r.id));
 }
 
-export function computeAvailKpis(rows: AvailRow[], rollingOffSoon = 0) {
+export function computeAvailKpis(
+  rows: AvailRow[],
+  rollingOffSoon = 0,
+  priorRows?: AvailRow[]
+) {
   if (rows.length === 0) {
-    return { totalFreeHrs: 0, fullyAvailable: 0, rollingOffSoon, avgFreeHrs: 0 };
+    return {
+      totalFreeHrs: 0,
+      fullyAvailable: 0,
+      rollingOffSoon,
+      avgFreeHrs: 0,
+      avgDelta: null as number | null,
+    };
   }
   const totalFreeHrs = rows.reduce((sum, r) => sum + r.freeHours, 0);
+  const avgFreeHrs = roundHoursToTenth(totalFreeHrs / rows.length);
+  const priorAvg =
+    priorRows && priorRows.length > 0
+      ? roundHoursToTenth(priorRows.reduce((s, r) => s + r.freeHours, 0) / priorRows.length)
+      : null;
   return {
     totalFreeHrs: roundHoursToTenth(totalFreeHrs),
     fullyAvailable: rows.filter((r) => r.bookedPct === 0).length,
     rollingOffSoon,
-    avgFreeHrs: roundHoursToTenth(totalFreeHrs / rows.length),
+    avgFreeHrs,
+    avgDelta: priorAvg == null ? null : roundHoursToTenth(avgFreeHrs - priorAvg),
   };
 }
 
