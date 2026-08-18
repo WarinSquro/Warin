@@ -32,6 +32,26 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-18 16:40 IST
+
+**Prompt:**  
+> If logged in by Resource Owner, should not come in Reports > Resource Deployment Report
+
+**Output:**  
+- Root cause: deployment roster uses `scopeEmployeesForViewer`, which includes the viewer (self + reports). Resource Owners therefore appeared as Unallocated/allocated rows.
+- When the viewer owns at least one active report, they are excluded from the Resource Deployment employee set (rows, counts, export). Daily Work / Performance unchanged.
+- File: `screens/ResourceDeploymentReport.tsx`.
+
+### 2026-08-18 16:38 IST
+
+**Prompt:**  
+> If logged in by Resource Owner, should not come in My Workspace > Upcoming Availability
+
+**Output:**  
+- Root cause: Upcoming Availability listed every scoped active employee with free capacity, including the logged-in Resource Owner.
+- When the viewer owns at least one active report, they are excluded from Upcoming Availability (count + preview).
+- File: `data/cockpit.ts`. Other cockpit cards unchanged.
+
 ### 2026-08-18 16:26 IST
 
 **Prompt:**  

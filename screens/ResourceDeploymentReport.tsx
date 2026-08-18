@@ -75,10 +75,16 @@ export function ResourceDeploymentReport() {
   const { currentEmployee, isSuperAdmin } = useAuth();
   const { employees } = useEmployees();
   const { settings } = useSettings();
-  const scopedEmployees = useMemo(
-    () => scopeEmployeesForViewer(employees, currentEmployee, isSuperAdmin),
-    [employees, currentEmployee, isSuperAdmin]
-  );
+  const scopedEmployees = useMemo(() => {
+    const scoped = scopeEmployeesForViewer(employees, currentEmployee, isSuperAdmin);
+    const viewerId = currentEmployee?.id?.trim();
+    if (!viewerId) return scoped;
+    const isResourceOwner = employees.some(
+      (e) => e.status === "active" && e.resourceOwnerId === viewerId
+    );
+    if (!isResourceOwner) return scoped;
+    return scoped.filter((e) => e.id !== viewerId);
+  }, [employees, currentEmployee, isSuperAdmin]);
   const [searchParams] = useSearchParams();
   const statusPreset = searchParams.get("status");
   const storedFilters = useMemo(

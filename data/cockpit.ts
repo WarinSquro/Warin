@@ -797,6 +797,11 @@ export function buildLiveCockpitSnapshot(
       hoursPerDay,
       workingDays
     );
+    if (input.currentUserHrmsId && resourceOwnerIds.has(input.currentUserHrmsId)) {
+      availableResources = availableResources.filter(
+        (r) => r.employeeId !== input.currentUserHrmsId
+      );
+    }
     planningConflicts = buildPlanningConflictsFromLive(
       scoped,
       allocations,
