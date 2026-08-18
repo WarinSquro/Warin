@@ -18,7 +18,9 @@ import {
   WorkdayTimelinePanel,
 } from "../components/ConfirmationProductivity";
 import type { PlannedLine, DayStatus, ComplianceRow, DeviationEntry } from "../data/confirmation";
+import { getImmediateReports } from "../data/employees";
 import { useAuth } from "../context/AuthContext";
+import { useEmployees } from "../context/EmployeesContext";
 import { useSettings } from "../context/SettingsContext";
 import { useToast } from "../context/ToastContext";
 import {
@@ -1277,6 +1279,7 @@ function ManagerCompliance() {
   const navigate = useNavigate();
   const toast = useToast();
   const { currentEmployee } = useAuth();
+  const { employees } = useEmployees();
   const { settings } = useSettings();
   const today = todayISO();
   const [kpis, setKpis] = useState({
@@ -1301,11 +1304,36 @@ function ManagerCompliance() {
     try {
       const res = await fetchTeamCompliance({ asOf: today });
       const viewerHrmsId = currentEmployee?.id?.trim();
-      setKpis(res.kpis);
+      const reportIds =
+        viewerHrmsId && employees.length > 0
+          ? new Set(
+              getImmediateReports(viewerHrmsId, employees, { activeOnly: true }).map((e) => e.id)
+            )
+          : null;
+      const visible = res.rows.filter((r) => {
+        if (viewerHrmsId && r.id === viewerHrmsId) return false;
+        if (reportIds) return reportIds.has(r.id);
+        return true;
+      });
+      const todayStatuses = visible.map((r) => r.todayStatus);
+      const confirmedCount = todayStatuses.filter((s) =>
+        s === "confirmed" || s === "confirmed_delayed"
+      ).length;
+      const pending = todayStatuses.filter((s) => s === "pending").length;
+      const deviationsCount = todayStatuses.filter(
+        (s) => s === "deviation" || s === "deviation_delayed"
+      ).length;
+      const team = visible.length;
+      setKpis({
+        confirmedPct: team > 0 ? Math.round((confirmedCount / team) * 100) : 0,
+        confirmedCount,
+        team,
+        pending,
+        deviations: deviationsCount,
+        onLeave: 0,
+      });
       setRows(
-        res.rows
-          .filter((r) => !viewerHrmsId || r.id !== viewerHrmsId)
-          .map((r) => ({
+        visible.map((r) => ({
           id: r.id,
           name: r.name,
           initials: r.initials,
@@ -1314,8 +1342,11 @@ function ManagerCompliance() {
           todayLabel: r.todayLabel,
         }))
       );
+      const visibleNames = new Set(visible.map((r) => r.name));
       setDeviations(
-        res.deviations.map((d) => {
+        res.deviations
+          .filter((d) => visibleNames.has(d.name))
+          .map((d) => {
           const fallback = (res.asOf || today).slice(0, 10);
           const workRaw = String(d.workDate ?? "").trim();
           const addedRaw = String(d.addedAt ?? "").trim();
@@ -1338,7 +1369,7 @@ function ManagerCompliance() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load team compliance");
     }
-  }, [today, currentEmployee?.id]);
+  }, [today, currentEmployee?.id, employees]);
 
   useEffect(() => {
     void loadTeam();

@@ -32,6 +32,16 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-18 16:26 IST
+
+**Prompt:**  
+> Work Confirmation > Team Compliance: Show only those Team Members whose Resource Owner is the currently logged-in user.
+
+**Output:**  
+- Root cause: Team Compliance grid trusted `/confirmations/team` and only hid the viewer. If the roster was broader than immediate reports, extra people appeared.
+- API already scopes roster to `resourceOwnerId = logged-in employee`. UI now also keeps only immediate reports (`getImmediateReports`) when the employee master list is loaded, and KPIs/deviations follow that subset.
+- File: `screens/WorkConfirmation.tsx`. API roster filter unchanged (`confirmations.controller.ts`).
+
 ### 2026-08-18 15:42 IST
 
 **Prompt:**  
