@@ -9,7 +9,8 @@ import {
 
 describe("parseMilestoneKind", () => {
   it("maps Excel labels", () => {
-    expect(parseMilestoneKind("Commercial Only")).toBe("commercial_signoff");
+    expect(parseMilestoneKind("Commercial Only")).toBe("commercial_only");
+    expect(parseMilestoneKind("Commercial")).toBe("commercial_only");
     expect(parseMilestoneKind("Commercial & Sign-off")).toBe("commercial_signoff");
     expect(parseMilestoneKind("Checkpoint Only")).toBe("checkpoint_only");
     expect(parseMilestoneKind("Sign-off Only")).toBe("signoff_only");
@@ -66,7 +67,8 @@ describe("Warin-Activity-Upload.xlsx shape", () => {
     const sheet = wb.Sheets[wb.SheetNames[0]!]!;
     const records = XLSX.utils.sheet_to_json<Record<string, string>>(sheet, { defval: "" });
     expect(records.length).toBeGreaterThan(0);
-    expect(Object.keys(records[0]!)).toEqual([
+    const headers = Object.keys(records[0]!).filter((k) => !k.startsWith("__EMPTY"));
+    expect(headers).toEqual([
       "Milestone",
       "Milestone Type",
       "Activity Type",

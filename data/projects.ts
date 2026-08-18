@@ -16,12 +16,10 @@ export const MILESTONE_KIND_OPTIONS: { value: MilestoneKind; label: string }[] =
   { value: "signoff_only", label: "Sign-off" },
   { value: "checkpoint_only", label: "Checkpoint" },
   { value: "commercial_signoff", label: "Sign-off & Commercial" },
+  { value: "commercial_only", label: "Commercial" },
 ];
 
 export function milestoneKindLabel(kind: MilestoneKind | undefined) {
-  if (!kind) return "—";
-  // Legacy enum value — remapped on live via SQL; display as Sign-off & Commercial.
-  if (kind === "commercial_only") return "Sign-off & Commercial";
   return MILESTONE_KIND_OPTIONS.find((o) => o.value === kind)?.label ?? "—";
 }
 

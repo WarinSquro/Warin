@@ -167,7 +167,7 @@ const enums = [
   { name: "EmpStatus", values: "active, inactive" },
   { name: "ProjectStatus", values: "active, inactive" },
   { name: "ProjectType", values: "paid, poc, product" },
-  { name: "MilestoneKind", values: "signoff_only, checkpoint_only, commercial_signoff (legacy: commercial_only)" },
+  { name: "MilestoneKind", values: "signoff_only, checkpoint_only, commercial_signoff, commercial_only" },
   { name: "SetupStatus", values: "active, inactive" },
   { name: "CapacityBasis", values: "billable, total" },
 ];

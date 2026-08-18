@@ -52,8 +52,8 @@ export function parseMilestoneKind(raw: string): MilestoneKind | null {
   if (!n) return null;
   const compact = n.replace(/[^a-z0-9]/g, "");
   const aliases: Record<string, MilestoneKind> = {
-    commercialonly: "commercial_signoff",
-    commercial: "commercial_signoff",
+    commercialonly: "commercial_only",
+    commercial: "commercial_only",
     signoffonly: "signoff_only",
     signoff: "signoff_only",
     commercialsignoff: "commercial_signoff",
@@ -219,7 +219,7 @@ export function downloadActivityUploadTemplate(): void {
       "1. Required columns: Milestone, Milestone Type, Activity Type, Activity Name, Type.",
     ],
     [
-      "2. Milestone Type: Sign-off, Checkpoint, or Sign-off & Commercial.",
+      "2. Milestone Type: Sign-off, Checkpoint, Sign-off & Commercial, or Commercial.",
     ],
     ["3. Activity Type: Paid, POC, or Product (project type for the milestone)."],
     ["4. Type: Billable or Internal (Non-billable) — controls the activity billable flag."],

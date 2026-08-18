@@ -32,6 +32,17 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-18 15:30 IST
+
+**Prompt:**  
+> Add "Commercial" in Milestone Type
+
+**Output:**  
+- Restored **Commercial** as a fourth Milestone Type option (`commercial_only`), shown as Commercial (no "Only").
+- Picker order: Sign-off, Checkpoint, Sign-off & Commercial, Commercial.
+- Bulk upload maps `Commercial` / `Commercial Only` back to `commercial_only`.
+- Files: `data/projects.ts`, `utils/activityBulkUpload.ts`, `tests/unit/activityBulkUpload.test.ts`, `scripts/generate-table-structure-xlsx.ts`.
+
 ### 2026-08-18 15:10 IST
 
 **Prompt:**  
