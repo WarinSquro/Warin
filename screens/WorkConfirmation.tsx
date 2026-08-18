@@ -18,7 +18,7 @@ import {
   WorkdayTimelinePanel,
 } from "../components/ConfirmationProductivity";
 import type { PlannedLine, DayStatus, ComplianceRow, DeviationEntry } from "../data/confirmation";
-import { getImmediateReports } from "../data/employees";
+import { getSubordinateIds } from "../utils/employeeHierarchy";
 import { useAuth } from "../context/AuthContext";
 import { useEmployees } from "../context/EmployeesContext";
 import { useSettings } from "../context/SettingsContext";
@@ -1307,7 +1307,10 @@ function ManagerCompliance() {
       const reportIds =
         viewerHrmsId && employees.length > 0
           ? new Set(
-              getImmediateReports(viewerHrmsId, employees, { activeOnly: true }).map((e) => e.id)
+              getSubordinateIds(
+                viewerHrmsId,
+                employees.filter((e) => e.status === "active")
+              )
             )
           : null;
       const visible = res.rows.filter((r) => {

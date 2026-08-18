@@ -32,6 +32,17 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-18 17:24 IST
+
+**Prompt:**  
+> Work Confirmation > This Week > Team Members: show recursive Resource Owner hierarchy (direct reports, then their reports, until the tree ends). Do not show people outside that hierarchy.
+
+**Output:**  
+- Root cause: Team Compliance used immediate reports only (`resourceOwnerId = viewer`).
+- API now walks the Resource Owner tree (direct + all downstream). UI filter uses `getSubordinateIds` to match.
+- Viewer is still excluded. People outside the tree are not listed.
+- Files: `apps/oneview-api/src/api/confirmations/confirmations.controller.ts`, `screens/WorkConfirmation.tsx`.
+
 ### 2026-08-18 16:40 IST
 
 **Prompt:**  
