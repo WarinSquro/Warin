@@ -32,6 +32,15 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-18 15:02 IST
+
+**Prompt:**  
+> Just remove Project Type and its buttons (Paid/POC/Product) from Drawer popup.
+
+**Output:**  
+- Removed Project Type selector from Activity drawer; milestone dropdown again lists all milestones with project type in the option label.
+- File: `screens/SetupMasters.tsx`.
+
 ### 2026-08-18 14:42 IST
 
 **Prompt:**  
