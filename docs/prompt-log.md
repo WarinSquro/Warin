@@ -32,6 +32,17 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-18 19:29 IST
+
+**Prompt:**  
+> Availability Total Free Capacity KPI: add text "within 2 weeks" after "across team".
+
+**Output:**  
+- Subtitle is now `across team within 2 weeks`.
+- File: `screens/Availability.tsx`.
+
+---
+
 ### 2026-08-18 19:26 IST
 
 **Prompt:**  

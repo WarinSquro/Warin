@@ -731,7 +731,7 @@ export function Availability() {
           <Kpi
             label="Total Free Capacity"
             value={formatHoursDecimalLabel(kpis.totalFreeHrs)}
-            sub="across team"
+            sub="across team within 2 weeks"
             accent="border-l-success"
             valueClass="text-success"
           />
