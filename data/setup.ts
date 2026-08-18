@@ -48,6 +48,7 @@ export interface Activity {
 export function projectTypeLabel(type: ProjectType) {
   if (type === "paid") return "Paid";
   if (type === "poc") return "POC";
+  if (type === "support") return "Support";
   return "Product";
 }
 

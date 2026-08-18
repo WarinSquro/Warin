@@ -1,10 +1,10 @@
 // Project master data.
-// Project type: "paid" (PO required), "poc" (approver details required), or "product".
+// Project type: "paid" (PO required), "poc" (approver details required), "product", or "support".
 // Milestones are the allocation link targets — a project with no milestones blocks allocation.
 // Disable, never delete — deactivated projects preserve history.
 
 export type ProjectStatus = "active" | "inactive";
-export type ProjectType = "paid" | "poc" | "product";
+export type ProjectType = "paid" | "poc" | "product" | "support";
 
 export type MilestoneKind =
   | "commercial_only"

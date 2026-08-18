@@ -21,10 +21,11 @@ describe("parseMilestoneKind", () => {
 });
 
 describe("parseProjectType", () => {
-  it("maps Paid / POC / Product", () => {
+  it("maps Paid / POC / Product / Support", () => {
     expect(parseProjectType("Paid")).toBe("paid");
     expect(parseProjectType("POC")).toBe("poc");
     expect(parseProjectType("Product")).toBe("product");
+    expect(parseProjectType("Support")).toBe("support");
   });
 });
 

@@ -23,6 +23,7 @@ enum ProjectType {
   paid
   poc
   product
+  support
 }
 
 enum ProjectHealth {

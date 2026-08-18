@@ -75,6 +75,7 @@ export function parseProjectType(raw: string): ProjectType | null {
   if (n === "paid" || n === "commercial") return "paid";
   if (n === "poc") return "poc";
   if (n === "product") return "product";
+  if (n === "support") return "support";
   return null;
 }
 
@@ -114,7 +115,7 @@ export function interpretActivityType(
     return {
       projectType: "paid",
       billable: true,
-      error: `Activity Type "${activityTypeRaw}" must be Paid, POC, or Product`,
+      error: `Activity Type "${activityTypeRaw}" must be Paid, POC, Product, or Support`,
     };
   }
 
@@ -221,7 +222,7 @@ export function downloadActivityUploadTemplate(): void {
     [
       "2. Milestone Type: Sign-off, Checkpoint, Sign-off & Commercial, or Commercial.",
     ],
-    ["3. Activity Type: Paid, POC, or Product (project type for the milestone)."],
+    ["3. Activity Type: Paid, POC, Product, or Support (project type for the milestone)."],
     ["4. Type: Billable or Internal (Non-billable) — controls the activity billable flag."],
     ["5. The same Milestone + Activity Type can be reused on several activity rows."],
     ["6. Rows with errors are skipped; valid rows still import."],

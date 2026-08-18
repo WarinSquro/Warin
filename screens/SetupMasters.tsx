@@ -131,6 +131,13 @@ function ProjectTypeChip({ type }: { type: ProjectType }) {
       </span>
     );
   }
+  if (type === "support") {
+    return (
+      <span className="rounded-sm bg-surface-alt px-1.5 py-0.5 text-[10px] font-semibold text-foreground">
+        SUPPORT
+      </span>
+    );
+  }
   return (
     <span className="rounded-sm bg-surface-alt px-1.5 py-0.5 text-[10px] font-semibold text-muted">
       PRODUCT
@@ -549,6 +556,7 @@ function ActivityDrawer({
                     <option value="paid">Paid</option>
                     <option value="poc">POC</option>
                     <option value="product">Product</option>
+                    <option value="support">Support</option>
                   </select>
                   <div className="flex gap-2">
                     <button

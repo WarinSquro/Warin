@@ -16,7 +16,7 @@ import { milestoneKindLabel, formatResourceDemand } from "../data/projects";
 import { HEALTH_LABELS, HEALTH_OPTIONS } from "../data/executionReport";
 import type { ProjectHealth } from "../data/executionReport";
 import { ProjectHealthBadge } from "../components/ProjectHealthBadge";
-import { milestonesForProjectType } from "../data/setup";
+import { milestonesForProjectType, projectTypeLabel } from "../data/setup";
 import type { Project, Milestone, ProjectStatus, ResourceDemandLine } from "../data/projects";
 import { useMasters } from "../context/MastersContext";
 import { useFocusFirstField } from "../hooks/useFocusFirstField";
@@ -192,6 +192,13 @@ function TypeBadge({ type }: { type: Project["type"] }) {
     return (
       <span className="rounded-sm bg-warning-soft px-1.5 py-0.5 text-[10px] font-semibold text-warning">
         POC
+      </span>
+    );
+  }
+  if (type === "support") {
+    return (
+      <span className="rounded-sm bg-surface-alt px-1.5 py-0.5 text-[10px] font-semibold text-foreground">
+        SUPPORT
       </span>
     );
   }
@@ -783,6 +790,7 @@ function ProjectDrawer({
                 <option value="paid">Paid</option>
                 <option value="poc">POC</option>
                 <option value="product">Product</option>
+                <option value="support">Support</option>
               </select>
             </Field>
           </div>
@@ -1043,7 +1051,7 @@ function ProjectDrawer({
             <div className="flex flex-col gap-2">
               {catalogMilestones.length === 0 && (
                 <div className="text-[11px] text-muted-foreground">
-                  No {projectType === "paid" ? "Paid" : projectType === "poc" ? "POC" : "Product"} milestones left — add them in Org → Activities.
+                  No {projectTypeLabel(projectType)} milestones left — add them in Org → Activities.
                 </div>
               )}
               <select

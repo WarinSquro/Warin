@@ -32,6 +32,18 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-18 15:42 IST
+
+**Prompt:**  
+> add Support in ProjectType Enum
+
+**Output:**  
+- Added `support` to Prisma `ProjectType` enum + migration `20260818160000_project_type_support`.
+- UI labels, chips, and Type dropdowns (Activity milestone + Project Master) include Support.
+- Bulk upload parses Activity Type `Support`.
+- Files: `prisma/schema.prisma`, migration SQL, `data/projects.ts`, `data/setup.ts`, `screens/SetupMasters.tsx`, `screens/ProjectMaster.tsx`, `utils/activityBulkUpload.ts`, tests, table-structure script/workbook.
+- Tests: `npx vitest run tests/unit/activityBulkUpload.test.ts` — 7 passed.
+
 ### 2026-08-18 15:30 IST
 
 **Prompt:**  

@@ -66,7 +66,7 @@ const rows: Row[] = [
   // T06 activity_milestones
   { tableNo: 6, tableName: "activity_milestones", fieldNo: 1, fieldName: "id", dataType: "TEXT / VARCHAR", size: "50", defaultValue: "—", remarks: "Catalog milestone for activities", rule: "PK; Required" },
   { tableNo: 6, tableName: "activity_milestones", fieldNo: 2, fieldName: "name", dataType: "TEXT / VARCHAR", size: "200", defaultValue: "—", remarks: "Milestone catalog name", rule: "Required; Unique with project_type" },
-  { tableNo: 6, tableName: "activity_milestones", fieldNo: 3, fieldName: "project_type", dataType: "ENUM", size: "paid | poc | product", defaultValue: "—", remarks: "Which project type this catalog applies to", rule: "Required; Enum ProjectType" },
+  { tableNo: 6, tableName: "activity_milestones", fieldNo: 3, fieldName: "project_type", dataType: "ENUM", size: "paid | poc | product | support", defaultValue: "—", remarks: "Which project type this catalog applies to", rule: "Required; Enum ProjectType" },
   { tableNo: 6, tableName: "activity_milestones", fieldNo: 4, fieldName: "kind", dataType: "ENUM", size: "commercial_only | signoff_only | commercial_signoff | checkpoint_only", defaultValue: "—", remarks: "Milestone kind for allocation rules", rule: "Required; Enum MilestoneKind" },
   { tableNo: 6, tableName: "activity_milestones", fieldNo: 5, fieldName: "created_at", dataType: "TIMESTAMP", size: "—", defaultValue: "now()", remarks: "Row create time", rule: "System-set" },
   { tableNo: 6, tableName: "activity_milestones", fieldNo: 6, fieldName: "updated_at", dataType: "TIMESTAMP", size: "—", defaultValue: "auto", remarks: "Last update time", rule: "System-set" },
@@ -85,7 +85,7 @@ const rows: Row[] = [
   { tableNo: 8, tableName: "projects", fieldNo: 2, fieldName: "name", dataType: "TEXT / VARCHAR", size: "200", defaultValue: "—", remarks: "Project name", rule: "Required" },
   { tableNo: 8, tableName: "projects", fieldNo: 3, fieldName: "customer", dataType: "TEXT / VARCHAR", size: "200", defaultValue: "—", remarks: "Customer / in-house", rule: "Required" },
   { tableNo: 8, tableName: "projects", fieldNo: 4, fieldName: "po_number", dataType: "TEXT / VARCHAR", size: "100", defaultValue: "'' (empty)", remarks: "PO number; required for paid type in UI rules", rule: "Default empty; UI: required when type=paid" },
-  { tableNo: 8, tableName: "projects", fieldNo: 5, fieldName: "type", dataType: "ENUM", size: "paid | poc | product", defaultValue: "—", remarks: "Project type", rule: "Required; Enum ProjectType" },
+  { tableNo: 8, tableName: "projects", fieldNo: 5, fieldName: "type", dataType: "ENUM", size: "paid | poc | product | support", defaultValue: "—", remarks: "Project type", rule: "Required; Enum ProjectType" },
   { tableNo: 8, tableName: "projects", fieldNo: 6, fieldName: "approved_by_name", dataType: "TEXT / VARCHAR", size: "200", defaultValue: "NULL", remarks: "POC approver name", rule: "Optional; UI: required when type=poc" },
   { tableNo: 8, tableName: "projects", fieldNo: 7, fieldName: "approved_by_date", dataType: "DATE", size: "—", defaultValue: "NULL", remarks: "POC approval date", rule: "Optional; DATE only" },
   { tableNo: 8, tableName: "projects", fieldNo: 8, fieldName: "approved_by_snap", dataType: "TEXT / VARCHAR", size: "255", defaultValue: "NULL", remarks: "Approval snapshot filename/path", rule: "Optional" },
@@ -166,7 +166,7 @@ const tableIndex = [
 const enums = [
   { name: "EmpStatus", values: "active, inactive" },
   { name: "ProjectStatus", values: "active, inactive" },
-  { name: "ProjectType", values: "paid, poc, product" },
+  { name: "ProjectType", values: "paid, poc, product, support" },
   { name: "MilestoneKind", values: "signoff_only, checkpoint_only, commercial_signoff, commercial_only" },
   { name: "SetupStatus", values: "active, inactive" },
   { name: "CapacityBasis", values: "billable, total" },
