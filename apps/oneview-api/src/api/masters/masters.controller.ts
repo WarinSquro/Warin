@@ -661,15 +661,17 @@ export class MastersController {
     if (!body.kind) throw new BadRequestException("kind is required");
 
     const existing = await this.prisma.activityMilestone.findFirst({
-      where: { name, projectType: body.projectType, isDeleted: false },
+      where: { name, projectType: body.projectType },
+      orderBy: { id: "asc" },
     });
     if (existing) {
-      if (!existing.isActive) {
+      if (existing.isDeleted || !existing.isActive) {
         const revived = await this.prisma.activityMilestone.update({
           where: { id: existing.id },
           data: {
             kind: body.kind,
             isActive: true,
+            isDeleted: false,
             deletedAt: null,
             version: { increment: 1 },
           },

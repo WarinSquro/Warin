@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Search, X } from "lucide-react";
+import { Plus, Search, Upload, X } from "lucide-react";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import {
   projectTypeLabel,
@@ -32,6 +32,7 @@ import {
   updateSkill,
 } from "../api/domain";
 import { HardDeleteButton, HardDeleteDialog } from "../components/HardDeleteDialog";
+import { ActivityBulkUploadModal } from "../components/ActivityBulkUploadModal";
 
 type Segment = "departments" | "skills" | "activities";
 
@@ -1104,10 +1105,13 @@ export function SetupMasters() {
   // activities state
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
   const [activityDrawer, setActivityDrawer] = useState(false);
+  const [activityUploadOpen, setActivityUploadOpen] = useState(false);
 
-  usePauseSharedDataSync(deptDrawer || skillDrawer || activityDrawer || !!hardDelete);
+  usePauseSharedDataSync(
+    deptDrawer || skillDrawer || activityDrawer || activityUploadOpen || !!hardDelete
+  );
   useSharedDataSync(
-    !(deptDrawer || skillDrawer || activityDrawer || !!hardDelete),
+    !(deptDrawer || skillDrawer || activityDrawer || activityUploadOpen || !!hardDelete),
     () => refresh(),
     {
     resources: ["masters"],
@@ -1336,14 +1340,25 @@ export function SetupMasters() {
             {segmentLabels[segment]}
           </div>
         </div>
-        <button
-          type="button"
-          onClick={handleAdd}
-          disabled={!canAdd}
-          className="flex cursor-pointer items-center gap-1.5 rounded-md bg-primary px-3.5 py-1.5 text-[12px] font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          <Plus className="h-3.5 w-3.5" /> {addLabel}
-        </button>
+        <div className="flex items-center gap-2">
+          {segment === "activities" && canAdd && (
+            <button
+              type="button"
+              onClick={() => setActivityUploadOpen(true)}
+              className="flex cursor-pointer items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-foreground hover:bg-surface-alt"
+            >
+              <Upload className="h-3.5 w-3.5" /> Bulk upload
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleAdd}
+            disabled={!canAdd}
+            className="flex cursor-pointer items-center gap-1.5 rounded-md bg-primary px-3.5 py-1.5 text-[12px] font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <Plus className="h-3.5 w-3.5" /> {addLabel}
+          </button>
+        </div>
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden bg-background p-5">
@@ -1491,6 +1506,9 @@ export function SetupMasters() {
           onSave={(payload) => void saveActivity(payload)}
           onCreateMilestone={handleCreateMilestone}
         />
+      )}
+      {activityUploadOpen && (
+        <ActivityBulkUploadModal onClose={() => setActivityUploadOpen(false)} />
       )}
       <HardDeleteDialog
         open={!!hardDelete}
