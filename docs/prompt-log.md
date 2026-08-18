@@ -32,6 +32,18 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-18 14:42 IST
+
+**Prompt:**  
+> After adding Project Type in Activity drawer, Kick-off under POC should not be duplicate. Also update bulk upload logic.
+
+**Output:**  
+- Root cause: `activities.name` was globally unique; Excel has same activity name under different milestones/project types (90 unique rows, 43 unique names).
+- Changed uniqueness to `@@unique([name, activityMilestoneId])` + migration `20260818150000_activity_unique_per_milestone`.
+- API create/update now checks duplicate per milestone; bulk upload skips/revives same name+milestone and updates billable when needed.
+- Files: `prisma/schema.prisma`, migration SQL, `masters.controller.ts`, `ActivityBulkUploadModal.tsx`, table workbook.
+- Tests: `npx vitest run tests/unit/activityBulkUpload.test.ts` — 7 passed.
+
 ### 2026-08-18 13:33 IST
 
 **Prompt:**  

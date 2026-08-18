@@ -1,6 +1,12 @@
 import { useRef, useState } from "react";
 import { FileSpreadsheet, X } from "lucide-react";
-import { createActivity, createActivityMilestone, fetchActivityMilestones } from "../api/domain";
+import {
+  createActivity,
+  createActivityMilestone,
+  fetchActivityMilestones,
+  fetchActivities,
+  updateActivity,
+} from "../api/domain";
 import { useMasters } from "../context/MastersContext";
 import { useToast } from "../context/ToastContext";
 import { useFocusFirstField } from "../hooks/useFocusFirstField";
@@ -52,6 +58,11 @@ export function ActivityBulkUploadModal({ onClose }: { onClose: () => void }) {
     const milestoneCodeByKey = new Map<string, string>();
     let created = 0;
     const catalog = await fetchActivityMilestones().catch(() => []);
+    const existingActivities = await fetchActivities(true).catch(() => []);
+    const existingByNameAndMilestone = new Map(
+      existingActivities.map((a) => [`${a.name.toLowerCase()}|${a.milestoneId}`, a])
+    );
+
     for (const m of catalog) {
       milestoneCodeByKey.set(`${m.name.toLowerCase()}|${m.projectType}|${m.kind}`, m.id);
     }
@@ -79,13 +90,24 @@ export function ActivityBulkUploadModal({ onClose }: { onClose: () => void }) {
           milestoneCodeByKey.set(key, milestoneCode);
           catalogByNameType.set(nameTypeKey, ms);
         }
-        await createActivity({
-          name: row.activityName,
-          billable: row.billable,
-          milestoneCode,
-        });
-        created += 1;
-        results.push({ row, status: "success" });
+
+        const actKey = `${row.activityName.toLowerCase()}|${milestoneCode}`;
+        const existing = existingByNameAndMilestone.get(actKey);
+        if (existing) {
+          // If the activity already exists under the same milestone, just ensure billable matches.
+          if (existing.billable !== row.billable) {
+            await updateActivity(existing.id, { billable: row.billable, milestoneCode });
+          }
+          results.push({ row, status: "success" });
+        } else {
+          await createActivity({
+            name: row.activityName,
+            billable: row.billable,
+            milestoneCode,
+          });
+          created += 1;
+          results.push({ row, status: "success" });
+        }
       } catch (e) {
         results.push({
           row,

@@ -239,7 +239,7 @@ model ActivityMilestone {
 model Activity {
   id                  BigInt      @id @default(autoincrement())
   code                String      @unique
-  name                String      @unique
+  name                String
   activityMilestoneId BigInt      @map("activity_milestone_id")
   billable            Boolean     @default(true)
   status              SetupStatus @default(active)
@@ -255,6 +255,7 @@ model Activity {
   milestone   ActivityMilestone @relation(fields: [activityMilestoneId], references: [id])
   allocations Allocation[]
 
+  @@unique([name, activityMilestoneId])
   @@index([activityMilestoneId])
   @@map("activities")
 }

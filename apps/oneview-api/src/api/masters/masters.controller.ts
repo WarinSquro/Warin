@@ -490,7 +490,11 @@ export class MastersController {
     if (!milestone) throw new BadRequestException("Milestone not found");
 
     const existing = await this.prisma.activity.findFirst({
-      where: { name: { equals: name, mode: "insensitive" }, isDeleted: false },
+      where: {
+        name: { equals: name, mode: "insensitive" },
+        activityMilestoneId: milestone.id,
+        isDeleted: false,
+      },
     });
     if (existing) {
       if (!existing.isActive) {
@@ -509,12 +513,16 @@ export class MastersController {
         });
         return ser(revived);
       }
-      throw new BadRequestException("Activity already exists");
+      throw new BadRequestException("Activity already exists for this milestone");
     }
 
     // Soft-deleted row may still hold the unique name — treat as revive of that row.
     const softDeleted = await this.prisma.activity.findFirst({
-      where: { name: { equals: name, mode: "insensitive" }, isDeleted: true },
+      where: {
+        name: { equals: name, mode: "insensitive" },
+        activityMilestoneId: milestone.id,
+        isDeleted: true,
+      },
       orderBy: { id: "asc" },
     });
     if (softDeleted) {
@@ -535,7 +543,8 @@ export class MastersController {
       return ser(revived);
     }
 
-    const code = body.code?.trim() || slugCode("act", name);
+    // Keep `code` globally unique by scoping it with the activity milestone code.
+    const code = body.code?.trim() || slugCode("act", `${name}-${milestone.code}`);
     const billable = body.billable !== false;
 
     try {
@@ -551,7 +560,7 @@ export class MastersController {
       return ser(row);
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
-        throw new BadRequestException("Activity already exists");
+        throw new BadRequestException("Activity already exists for this milestone");
       }
       throw err;
     }
@@ -577,18 +586,6 @@ export class MastersController {
     });
     if (!row) throw new NotFoundException("Activity not found");
 
-    const name = body.name?.trim();
-    if (name && name.toLowerCase() !== row.name.toLowerCase()) {
-      const clash = await this.prisma.activity.findFirst({
-        where: {
-          name: { equals: name, mode: "insensitive" },
-          isDeleted: false,
-          NOT: { id: row.id },
-        },
-      });
-      if (clash) throw new BadRequestException("Activity name already exists");
-    }
-
     let activityMilestoneId = row.activityMilestoneId;
     const milestoneCode = (body.milestoneCode || body.milestoneId)?.trim();
     if (milestoneCode) {
@@ -597,6 +594,21 @@ export class MastersController {
       });
       if (!milestone) throw new BadRequestException("Milestone not found");
       activityMilestoneId = milestone.id;
+    }
+
+    const nextName = body.name?.trim() || row.name;
+    const milestoneChanged = activityMilestoneId !== row.activityMilestoneId;
+    const nameChanged = nextName.toLowerCase() !== row.name.toLowerCase();
+    if (nameChanged || milestoneChanged) {
+      const clash = await this.prisma.activity.findFirst({
+        where: {
+          name: { equals: nextName, mode: "insensitive" },
+          activityMilestoneId,
+          isDeleted: false,
+          NOT: { id: row.id },
+        },
+      });
+      if (clash) throw new BadRequestException("Activity already exists for this milestone");
     }
 
     const status = asStatus(body.status, row.status);
@@ -618,7 +630,7 @@ export class MastersController {
     const updated = await this.prisma.activity.update({
       where: { id: row.id },
       data: {
-        name: name || row.name,
+        name: nextName,
         billable: body.billable !== undefined ? body.billable : row.billable,
         activityMilestoneId,
         status,
