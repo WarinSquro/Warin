@@ -87,6 +87,20 @@ fi
 export HEAD
 export API_BASE
 node -e 'const fs=require("fs"); fs.writeFileSync("dist/version.json", JSON.stringify({commit:process.env.HEAD, builtAt:new Date().toISOString(), apiBase:process.env.API_BASE})+"\n")'
+# Stamp commit into index.html and discourage browsers from keeping a pre-deploy
+# index.html that still points at deleted hashed /assets/*.js (looks like "old screens").
+node -e '
+const fs=require("fs");
+const head=process.env.HEAD;
+let html=fs.readFileSync("dist/index.html","utf8");
+if (!html.includes("no-store")) {
+  html=html.replace("<head>", "<head>\n    <meta http-equiv=\"Cache-Control\" content=\"no-cache, no-store, must-revalidate\" />");
+}
+if (head && !html.includes("warin-commit:"+head)) {
+  html="<!-- warin-commit:"+head+" -->\n"+html;
+}
+fs.writeFileSync("dist/index.html", html);
+'
 
 echo "== publish $WEB (only after successful build) =="
 mkdir -p "$WEB"
@@ -99,6 +113,11 @@ rm -rf "$STAGE"
 test -f "$WEB/index.html"
 test -f "$WEB/version.json"
 echo "SPA_PUBLISH_OK"
+
+# Host Nginx can keep an open file cache on the previous index.html. Reload if present.
+if command -v nginx >/dev/null 2>&1; then
+  sudo nginx -s reload >/dev/null 2>&1 || nginx -s reload >/dev/null 2>&1 || true
+fi
 
 # Vite can OOM-kill Nest on t3.small. Bring the API back, then optionally rebuild it
 # after Node has released SPA-build memory.

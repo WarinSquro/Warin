@@ -32,6 +32,16 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-18 10:50 IST
+
+**Prompt:**  
+> Still screens are not transferred on EC2... Check and fix
+
+**Output:**  
+- Live already publishes `34403bd` (`https://seworkspace.com/version.json`). The live JS bundle contains **IP ADDRESS**, Hard Delete, and `allowedIp` mapping; Hard Delete API returns 401 (route exists), not 404.
+- Likely cause of “old screens”: browser kept a pre-deploy `index.html` that pointed at deleted hashed `/assets/*.js`.
+- Stamp commit into built `index.html`, add no-store meta, reload host Nginx after SPA publish (`scripts/ec2-deploy.sh`). Hard-refresh the site now.
+
 ### 2026-08-18 10:25 IST
 
 **Prompt:**  
