@@ -32,6 +32,18 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-18 19:50 IST
+
+**Prompt:**  
+> Resource Performance Report: Administrator should not come here.
+
+**Output:**  
+- Root cause: super-admin scope is all active employees, so the Administrator row appeared (0h / 0% discipline / leftover capacity).
+- Resource Performance roster now drops `isSuperAdmin` / EMP-0001 / name Administrator. KPIs, table, and history follow that set.
+- Files: `utils/reportVisibility.ts`, `screens/ResourcePerformanceReport.tsx`, `tests/unit/reportVisibility.test.ts`.
+
+---
+
 ### 2026-08-18 19:32 IST
 
 **Prompt:**  

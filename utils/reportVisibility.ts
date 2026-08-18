@@ -15,6 +15,16 @@ export function scopeEmployeesForViewer(
   return getVisibleEmployees(viewer, employees, { isSuperAdmin: false });
 }
 
+/** System Administrator is not a resource on operational reports. */
+export function withoutAdministratorEmployees(employees: Employee[]): Employee[] {
+  return employees.filter(
+    (e) =>
+      !e.isSuperAdmin &&
+      e.id !== "EMP-0001" &&
+      e.name.trim().toLowerCase() !== "administrator"
+  );
+}
+
 /** Visible HRMS ids (self + recursive subordinates), or null when superadmin (no filter). */
 export function visibleEmployeeIdSet(
   employees: Employee[],

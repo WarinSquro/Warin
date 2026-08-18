@@ -43,7 +43,7 @@ import { useSharedDataSync } from "../hooks/useSharedDataSync";
 import { runReportExport, summarizeFilter } from "../utils/reportExport";
 import type { ReportExportInput } from "../utils/reportExport";
 import { formatHoursLabel } from "../utils/formatHours";
-import { scopeEmployeesForViewer } from "../utils/reportVisibility";
+import { scopeEmployeesForViewer, withoutAdministratorEmployees } from "../utils/reportVisibility";
 import {
   loadReportFilters,
   reconcileMultiSelect,
@@ -72,7 +72,10 @@ export function ResourcePerformanceReport() {
   const { currentEmployee, isSuperAdmin } = useAuth();
   const { employees } = useEmployees();
   const scopedEmployees = useMemo(
-    () => scopeEmployeesForViewer(employees, currentEmployee, isSuperAdmin),
+    () =>
+      withoutAdministratorEmployees(
+        scopeEmployeesForViewer(employees, currentEmployee, isSuperAdmin)
+      ),
     [employees, currentEmployee, isSuperAdmin]
   );
   const { settings } = useSettings();
