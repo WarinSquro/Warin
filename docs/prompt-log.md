@@ -32,6 +32,31 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-18 17:42 IST
+
+**Prompt:**  
+> See image 2 > Digant's RO is Administrator. See in image 1 > Digant is RO of another 6 employee. It means in Work Confirmation > show Digant and his 6 employee same for other. Check properly and fix the issue.
+
+**Output:**  
+- Root cause: Team Compliance listed only **immediate** reports of the logged-in user (Administrator → Digant, Manya, Nirali). Digant’s six reports and Denish’s nested reports were omitted. A super-admin “show everyone” bypass was the wrong fix — the user wants the Resource Owner **tree**, not an admin exception.
+- API `GET /confirmations/team` now walks `resource_owner_id` recursively (PostgreSQL CTE): viewer’s reports, then their reports, until the tree ends. Same logic for Administrator and every other RO. Viewer is excluded. People outside the tree are not listed.
+- UI no longer intersects the API roster with a second client-side filter (that could hide nested reports when the API still returned only one level).
+- Local DB check: Administrator tree is 20 active employees, including Digant, Digant’s six, and Denish → Chandan/Sajan.
+- Files: `confirmations.controller.ts`, `resource-owner-tree.ts`, `screens/WorkConfirmation.tsx`, `utils/employeeHierarchy.ts`, `tests/unit/resourceOwnerTree.test.ts`. Tests passed.
+- Live needs `ec2-deploy.sh --with-api` so Nest picks up the CTE.
+
+---
+
+### 2026-08-18 17:32 IST
+
+**Prompt:**  
+> Administrator login should show almost all employees on Work Confirmation This Week Team Members — check and fix.
+
+**Output:**  
+- Root cause: Team Compliance always applied the Resource Owner tree. Administrator only owns 3 people, so the list was 3. The UI also re-filtered to subordinates because the employee list was loaded.
+- Super-admin now sees all active employees except self. Non-admin Resource Owners still get the recursive hierarchy.
+- Files: `confirmations.controller.ts`, `screens/WorkConfirmation.tsx`.
+
 ### 2026-08-18 17:24 IST
 
 **Prompt:**  

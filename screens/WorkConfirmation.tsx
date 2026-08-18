@@ -18,9 +18,7 @@ import {
   WorkdayTimelinePanel,
 } from "../components/ConfirmationProductivity";
 import type { PlannedLine, DayStatus, ComplianceRow, DeviationEntry } from "../data/confirmation";
-import { getSubordinateIds } from "../utils/employeeHierarchy";
 import { useAuth } from "../context/AuthContext";
-import { useEmployees } from "../context/EmployeesContext";
 import { useSettings } from "../context/SettingsContext";
 import { useToast } from "../context/ToastContext";
 import {
@@ -1279,7 +1277,6 @@ function ManagerCompliance() {
   const navigate = useNavigate();
   const toast = useToast();
   const { currentEmployee } = useAuth();
-  const { employees } = useEmployees();
   const { settings } = useSettings();
   const today = todayISO();
   const [kpis, setKpis] = useState({
@@ -1304,18 +1301,8 @@ function ManagerCompliance() {
     try {
       const res = await fetchTeamCompliance({ asOf: today });
       const viewerHrmsId = currentEmployee?.id?.trim();
-      const reportIds =
-        viewerHrmsId && employees.length > 0
-          ? new Set(
-              getSubordinateIds(
-                viewerHrmsId,
-                employees.filter((e) => e.status === "active")
-              )
-            )
-          : null;
       const visible = res.rows.filter((r) => {
         if (viewerHrmsId && r.id === viewerHrmsId) return false;
-        if (reportIds) return reportIds.has(r.id);
         return true;
       });
       const todayStatuses = visible.map((r) => r.todayStatus);
@@ -1372,7 +1359,7 @@ function ManagerCompliance() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load team compliance");
     }
-  }, [today, currentEmployee?.id, employees]);
+  }, [today, currentEmployee?.id]);
 
   useEffect(() => {
     void loadTeam();

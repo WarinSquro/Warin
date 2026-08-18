@@ -25,36 +25,6 @@ function ser<T>(v: T): T {
   return JSON.parse(JSON.stringify(v, (_k, x) => (typeof x === "bigint" ? x.toString() : x))) as T;
 }
 
-/** Direct + indirect reports under a Resource Owner (excludes the owner). */
-function descendantEmployeeIds(
-  ownerId: bigint,
-  rows: { id: bigint; resourceOwnerId: bigint | null }[]
-): bigint[] {
-  const byOwner = new Map<string, bigint[]>();
-  for (const r of rows) {
-    if (r.resourceOwnerId == null) continue;
-    const key = r.resourceOwnerId.toString();
-    const list = byOwner.get(key) ?? [];
-    list.push(r.id);
-    byOwner.set(key, list);
-  }
-  const out: bigint[] = [];
-  const seen = new Set<string>();
-  const queue = [ownerId.toString()];
-  const ownerKey = ownerId.toString();
-  while (queue.length > 0) {
-    const current = queue.shift()!;
-    for (const child of byOwner.get(current) ?? []) {
-      const childKey = child.toString();
-      if (seen.has(childKey) || childKey === ownerKey) continue;
-      seen.add(childKey);
-      out.push(child);
-      queue.push(childKey);
-    }
-  }
-  return out;
-}
-
 function parseDate(iso?: string | null): Date | null {
   if (!iso) return null;
   return new Date(`${iso.slice(0, 10)}T00:00:00.000Z`);
@@ -819,21 +789,45 @@ export class ConfirmationsController {
       select: { id: true },
     });
 
-    /** Team compliance = recursive Resource Owner hierarchy (direct + downstream). */
+    /**
+     * Recursive Resource Owner tree (`resource_owner_id` PK FK): immediate reports,
+     * then their reports, until the tree ends. Excludes the viewer.
+     * Same walk for Administrator and every other Resource Owner — no super-admin bypass.
+     */
     const roster = !viewer
       ? []
       : await (async () => {
-          const active = await this.prisma.employee.findMany({
-            where: { isDeleted: false, status: "active" },
+          const descRows = await this.prisma.$queryRaw<Array<{ id: bigint }>>`
+            WITH RECURSIVE reports AS (
+              SELECT e.id, 1 AS depth
+              FROM employees e
+              WHERE e.resource_owner_id = ${viewer.id}
+                AND e.is_deleted = false
+                AND e.status = 'active'
+              UNION ALL
+              SELECT e.id, r.depth + 1
+              FROM employees e
+              INNER JOIN reports r ON e.resource_owner_id = r.id
+              WHERE e.is_deleted = false
+                AND e.status = 'active'
+                AND e.id <> ${viewer.id}
+                AND r.depth < 32
+            )
+            SELECT DISTINCT id FROM reports
+          `;
+          if (descRows.length === 0) return [];
+          const ids = descRows.map((r) => BigInt(r.id.toString()));
+          return this.prisma.employee.findMany({
+            where: {
+              isDeleted: false,
+              status: "active",
+              id: { in: ids },
+            },
             include: {
               skills: { include: { skill: true }, take: 1 },
             },
             orderBy: { name: "asc" },
           });
-          const allowed = new Set(
-            descendantEmployeeIds(viewer.id, active).map((id) => id.toString())
-          );
-          return active.filter((e) => allowed.has(e.id.toString()));
         })();
 
     const confirmations = await this.prisma.workConfirmation.findMany({

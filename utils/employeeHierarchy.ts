@@ -3,7 +3,11 @@ import { EMPLOYEES, resourceOwnerName } from "../data/employees";
 
 /** Direct reports: employees whose resourceOwnerId equals managerId. */
 export function getDirectReportIds(managerId: string, employees: Employee[] = EMPLOYEES): string[] {
-  return employees.filter((e) => e.resourceOwnerId === managerId).map((e) => e.id);
+  const owner = managerId.trim();
+  if (!owner) return [];
+  return employees
+    .filter((e) => (e.resourceOwnerId ?? "").trim() === owner)
+    .map((e) => e.id);
 }
 
 /** All subordinates (direct + indirect), recursive. */
