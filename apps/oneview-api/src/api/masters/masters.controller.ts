@@ -460,7 +460,7 @@ export class MastersController {
           },
         },
       },
-      orderBy: { name: "asc" },
+      orderBy: { id: "asc" },
     });
     return ser(rows);
   }
@@ -638,7 +638,7 @@ export class MastersController {
   async activityMilestones() {
     const rows = await this.prisma.activityMilestone.findMany({
       where: { isDeleted: false, isActive: true },
-      orderBy: { name: "asc" },
+      orderBy: { id: "asc" },
     });
     return ser(rows);
   }
