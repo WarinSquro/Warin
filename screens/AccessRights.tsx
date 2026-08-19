@@ -60,7 +60,7 @@ export function AccessRights() {
 
   const filteredEmployees = useMemo(() => {
     return employees
-      .filter((e) => !isSuperAdminEmail(e.email))
+      .filter((e) => !e.isSuperAdmin)
       .filter((e) => includeInactive || e.status === "active")
       .filter((e) => matchesSearchQuery(search, e.name, e.email, e.department, e.id))
       .sort((a, b) => {
@@ -95,10 +95,10 @@ export function AccessRights() {
   );
 
   useEffect(() => {
-    if (!selectedId && employees[0]) {
-      void loadEmployee(employees[0]);
+    if (!selectedId && filteredEmployees[0]) {
+      void loadEmployee(filteredEmployees[0]);
     }
-  }, [employees, selectedId, loadEmployee]);
+  }, [filteredEmployees, selectedId, loadEmployee]);
 
   // Load all employees' permission keys once so sidebar counts are correct on
   // first paint (avoids N+1 and React Strict Mode cancel/skip races).
@@ -225,7 +225,7 @@ export function AccessRights() {
                 autoFocus
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search name, email, dept…"
+                placeholder="Search employee…"
                 className="w-full bg-transparent text-[12px] text-foreground outline-none placeholder:text-muted-foreground"
               />
             </div>

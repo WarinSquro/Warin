@@ -32,6 +32,19 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-19 17:50 IST
+
+**Prompt:**  
+> Still showing Administrator in Access Rights. Also correct Search string same as Resource Deployment Report.
+
+**Output:**  
+- Root cause: Filter used `isSuperAdminEmail(e.email)` which checks against `admin@acme.io`, but live DB has `admin@gmail.com`. Fixed to use `e.isSuperAdmin` flag instead.
+- Search placeholder changed from `"Search name, email, dept…"` to `"Search employee…"` to match Resource Deployment Report.
+- Initial auto-select now uses `filteredEmployees[0]` so it picks the first non-admin.
+- Files: `screens/AccessRights.tsx`
+
+---
+
 ### 2026-08-19 17:45 IST
 
 **Prompt:**  
