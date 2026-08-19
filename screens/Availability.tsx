@@ -22,7 +22,7 @@ import { useMasters } from "../context/MastersContext";
 import { useSettings } from "../context/SettingsContext";
 import { useToast } from "../context/ToastContext";
 import { useAuth } from "../context/AuthContext";
-import { isSelfAllocation, SELF_ALLOCATION_MESSAGE } from "../utils/selfAllocation";
+import { allocationBlockedMessage } from "../utils/allocationPermission";
 import { WeeklyCheckInWeekPicker } from "../components/WeeklyCheckInWeekPicker";
 import { buildAvailRowsFromEmployees, buildRollingOffFromLive, addDaysISO, mondayISO } from "../api/liveViews";
 import { createAllocation, fetchAllocations, type ApiAllocation } from "../api/domain";
@@ -311,10 +311,12 @@ function RollingOffCarousel({
 function AvailTableRow({
   row,
   canAllocate,
+  allocateBlockedTitle,
   onAllocate,
 }: {
   row: AvailRow;
   canAllocate: boolean;
+  allocateBlockedTitle?: string;
   onAllocate: (row: AvailRow) => void;
 }) {
   const isNow = row.availableFrom === "Now";
@@ -376,7 +378,7 @@ function AvailTableRow({
         ) : (
           <span
             className="text-[11px] text-muted-foreground"
-            title={SELF_ALLOCATION_MESSAGE}
+            title={allocateBlockedTitle}
           >
             —
           </span>
@@ -390,9 +392,10 @@ function AvailTableRow({
 
 export function Availability() {
   const navigate = useNavigate();
-  const { employees } = usePlanningEmployees();
+  const { employees, allEmployees, isSuperAdmin } = usePlanningEmployees();
   const { currentEmployee } = useAuth();
   const selfHrmsId = currentEmployee?.id;
+  const allocPermOpts = useMemo(() => ({ isSuperAdmin }), [isSuperAdmin]);
   const { departments: deptRows, skills: skillRows } = useMasters();
   const { settings } = useSettings();
   const toast = useToast();
@@ -544,8 +547,9 @@ export function Availability() {
   );
 
   const openAllocate = (row: AvailRow) => {
-    if (isSelfAllocation(selfHrmsId, row.id)) {
-      toast.warning(SELF_ALLOCATION_MESSAGE);
+    const blocked = allocationBlockedMessage(selfHrmsId, row.id, allEmployees, allocPermOpts);
+    if (blocked) {
+      toast.warning(blocked);
       return;
     }
     setPrefill({ personName: row.name, hoursPerDay: 8 });
@@ -553,8 +557,9 @@ export function Availability() {
   };
 
   const openPlanAhead = (person: RollingOffPerson) => {
-    if (isSelfAllocation(selfHrmsId, person.id)) {
-      toast.warning(SELF_ALLOCATION_MESSAGE);
+    const blocked = allocationBlockedMessage(selfHrmsId, person.id, allEmployees, allocPermOpts);
+    if (blocked) {
+      toast.warning(blocked);
       return;
     }
     setPrefill({ personName: person.name, hoursPerDay: 8 });
@@ -562,9 +567,15 @@ export function Availability() {
   };
 
   const handleAllocationSave = async (payload: AllocationSavePayload) => {
-    if (isSelfAllocation(selfHrmsId, payload.personId)) {
-      toast.warning(SELF_ALLOCATION_MESSAGE);
-      throw new Error(SELF_ALLOCATION_MESSAGE);
+    const blocked = allocationBlockedMessage(
+      selfHrmsId,
+      payload.personId,
+      allEmployees,
+      allocPermOpts
+    );
+    if (blocked) {
+      toast.warning(blocked);
+      throw new Error(blocked);
     }
     await createAllocation({
       employeeHrmsId: payload.personId,
@@ -890,14 +901,23 @@ export function Availability() {
                 No people match the selected filters.
               </div>
             ) : (
-              rows.map((r) => (
+              rows.map((r) => {
+                const blocked = allocationBlockedMessage(
+                  selfHrmsId,
+                  r.id,
+                  allEmployees,
+                  allocPermOpts
+                );
+                return (
                 <AvailTableRow
                   key={r.id}
                   row={r}
-                  canAllocate={!isSelfAllocation(selfHrmsId, r.id)}
+                  canAllocate={!blocked}
+                  allocateBlockedTitle={blocked ?? undefined}
                   onAllocate={openAllocate}
                 />
-              ))
+                );
+              })
             )}
           </div>
         </div>

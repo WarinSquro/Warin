@@ -39,7 +39,9 @@ import { useMasters } from "../context/MastersContext";
 import { useSettings } from "../context/SettingsContext";
 import { useToast } from "../context/ToastContext";
 import { useAuth } from "../context/AuthContext";
-import { isSelfAllocation, SELF_ALLOCATION_MESSAGE } from "../utils/selfAllocation";
+import {
+  allocationBlockedMessage,
+} from "../utils/allocationPermission";
 import {
   createAllocation,
   deleteAllocation,
@@ -207,9 +209,10 @@ function loadTone(ratio: number) {
 
 export function ResourcePlanner() {
   const { projects } = useProjects();
-  const { employees } = usePlanningEmployees();
+  const { employees, allEmployees, isSuperAdmin } = usePlanningEmployees();
   const { currentEmployee } = useAuth();
   const selfHrmsId = currentEmployee?.id;
+  const allocPermOpts = useMemo(() => ({ isSuperAdmin }), [isSuperAdmin]);
   const { departments: deptRows } = useMasters();
   const { settings } = useSettings();
   const toast = useToast();
@@ -414,7 +417,11 @@ export function ResourcePlanner() {
   };
 
   const handleCellClick = (row: PlannerRow, cellIndex: number, cell: Chip[]) => {
-    if (isSelfAllocation(selfHrmsId, row.id)) return;
+    const blocked = allocationBlockedMessage(selfHrmsId, row.id, allEmployees, allocPermOpts);
+    if (blocked) {
+      toast.warning(blocked);
+      return;
+    }
     if (view === "day") {
       if (!dayAllocateAllowed) return;
       const iso = dayStartIso[cellIndex];
@@ -430,7 +437,11 @@ export function ResourcePlanner() {
     chipIndex: number,
     cell: Chip[]
   ) => {
-    if (isSelfAllocation(selfHrmsId, row.id)) return;
+    const blocked = allocationBlockedMessage(selfHrmsId, row.id, allEmployees, allocPermOpts);
+    if (blocked) {
+      toast.warning(blocked);
+      return;
+    }
     if (chip.kind === "free") return;
     if (view === "day" && !dayAllocateAllowed) return;
     const editPrefill = buildEditPrefill(
@@ -448,9 +459,16 @@ export function ResourcePlanner() {
   };
 
   const handleAllocationSave = async (payload: AllocationSavePayload) => {
-    if (isSelfAllocation(selfHrmsId, payload.personId)) {
-      setSaveError(SELF_ALLOCATION_MESSAGE);
-      throw new Error(SELF_ALLOCATION_MESSAGE);
+    const blocked = allocationBlockedMessage(
+      selfHrmsId,
+      payload.personId,
+      allEmployees,
+      allocPermOpts
+    );
+    if (blocked) {
+      setSaveError(blocked);
+      toast.warning(blocked);
+      throw new Error(blocked);
     }
     const project = projects.find((p) => p.id === payload.projectId);
     if (!project) return;
@@ -524,6 +542,17 @@ export function ResourcePlanner() {
   };
 
   const handleAllocationDelete = async (editRef: AllocationEditRef) => {
+    const blocked = allocationBlockedMessage(
+      selfHrmsId,
+      editRef.rowId,
+      allEmployees,
+      allocPermOpts
+    );
+    if (blocked) {
+      setSaveError(blocked);
+      toast.warning(blocked);
+      throw new Error(blocked);
+    }
     try {
       setSaveError(null);
       if (!editRef.allocationId) {
@@ -540,8 +569,9 @@ export function ResourcePlanner() {
   };
 
   const onCandidateAllocate = (c: Candidate) => {
-    if (isSelfAllocation(selfHrmsId, c.id)) {
-      toast.warning(SELF_ALLOCATION_MESSAGE);
+    const blocked = allocationBlockedMessage(selfHrmsId, c.id, allEmployees, allocPermOpts);
+    if (blocked) {
+      toast.warning(blocked);
       return;
     }
     const demand = matchesDemand;
@@ -711,7 +741,12 @@ export function ResourcePlanner() {
               </div>
             ) : (
               sortedRows.map((row) => {
-                const selfRow = isSelfAllocation(selfHrmsId, row.id);
+                const blocked = allocationBlockedMessage(
+                  selfHrmsId,
+                  row.id,
+                  allEmployees,
+                  allocPermOpts
+                );
                 return (
                 <div
                   key={row.id}
@@ -730,13 +765,12 @@ export function ResourcePlanner() {
                     calendarOpts={calendarOpts}
                     dayStartIso={dayStartIso}
                     dayCurrentIndex={dayCurrentIndex}
-                    allocateAllowed={!selfRow && (view === "week" || dayAllocateAllowed)}
+                    allocateAllowed={!blocked && (view === "week" || dayAllocateAllowed)}
                     blockedReason={
-                      selfRow
-                        ? SELF_ALLOCATION_MESSAGE
-                        : view === "day" && !dayAllocateAllowed
-                          ? "Previous week — view only (allocation not allowed)"
-                          : undefined
+                      blocked ??
+                      (view === "day" && !dayAllocateAllowed
+                        ? "Previous week — view only (allocation not allowed)"
+                        : undefined)
                     }
                     onCellClick={handleCellClick}
                     onChipClick={handleChipClick}

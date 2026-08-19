@@ -32,6 +32,19 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-19 10:50 IST
+
+**Prompt:**  
+> Allocation: Except direct RO — no one shall be able to add/edit allocation for resource.
+
+**Output:**  
+- Root cause: API already enforced direct RO via `assertCanPlanForEmployee`, but the UI only blocked self-allocation — other users (e.g. super-admin viewing all rows, indirect RO) could open the drawer and attempt save.
+- Added `utils/allocationPermission.ts` (`isDirectResourceOwner`, `canManageAllocation`, `allocationBlockedMessage`) aligned with API; super-admin bypass unchanged.
+- Wired into `AllocationDrawer` (assignable roster, save/delete), `ResourcePlanner` (grid clicks, save/delete, Find Matches allocate), `Availability` (Allocate, Plan ahead, save).
+- Tests: `tests/unit/allocationPermission.test.ts`. No API/schema change.
+
+---
+
 ### 2026-08-19 10:15 IST
 
 **Prompt:**  

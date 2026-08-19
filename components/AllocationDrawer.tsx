@@ -11,7 +11,9 @@ import type { Activity, ActivityMilestone } from "../data/setup";
 import { useFocusFirstField } from "../hooks/useFocusFirstField";
 import { formatHours } from "../utils/formatHours";
 import { isSelfAllocation } from "../utils/selfAllocation";
+import { canManageAllocation, DIRECT_RO_ALLOCATION_MESSAGE } from "../utils/allocationPermission";
 import { useAuth } from "../context/AuthContext";
+import { useEmployees } from "../context/EmployeesContext";
 import { X, TriangleAlert, Info, Trash2 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 
@@ -117,12 +119,16 @@ export function AllocationDrawer({ open, onClose, prefill, people, allocations =
   const { projects, refresh: refreshProjects } = useProjects();
   const { activities, activityMilestones, refresh: refreshMasters } = useMasters();
   const { settings } = useSettings();
-  const { currentEmployee } = useAuth();
+  const { currentEmployee, isSuperAdmin } = useAuth();
+  const { employees: allEmployees } = useEmployees();
   const selfHrmsId = currentEmployee?.id;
   const roster = people ?? [];
   const assignableRoster = useMemo(
-    () => roster.filter((p) => !isSelfAllocation(selfHrmsId, p.id)),
-    [roster, selfHrmsId]
+    () =>
+      roster.filter((p) =>
+        canManageAllocation(selfHrmsId, p.id, allEmployees, { isSuperAdmin })
+      ),
+    [roster, selfHrmsId, allEmployees, isSuperAdmin]
   );
   const isEdit = prefill?.mode === "edit";
   const [form, setForm] = useState({ ...EMPTY });
@@ -260,9 +266,16 @@ export function AllocationDrawer({ open, onClose, prefill, people, allocations =
     ? Math.round(((combinedHoursPerDay - dailyLimit) / dailyLimit) * 100)
     : 0;
 
+  const canManageSelected = canManageAllocation(
+    selfHrmsId,
+    form.personId,
+    allEmployees,
+    { isSuperAdmin }
+  );
+
   const canSave =
+    canManageSelected &&
     !!form.personId &&
-    !isSelfAllocation(selfHrmsId, form.personId) &&
     !!form.projectId &&
     !noProjectMilestones &&
     !!form.milestoneId &&
@@ -276,7 +289,7 @@ export function AllocationDrawer({ open, onClose, prefill, people, allocations =
 
   const handleSave = async () => {
     if (!canSave) return;
-    if (isSelfAllocation(selfHrmsId, form.personId)) return;
+    if (!canManageSelected) return;
     try {
       await onSave?.({
         personId: form.personId,
@@ -300,6 +313,7 @@ export function AllocationDrawer({ open, onClose, prefill, people, allocations =
   /** Only strictly future allocations (start after today) may be deleted. */
   const canDelete =
     isEdit &&
+    canManageSelected &&
     !!prefill?.editRef &&
     !!prefill.start &&
     prefill.start > today;
@@ -381,6 +395,9 @@ export function AllocationDrawer({ open, onClose, prefill, people, allocations =
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </Select>
+            {form.personId && !canManageSelected && (
+              <div className="mt-1.5 text-[11px] text-danger">{DIRECT_RO_ALLOCATION_MESSAGE}</div>
+            )}
           </Field>
 
           <Field label="Project" required>
