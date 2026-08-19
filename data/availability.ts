@@ -12,7 +12,7 @@ export interface RollingOffPerson {
   initials: string;
   currentProject: string;
   rollsOffDate: string; // e.g. "Jan 17"
-  freeingHours: number; // hrs/wk freeing up
+  freeingHours: number; // working-day hours that free in the planning window
 }
 
 export interface AvailRow {

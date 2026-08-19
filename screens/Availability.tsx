@@ -436,7 +436,7 @@ export function Availability() {
 
   const reloadAllocations = useCallback(async () => {
     const from = addDaysISO(supplyFrom, -30);
-    const to = supplyTo;
+    const to = addDaysISO(supplyTo, 7);
     try {
       setAllocations(await fetchAllocations({ from, to }));
     } catch {
@@ -502,9 +502,10 @@ export function Availability() {
       buildRollingOffFromLive(employees, allocations, {
         windowFrom: supplyFrom,
         windowDays: 14,
-        workingDaysPerWeek: settings.workingDays.length || 5,
+        workingDays: settings.workingDays,
+        companyOffDays: offDayIsos,
       }),
-    [employees, allocations, settings.workingDays.length, supplyFrom]
+    [employees, allocations, settings.workingDays, offDayIsos, supplyFrom]
   );
   const availDepartments = useMemo(
     () => deptRows.filter((d) => d.status === "active").map((d) => d.name),

@@ -32,6 +32,19 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-19 10:15 IST
+
+**Prompt:**  
+> This is from Availability screen. Check attached image with comment and fix.  
+> (Rolling off soon: Denish Khant “IncentivePro-v1 · frees 85h on Aug 19” — date and hours wrong; only working days should count; still booked 8.5h through Aug 21.)
+
+**Output:**  
+- Root cause: `buildRollingOffFromLive` treated each allocation *end date* as the free date (inclusive, so Aug 19 was still a booked day) and summed `hoursPerDay × 5` for every row ending in the 14-day window (8.5×5 + 5×5 + 3.5×5 = 85), including weekends by implication of that weekly formula.
+- Fix: person-level last booked **working** day; “frees on” = next working day after that; hours = remaining **working-day** hours in the window (not calendar days). People still booked after the 2-week window are omitted.
+- Files: `api/liveViews.ts`, `screens/Availability.tsx`, `data/availability.ts`, `tests/unit/liveViews.rollingOff.test.ts` (6 passed, plus existing rolling-off/RDR tests).
+
+---
+
 ### 2026-08-18 23:15 IST
 
 **Prompt:**  

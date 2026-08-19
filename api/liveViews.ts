@@ -266,9 +266,38 @@ export function buildAvailRowsFromEmployees(
     });
 }
 
+function allocationHoursOnDay(
+  a: ApiAllocation,
+  iso: string,
+  calendar: DeploymentCalendarOpts
+): number {
+  const start = a.startDate.slice(0, 10);
+  const end = a.endDate.slice(0, 10);
+  if (iso < start || iso > end) return 0;
+  if (!isWorkingDay(iso, calendar)) return 0;
+  const h = Number(a.hoursPerDay);
+  return Number.isFinite(h) && h > 0 ? h : 0;
+}
+
+function workingHoursInRange(
+  from: string,
+  to: string,
+  hoursPerDay: number,
+  calendar: DeploymentCalendarOpts
+): number {
+  if (from > to || hoursPerDay <= 0) return 0;
+  let hours = 0;
+  for (let d = from; d <= to; d = addDaysISO(d, 1)) {
+    if (isWorkingDay(d, calendar)) hours += hoursPerDay;
+  }
+  return roundHoursToTenth(hours);
+}
+
 /**
- * FR-291 / FR-560 — employees whose confirmed allocation ends within the planning window
- * (default: next 14 days from today).
+ * FR-291 / FR-560 — people whose booking actually ends inside the planning window
+ * (default: 14 calendar days). Date is the first working day they are free (allocation
+ * end dates are inclusive). Hours are remaining working-day capacity in the window,
+ * not calendar days and not the sum of each ending row’s weekly hours.
  */
 export function buildRollingOffFromLive(
   employees: Employee[],
@@ -276,50 +305,85 @@ export function buildRollingOffFromLive(
   opts?: {
     windowFrom?: string;
     windowDays?: number;
+    /** @deprecated Ignored — hours use working days in the window, not daysPerWeek × hoursPerDay. */
     workingDaysPerWeek?: number;
+    workingDays?: string[];
+    companyOffDays?: string[];
   }
 ): RollingOffPerson[] {
   const windowFrom = opts?.windowFrom ?? toLocalISO(new Date());
   const windowDays = opts?.windowDays ?? 14;
   const windowTo = addDaysISO(windowFrom, windowDays - 1);
-  const daysPerWeek = opts?.workingDaysPerWeek ?? 5;
+  const calendar: DeploymentCalendarOpts = {
+    workingDays: opts?.workingDays,
+    companyOffDays: opts?.companyOffDays,
+  };
   const empById = new Map(employees.filter((e) => e.status === "active").map((e) => [e.id, e]));
-
-  type Ending = { endDate: string; projectName: string; weeklyHours: number };
-  const byEmp = new Map<string, Ending[]>();
-
+  const allocsByEmp = new Map<string, ApiAllocation[]>();
   for (const a of allocations) {
     if (!empById.has(a.employeeHrmsId)) continue;
-    const end = a.endDate.slice(0, 10);
-    if (end < windowFrom || end > windowTo) continue;
-    const weeklyHours = Math.round(a.hoursPerDay * daysPerWeek * 10) / 10;
-    if (weeklyHours <= 0) continue;
-    const list = byEmp.get(a.employeeHrmsId) ?? [];
-    list.push({ endDate: end, projectName: a.projectName, weeklyHours });
-    byEmp.set(a.employeeHrmsId, list);
+    const list = allocsByEmp.get(a.employeeHrmsId) ?? [];
+    list.push(a);
+    allocsByEmp.set(a.employeeHrmsId, list);
   }
 
+  const afterWindow = nextWorkingDayAfter(windowTo, calendar);
   const people: (RollingOffPerson & { _end: string })[] = [];
-  for (const [empId, endings] of byEmp) {
+
+  for (const [empId, allocs] of allocsByEmp) {
     const emp = empById.get(empId);
     if (!emp) continue;
-    endings.sort((a, b) => a.endDate.localeCompare(b.endDate));
-    const soonest = endings[0]!;
-    const freeingHours =
-      Math.round(endings.reduce((s, e) => s + e.weeklyHours, 0) * 10) / 10;
-    const primary =
-      endings.length === 1
-        ? soonest.projectName
-        : endings.slice().sort((a, b) => b.weeklyHours - a.weeklyHours)[0]!.projectName;
+
+    let lastBooked: string | null = null;
+    const projectHoursOnLast = new Map<string, number>();
+    let lastDayLoad = 0;
+
+    for (let d = windowFrom; d <= windowTo; d = addDaysISO(d, 1)) {
+      if (!isWorkingDay(d, calendar)) continue;
+      let dayHours = 0;
+      const byProject = new Map<string, number>();
+      for (const a of allocs) {
+        const h = allocationHoursOnDay(a, d, calendar);
+        if (h <= 0) continue;
+        dayHours += h;
+        byProject.set(a.projectName, (byProject.get(a.projectName) ?? 0) + h);
+      }
+      if (dayHours > 0) {
+        lastBooked = d;
+        lastDayLoad = dayHours;
+        projectHoursOnLast.clear();
+        for (const [name, h] of byProject) projectHoursOnLast.set(name, h);
+      }
+    }
+
+    if (!lastBooked || lastDayLoad <= 0) continue;
+    const stillBookedAfter = allocs.some((a) => allocationHoursOnDay(a, afterWindow, calendar) > 0);
+    if (stillBookedAfter) continue;
+
+    const freeOn = nextWorkingDayAfter(lastBooked, calendar);
+    let freeingHours = workingHoursInRange(freeOn, windowTo, lastDayLoad, calendar);
+    if (freeingHours <= 0) {
+      freeingHours = workingHoursInRange(freeOn, addDaysISO(freeOn, 6), lastDayLoad, calendar);
+    }
+    if (freeingHours <= 0) continue;
+
+    let primary = "—";
+    let best = 0;
+    for (const [name, h] of projectHoursOnLast) {
+      if (h > best) {
+        best = h;
+        primary = name;
+      }
+    }
 
     people.push({
       id: emp.id,
       name: emp.name,
       initials: initials(emp.name),
       currentProject: primary,
-      rollsOffDate: formatShortMonthDay(soonest.endDate),
+      rollsOffDate: formatShortMonthDay(freeOn),
       freeingHours,
-      _end: soonest.endDate,
+      _end: freeOn,
     });
   }
 
