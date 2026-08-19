@@ -32,6 +32,18 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-19 16:05 IST
+
+**Prompt:**  
+> How overlapping for Denish Khant? 5 + 3.5 hours = 8.5h only. Can you check?
+
+**Output:**  
+- Root cause: "Double booking" fired whenever 2+ projects covered the same day, ignoring whether total hours exceeded daily capacity. Denish has 5h + 3.5h = 8.5h on Thu/Fri — equal to capacity, not over.
+- Fix: `api/cockpitDaily.ts` — multi-project day is "Double booking" only when `dayHours > hoursPerDay`. Otherwise it's a "Capacity warning" only if hours exceed capacity on single-project days.
+- Result: Denish no longer appears as a conflict since 8.5h ≤ 8.5h capacity.
+
+---
+
 ### 2026-08-19 16:00 IST
 
 **Prompt:**  

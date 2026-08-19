@@ -262,10 +262,10 @@ export function buildPlanningConflictsFromLive(
     for (let d = weekFrom; d <= weekTo; d = addDaysISO(d, 1)) {
       if (!isWorkingWeekday(d, workingDays)) continue;
       const covering = mine.filter((a) => allocationCoversDay(a, d, workingDays));
-      const projectCodes = new Set(covering.map((a) => a.projectCode));
-      if (projectCodes.size >= 2) overlapDays.push(d);
       const dayHours = covering.reduce((s, a) => s + a.hoursPerDay, 0);
-      if (dayHours > hoursPerDay + 0.01) overloadDays.push(d);
+      const projectCodes = new Set(covering.map((a) => a.projectCode));
+      if (projectCodes.size >= 2 && dayHours > hoursPerDay + 0.01) overlapDays.push(d);
+      else if (dayHours > hoursPerDay + 0.01) overloadDays.push(d);
     }
 
     if (overlapDays.length > 0) {
