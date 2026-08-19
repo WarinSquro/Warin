@@ -771,7 +771,7 @@ export function Availability() {
           <Kpi
             label="Avg Free Hrs / Person"
             value={formatHoursDecimalLabel(kpis.avgFreeHrs)}
-            sub="per week"
+            sub="within 2 weeks"
             delta={avgDeltaDisplay?.text}
             deltaClass={
               avgDeltaDisplay?.tone === "danger"

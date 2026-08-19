@@ -32,6 +32,16 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-19 15:55 IST
+
+**Prompt:**  
+> In "Availability" screen > 4th card (Avg Free Hrs / Person) > replace "within 2 weeks" instead of "per week"
+
+**Output:**  
+- Changed sub-label from `"per week"` to `"within 2 weeks"` in `screens/Availability.tsx` line 774.
+
+---
+
 ### 2026-08-19 10:50 IST
 
 **Prompt:**  
