@@ -32,6 +32,17 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-19 17:45 IST
+
+**Prompt:**  
+> Do not show Administrator in Access Rights.
+
+**Output:**  
+- File: `screens/AccessRights.tsx` — added `.filter((e) => !isSuperAdminEmail(e.email))` to `filteredEmployees` so the super-admin "Administrator" row is hidden from the sidebar list.
+- Result: Administrator no longer appears in the Access Rights employee list.
+
+---
+
 ### 2026-08-19 16:05 IST
 
 **Prompt:**  

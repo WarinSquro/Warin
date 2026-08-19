@@ -60,6 +60,7 @@ export function AccessRights() {
 
   const filteredEmployees = useMemo(() => {
     return employees
+      .filter((e) => !isSuperAdminEmail(e.email))
       .filter((e) => includeInactive || e.status === "active")
       .filter((e) => matchesSearchQuery(search, e.name, e.email, e.department, e.id))
       .sort((a, b) => {
