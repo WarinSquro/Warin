@@ -464,6 +464,20 @@ export function Availability() {
     [employees, summaryWeekCapacity, allocations, offDayIsos, supplyFrom, settings.workingDays]
   );
 
+  /** Week-2 summary rows — combined with week 1 for the Total Free Capacity KPI. */
+  const summaryRowsWeek2 = useMemo(() => {
+    const week2Start = addDaysISO(supplyFrom, 7);
+    const cap = weekCapacityHours(week2Start, calendarOpts) || fallbackWeekCapacity;
+    return buildAvailRowsFromEmployees(
+      employees,
+      cap,
+      allocations,
+      offDayIsos,
+      week2Start,
+      settings.workingDays
+    );
+  }, [employees, allocations, offDayIsos, supplyFrom, settings.workingDays, calendarOpts, fallbackWeekCapacity]);
+
   /** Same people/filters as the KPI, for the two weeks before the forward-supply window. */
   const priorSummaryRows = useMemo(() => {
     const weeks = [addDaysISO(supplyFrom, -14), addDaysISO(supplyFrom, -7)];
@@ -637,6 +651,18 @@ export function Availability() {
     [applyListFilters, summaryRows]
   );
 
+  const summaryFilteredRowsWeek2 = useMemo(
+    () => applyListFilters(summaryRowsWeek2),
+    [applyListFilters, summaryRowsWeek2]
+  );
+
+  /** Total Free Capacity across both weeks of the 2-week forward supply window. */
+  const totalFreeHrs2Weeks = useMemo(() => {
+    const w1 = summaryFilteredRows.reduce((s, r) => s + r.freeHours, 0);
+    const w2 = summaryFilteredRowsWeek2.reduce((s, r) => s + r.freeHours, 0);
+    return Math.round((w1 + w2) * 10) / 10;
+  }, [summaryFilteredRows, summaryFilteredRowsWeek2]);
+
   const priorFilteredRows = useMemo(
     () => applyListFilters(priorSummaryRows),
     [applyListFilters, priorSummaryRows]
@@ -749,7 +775,7 @@ export function Availability() {
         <div className="grid flex-shrink-0 grid-cols-4 gap-3">
           <Kpi
             label="Total Free Capacity"
-            value={formatHoursDecimalLabel(kpis.totalFreeHrs)}
+            value={formatHoursDecimalLabel(totalFreeHrs2Weeks)}
             sub="across team within 2 weeks"
             accent="border-l-success"
             valueClass="text-success"

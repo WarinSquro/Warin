@@ -32,6 +32,18 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-19 16:00 IST
+
+**Prompt:**  
+> In "Availability" screen > 1st Card (Total Free Capacity) > hours should be total 2 weeks free hours total
+
+**Output:**  
+- Added `summaryRowsWeek2` (week-2 rows from `supplyFrom + 7`) and sum both weeks for `totalFreeHrs2Weeks`.
+- KPI card now displays the combined 2-week total instead of single-week free hours.
+- File: `screens/Availability.tsx`.
+
+---
+
 ### 2026-08-19 15:55 IST
 
 **Prompt:**  
