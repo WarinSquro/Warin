@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   AVAIL_ROWS,
   availAvgDeltaDisplay,
+  avgFreeHoursPerPerson,
   computeAvailKpis,
   filterAvailRowsAllSegments,
   filterAvailRowsRollingOffSoon,
@@ -79,17 +80,27 @@ describe("computeAvailKpis avgDelta", () => {
     expect(computeAvailKpis([row({ id: "a", freeHours: 40 })]).avgDelta).toBeNull();
     expect(computeAvailKpis([row({ id: "a", freeHours: 40 })], 0, []).avgDelta).toBeNull();
   });
+
+  it("sums duplicate person-weeks then divides by unique people", () => {
+    const twoWeeks = [
+      row({ id: "a", freeHours: 10 }),
+      row({ id: "a", freeHours: 20 }),
+      row({ id: "b", freeHours: 30 }),
+      row({ id: "b", freeHours: 40 }),
+    ];
+    expect(avgFreeHoursPerPerson(twoWeeks)).toBe(50);
+  });
 });
 
 describe("availAvgDeltaDisplay", () => {
   it("formats up, down, and unchanged vs last 2 weeks", () => {
     expect(availAvgDeltaDisplay(6)).toEqual({
       text: "▲ 6.0h vs last 2 weeks",
-      tone: "success",
+      tone: "danger",
     });
     expect(availAvgDeltaDisplay(-2.5)).toEqual({
       text: "▼ 2.5h vs last 2 weeks",
-      tone: "danger",
+      tone: "success",
     });
     expect(availAvgDeltaDisplay(0)).toEqual({ text: "— vs last 2 weeks", tone: "muted" });
     expect(availAvgDeltaDisplay(null)).toBeNull();

@@ -4,6 +4,7 @@ import { ArrowRight, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react
 import {
   MIN_FREE_HOUR_OPTIONS,
   availAvgDeltaDisplay,
+  avgFreeHoursPerPerson,
   computeAvailKpis,
   filterAvailRowsAllSegments,
   filterAvailRowsRollingOffSoon,
@@ -26,7 +27,7 @@ import { allocationBlockedMessage } from "../utils/allocationPermission";
 import { WeeklyCheckInWeekPicker } from "../components/WeeklyCheckInWeekPicker";
 import { buildAvailRowsFromEmployees, buildRollingOffFromLive, addDaysISO, mondayISO } from "../api/liveViews";
 import { createAllocation, fetchAllocations, type ApiAllocation } from "../api/domain";
-import { formatHoursDecimalLabel } from "../utils/formatHours";
+import { formatHoursDecimalLabel, roundHoursToTenth } from "../utils/formatHours";
 import { formatWeekLabel, type ReviewWeekOption } from "../data/weeklyCheckIn";
 
 type Segment = "all" | "now" | "rolling";
@@ -695,6 +696,16 @@ export function Availability() {
     [summaryFilteredRows, rollingOffRows, priorFilteredRows]
   );
 
+  const avgFreeHrs2Weeks = useMemo(
+    () => avgFreeHoursPerPerson([...summaryFilteredRows, ...summaryFilteredRowsWeek2]),
+    [summaryFilteredRows, summaryFilteredRowsWeek2]
+  );
+
+  const avgFreeHrsDelta = useMemo(() => {
+    if (priorFilteredRows.length === 0) return null;
+    return roundHoursToTenth(avgFreeHrs2Weeks - avgFreeHoursPerPerson(priorFilteredRows));
+  }, [avgFreeHrs2Weeks, priorFilteredRows]);
+
   const rows = useMemo(() => {
     const filtered =
       seg === "now"
@@ -726,8 +737,8 @@ export function Availability() {
     selectedSkills.length === availSkills.length &&
     minFreeHours === 0;
   const avgDeltaDisplay = useMemo(
-    () => (allFiltersActive ? availAvgDeltaDisplay(kpis.avgDelta) : null),
-    [allFiltersActive, kpis.avgDelta]
+    () => (allFiltersActive ? availAvgDeltaDisplay(avgFreeHrsDelta) : null),
+    [allFiltersActive, avgFreeHrsDelta]
   );
 
   return (
@@ -796,7 +807,7 @@ export function Availability() {
           />
           <Kpi
             label="Avg Free Hrs / Person"
-            value={formatHoursDecimalLabel(kpis.avgFreeHrs)}
+            value={formatHoursDecimalLabel(avgFreeHrs2Weeks)}
             sub="within 2 weeks"
             delta={avgDeltaDisplay?.text}
             deltaClass={

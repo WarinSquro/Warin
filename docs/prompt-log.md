@@ -32,6 +32,18 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-20 10:00 IST
+
+**Prompt:**  
+> in Availability > Last Card > check average free hours per person calculation. if arrow showing "down arrow" then set it to green colored other wise red.
+
+**Output:**  
+- Avg Free Hrs / Person now averages **both weeks** of the 2-week window per unique person (was week 1 only). Delta vs last 2 weeks uses the same unique-person total.
+- Down arrow (▼, less free vs prior) is **green**; up arrow (▲) is **red**; unchanged stays muted.
+- Files: `data/availability.ts`, `screens/Availability.tsx`, `tests/unit/availRollingOffSoon.test.ts`.
+
+---
+
 ### 2026-08-20 09:45 IST
 
 **Prompt:**  

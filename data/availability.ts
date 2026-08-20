@@ -44,8 +44,16 @@ export function availAvgDeltaDisplay(
   if (avgDelta == null) return null;
   if (avgDelta === 0) return { text: "— vs last 2 weeks", tone: "muted" };
   const abs = formatHoursDecimalLabel(Math.abs(avgDelta));
-  if (avgDelta > 0) return { text: `▲ ${abs} vs last 2 weeks`, tone: "success" };
-  return { text: `▼ ${abs} vs last 2 weeks`, tone: "danger" };
+  if (avgDelta > 0) return { text: `▲ ${abs} vs last 2 weeks`, tone: "danger" };
+  return { text: `▼ ${abs} vs last 2 weeks`, tone: "success" };
+}
+
+/** Mean free hours per unique person. Duplicate ids (e.g. two weeks) are summed, then averaged. */
+export function avgFreeHoursPerPerson(rows: AvailRow[]): number {
+  const ids = new Set(rows.map((r) => r.id));
+  if (ids.size === 0) return 0;
+  const total = rows.reduce((sum, r) => sum + r.freeHours, 0);
+  return roundHoursToTenth(total / ids.size);
 }
 
 /** Rows whose allocation ends within the rolling-off window. */
@@ -82,11 +90,9 @@ export function computeAvailKpis(
     };
   }
   const totalFreeHrs = rows.reduce((sum, r) => sum + r.freeHours, 0);
-  const avgFreeHrs = roundHoursToTenth(totalFreeHrs / rows.length);
+  const avgFreeHrs = avgFreeHoursPerPerson(rows);
   const priorAvg =
-    priorRows && priorRows.length > 0
-      ? roundHoursToTenth(priorRows.reduce((s, r) => s + r.freeHours, 0) / priorRows.length)
-      : null;
+    priorRows && priorRows.length > 0 ? avgFreeHoursPerPerson(priorRows) : null;
   return {
     totalFreeHrs: roundHoursToTenth(totalFreeHrs),
     fullyAvailable: rows.filter((r) => r.bookedPct === 0).length,
