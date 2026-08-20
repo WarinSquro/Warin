@@ -262,3 +262,29 @@ export function assertPathInsideBackupRoot(filePath: string): string {
   }
   return resolved;
 }
+
+export type DownloadableBackupKind = "database" | "application" | "docker";
+
+/** Stream-safe path check for local download of backup artifacts (not restore). */
+export function assertDownloadableBackupArtifact(
+  filePath: string,
+  kind: DownloadableBackupKind,
+): string {
+  const resolved = path.resolve(filePath);
+  const root = path.resolve(config.backupRoot);
+  const rel = path.relative(root, resolved);
+  if (rel.startsWith("..") || path.isAbsolute(rel)) {
+    throw new Error("Path outside backup root");
+  }
+
+  const subdir = kind === "database" ? "db" : kind === "application" ? "files" : "docker";
+  const expectedExt = kind === "database" ? ".dump" : ".tar.gz";
+  const normRel = rel.replace(/\\/g, "/");
+  if (!normRel.startsWith(`${subdir}/`) && normRel !== subdir) {
+    throw new Error(`Download path must be under backups/${subdir}`);
+  }
+  if (!resolved.toLowerCase().endsWith(expectedExt)) {
+    throw new Error(`Only ${expectedExt} files may be downloaded for ${kind} backups`);
+  }
+  return resolved;
+}

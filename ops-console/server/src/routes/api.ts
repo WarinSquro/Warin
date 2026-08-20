@@ -8,11 +8,16 @@ import {
   createDatabaseBackup,
   createDockerBackup,
   createPredeployBackup,
-  latestDatabaseDump,
+  latestBackupArtifact,
+  latestDownloadableArtifacts,
   restoreDatabase,
   scanFilesystemBackups,
 } from "../ops/backups.js";
-import { buildManualCommands, resolveRunnable } from "../ops/commands.js";
+import {
+  buildManualCommands,
+  resolveRunnable,
+  type DownloadableBackupKind,
+} from "../ops/commands.js";
 import { listContainers, productionStatus, restartContainer } from "../ops/docker.js";
 import { runProductionDeploy } from "../ops/deploy.js";
 import { cleanupExpired, retentionReport } from "../ops/retention.js";
@@ -106,6 +111,7 @@ api.get("/backups", requireAuth, (_req, res) => {
     records: store.backups,
     filesystem: scanFilesystemBackups(),
     summary: backupSummary(),
+    latestArtifacts: latestDownloadableArtifacts(),
   });
 });
 
@@ -149,40 +155,56 @@ api.post("/backups/predeploy", requireAuth, async (req, res) => {
   }
 });
 
-api.get("/backups/database/latest/download", requireAuth, (req, res) => {
+function streamLatestBackupDownload(kind: DownloadableBackupKind, req: Parameters<typeof requireAuth>[0], res: Parameters<typeof requireAuth>[1]) {
   const r = req as typeof req & { opsUser: string };
+  const label =
+    kind === "database" ? "database dump" : kind === "application" ? "application backup" : "docker backup";
   try {
-    const dump = latestDatabaseDump();
-    if (!dump) {
-      appendAudit(r.opsUser, "backup.database.download", "failed", { error: "No database dump available" });
-      res.status(404).json({ error: "No database dump is available. Create a database backup first." });
+    const artifact = latestBackupArtifact(kind);
+    if (!artifact) {
+      appendAudit(r.opsUser, `backup.${kind}.download`, "failed", { error: `No ${label} available` });
+      res.status(404).json({
+        error: `No ${label} is available. Create a ${kind} backup first.`,
+      });
       return;
     }
 
-    appendAudit(r.opsUser, "backup.database.download.started", "info", {
-      detail: dump.name,
+    appendAudit(r.opsUser, `backup.${kind}.download.started`, "info", {
+      detail: artifact.name,
     });
-    res.download(dump.path, dump.name, (error) => {
+    res.download(artifact.path, artifact.name, (error) => {
       if (!error) {
-        appendAudit(r.opsUser, "backup.database.download.completed", "success", {
-          detail: dump.name,
+        appendAudit(r.opsUser, `backup.${kind}.download.completed`, "success", {
+          detail: artifact.name,
         });
         return;
       }
 
-      appendAudit(r.opsUser, "backup.database.download.failed", "failed", {
-        detail: dump.name,
+      appendAudit(r.opsUser, `backup.${kind}.download.failed`, "failed", {
+        detail: artifact.name,
         error: error.message,
       });
       if (!res.headersSent) {
-        res.status(500).json({ error: "Database dump download failed" });
+        res.status(500).json({ error: `${label} download failed` });
       }
     });
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e);
-    appendAudit(r.opsUser, "backup.database.download.failed", "failed", { error });
+    appendAudit(r.opsUser, `backup.${kind}.download.failed`, "failed", { error });
     res.status(500).json({ error });
   }
+}
+
+api.get("/backups/database/latest/download", requireAuth, (req, res) => {
+  streamLatestBackupDownload("database", req, res);
+});
+
+api.get("/backups/application/latest/download", requireAuth, (req, res) => {
+  streamLatestBackupDownload("application", req, res);
+});
+
+api.get("/backups/docker/latest/download", requireAuth, (req, res) => {
+  streamLatestBackupDownload("docker", req, res);
 });
 
 api.post("/backups/restore", requireAuth, async (req, res) => {

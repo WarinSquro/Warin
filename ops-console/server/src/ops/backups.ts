@@ -3,7 +3,11 @@ import path from "node:path";
 import { config } from "../config.js";
 import { appendAudit, loadStore, mutateStore, newId, type BackupRecord, type BackupType } from "../store.js";
 import { runCommand, runDocker, runShellScript, resolveTarBin } from "./runner.js";
-import { assertPathInsideBackupRoot } from "./commands.js";
+import {
+  assertDownloadableBackupArtifact,
+  assertPathInsideBackupRoot,
+  type DownloadableBackupKind,
+} from "./commands.js";
 
 async function gitSha(): Promise<string> {
   const r = await runCommand("git", ["-C", config.warinAppDir, "rev-parse", "--short", "HEAD"]);
@@ -362,22 +366,102 @@ export function scanFilesystemBackups(): Partial<BackupRecord>[] {
   return out.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
 }
 
-export function latestDatabaseDump(): { path: string; name: string; sizeBytes: number; createdAt: string } | null {
-  const latest = scanFilesystemBackups()[0];
-  if (!latest.location) return null;
+export type BackupArtifactInfo = {
+  kind: DownloadableBackupKind;
+  path: string;
+  name: string;
+  sizeBytes: number;
+  createdAt: string;
+};
 
-  const resolved = assertPathInsideBackupRoot(latest.location);
-  if (!resolved.endsWith(".dump") || !fs.existsSync(resolved)) return null;
-  const realPath = assertPathInsideBackupRoot(fs.realpathSync(resolved));
+function scanBackupDirForLatest(
+  kind: DownloadableBackupKind,
+): BackupArtifactInfo | null {
+  const subdir = kind === "database" ? "db" : kind === "application" ? "files" : "docker";
+  const ext = kind === "database" ? ".dump" : ".tar.gz";
+  const dir = path.join(config.backupRoot, subdir);
+  if (!fs.existsSync(dir)) return null;
 
-  const stat = fs.statSync(realPath);
-  if (!stat.isFile()) return null;
+  let newest: BackupArtifactInfo | null = null;
+  let newestMtime = 0;
+  for (const f of fs.readdirSync(dir)) {
+    if (!f.toLowerCase().endsWith(ext)) continue;
+    const full = path.join(dir, f);
+    try {
+      const st = fs.statSync(full);
+      if (!st.isFile() || st.mtimeMs <= newestMtime) continue;
+      const resolved = assertDownloadableBackupArtifact(full, kind);
+      const realPath = assertDownloadableBackupArtifact(fs.realpathSync(resolved), kind);
+      newestMtime = st.mtimeMs;
+      newest = {
+        kind,
+        path: realPath,
+        name: path.basename(realPath),
+        sizeBytes: st.size,
+        createdAt: st.mtime.toISOString(),
+      };
+    } catch {
+      /* skip unsafe / missing */
+    }
+  }
+  return newest;
+}
 
+function latestFromStoreRecords(kind: DownloadableBackupKind): BackupArtifactInfo | null {
+  const store = loadStore();
+  const candidates = store.backups
+    .filter((b) => b.type === kind && (b.status === "success" || b.status === "verified") && b.location)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+  for (const rec of candidates) {
+    try {
+      if (!fs.existsSync(rec.location)) continue;
+      const resolved = assertDownloadableBackupArtifact(rec.location, kind);
+      const realPath = assertDownloadableBackupArtifact(fs.realpathSync(resolved), kind);
+      const st = fs.statSync(realPath);
+      if (!st.isFile()) continue;
+      return {
+        kind,
+        path: realPath,
+        name: path.basename(realPath),
+        sizeBytes: st.size,
+        createdAt: rec.completedAt || rec.createdAt || st.mtime.toISOString(),
+      };
+    } catch {
+      /* try next */
+    }
+  }
+  return null;
+}
+
+/** Newest downloadable artifact for database / application / docker backups. */
+export function latestBackupArtifact(kind: DownloadableBackupKind): BackupArtifactInfo | null {
+  const fromFs = scanBackupDirForLatest(kind);
+  const fromStore = latestFromStoreRecords(kind);
+  if (fromFs && fromStore) {
+    return fromFs.createdAt >= fromStore.createdAt ? fromFs : fromStore;
+  }
+  return fromFs || fromStore;
+}
+
+/** Alias for latestBackupArtifact("database"). */
+export function latestDatabaseDump(): BackupArtifactInfo | null {
+  return latestBackupArtifact("database");
+}
+
+export function latestDownloadableArtifacts(): Record<
+  DownloadableBackupKind,
+  Omit<BackupArtifactInfo, "path"> | null
+> {
+  const mapKind = (kind: DownloadableBackupKind) => {
+    const a = latestBackupArtifact(kind);
+    if (!a) return null;
+    return { kind: a.kind, name: a.name, sizeBytes: a.sizeBytes, createdAt: a.createdAt };
+  };
   return {
-    path: realPath,
-    name: path.basename(realPath),
-    sizeBytes: stat.size,
-    createdAt: stat.mtime.toISOString(),
+    database: mapKind("database"),
+    application: mapKind("application"),
+    docker: mapKind("docker"),
   };
 }
 

@@ -67,7 +67,7 @@ The simplest and safest option is an SSH tunnel from the local computer:
 ssh -i "<path-to-key.pem>" -L 9191:127.0.0.1:9191 ubuntu@<EC2-public-IP>
 ```
 
-Keep that terminal open, then browse to <http://127.0.0.1:9191/login>. Login and click **Backup Management → Download latest dump** to stream the newest `.dump` file from EC2 to the browser's local download folder. If no dump is available, create a Database Backup first.
+Keep that terminal open, then browse to <http://127.0.0.1:9191/login>. Login and under **Backup Management** use **Download to local** on Database, Application, or Docker cards to stream the newest artifact to the browser download folder. Create a backup of that type first if the button is disabled.
 
 For a permanent URL, use a dedicated HTTPS hostname such as `ops.example.com` and proxy its root to `127.0.0.1:9191`:
 
@@ -121,7 +121,7 @@ Manual Commands in the UI show **EC2/POSIX** commands (production runbook). Runn
 
 1. Secure login (independent of WARIN auth)  
 2. Database / Application / Docker / Pre-deploy backups  
-3. Authenticated download of the latest database dump to the local computer
+3. Authenticated download of the latest Database / Application / Docker backup to the local computer
 4. Docker container status  
 5. Allowlisted manual commands  
 6. Production deploy sequence with mandatory pre-backup gate  

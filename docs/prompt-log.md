@@ -32,6 +32,18 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-20 18:40 IST
+
+**Prompt:**  
+> User can able to take backup of database/Application/Docker Deployment backup to local machine. Add facility in it and once done, we need to push it to EC2 and again need to check.
+
+**Output:**  
+- Extended ops-console local download to all three backup kinds (database `.dump`, application `.tar.gz`, docker `.tar.gz`) with path-safe artifact resolution and audit events.
+- `/backups` now returns `latestArtifacts`; UI shows **Download to local** on each Backup Management card.
+- Files: `ops-console/server/src/ops/backups.ts`, `ops-console/server/src/ops/commands.ts`, `ops-console/server/src/routes/api.ts`, `ops-console/web/src/pages/DashboardPage.tsx`, `ops-console/README.md`.
+- Validation: `cd ops-console && npm run build` passed.
+- Push/EC2: commit + push ops-console changes; refresh with `ec2-install-ops-console.sh`, then verify download via SSH tunnel.
+
 ### 2026-08-20 17:50 IST
 
 **Prompt:**  

@@ -111,17 +111,37 @@ export function DashboardPage() {
   if (!userId) return <Navigate to="/login" replace />;
 
   const summary = backups?.summary;
-  const latestDatabaseDump = backups?.filesystem?.[0];
+  const latestArtifacts = backups?.latestArtifacts || {};
 
-  const downloadLatestDatabaseDump = () => {
+  const downloadLatestBackup = (kind: "database" | "application" | "docker", label: string) => {
     setErr(null);
-    setMsg("Latest database dump download started");
+    setMsg(`${label} download started`);
     const link = document.createElement("a");
-    link.href = "/api/ops/backups/database/latest/download";
+    link.href = `/api/ops/backups/${kind}/latest/download`;
     link.download = "";
     document.body.appendChild(link);
     link.click();
     link.remove();
+  };
+
+  const downloadMeta = (kind: "database" | "application" | "docker", emptyHint: string) => {
+    const artifact = latestArtifacts[kind];
+    return {
+      available: Boolean(artifact),
+      label: "Download to local",
+      detail: artifact
+        ? `${artifact.name} · ${formatWhen(artifact.createdAt)} · ${formatBytes(artifact.sizeBytes)}`
+        : emptyHint,
+      onDownload: () =>
+        downloadLatestBackup(
+          kind,
+          kind === "database"
+            ? "Database dump"
+            : kind === "application"
+              ? "Application backup"
+              : "Docker backup",
+        ),
+    };
   };
 
   return (
@@ -259,14 +279,7 @@ export function DashboardPage() {
                   busy={busy}
                   progressing={activeBackup === "database"}
                   onBackup={() => void runBackup("database", "Database backup", "/backups/database")}
-                  download={{
-                    available: Boolean(latestDatabaseDump),
-                    label: "Download latest dump",
-                    detail: latestDatabaseDump
-                      ? `${formatWhen(latestDatabaseDump.createdAt)} · ${formatBytes(latestDatabaseDump.sizeBytes)}`
-                      : "Create a database backup first",
-                    onDownload: downloadLatestDatabaseDump,
-                  }}
+                  download={downloadMeta("database", "Create a database backup first")}
                 />
                 <BackupCard
                   title="Application Backup"
@@ -276,6 +289,7 @@ export function DashboardPage() {
                   busy={busy}
                   progressing={activeBackup === "application"}
                   onBackup={() => void runBackup("application", "Application backup", "/backups/application")}
+                  download={downloadMeta("application", "Create an application backup first")}
                 />
                 <BackupCard
                   title="Docker / Deployment Backup"
@@ -285,6 +299,7 @@ export function DashboardPage() {
                   busy={busy}
                   progressing={activeBackup === "docker"}
                   onBackup={() => void runBackup("docker", "Docker backup", "/backups/docker")}
+                  download={downloadMeta("docker", "Create a Docker backup first")}
                 />
               </div>
               <RestorePanel
