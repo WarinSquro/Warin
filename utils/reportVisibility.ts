@@ -2,17 +2,40 @@ import type { ApiAllocation, ApiConfirmation } from "../api/domain";
 import type { Employee } from "../data/employees";
 import { getVisibleEmployeeIds, getVisibleEmployees } from "./employeeHierarchy";
 
-/** Employees the viewer may see on employee-scoped reports (superadmin = all active). */
+/**
+ * Employees the viewer may see on employee-scoped reports:
+ * self + direct + indirect Resource Owner reports (recursive).
+ * Super-admin = all active (caller may still drop Administrator).
+ */
 export function scopeEmployeesForViewer(
+  employees: Employee[],
+  viewer: Employee | null,
+  isSuperAdmin: boolean,
+  opts?: { includeInactive?: boolean }
+): Employee[] {
+  if (isSuperAdmin) {
+    return employees.filter((e) => opts?.includeInactive || e.status === "active");
+  }
+  if (!viewer) return [];
+  return getVisibleEmployees(viewer, employees, {
+    isSuperAdmin: false,
+    includeInactive: opts?.includeInactive === true,
+  });
+}
+
+/**
+ * Daily Work / Workday Summary roster: self + direct + indirect (recursive),
+ * minus system Administrator. Includes inactive tree members so rows with data remain.
+ * Grid still only shows people who have data (builders / includeEmpty).
+ */
+export function scopeReportHierarchyEmployees(
   employees: Employee[],
   viewer: Employee | null,
   isSuperAdmin: boolean
 ): Employee[] {
-  if (isSuperAdmin) {
-    return employees.filter((e) => e.status === "active");
-  }
-  if (!viewer) return [];
-  return getVisibleEmployees(viewer, employees, { isSuperAdmin: false });
+  return withoutAdministratorEmployees(
+    scopeEmployeesForViewer(employees, viewer, isSuperAdmin, { includeInactive: true })
+  );
 }
 
 /** System Administrator is not a resource on operational reports. */

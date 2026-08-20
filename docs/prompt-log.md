@@ -32,7 +32,19 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
-### 2026-08-20 14:47 IST
+### 2026-08-20 15:15 IST
+
+**Prompt:**  
+> In Daily Work Details & Workday Summary report - we need to show - self + direct + indirect reporting all names (with data) in grid
+
+**Output:**  
+- `utils/reportVisibility.ts` — `scopeReportHierarchyEmployees`: self + recursive direct/indirect (inactive tree members included); Administrator excluded.
+- `screens/DailyWorkReport.tsx` / `screens/WorkdaySummaryReport.tsx` — both use that roster for grid builders.
+- `api/domain.ts` — resolve Resource Owner HRMS from PK when nested owner is missing (fixes broken trees).
+- `api/workdaySummary.ts` / `api/liveViews.ts` — do not skip inactive hierarchy members when they have data.
+- Tests: `tests/unit/reportVisibility.test.ts` (self + direct + indirect).
+
+---
 
 **Prompt:**  
 > Workday Summary and Daily Work Detail (live EC2): (1) correct calculation; (2) Department Tech & Devt shows 14 but 0 grid rows; (3) hide deleted-through-16-Aug orphans; (4) keep pagination page when leaving/returning; (5) Daily Work default columns; (6) wrong projects in dropdown; (7) blank Resource Owner / Project Type / Milestone Type.

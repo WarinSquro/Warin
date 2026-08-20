@@ -13,8 +13,7 @@ import { useAppDateFormat } from "../hooks/useAppDateFormat";
 import { useSharedDataSync } from "../hooks/useSharedDataSync";
 import { useEmployees } from "../context/EmployeesContext";
 import {
-  scopeEmployeesForViewer,
-  withoutAdministratorEmployees,
+  scopeReportHierarchyEmployees,
 } from "../utils/reportVisibility";
 import { addDaysISO, toLocalISO } from "../api/liveViews";
 import { buildWorkdaySummaryRows } from "../api/workdaySummary";
@@ -175,10 +174,7 @@ export function WorkdaySummaryReport() {
   const [productivity, setProductivity] = useState<ApiTeamProductivityDay[]>([]);
 
   const scopedEmployees = useMemo(
-    () =>
-      withoutAdministratorEmployees(
-        scopeEmployeesForViewer(employees, currentEmployee, isSuperAdmin)
-      ),
+    () => scopeReportHierarchyEmployees(employees, currentEmployee, isSuperAdmin),
     [employees, currentEmployee, isSuperAdmin]
   );
 

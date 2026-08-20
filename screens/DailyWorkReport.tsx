@@ -12,7 +12,7 @@ import { useSettings } from "../context/SettingsContext";
 import { useAppDateFormat } from "../hooks/useAppDateFormat";
 import { useSharedDataSync } from "../hooks/useSharedDataSync";
 import { getVisibleEmployeeIds } from "../utils/employeeHierarchy";
-import { scopeEmployeesForViewer } from "../utils/reportVisibility";
+import { scopeReportHierarchyEmployees } from "../utils/reportVisibility";
 import { dailyWorkPeriodOptions } from "../utils/reportPeriods";
 import { milestoneKindLabel } from "../data/projects";
 import {
@@ -222,10 +222,15 @@ export function DailyWorkReport() {
 
   useSharedDataSync(true, load, { resources: ["allocations", "confirmations", "projects", "employees"] });
 
+  const hierarchyEmployees = useMemo(
+    () => scopeReportHierarchyEmployees(employees, currentEmployee, isSuperAdmin),
+    [employees, currentEmployee, isSuperAdmin]
+  );
+
   const periodRows = useMemo(
     () =>
       buildDailyWorkRows(
-        scopeEmployeesForViewer(employees, currentEmployee, isSuperAdmin),
+        hierarchyEmployees,
         liveProjects,
         allocations,
         apiConfirmations,
@@ -236,9 +241,8 @@ export function DailyWorkReport() {
         employees
       ),
     [
+      hierarchyEmployees,
       employees,
-      currentEmployee,
-      isSuperAdmin,
       liveProjects,
       allocations,
       apiConfirmations,
@@ -251,11 +255,11 @@ export function DailyWorkReport() {
 
   const visibleEmployeeIds = useMemo(() => {
     if (isSuperAdmin) {
-      return new Set(periodRows.map((r) => r.employeeId));
+      return new Set(hierarchyEmployees.map((e) => e.id));
     }
     if (!currentEmployee) return new Set<string>();
     return getVisibleEmployeeIds(currentEmployee.id, employees);
-  }, [currentEmployee, isSuperAdmin, periodRows, employees]);
+  }, [currentEmployee, isSuperAdmin, hierarchyEmployees, employees]);
 
   const scopedRows = useMemo(() => {
     let rows = periodRows.filter((r) => visibleEmployeeIds.has(r.employeeId));

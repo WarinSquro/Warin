@@ -87,7 +87,6 @@ export function buildWorkdaySummaryRows(
 
   const rows: WorkdaySummaryRow[] = [];
   for (const emp of employees) {
-    if (emp.status !== "active") continue;
     const mineAlloc = allocByEmp.get(emp.id) ?? [];
     for (let d = rangeFrom; d <= rangeTo; d = addDaysISO(d, 1)) {
       const key = `${emp.id}:${d}`;

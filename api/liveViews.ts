@@ -1162,7 +1162,7 @@ export function buildDailyWorkRows(
 
   for (const a of allocations) {
     const emp = empById.get(a.employeeHrmsId);
-    if (!emp || emp.status !== "active") continue;
+    if (!emp) continue;
     const project = projectByCode.get(a.projectCode);
     for (let d = rangeFrom; d <= rangeTo; d = addDaysISO(d, 1)) {
       if (

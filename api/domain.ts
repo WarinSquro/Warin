@@ -268,15 +268,21 @@ function mapEmployeeRow(
   e: ApiEmployee & {
     resourceOwnerHrmsId?: string | null;
     resourceOwner?: { hrmsId: string; name: string } | null;
-  }
+  },
+  hrmsByPk?: Map<string, string>
 ): Employee {
+  const ownerHrms =
+    e.resourceOwnerHrmsId?.trim() ||
+    e.resourceOwner?.hrmsId?.trim() ||
+    (e.resourceOwnerId && hrmsByPk ? hrmsByPk.get(String(e.resourceOwnerId).trim()) : undefined) ||
+    undefined;
   return {
     id: e.hrmsId,
     name: e.name,
     email: e.email,
     department: e.departmentName ?? "—",
     skills: e.skills ?? [],
-    resourceOwnerId: e.resourceOwnerHrmsId ?? e.resourceOwner?.hrmsId ?? undefined,
+    resourceOwnerId: ownerHrms,
     status: e.status,
     utilization: e.utilization ?? undefined,
     transactionCount: e.transactionCount ?? 0,
@@ -292,7 +298,12 @@ export async function fetchEmployees(): Promise<Employee[]> {
       resourceOwner?: { hrmsId: string; name: string } | null;
     })[]
   >("/employees");
-  return all.map(mapEmployeeRow);
+  /** Resolve Resource Owner PK → HRMS when nested owner is missing. */
+  const hrmsByPk = new Map<string, string>();
+  for (const e of all) {
+    if (e.id != null && e.hrmsId) hrmsByPk.set(String(e.id).trim(), e.hrmsId);
+  }
+  return all.map((e) => mapEmployeeRow(e, hrmsByPk));
 }
 
 export type EmployeeWriteBody = {
