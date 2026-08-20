@@ -5,6 +5,7 @@ import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import { FilterMultiSelect } from "../components/FilterMultiSelect";
 import { ReportPagination } from "../components/ReportPagination";
 import { ReportColumnPicker } from "../components/ReportColumnPicker";
+import { WorkDateDaySelect } from "../components/WorkDateDaySelect";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { useSettings } from "../context/SettingsContext";
@@ -52,6 +53,7 @@ import type { ExportCell, ReportExportInput } from "../utils/reportExport";
 import {
   reconcileMultiSelect,
 } from "../utils/reportFilterPersistence";
+import { workDateDayFilterLabel } from "../utils/workDateDayFilter";
 import { useReportFilterSession } from "../hooks/useReportFilterSession";
 import { formatHours } from "../utils/formatHours";
 
@@ -256,6 +258,7 @@ export function DailyWorkReport() {
   const [projects, setProjects] = useState<string[]>([]);
   const [confirmations, setConfirmations] = useState<ConfirmationCode[]>([]);
   const [planKinds, setPlanKinds] = useState<PlanKind[]>([]);
+  const [workDay, setWorkDay] = useState<number | null>(null);
 
   useEffect(() => {
     setSearch(drillEmployee || "");
@@ -263,6 +266,7 @@ export function DailyWorkReport() {
     setProjects([]);
     setConfirmations([]);
     setPlanKinds([]);
+    setWorkDay(null);
     prevDeptsRef.current = [];
     prevProjectsRef.current = [];
     prevConfirmRef.current = [];
@@ -308,6 +312,7 @@ export function DailyWorkReport() {
     projects,
     confirmations,
     planKinds,
+    workDay,
   };
 
   const deptCounts = useMemo(() => {
@@ -350,7 +355,7 @@ export function DailyWorkReport() {
 
   useEffect(() => {
     setPage(1);
-  }, [search, departments, projects, confirmations, planKinds, pageSize]);
+  }, [search, departments, projects, confirmations, planKinds, workDay, pageSize]);
 
   const visibleColDefs = useMemo(
     () => DAILY_WORK_COLUMNS.filter((c) => visibleColumns.has(c.id)),
@@ -392,6 +397,7 @@ export function DailyWorkReport() {
       summarizeFilter("Plan types", planKinds, ["Plan", "Unplanned"], {
         allLabel: "Plan + Unplanned",
       }),
+      `Work Date: ${workDateDayFilterLabel(workDay)}`,
       `Rows: ${sorted.length}`,
     ];
 
@@ -506,6 +512,7 @@ export function DailyWorkReport() {
               allLabel="Plan + Unplanned"
               pluralLabel="types"
             />
+            <WorkDateDaySelect value={workDay} onChange={setWorkDay} />
           </div>
 
           <div className="flex flex-shrink-0 items-center justify-between gap-2 border-b border-border-soft px-4 py-2">

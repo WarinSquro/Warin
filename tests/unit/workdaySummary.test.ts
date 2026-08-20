@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildWorkdaySummaryRows } from "../../api/workdaySummary";
-import { formatHoursAsHhMm, workdaySummaryRangeEnding } from "../../data/workdaySummaryReport";
+import { formatHoursAsHhMm, filterWorkdaySummaryRows, workdaySummaryRangeEnding } from "../../data/workdaySummaryReport";
 import type { ApiAllocation, ApiConfirmation, ApiTeamProductivityDay } from "../../api/domain";
 import type { Employee } from "../../data/employees";
 
@@ -145,5 +145,40 @@ describe("workday summary", () => {
     );
     const row = rows.find((r) => r.hasSignal);
     expect(row?.focusPct).toBe(80);
+  });
+
+  it("Work Date day filter keeps only that calendar day and ignores invalid days", () => {
+    const rows = [
+      {
+        id: "1",
+        workDate: "2026-02-28",
+        employeeId: "E1",
+        employeeName: "A",
+        department: "Eng",
+        resourceOwnerId: "RO",
+        resourceOwnerName: "RO",
+        hasSignal: true,
+      },
+      {
+        id: "2",
+        workDate: "2026-02-31",
+        employeeId: "E1",
+        employeeName: "A",
+        department: "Eng",
+        resourceOwnerId: "RO",
+        resourceOwnerName: "RO",
+        hasSignal: true,
+      },
+    ];
+    const empty = {
+      search: "",
+      departments: [] as string[],
+      resourceOwners: [] as string[],
+      resources: [] as string[],
+      includeEmpty: true,
+    };
+    expect(filterWorkdaySummaryRows(rows, { ...empty, workDay: 28 }).map((r) => r.id)).toEqual(["1"]);
+    expect(filterWorkdaySummaryRows(rows, { ...empty, workDay: 31 })).toEqual([]);
+    expect(filterWorkdaySummaryRows(rows, { ...empty, workDay: null })).toHaveLength(2);
   });
 });

@@ -7,6 +7,7 @@ import { projectTypeLabel } from "./setup";
 import type { DateFormatPattern } from "./settings";
 import { matchesSearchQuery } from "../utils/textSearch";
 import { formatAppDate } from "../utils/formatAppDate";
+import { workDateMatchesDay } from "../utils/workDateDayFilter";
 
 export type DailyWorkPeriodId = "week" | "today" | "month" | "last_month" | "last_3_months";
 
@@ -126,6 +127,8 @@ export interface DailyWorkFilters {
   projects: string[];
   confirmations: ConfirmationCode[];
   planKinds: PlanKind[];
+  /** Day of month 1–31; null = all dates in the selected period. */
+  workDay: number | null;
 }
 
 const WEEK_START = "2026-01-06";
@@ -348,6 +351,7 @@ export function filterDailyWorkRows(
     }
     if (filters.confirmations.length > 0 && !filters.confirmations.includes(r.confirmation)) return false;
     if (filters.planKinds.length > 0 && !filters.planKinds.includes(r.planKind)) return false;
+    if (!workDateMatchesDay(r.workDate, filters.workDay)) return false;
     if (
       !matchesSearchQuery(
         filters.search,

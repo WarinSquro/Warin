@@ -5,6 +5,7 @@ import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import { FilterMultiSelect } from "../components/FilterMultiSelect";
 import { ReportPagination } from "../components/ReportPagination";
 import { ReportColumnPicker } from "../components/ReportColumnPicker";
+import { WorkDateDaySelect } from "../components/WorkDateDaySelect";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { useSettings } from "../context/SettingsContext";
@@ -55,6 +56,7 @@ import {
   reconcileMultiSelect,
 } from "../utils/reportFilterPersistence";
 import { useReportFilterSession } from "../hooks/useReportFilterSession";
+import { workDateDayFilterLabel } from "../utils/workDateDayFilter";
 
 const GROUP_OPTIONS: { value: WorkdaySummaryGroupBy; label: string }[] = [
   { value: "none", label: "None" },
@@ -211,6 +213,7 @@ export function WorkdaySummaryReport() {
   const [departments, setDepartments] = useState<string[]>([]);
   const [resourceOwners, setResourceOwners] = useState<string[]>([]);
   const [resources, setResources] = useState<string[]>([]);
+  const [workDay, setWorkDay] = useState<number | null>(null);
 
   const prevDepts = useRef<string[]>([]);
   const prevOwners = useRef<string[]>([]);
@@ -220,6 +223,7 @@ export function WorkdaySummaryReport() {
     setDepartments([]);
     setResourceOwners([]);
     setResources([]);
+    setWorkDay(null);
     prevDepts.current = [];
     prevOwners.current = [];
     prevResources.current = [];
@@ -257,8 +261,9 @@ export function WorkdaySummaryReport() {
         resourceOwners,
         resources: resourceIds,
         includeEmpty,
+        workDay,
       }),
-    [periodRows, search, departments, resourceOwners, resourceIds, includeEmpty]
+    [periodRows, search, departments, resourceOwners, resourceIds, includeEmpty, workDay]
   );
 
   const sorted = useMemo(
@@ -291,6 +296,7 @@ export function WorkdaySummaryReport() {
     resources,
     includeEmpty,
     groupBy,
+    workDay,
     range.from,
     range.to,
     sortKey,
@@ -331,6 +337,7 @@ export function WorkdaySummaryReport() {
           allLabel: "All resource owners",
         }),
         summarizeFilter("Resources", resources, resourceNames, { allLabel: "All resources" }),
+        `Work Date: ${workDateDayFilterLabel(workDay)}`,
         groupBy !== "none" ? `Group by: ${GROUP_OPTIONS.find((o) => o.value === groupBy)?.label}` : null,
       ].filter((x): x is string => !!x),
       orientation: "landscape",
@@ -429,6 +436,7 @@ export function WorkdaySummaryReport() {
           pluralLabel="resources"
           emptyNeutral
         />
+        <WorkDateDaySelect value={workDay} onChange={setWorkDay} />
         <div className="flex items-center gap-1.5">
           <span className="text-[11px] text-muted-foreground">Group by</span>
           <select

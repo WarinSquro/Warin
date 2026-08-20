@@ -3,6 +3,7 @@ import { formatAppDate, APP_DISPLAY_TIMEZONE } from "../utils/formatAppDate";
 import { CONFIRMATION_CODES, CONFIRMATION_CODE_LABELS, type ConfirmationCode } from "./dailyWorkReport";
 import { paginateRows } from "./dailyWorkReport";
 import { matchesSearchQuery } from "../utils/textSearch";
+import { workDateMatchesDay } from "../utils/workDateDayFilter";
 
 export { CONFIRMATION_CODES, CONFIRMATION_CODE_LABELS, paginateRows };
 export type { ConfirmationCode };
@@ -145,6 +146,7 @@ export function filterWorkdaySummaryRows(
     resourceOwners: string[];
     resources: string[];
     includeEmpty: boolean;
+    workDay: number | null;
   }
 ): WorkdaySummaryRow[] {
   return rows.filter((r) => {
@@ -152,6 +154,7 @@ export function filterWorkdaySummaryRows(
     if (opts.departments.length > 0 && !opts.departments.includes(r.department)) return false;
     if (opts.resourceOwners.length > 0 && !opts.resourceOwners.includes(r.resourceOwnerName)) return false;
     if (opts.resources.length > 0 && !opts.resources.includes(r.employeeId)) return false;
+    if (!workDateMatchesDay(r.workDate, opts.workDay)) return false;
     if (
       opts.search.trim() &&
       !matchesSearchQuery(opts.search, r.employeeName, r.department, r.resourceOwnerName, r.employeeId)

@@ -32,6 +32,19 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-20 12:48 IST
+
+**Prompt:**  
+> Report > Daily Work Detail and Workday Summary should also include a “Work Date” filter. Dropdown 1–31; filter that day of the selected month; invalid days must not return incorrect data; same behavior on both reports.
+
+**Output:**  
+- Shared `utils/workDateDayFilter.ts` + `components/WorkDateDaySelect.tsx` (All dates + 1–31).
+- Daily Work Detail and Workday Summary: Work Date dropdown; default All dates; reset on leave/reopen.
+- Filters match calendar day-of-month in the current period; 31 in February (and other non-existent dates) match no rows (no month overflow).
+- Tests: `tests/unit/workDateDayFilter.test.ts`, extra case in `tests/unit/workdaySummary.test.ts`.
+
+---
+
 ### 2026-08-20 12:30 IST
 
 **Prompt:**  
