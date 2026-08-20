@@ -27,6 +27,13 @@ describe("reportFilterPersistence", () => {
     expect(isAllSelected(["A"], ["A", "B"])).toBe(false);
   });
 
+  it("expands lone Unallocated to all when the project list grows", () => {
+    expect(reconcileMultiSelect([], ["Unallocated"], [])).toEqual(["Unallocated"]);
+    expect(
+      reconcileMultiSelect(["Unallocated"], ["HP Pay", "HPCL", "Unallocated"], ["Unallocated"])
+    ).toEqual(["HP Pay", "HPCL", "Unallocated"]);
+  });
+
   it("clears legacy sessionStorage keys", () => {
     const store = new Map<string, string>();
     vi.stubGlobal("sessionStorage", {

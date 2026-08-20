@@ -70,7 +70,7 @@ export function reconcileMultiSelect(
 ): string[] {
   if (available.length === 0) return selected;
   if (selected.length === 0) return [...available];
-  /** First paint is often only the Unallocated sentinel; expand when real projects arrive. */
+  /** Lone Unallocated before real projects load — default is all, not a user filter. */
   if (
     selected.length === 1 &&
     selected[0] === "Unallocated" &&

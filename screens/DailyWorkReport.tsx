@@ -50,9 +50,9 @@ import {
 import { runReportExport, summarizeFilter } from "../utils/reportExport";
 import type { ExportCell, ReportExportInput } from "../utils/reportExport";
 import {
-  clearStoredReportFilters,
   reconcileMultiSelect,
 } from "../utils/reportFilterPersistence";
+import { useReportFilterSession } from "../hooks/useReportFilterSession";
 import { formatHours } from "../utils/formatHours";
 
 function cellValue(
@@ -146,6 +146,7 @@ export function DailyWorkReport() {
   const [searchParams] = useSearchParams();
   const drillEmployee = searchParams.get("employee")?.trim() || "";
   const drillDate = searchParams.get("date")?.slice(0, 10) || "";
+  const { sessionKey, filtersReady, markFiltersReady } = useReportFilterSession("daily_work");
   const { currentEmployee, isSuperAdmin } = useAuth();
   const { dateFormat } = useAppDateFormat();
   const { settings } = useSettings();
@@ -197,8 +198,10 @@ export function DailyWorkReport() {
     } catch {
       setAllocations([]);
       setApiConfirmations([]);
+    } finally {
+      markFiltersReady();
     }
-  }, [range.from, range.to]);
+  }, [range.from, range.to, markFiltersReady]);
 
   useEffect(() => {
     void load();
@@ -255,8 +258,16 @@ export function DailyWorkReport() {
   const [planKinds, setPlanKinds] = useState<PlanKind[]>([]);
 
   useEffect(() => {
-    clearStoredReportFilters("daily_work");
-  }, []);
+    setSearch(drillEmployee || "");
+    setDepartments([]);
+    setProjects([]);
+    setConfirmations([]);
+    setPlanKinds([]);
+    prevDeptsRef.current = [];
+    prevProjectsRef.current = [];
+    prevConfirmRef.current = [];
+    prevPlanRef.current = [];
+  }, [sessionKey, drillEmployee]);
 
   const prevDeptsRef = useRef<string[]>([]);
   const prevProjectsRef = useRef<string[]>([]);
@@ -264,6 +275,7 @@ export function DailyWorkReport() {
   const prevPlanRef = useRef<string[]>([]);
 
   useEffect(() => {
+    if (!filtersReady) return;
     setDepartments((prev) => {
       const next = reconcileMultiSelect(prev, allDepts, prevDeptsRef.current);
       prevDeptsRef.current = [...allDepts];
@@ -286,7 +298,7 @@ export function DailyWorkReport() {
       prevPlanRef.current = all;
       return next;
     });
-  }, [allDepts, allProjects]);
+  }, [filtersReady, allDepts, allProjects]);
 
   const { sortKey, sortDir, handleSort } = useColumnSort<DailyWorkSortKey>("workDate", "desc");
 

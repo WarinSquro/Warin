@@ -32,6 +32,18 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-20 12:30 IST
+
+**Prompt:**  
+> Resource Deployment Report filter shows only Unallocated after navigate away/return; all reports must open with all filter options selected.
+
+**Output:**  
+- **Root cause:** Filters reconciled before allocations loaded — `allProjects` was temporarily `["Unallocated"]`, locking selection; session reset was incomplete.
+- **Fix:** `hooks/useReportFilterSession.ts` — reset on `location.key`, defer reconcile until first fetch completes (`filtersReady`). Applied to all six report screens.
+- **Tests:** Unallocated expansion case in `tests/unit/reportFilterPersistence.test.ts`.
+
+---
+
 ### 2026-08-20 12:05 IST
 
 **Prompt:**  

@@ -52,9 +52,9 @@ import { confirmationCodeLabel } from "../data/dailyWorkReport";
 import { runReportExport, summarizeFilter } from "../utils/reportExport";
 import type { ExportCell, ReportExportInput } from "../utils/reportExport";
 import {
-  clearStoredReportFilters,
   reconcileMultiSelect,
 } from "../utils/reportFilterPersistence";
+import { useReportFilterSession } from "../hooks/useReportFilterSession";
 
 const GROUP_OPTIONS: { value: WorkdaySummaryGroupBy; label: string }[] = [
   { value: "none", label: "None" },
@@ -108,6 +108,7 @@ export function WorkdaySummaryReport() {
   const { settings } = useSettings();
   const { employees } = useEmployees();
   const toast = useToast();
+  const { sessionKey, filtersReady, markFiltersReady } = useReportFilterSession("workday_summary");
   const today = toLocalISO();
   const [rangeEnd, setRangeEnd] = useState(today);
   const range = useMemo(() => workdaySummaryRangeEnding(rangeEnd), [rangeEnd]);
@@ -147,8 +148,10 @@ export function WorkdaySummaryReport() {
       setAllocations([]);
       setConfirmations([]);
       setProductivity([]);
+    } finally {
+      markFiltersReady();
     }
-  }, [range.from, range.to]);
+  }, [range.from, range.to, markFiltersReady]);
 
   useEffect(() => {
     void load();
@@ -209,15 +212,21 @@ export function WorkdaySummaryReport() {
   const [resourceOwners, setResourceOwners] = useState<string[]>([]);
   const [resources, setResources] = useState<string[]>([]);
 
-  useEffect(() => {
-    clearStoredReportFilters("workday_summary");
-  }, []);
-
   const prevDepts = useRef<string[]>([]);
   const prevOwners = useRef<string[]>([]);
   const prevResources = useRef<string[]>([]);
 
   useEffect(() => {
+    setDepartments([]);
+    setResourceOwners([]);
+    setResources([]);
+    prevDepts.current = [];
+    prevOwners.current = [];
+    prevResources.current = [];
+  }, [sessionKey]);
+
+  useEffect(() => {
+    if (!filtersReady) return;
     setDepartments((prev) => {
       const next = reconcileMultiSelect(prev, allDepts, prevDepts.current);
       prevDepts.current = [...allDepts];
@@ -233,7 +242,7 @@ export function WorkdaySummaryReport() {
       prevResources.current = [...resourceNames];
       return next;
     });
-  }, [allDepts, allOwners, resourceNames]);
+  }, [filtersReady, allDepts, allOwners, resourceNames]);
 
   const resourceIds = useMemo(
     () => allResources.filter((r) => resources.includes(r.name)).map((r) => r.id),

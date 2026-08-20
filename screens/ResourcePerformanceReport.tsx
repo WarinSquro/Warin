@@ -45,9 +45,9 @@ import type { ReportExportInput } from "../utils/reportExport";
 import { formatHoursLabel } from "../utils/formatHours";
 import { scopeEmployeesForViewer, withoutAdministratorEmployees } from "../utils/reportVisibility";
 import {
-  clearStoredReportFilters,
   reconcileMultiSelect,
 } from "../utils/reportFilterPersistence";
+import { useReportFilterSession } from "../hooks/useReportFilterSession";
 
 const REPORT_GRID =
   "grid w-full grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(5.5rem,0.72fr)_minmax(0,1.15fr)_minmax(4.5rem,0.7fr)] items-center gap-x-4 px-4";
@@ -67,6 +67,7 @@ export function ResourcePerformanceReport() {
   const weekCapacity = Math.round(settings.workingHoursPerDay * settings.workingDays.length) || 40;
   const [searchParams] = useSearchParams();
   const departmentPreset = searchParams.get("department");
+  const { sessionKey, filtersReady, markFiltersReady } = useReportFilterSession("performance");
   const [periodId, setPeriodId] = useState<PerformancePeriodId>("month");
   const [customMonthId, setCustomMonthId] = useState<PerformanceCustomMonthId>(
     DEFAULT_PERFORMANCE_CUSTOM_MONTH
@@ -115,8 +116,10 @@ export function ResourcePerformanceReport() {
     } catch {
       setAllocations([]);
       setConfirmations([]);
+    } finally {
+      markFiltersReady();
     }
-  }, [fetchRange.from, fetchRange.to]);
+  }, [fetchRange.from, fetchRange.to, markFiltersReady]);
 
   useEffect(() => {
     void load();
@@ -145,16 +148,10 @@ export function ResourcePerformanceReport() {
   const allSkills = useMemo(() => performanceSkills(periodRows), [periodRows]);
   const ownerNames = useMemo(() => allOwners.map((o) => o.name), [allOwners]);
 
-  const [departments, setDepartments] = useState<string[]>(() =>
-    departmentPreset ? [departmentPreset] : []
-  );
+  const [departments, setDepartments] = useState<string[]>([]);
   const [resourceOwners, setResourceOwners] = useState<string[]>([]);
   const [skills, setSkills] = useState<string[]>([]);
   const [employmentStatuses, setEmploymentStatuses] = useState<string[]>([]);
-
-  useEffect(() => {
-    clearStoredReportFilters("performance");
-  }, []);
 
   const prevDeptsRef = useRef<string[]>([]);
   const prevOwnersRef = useRef<string[]>([]);
@@ -162,6 +159,18 @@ export function ResourcePerformanceReport() {
   const prevEmploymentRef = useRef<string[]>([]);
 
   useEffect(() => {
+    setDepartments([]);
+    setResourceOwners([]);
+    setSkills([]);
+    setEmploymentStatuses([]);
+    prevDeptsRef.current = [];
+    prevOwnersRef.current = [];
+    prevSkillsRef.current = [];
+    prevEmploymentRef.current = [];
+  }, [sessionKey]);
+
+  useEffect(() => {
+    if (!filtersReady) return;
     setDepartments((prev) => {
       const next = reconcileMultiSelect(prev, allDepts, prevDeptsRef.current);
       prevDeptsRef.current = [...allDepts];
@@ -183,7 +192,12 @@ export function ResourcePerformanceReport() {
       prevEmploymentRef.current = all;
       return next;
     });
-  }, [allDepts, ownerNames, allSkills]);
+  }, [filtersReady, allDepts, ownerNames, allSkills]);
+
+  useEffect(() => {
+    if (!filtersReady || !departmentPreset) return;
+    setDepartments([departmentPreset]);
+  }, [filtersReady, sessionKey, departmentPreset]);
 
   const { sortKey, sortDir, handleSort } = useColumnSort<PerformanceSortKey>("employee", "asc");
 

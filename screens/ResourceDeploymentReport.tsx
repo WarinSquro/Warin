@@ -40,9 +40,9 @@ import type { ReportExportInput } from "../utils/reportExport";
 import { formatHoursLabel } from "../utils/formatHours";
 import { scopeEmployeesForViewer } from "../utils/reportVisibility";
 import {
-  clearStoredReportFilters,
   reconcileMultiSelect,
 } from "../utils/reportFilterPersistence";
+import { useReportFilterSession } from "../hooks/useReportFilterSession";
 
 const GROUP_OPTIONS: { value: DeploymentGroupBy; label: string }[] = [
   { value: "none", label: "None" },
@@ -72,6 +72,7 @@ export function ResourceDeploymentReport() {
   }, [employees, currentEmployee, isSuperAdmin]);
   const [searchParams] = useSearchParams();
   const statusPreset = searchParams.get("status");
+  const { sessionKey, filtersReady, markFiltersReady } = useReportFilterSession("deployment");
   const [periodId, setPeriodId] = useState<ReportPeriodId>("week");
   const [search, setSearch] = useState("");
   const [groupBy, setGroupBy] = useState<DeploymentGroupBy>("none");
@@ -108,8 +109,10 @@ export function ResourceDeploymentReport() {
       setConfirmations(Array.isArray(c) ? c : []);
     } catch {
       setConfirmations([]);
+    } finally {
+      markFiltersReady();
     }
-  }, [range.from, range.to, toast]);
+  }, [range.from, range.to, toast, markFiltersReady]);
 
   useEffect(() => {
     void load();
@@ -154,12 +157,7 @@ export function ResourceDeploymentReport() {
   const [projects, setProjects] = useState<string[]>([]);
   const [resourceOwners, setResourceOwners] = useState<string[]>([]);
   const [skills, setSkills] = useState<string[]>([]);
-  const [statuses, setStatuses] = useState<string[]>(() => {
-    if (statusPreset && DEPLOYMENT_STATUSES.includes(statusPreset as DeploymentStatus)) {
-      return [statusPreset];
-    }
-    return [];
-  });
+  const [statuses, setStatuses] = useState<string[]>([]);
 
   const prevDeptsRef = useRef<string[]>([]);
   const prevProjectsRef = useRef<string[]>([]);
@@ -168,10 +166,20 @@ export function ResourceDeploymentReport() {
   const prevStatusesRef = useRef<string[]>([]);
 
   useEffect(() => {
-    clearStoredReportFilters("deployment");
-  }, []);
+    setDepartments([]);
+    setProjects([]);
+    setResourceOwners([]);
+    setSkills([]);
+    setStatuses([]);
+    prevDeptsRef.current = [];
+    prevProjectsRef.current = [];
+    prevOwnersRef.current = [];
+    prevSkillsRef.current = [];
+    prevStatusesRef.current = [];
+  }, [sessionKey]);
 
   useEffect(() => {
+    if (!filtersReady) return;
     setDepartments((prev) => {
       const next = reconcileMultiSelect(prev, allDepts, prevDeptsRef.current);
       prevDeptsRef.current = [...allDepts];
@@ -198,7 +206,14 @@ export function ResourceDeploymentReport() {
       prevStatusesRef.current = all;
       return next;
     });
-  }, [allDepts, allProjects, ownerNames, allSkills]);
+  }, [filtersReady, allDepts, allProjects, ownerNames, allSkills]);
+
+  useEffect(() => {
+    if (!filtersReady || !statusPreset) return;
+    if (DEPLOYMENT_STATUSES.includes(statusPreset as DeploymentStatus)) {
+      setStatuses([statusPreset]);
+    }
+  }, [filtersReady, sessionKey, statusPreset]);
 
   const { sortKey, sortDir, handleSort } = useColumnSort<DeploymentSortKey>("employee", "asc");
 

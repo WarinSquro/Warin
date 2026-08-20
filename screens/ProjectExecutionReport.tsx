@@ -60,9 +60,9 @@ import {
   visibleEmployeeIdSet,
 } from "../utils/reportVisibility";
 import {
-  clearStoredReportFilters,
   reconcileMultiSelect,
 } from "../utils/reportFilterPersistence";
+import { useReportFilterSession } from "../hooks/useReportFilterSession";
 
 const REPORT_GRID =
   "grid w-full grid-cols-[minmax(0,1.15fr)_minmax(0,0.95fr)_minmax(0,0.95fr)_minmax(5.5rem,0.72fr)_minmax(0,1.15fr)_minmax(3.5rem,0.55fr)_minmax(0,0.95fr)] items-center gap-x-4 px-4";
@@ -83,6 +83,7 @@ export function ProjectExecutionReport() {
   );
   const [searchParams] = useSearchParams();
   const attentionPreset = searchParams.get("preset") === "attention";
+  const { sessionKey, filtersReady, markFiltersReady } = useReportFilterSession("execution");
   const [periodId, setPeriodId] = useState<ExecutionPeriodId>("month");
   const [customMonthId, setCustomMonthId] = useState<ExecutionCustomMonthId>(
     DEFAULT_EXECUTION_CUSTOM_MONTH
@@ -131,8 +132,10 @@ export function ProjectExecutionReport() {
     } catch {
       setAllocations([]);
       setConfirmations([]);
+    } finally {
+      markFiltersReady();
     }
-  }, [fetchRange.from, fetchRange.to]);
+  }, [fetchRange.from, fetchRange.to, markFiltersReady]);
 
   useEffect(() => {
     void load();
@@ -183,14 +186,8 @@ export function ProjectExecutionReport() {
   const [projects, setProjects] = useState<string[]>([]);
   const [departments, setDepartments] = useState<string[]>([]);
   const [resourceOwners, setResourceOwners] = useState<string[]>([]);
-  const [healthFilters, setHealthFilters] = useState<string[]>(() =>
-    attentionPreset ? [HEALTH_LABELS.amber, HEALTH_LABELS.red] : []
-  );
+  const [healthFilters, setHealthFilters] = useState<string[]>([]);
   const [statusFilters, setStatusFilters] = useState<string[]>([]);
-
-  useEffect(() => {
-    clearStoredReportFilters("execution");
-  }, []);
 
   const prevProjectsRef = useRef<string[]>([]);
   const prevDeptsRef = useRef<string[]>([]);
@@ -199,6 +196,20 @@ export function ProjectExecutionReport() {
   const prevStatusRef = useRef<string[]>([]);
 
   useEffect(() => {
+    setProjects([]);
+    setDepartments([]);
+    setResourceOwners([]);
+    setHealthFilters([]);
+    setStatusFilters([]);
+    prevProjectsRef.current = [];
+    prevDeptsRef.current = [];
+    prevOwnersRef.current = [];
+    prevHealthRef.current = [];
+    prevStatusRef.current = [];
+  }, [sessionKey]);
+
+  useEffect(() => {
+    if (!filtersReady) return;
     setProjects((prev) => {
       const next = reconcileMultiSelect(prev, allProjects, prevProjectsRef.current);
       prevProjectsRef.current = [...allProjects];
@@ -224,7 +235,12 @@ export function ProjectExecutionReport() {
       prevStatusRef.current = [...STATUS_FILTER_ITEMS];
       return next;
     });
-  }, [allProjects, allDepts, ownerNames]);
+  }, [filtersReady, allProjects, allDepts, ownerNames]);
+
+  useEffect(() => {
+    if (!filtersReady || !attentionPreset) return;
+    setHealthFilters([HEALTH_LABELS.amber, HEALTH_LABELS.red]);
+  }, [filtersReady, sessionKey, attentionPreset]);
 
   const { sortKey, sortDir, handleSort } = useColumnSort<ExecutionSortKey>(
     attentionPreset ? "health" : "project",
