@@ -10,7 +10,7 @@ import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { SessionAuthCache } from "../auth/session-auth.cache";
 import type { JwtPayload } from "../auth/jwt.strategy";
 
-const TX_OPTS = { maxWait: 10_000, timeout: 30_000 } as const;
+const TX_OPTS = { maxWait: 10_000, timeout: 60_000 } as const;
 
 @Injectable()
 export class HardDeleteService {
@@ -59,7 +59,12 @@ export class HardDeleteService {
         where: { resourceOwnerId: emp.id },
         data: { resourceOwnerId: null },
       });
-      await this.detachAndDeleteAllocations(tx, { employeeId: emp.id });
+      // No onDelete on KPI updater FK — clear before employee row is removed.
+      await tx.kpiFrameworkItem.updateMany({
+        where: { resultUpdatedById: emp.id },
+        data: { resultUpdatedById: null },
+      });
+      await this.purgeEmployeeTransactions(tx, emp.id);
       await tx.employee.delete({ where: { id: emp.id } });
     }, TX_OPTS);
 
@@ -129,7 +134,34 @@ export class HardDeleteService {
     return { ok: true, message: `${row.name} was permanently deleted.` };
   }
 
-  /** Null optional FKs, then hard-delete allocations (activity FK is RESTRICT). */
+  /**
+   * Remove all employee-scoped transaction rows before the employee master row.
+   * Focus sessions/laps cascade when productivity days are deleted; confirmation lines
+   * cascade when work confirmations are deleted.
+   */
+  private async purgeEmployeeTransactions(
+    tx: Prisma.TransactionClient,
+    employeeId: bigint
+  ) {
+    await tx.confirmationProductivityDay.deleteMany({ where: { employeeId } });
+    await tx.workConfirmation.deleteMany({ where: { employeeId } });
+    await tx.weeklyCheckInSubmission.deleteMany({
+      where: {
+        OR: [
+          { employeeId },
+          { resourceOwnerId: employeeId },
+          { submittedById: employeeId },
+        ],
+      },
+    });
+    await tx.kpiFrameworkItem.deleteMany({ where: { employeeId } });
+    await this.detachAndDeleteAllocations(tx, { employeeId });
+  }
+
+  /**
+   * Hard-delete allocations and every confirmation/focus row tied to them.
+   * (Previously only nulled FKs, which left orphan productivity / confirmation evidence.)
+   */
   private async detachAndDeleteAllocations(
     tx: Prisma.TransactionClient,
     where: { employeeId?: bigint; projectId?: bigint; activityId?: bigint }
@@ -137,18 +169,46 @@ export class HardDeleteService {
     const rows = await tx.allocation.findMany({ where, select: { id: true } });
     const ids = rows.map((r) => r.id);
     if (ids.length === 0) return;
-    await tx.workConfirmationLine.updateMany({
+
+    const keys = ids.map((id) => id.toString());
+    const confirmationIds = (
+      await tx.workConfirmationLine.findMany({
+        where: { allocationId: { in: ids } },
+        select: { confirmationId: true },
+        distinct: ["confirmationId"],
+      })
+    ).map((r) => r.confirmationId);
+
+    await tx.workConfirmationLine.deleteMany({
       where: { allocationId: { in: ids } },
-      data: { allocationId: null },
     });
-    await tx.confirmationFocusSession.updateMany({
-      where: { allocationId: { in: ids } },
-      data: { allocationId: null },
+    await tx.confirmationFocusLap.deleteMany({
+      where: {
+        OR: [{ allocationId: { in: ids } }, { allocationKey: { in: keys } }],
+      },
     });
-    await tx.confirmationFocusLap.updateMany({
-      where: { allocationId: { in: ids } },
-      data: { allocationId: null },
+    await tx.confirmationFocusSession.deleteMany({
+      where: {
+        OR: [{ allocationId: { in: ids } }, { allocationKey: { in: keys } }],
+      },
     });
     await tx.allocation.deleteMany({ where: { id: { in: ids } } });
+
+    if (confirmationIds.length > 0) {
+      const stillHaveLines = await tx.workConfirmationLine.findMany({
+        where: { confirmationId: { in: confirmationIds } },
+        select: { confirmationId: true },
+        distinct: ["confirmationId"],
+      });
+      const keep = new Set(stillHaveLines.map((r) => r.confirmationId.toString()));
+      const orphanConfirmationIds = confirmationIds.filter(
+        (id) => !keep.has(id.toString())
+      );
+      if (orphanConfirmationIds.length > 0) {
+        await tx.workConfirmation.deleteMany({
+          where: { id: { in: orphanConfirmationIds } },
+        });
+      }
+    }
   }
 }

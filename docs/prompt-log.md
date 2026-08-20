@@ -32,6 +32,20 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-20 16:48 IST
+
+**Prompt:**  
+> Hard Delete should remove all transaction data; `confirmation_productivity_days` still had rows ≤2026-08-16 — delete now and fix Hard Delete.
+
+**Output:**  
+- **Root cause:** Hard Delete only detached/null’d allocation FKs then deleted allocations (or relied on employee PK cascade). It never explicitly purged `confirmation_productivity_days` / `work_confirmations` / focus rows. Leftover rows were for employees still present (not hard-deleted), so they survived prior soft/allocation deletes.
+- **Immediate purge:** Local Docker deleted 40 productivity + 17 confirmations ≤2026-08-16. EC2 deleted 37 productivity rows (confirmations already 0). Verify remaining = 0 on both.
+- **Code:** `apps/oneview-api/src/api/hard-delete/hard-delete.service.ts` — employee hard delete now `purgeEmployeeTransactions` (productivity days, work confirmations, WCI, KPI, then allocations). Allocation detach hard-deletes confirmation lines + focus sessions/laps (by `allocation_id` / `allocation_key`) and removes empty confirmation headers; no longer only nulls FKs.
+- **Tests:** `tests/unit/hardDeleteCascade.test.ts` (+ credentials) passed.
+- **Deploy note:** API image must be rebuilt (`ec2-deploy.sh --with-api`) after commit/push for live Hard Delete behavior.
+
+---
+
 ### 2026-08-20 16:20 IST
 
 **Prompt:**  
