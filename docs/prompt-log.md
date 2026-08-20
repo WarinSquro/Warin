@@ -32,6 +32,16 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-20 23:40 IST
+
+**Prompt:**  
+> It is possible in ops-console > Restore (EC2 database Downloaded) database to local docker by selecting dump from local drive: [ Restore ] [ Cancel ] — take confirmation and restore.
+
+**Output:**  
+- Added **Restore EC2 dump to local Docker** panel (file picker, Restore / Cancel, credentials + confirm).
+- API `POST /api/ops/backups/restore/upload`; blocked on EC2 layout so production cannot be overwritten via upload.
+- Commit `bcaac93` pushed; local smoke test restored `oneview_database_2026-08-20T1545_0448846.dump` (HTTP 200).
+
 ### 2026-08-20 23:30 IST
 
 **Prompt:**  
