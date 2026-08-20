@@ -32,6 +32,16 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-20 11:07 IST
+
+**Prompt:**  
+> Fix Vite/Babel error mixing `||` and `??` in Daily Work Report.
+
+**Output:**  
+- `screens/DailyWorkReport.tsx` line 175 — `drillEmployee || storedFilters?.search || ""` so the search initializer parses.
+
+---
+
 ### 2026-08-20 11:15 IST
 
 **Prompt:**  

@@ -172,7 +172,7 @@ export function DailyWorkReport() {
   const [periodId, setPeriodId] = useState<DailyWorkPeriodId>(
     () => storedFilters?.periodId ?? "week"
   );
-  const [search, setSearch] = useState(() => drillEmployee || storedFilters?.search ?? "");
+  const [search, setSearch] = useState(() => drillEmployee || storedFilters?.search || "");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(() => storedFilters?.pageSize ?? 25);
   const toast = useToast();
