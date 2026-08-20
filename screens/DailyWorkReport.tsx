@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FileSpreadsheet, Search } from "lucide-react";
+import { FileSpreadsheet, FileText, Search } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import { FilterMultiSelect } from "../components/FilterMultiSelect";

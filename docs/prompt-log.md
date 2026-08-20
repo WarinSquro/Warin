@@ -32,6 +32,15 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-20 23:05 IST
+
+**Prompt:**  
+> Daily Work Detail Report showing blank white screen — check and fix.
+
+**Output:**  
+- **Root cause:** Removing the Confirmation footer also dropped `FileText` from the lucide import, but the PDF export button still rendered `<FileText />` → `ReferenceError` → white screen.
+- **Fix:** Restored `FileText` import in `screens/DailyWorkReport.tsx`. Confirmation column/footer remain removed.
+
 ### 2026-08-20 22:55 IST
 
 **Prompt:**  
