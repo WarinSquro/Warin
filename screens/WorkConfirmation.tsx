@@ -44,6 +44,7 @@ import {
   getDayProductivity,
   hasAnyUnstoppedFocusSession,
   isFocusStartBlocked,
+  FOCUS_TIMERS_FINALIZED_EVENT,
   loadProductivityStore,
   pauseAllRunningFocusTimers,
   saveProductivityStore,
@@ -266,6 +267,18 @@ function EmployeeConfirm() {
     return () => {
       cancelled = true;
     };
+  }, [hrmsId]);
+
+  // App Log out finalizes open timers in localStorage — refresh UI if still mounted.
+  useEffect(() => {
+    if (!hrmsId) return;
+    const onFinalized = (ev: Event) => {
+      const detail = (ev as CustomEvent<{ hrmsId?: string }>).detail;
+      if (detail?.hrmsId && detail.hrmsId !== hrmsId) return;
+      setProdStore(loadProductivityStore(hrmsId));
+    };
+    window.addEventListener(FOCUS_TIMERS_FINALIZED_EVENT, onFinalized);
+    return () => window.removeEventListener(FOCUS_TIMERS_FINALIZED_EVENT, onFinalized);
   }, [hrmsId]);
 
   const todayProd = useMemo(

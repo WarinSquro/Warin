@@ -32,6 +32,20 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-20 17:40 IST
+
+**Prompt:**  
+> Work Confirmation: when any timer is on and user logs out from the app, timer must stop by default; laps shown and total updated.
+
+**Output:**  
+- **Root cause:** App Log out (`signOut`) cleared the session without finalizing open focus timers, so running segments were abandoned.
+- `utils/confirmationProductivity.ts` — `finalizeOpenFocusTimersOnAppLogout` stops all open sessions into laps (no dayEnd stamp), persists localStorage, emits `FOCUS_TIMERS_FINALIZED_EVENT`.
+- `context/AuthContext.tsx` — `signOut` finalizes then syncs productivity API while JWT valid, then clears session (covers sidebar Log out, Account, idle timeout).
+- `screens/WorkConfirmation.tsx` — refreshes store on finalize event.
+- Tests extended in `tests/unit/confirmationProductivity.test.ts`.
+
+---
+
 ### 2026-08-20 17:30 IST
 
 **Prompt:**  

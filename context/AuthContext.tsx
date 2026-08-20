@@ -25,7 +25,9 @@ import {
   type LoginOkResponse,
 } from "../api/client";
 import { DATA_CHANGED_EVENT, type DataChangedEvent } from "../api/realtimeEvents";
+import { upsertConfirmationProductivity } from "../api/domain";
 import { useIdleSessionTimeout } from "../hooks/useIdleSessionTimeout";
+import { finalizeOpenFocusTimersOnAppLogout } from "../utils/confirmationProductivity";
 
 const SESSION_KEY = "oneview_session_email";
 const USER_KEY = "oneview_session_user";
@@ -238,16 +240,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(() => {
-    void logoutApi();
-    setSessionEmail(null);
-    setUser(null);
-    clearTokens();
-    try {
-      sessionStorage.removeItem(SESSION_KEY);
-      sessionStorage.removeItem(USER_KEY);
-    } catch {
-      /* ignore */
+    const hrmsId = userRef.current?.hrmsId;
+    let finalized: ReturnType<typeof finalizeOpenFocusTimersOnAppLogout> = [];
+    if (hrmsId) {
+      try {
+        finalized = finalizeOpenFocusTimersOnAppLogout(hrmsId);
+      } catch {
+        finalized = [];
+      }
     }
+
+    const clearSession = () => {
+      void logoutApi();
+      setSessionEmail(null);
+      setUser(null);
+      clearTokens();
+      try {
+        sessionStorage.removeItem(SESSION_KEY);
+        sessionStorage.removeItem(USER_KEY);
+      } catch {
+        /* ignore */
+      }
+    };
+
+    if (finalized.length === 0) {
+      clearSession();
+      return;
+    }
+
+    // Sync laps/totals while JWT is still valid, then end the session.
+    void Promise.allSettled(
+      finalized.map(({ workDate, day }) =>
+        upsertConfirmationProductivity({
+          workDate,
+          workday: {
+            dayStart: day.workday.dayStart ?? null,
+            lunchOut: day.workday.lunchOut ?? null,
+            lunchIn: day.workday.lunchIn ?? null,
+            dayEnd: day.workday.dayEnd ?? null,
+          },
+          focusByAllocation: day.focusByAllocation,
+          activeTimerId: day.activeTimerId ?? null,
+          workHours: day.workHours ?? null,
+        })
+      )
+    ).finally(clearSession);
   }, []);
 
   useIdleSessionTimeout(Boolean(user && sessionEmail), signOut);

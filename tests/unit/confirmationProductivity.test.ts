@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   emptyDayProductivity,
+  finalizeOpenFocusTimersOnAppLogout,
   focusElapsedMs,
   focusElapsedMsForWorkDate,
   isFocusStartBlocked,
+  loadProductivityStore,
   pauseAllRunningFocusTimers,
   stopAllOpenFocusTimers,
   workDateEndMs,
@@ -210,5 +212,67 @@ describe("confirmation focus workday gates", () => {
     expect(lap?.durationMs).toBe(12_000);
     expect(new Date(lap!.endedAt).getTime() - new Date(lap!.startedAt).getTime()).toBe(12_000);
     expect(focusElapsedMs(day.focusByAllocation.a1)).toBe(12_000);
+  });
+});
+
+describe("finalizeOpenFocusTimersOnAppLogout", () => {
+  const KEY = "oneview_confirm_productivity_v1_EMP-TEST";
+  const memory = new Map<string, string>();
+
+  it("stops running timers into laps, updates totals, and does not stamp dayEnd", () => {
+    memory.clear();
+    const storage = {
+      getItem: (k: string) => memory.get(k) ?? null,
+      setItem: (k: string, v: string) => {
+        memory.set(k, v);
+      },
+      removeItem: (k: string) => {
+        memory.delete(k);
+      },
+    };
+    // @ts-expect-error test stub
+    globalThis.localStorage = storage;
+    // @ts-expect-error test stub
+    globalThis.window = globalThis;
+
+    const now = new Date("2026-08-20T12:00:00.000Z").getTime();
+    localStorage.setItem(
+      KEY,
+      JSON.stringify({
+        days: {
+          "2026-08-20": {
+            workday: { dayStart: "2026-08-20T10:45:00.000Z" },
+            activeTimerId: "a1",
+            focusByAllocation: {
+              a1: {
+                laps: [
+                  {
+                    id: "old",
+                    startedAt: "2026-08-20T04:00:00.000Z",
+                    endedAt: "2026-08-20T04:33:01.000Z",
+                    durationMs: 1_981_000,
+                  },
+                ],
+                sessionAccumMs: 0,
+                segmentStartedAt: new Date(now - 62_000).toISOString(),
+              },
+            },
+          },
+        },
+      })
+    );
+
+    const changed = finalizeOpenFocusTimersOnAppLogout("EMP-TEST", now);
+    expect(changed).toHaveLength(1);
+    expect(changed[0]?.day.workday.dayEnd).toBeUndefined();
+    expect(changed[0]?.day.activeTimerId).toBeNull();
+    expect(changed[0]?.day.focusByAllocation.a1?.segmentStartedAt).toBeNull();
+    expect(changed[0]?.day.focusByAllocation.a1?.laps).toHaveLength(2);
+    expect(changed[0]?.day.focusByAllocation.a1?.laps[1]?.durationMs).toBe(62_000);
+    expect(focusElapsedMs(changed[0]?.day.focusByAllocation.a1)).toBe(1_981_000 + 62_000);
+
+    const stored = loadProductivityStore("EMP-TEST");
+    expect(stored.days["2026-08-20"]?.focusByAllocation.a1?.laps).toHaveLength(2);
+    localStorage.removeItem(KEY);
   });
 });

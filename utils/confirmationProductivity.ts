@@ -152,6 +152,45 @@ export function stopAllOpenFocusTimers(
   return { ...next, activeTimerId: null };
 }
 
+/**
+ * App Log out (session end): finalize every open focus session into laps for all
+ * stored work dates. Does **not** stamp workday Log Out / Day End.
+ * Persists to localStorage; caller should sync to API while the JWT is still valid.
+ */
+export const FOCUS_TIMERS_FINALIZED_EVENT = "warin:focus-timers-finalized";
+
+export function finalizeOpenFocusTimersOnAppLogout(
+  hrmsId: string,
+  now = Date.now()
+): { workDate: string; day: DayProductivity }[] {
+  const id = hrmsId.trim();
+  if (!id) return [];
+  const store = loadProductivityStore(id);
+  const changed: { workDate: string; day: DayProductivity }[] = [];
+  let next = store;
+  for (const [workDate, day] of Object.entries(store.days)) {
+    if (!day) continue;
+    const needsStop =
+      Boolean(day.activeTimerId) || hasAnyUnstoppedFocusSession(day.focusByAllocation);
+    if (!needsStop) continue;
+    const finalized = stopAllOpenFocusTimers(day, now);
+    next = upsertDayProductivity(next, workDate, finalized);
+    changed.push({ workDate, day: finalized });
+  }
+  if (changed.length === 0) return [];
+  saveProductivityStore(id, next);
+  try {
+    window.dispatchEvent(
+      new CustomEvent(FOCUS_TIMERS_FINALIZED_EVENT, {
+        detail: { hrmsId: id, days: changed },
+      })
+    );
+  } catch {
+    /* ignore non-browser */
+  }
+  return changed;
+}
+
 /** True when Start/Pause session is still open (running or paused, Stop not pressed). */
 export function hasUnstoppedFocusSession(state: FocusAllocationState | undefined): boolean {
   if (!state) return false;
