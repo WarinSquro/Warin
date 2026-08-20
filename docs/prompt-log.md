@@ -32,6 +32,19 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-20 11:15 IST
+
+**Prompt:**  
+> Read PDF `phase1-workdaysummary-frd.pdf` and create the Workday Summary report as specified.
+
+**Output:**  
+- New report **Workday Summary** after Daily Work Detail (`/reports/workday-summary`, permission `reports.workday_summary`).
+- 14-day window with prev/next (not past today). Hierarchy-scoped. Columns per FRD (times/durations HH:mm, missing → —). Compliance reuses C/CD/D/DD/Pending. Excel export, column picker, group-by Department/RO (no subtotals). Sticky Work Date + Employee. Drill-down to Daily Work Detail (`?employee=&date=`).
+- API: `GET /confirmations/productivity` for team timeline/focus. Spec copied to `docs/specs/phase1-workdaysummary-frd.pdf`.
+- Files: `screens/WorkdaySummaryReport.tsx`, `data/workdaySummaryReport.ts`, `api/workdaySummary.ts`, `api/domain.ts`, confirmations/employees/allocations controllers, nav/routes/seeds, Daily Work query params, tests.
+
+---
+
 ### 2026-08-20 10:40 IST
 
 **Prompt:**  

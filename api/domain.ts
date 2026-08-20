@@ -913,6 +913,22 @@ export async function fetchConfirmationProductivity(params?: {
   return apiFetch(`/confirmations/me/productivity${qs ? `?${qs}` : ""}`);
 }
 
+export type ApiTeamProductivityDay = ApiProductivityDay & {
+  employeeHrmsId: string;
+  workDate: string;
+};
+
+export async function fetchTeamConfirmationProductivity(params?: {
+  from?: string;
+  to?: string;
+}): Promise<ApiTeamProductivityDay[]> {
+  const q = new URLSearchParams();
+  if (params?.from) q.set("from", params.from);
+  if (params?.to) q.set("to", params.to);
+  const qs = q.toString();
+  return apiFetch(`/confirmations/productivity${qs ? `?${qs}` : ""}`);
+}
+
 export async function upsertConfirmationProductivity(body: {
   workDate: string;
   workday?: {

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FileSpreadsheet, FileText, Search } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import { FilterMultiSelect } from "../components/FilterMultiSelect";
 import { ReportPagination } from "../components/ReportPagination";
@@ -156,6 +157,9 @@ function exportCellValue(
 }
 
 export function DailyWorkReport() {
+  const [searchParams] = useSearchParams();
+  const drillEmployee = searchParams.get("employee")?.trim() || "";
+  const drillDate = searchParams.get("date")?.slice(0, 10) || "";
   const { currentEmployee, isSuperAdmin } = useAuth();
   const { dateFormat } = useAppDateFormat();
   const { settings } = useSettings();
@@ -168,7 +172,7 @@ export function DailyWorkReport() {
   const [periodId, setPeriodId] = useState<DailyWorkPeriodId>(
     () => storedFilters?.periodId ?? "week"
   );
-  const [search, setSearch] = useState(() => storedFilters?.search ?? "");
+  const [search, setSearch] = useState(() => drillEmployee || storedFilters?.search ?? "");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(() => storedFilters?.pageSize ?? 25);
   const toast = useToast();
@@ -185,12 +189,22 @@ export function DailyWorkReport() {
 
   const range = useMemo(() => {
     const weekOpts = { workingDays: settings.workingDays };
-    if (periodId === "today") return reportRange("today");
-    if (periodId === "week") return reportRange("week", weekOpts);
-    if (periodId === "month") return reportRange("month");
-    if (periodId === "last_month") return reportRange("last_month");
-    return reportRange("last_3_months");
-  }, [periodId, settings.workingDays]);
+    let base =
+      periodId === "today"
+        ? reportRange("today")
+        : periodId === "week"
+          ? reportRange("week", weekOpts)
+          : periodId === "month"
+            ? reportRange("month")
+            : periodId === "last_month"
+              ? reportRange("last_month")
+              : reportRange("last_3_months");
+    if (drillDate) {
+      if (drillDate < base.from) base = { ...base, from: drillDate };
+      if (drillDate > base.to) base = { ...base, to: drillDate };
+    }
+    return base;
+  }, [periodId, settings.workingDays, drillDate]);
 
   const load = useCallback(async () => {
     try {
@@ -246,10 +260,11 @@ export function DailyWorkReport() {
     return getVisibleEmployeeIds(currentEmployee.id, employees);
   }, [currentEmployee, isSuperAdmin, periodRows, employees]);
 
-  const scopedRows = useMemo(
-    () => periodRows.filter((r) => visibleEmployeeIds.has(r.employeeId)),
-    [periodRows, visibleEmployeeIds]
-  );
+  const scopedRows = useMemo(() => {
+    let rows = periodRows.filter((r) => visibleEmployeeIds.has(r.employeeId));
+    if (drillDate) rows = rows.filter((r) => r.workDate === drillDate);
+    return rows;
+  }, [periodRows, visibleEmployeeIds, drillDate]);
 
   const allDepts = useMemo(() => dailyWorkDepartments(scopedRows), [scopedRows]);
   const allProjects = useMemo(() => dailyWorkProjects(scopedRows), [scopedRows]);

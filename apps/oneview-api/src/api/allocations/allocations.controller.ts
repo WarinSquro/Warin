@@ -191,7 +191,8 @@ export class AllocationsController {
     "reports.deployment",
     "reports.performance",
     "reports.execution",
-    "reports.daily_work"
+    "reports.daily_work",
+    "reports.workday_summary"
   )
   async list(
     @Query("employeeHrmsId") employeeHrmsId?: string,

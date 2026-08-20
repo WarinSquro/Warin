@@ -19,7 +19,7 @@ These files are the **product source of truth** when behavior is ambiguous (UI m
 | `phase1-report3-ui.pdf` | Execution UI | `/reports/execution` |
 | `phase1-weeklyci-frd.pdf` | Weekly Check-In FRD | `/my-team/weekly-check-in*`, `/masters/weekly-check-in` |
 | `phase1-weeklyci-ui.pdf` | Weekly Check-In UI | same |
-| `phase1-rights-ui.pdf` | Access Rights UI / rules | `/access-rights` |
+| `phase1-workdaysummary-frd.pdf` | Workday Summary Report | `/reports/workday-summary` |
 
 ## How agents should use FRD
 

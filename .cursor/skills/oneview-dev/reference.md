@@ -31,6 +31,7 @@ Companion to `SKILL.md`. Route, permission, and module map for agents.
 | `/reports/performance` | ResourcePerformanceReport | `reports.performance` |
 | `/reports/execution` | ProjectExecutionReport | `reports.execution` |
 | `/reports/daily-work` | DailyWorkReport | `reports.daily_work` |
+| `/reports/workday-summary` | WorkdaySummaryReport | `reports.workday_summary` |
 | `/my-team/weekly-check-in` | WeeklyCheckInQueue | `my_team.weekly_check_in` |
 | `/my-team/weekly-check-in/:employeeId` | WeeklyCheckInWorkspace | same |
 | `/my-team/weekly-check-in/:employeeId/history` | WeeklyCheckInHistory | same |

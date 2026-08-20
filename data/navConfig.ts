@@ -92,6 +92,13 @@ export const PERMISSION_PAGES: PermissionPage[] = [
     menuVisible: true,
   },
   {
+    key: "reports.workday_summary",
+    label: "Workday Summary",
+    route: "/reports/workday-summary",
+    group: "Reports",
+    menuVisible: true,
+  },
+  {
     key: "my_team.weekly_check_in",
     label: "Weekly Check-In",
     route: "/my-team/weekly-check-in",

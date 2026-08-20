@@ -265,7 +265,8 @@ export class EmployeesController {
     "reports.deployment",
     "reports.performance",
     "reports.execution",
-    "reports.daily_work"
+    "reports.daily_work",
+    "reports.workday_summary"
   )
   async list(@Query("status") status?: string) {
     const [rows, txFlags] = await Promise.all([

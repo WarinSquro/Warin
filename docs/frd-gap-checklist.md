@@ -28,6 +28,7 @@ Use with [`docs/specs/HOW-TO-USE-FRD.md`](./specs/HOW-TO-USE-FRD.md). Re-score r
 | 4 | RPR history drawer | **Match** | Must (RPR-021) | Live `buildPerformanceHistoryFromLive` (6 months); mirrors Execution history |
 | 5 | PER health rules | **Match** | Must | Portfolio `projects.health` / `health_remarks` (FR-147); Execution uses portfolio health (PER-BR-006) |
 | 6 | Daily Work Detail | **Partial** | Should* | No dedicated FRD; live screen OK; RMS Must lives on Work Confirmation module |
+| 6b | Workday Summary | **Match** | Must | `phase1-workdaysummary-frd.pdf` — `/reports/workday-summary`; 14-day window; hierarchy scoped |
 | 7 | Reports RO hierarchy | **Match** | Must | Deployment/Performance/Execution + Daily Work use `getVisibleEmployeeIds` / live employees (`utils/reportVisibility.ts`); superadmin unscoped |
 | 8 | Availability rolling-off | **Match** | Must | `buildRollingOffFromLive` — allocation end dates in next 14 days; KPI + band on Availability |
 | 9 | Settings leftovers | **Partial** | Should (demandPriority) | PUT skips `demandPriority`; **schedule + audit Match (FR-033 / FR-616)** |

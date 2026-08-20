@@ -19,6 +19,7 @@ import { RequirePermissions } from "../auth/guards";
 import {
   assertCanPlanForEmployee,
 } from "../auth/resource-scope";
+import { descendantEmployeeIds } from "../auth/resource-owner-tree";
 import { EmitDataChange } from "../realtime/emit-data-change.decorator";
 
 function ser<T>(v: T): T {
@@ -287,7 +288,8 @@ export class ConfirmationsController {
     "reports.deployment",
     "reports.performance",
     "reports.execution",
-    "reports.daily_work"
+    "reports.daily_work",
+    "reports.workday_summary"
   )
   async list(@Query("from") from?: string, @Query("to") to?: string) {
     const fromDate = parseDate(from ?? todayLocalISO());
@@ -382,6 +384,39 @@ export class ConfirmationsController {
     return ser({
       days: Object.fromEntries(rows.map((r) => [isoDate(r.workDate), this.mapProductivityDay(r)])),
     });
+  }
+
+  @Get("productivity")
+  @RequirePermissions(
+    "confirmations",
+    "reports.daily_work",
+    "reports.workday_summary"
+  )
+  async listProductivity(@Query("from") from?: string, @Query("to") to?: string) {
+    const fromDate = parseDate(from ?? todayLocalISO());
+    const toDate = parseDate(to ?? from ?? todayLocalISO());
+    if (!fromDate || !toDate) throw new BadRequestException("Invalid from/to");
+
+    const rows = await this.prisma.confirmationProductivityDay.findMany({
+      where: {
+        isDeleted: false,
+        workDate: { gte: fromDate, lte: toDate },
+      },
+      include: {
+        employee: { select: { hrmsId: true } },
+        focusSessions: true,
+        focusLaps: { orderBy: { id: "asc" } },
+      },
+      orderBy: { workDate: "asc" },
+    });
+
+    return ser(
+      rows.map((r) => ({
+        employeeHrmsId: r.employee.hrmsId,
+        workDate: isoDate(r.workDate),
+        ...this.mapProductivityDay(r),
+      }))
+    );
   }
 
   @Put("me/productivity")
@@ -797,37 +832,23 @@ export class ConfirmationsController {
     const roster = !viewer
       ? []
       : await (async () => {
-          const descRows = await this.prisma.$queryRaw<Array<{ id: bigint }>>`
-            WITH RECURSIVE reports AS (
-              SELECT e.id, 1 AS depth
-              FROM employees e
-              WHERE e.resource_owner_id = ${viewer.id}
-                AND e.is_deleted = false
-                AND e.status = 'active'
-              UNION ALL
-              SELECT e.id, r.depth + 1
-              FROM employees e
-              INNER JOIN reports r ON e.resource_owner_id = r.id
-              WHERE e.is_deleted = false
-                AND e.status = 'active'
-                AND e.id <> ${viewer.id}
-                AND r.depth < 32
-            )
-            SELECT DISTINCT id FROM reports
-          `;
-          if (descRows.length === 0) return [];
-          const ids = descRows.map((r) => BigInt(r.id.toString()));
-          return this.prisma.employee.findMany({
-            where: {
-              isDeleted: false,
-              status: "active",
-              id: { in: ids },
-            },
+          const active = await this.prisma.employee.findMany({
+            where: { isDeleted: false, status: "active" },
             include: {
               skills: { include: { skill: true }, take: 1 },
             },
             orderBy: { name: "asc" },
           });
+          const allowed = new Set(
+            descendantEmployeeIds(
+              viewer.id.toString(),
+              active.map((e) => ({
+                id: e.id.toString(),
+                resourceOwnerId: e.resourceOwnerId?.toString() ?? null,
+              }))
+            )
+          );
+          return active.filter((e) => allowed.has(e.id.toString()));
         })();
 
     const confirmations = await this.prisma.workConfirmation.findMany({

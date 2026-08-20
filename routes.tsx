@@ -19,6 +19,7 @@ import { ResourceDeploymentReport } from "./screens/ResourceDeploymentReport";
 import { ResourcePerformanceReport } from "./screens/ResourcePerformanceReport";
 import { ProjectExecutionReport } from "./screens/ProjectExecutionReport";
 import { DailyWorkReport } from "./screens/DailyWorkReport";
+import { WorkdaySummaryReport } from "./screens/WorkdaySummaryReport";
 import { WeeklyCheckInQueue } from "./screens/WeeklyCheckInQueue";
 import { WeeklyCheckInWorkspace } from "./screens/WeeklyCheckInWorkspace";
 import { WeeklyCheckInHistory } from "./screens/WeeklyCheckInHistory";
@@ -85,6 +86,7 @@ function AppShellRoutes() {
         <Route path="/reports/performance" element={<Guarded path="/reports/performance"><ResourcePerformanceReport /></Guarded>} />
         <Route path="/reports/execution" element={<Guarded path="/reports/execution"><ProjectExecutionReport /></Guarded>} />
         <Route path="/reports/daily-work" element={<Guarded path="/reports/daily-work"><DailyWorkReport /></Guarded>} />
+        <Route path="/reports/workday-summary" element={<Guarded path="/reports/workday-summary"><WorkdaySummaryReport /></Guarded>} />
         <Route path="/my-team/weekly-check-in" element={<Guarded path="/my-team/weekly-check-in" permissionKey="my_team.weekly_check_in"><WeeklyCheckInQueue /></Guarded>} />
         <Route path="/my-team/weekly-check-in/:employeeId/history" element={<Guarded path="/my-team/weekly-check-in" permissionKey="my_team.weekly_check_in"><WeeklyCheckInHistory /></Guarded>} />
         <Route path="/my-team/weekly-check-in/:employeeId" element={<Guarded path="/my-team/weekly-check-in" permissionKey="my_team.weekly_check_in"><WeeklyCheckInWorkspace /></Guarded>} />

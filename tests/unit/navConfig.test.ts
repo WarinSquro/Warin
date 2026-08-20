@@ -16,6 +16,7 @@ describe("navConfig", () => {
 
   it("maps report paths to report keys", () => {
     expect(getPermissionKeyForPath("/reports/deployment")).toBe("reports.deployment");
+    expect(getPermissionKeyForPath("/reports/workday-summary")).toBe("reports.workday_summary");
   });
 
   it("allows planner when key is present", () => {
