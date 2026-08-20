@@ -497,28 +497,88 @@ export async function restoreDatabase(user: string, dumpPath: string, confirm: b
   const resolved = assertPathInsideBackupRoot(dumpPath);
   if (!fs.existsSync(resolved)) throw new Error("Dump file not found");
   if (!resolved.endsWith(".dump")) throw new Error("Only .dump files allowed");
+  await runPgRestoreFromHostFile(user, resolved, "restore.database");
+}
 
+/**
+ * Restore a browser-uploaded .dump into this machine's oneview-postgres (local Docker).
+ * Blocked on EC2 layout so production cannot be overwritten via upload.
+ */
+export async function restoreUploadedDatabaseDump(
+  user: string,
+  uploadedPath: string,
+  originalName: string,
+  confirm: boolean,
+): Promise<void> {
+  if (!confirm) throw new Error("Confirmation required for database restore");
+  if (config.isEc2Layout) {
+    throw new Error(
+      "Upload restore is only available when ops-console runs on your laptop (local Docker). On EC2, use the server dump list restore instead.",
+    );
+  }
+  if (!uploadedPath || !fs.existsSync(uploadedPath)) throw new Error("Uploaded dump not found");
+  const safeName = path.basename(originalName || "upload.dump");
+  if (!safeName.toLowerCase().endsWith(".dump")) throw new Error("Only .dump files allowed");
+
+  const uploadDir = path.join(config.dataDir, "uploads");
+  fs.mkdirSync(uploadDir, { recursive: true });
+  const staged = path.join(uploadDir, `local_restore_${Date.now()}_${safeName.replace(/[^\w.\-]+/g, "_")}`);
+  try {
+    fs.copyFileSync(uploadedPath, staged);
+    await runPgRestoreFromHostFile(user, staged, "restore.database.upload", safeName);
+  } finally {
+    try {
+      fs.unlinkSync(staged);
+    } catch {
+      /* */
+    }
+    try {
+      fs.unlinkSync(uploadedPath);
+    } catch {
+      /* */
+    }
+  }
+}
+
+async function runPgRestoreFromHostFile(
+  user: string,
+  hostDumpPath: string,
+  auditAction: string,
+  detailName?: string,
+): Promise<void> {
   const sha = await gitSha();
-  appendAudit(user, "restore.database.started", "info", { gitSha: sha, detail: path.basename(resolved) });
+  const detail = detailName || path.basename(hostDumpPath);
+  appendAudit(user, `${auditAction}.started`, "info", { gitSha: sha, detail });
 
-  const cp = await runDocker(["cp", resolved, "oneview-postgres:/backups/restore.dump"], {
+  const cp = await runDocker(["cp", hostDumpPath, "oneview-postgres:/backups/restore.dump"], {
     timeoutMs: 10 * 60 * 1000,
   });
   if (!cp.ok) {
-    appendAudit(user, "restore.database.failed", "failed", { error: cp.stderr });
+    appendAudit(user, `${auditAction}.failed`, "failed", { error: cp.stderr });
     throw new Error(cp.stderr || "docker cp failed");
   }
 
   const restore = await runDocker(
-    ["exec", "oneview-postgres", "pg_restore", "-U", "admin", "-d", "oneview", "-c", "/backups/restore.dump"],
+    [
+      "exec",
+      "oneview-postgres",
+      "pg_restore",
+      "-U",
+      "admin",
+      "-d",
+      "oneview",
+      "-c",
+      "--if-exists",
+      "/backups/restore.dump",
+    ],
     { timeoutMs: 30 * 60 * 1000 },
   );
   if (!restore.ok && /fatal/i.test(restore.stderr)) {
-    appendAudit(user, "restore.database.failed", "failed", { error: restore.stderr });
+    appendAudit(user, `${auditAction}.failed`, "failed", { error: restore.stderr });
     throw new Error(restore.stderr || "Restore failed");
   }
 
-  appendAudit(user, "restore.database.completed", "success", { gitSha: sha, detail: path.basename(resolved) });
+  appendAudit(user, `${auditAction}.completed`, "success", { gitSha: sha, detail });
 }
 
 export function scanFilesystemBackups(): Partial<BackupRecord>[] {

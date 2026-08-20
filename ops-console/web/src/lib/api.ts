@@ -23,6 +23,20 @@ export async function api<T = unknown>(
   return data as T;
 }
 
+/** Multipart upload (do not set Content-Type — browser sets boundary). */
+export async function apiForm<T = unknown>(path: string, form: FormData): Promise<T> {
+  const res = await fetch(`/api/ops${path}`, {
+    method: "POST",
+    body: form,
+    credentials: "include",
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error((data as { error?: string }).error || res.statusText || "Request failed");
+  }
+  return data as T;
+}
+
 export function formatBytes(n?: number) {
   if (n == null || Number.isNaN(n)) return "—";
   if (n < 1024) return `${n} B`;

@@ -11,6 +11,7 @@ import {
   latestBackupArtifact,
   latestDownloadableArtifacts,
   restoreDatabase,
+  restoreUploadedDatabaseDump,
   scanFilesystemBackups,
 } from "../ops/backups.js";
 import {
@@ -22,8 +23,27 @@ import { listContainers, productionStatus, restartContainer } from "../ops/docke
 import { runProductionDeploy } from "../ops/deploy.js";
 import { cleanupExpired, retentionReport } from "../ops/retention.js";
 import { runBash, platformToolingSummary } from "../ops/runner.js";
+import multer from "multer";
+import fs from "node:fs";
+import path from "node:path";
+import os from "node:os";
 
 export const api = Router();
+
+const dumpUpload = multer({
+  dest: path.join(os.tmpdir(), "ops-console-uploads"),
+  limits: { fileSize: 512 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const name = (file.originalname || "").toLowerCase();
+    if (!name.endsWith(".dump")) {
+      cb(new Error("Only .dump files are allowed"));
+      return;
+    }
+    cb(null, true);
+  },
+});
+
+fs.mkdirSync(path.join(os.tmpdir(), "ops-console-uploads"), { recursive: true });
 
 api.get("/meta", (_req, res) => {
   res.json({
@@ -223,6 +243,57 @@ api.post("/backups/restore", requireAuth, async (req, res) => {
   } catch (e) {
     res.status(400).json({ error: e instanceof Error ? e.message : String(e) });
   }
+});
+
+/** Restore a dump selected from the operator's local drive into this machine's Docker Postgres. */
+api.post("/backups/restore/upload", requireAuth, (req, res) => {
+  dumpUpload.single("dump")(req, res, async (uploadErr) => {
+    const r = req as typeof req & { opsUser: string; file?: Express.Multer.File };
+    const cleanup = () => {
+      if (r.file?.path) {
+        try {
+          fs.unlinkSync(r.file.path);
+        } catch {
+          /* */
+        }
+      }
+    };
+    try {
+      if (uploadErr) {
+        cleanup();
+        res.status(400).json({ error: uploadErr instanceof Error ? uploadErr.message : String(uploadErr) });
+        return;
+      }
+      if (config.isEc2Layout) {
+        cleanup();
+        appendAudit(r.opsUser, "restore.database.upload", "denied", { error: "ec2-layout" });
+        res.status(403).json({
+          error:
+            "Upload restore is blocked on EC2. Run ops-console locally (npm run ops:dev) to restore a downloaded dump into your laptop Docker.",
+        });
+        return;
+      }
+      const userId = String(req.body?.userId || "").trim();
+      const password = String(req.body?.password || "");
+      const confirm = String(req.body?.confirm || "") === "true" || req.body?.confirm === true;
+      const creds = verifyCredentials(userId, password);
+      if (!creds.ok) {
+        cleanup();
+        appendAudit(r.opsUser, "restore.database.upload", "denied", { error: "Invalid credentials" });
+        res.status(401).json({ error: "Invalid credentials — restore blocked" });
+        return;
+      }
+      if (!r.file) {
+        res.status(400).json({ error: "Select a .dump file from your local drive" });
+        return;
+      }
+      await restoreUploadedDatabaseDump(r.opsUser, r.file.path, r.file.originalname, confirm);
+      res.json({ ok: true, fileName: r.file.originalname });
+    } catch (e) {
+      cleanup();
+      res.status(400).json({ error: e instanceof Error ? e.message : String(e) });
+    }
+  });
 });
 
 api.get("/retention", requireAuth, (_req, res) => {

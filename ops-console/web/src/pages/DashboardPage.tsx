@@ -3,7 +3,7 @@ import { Navigate } from "react-router-dom";
 import { Download, RefreshCw, LogOut, ShieldAlert, X } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { useBusy } from "../lib/busy";
-import { api, formatBytes, formatWhen } from "../lib/api";
+import { api, apiForm, formatBytes, formatWhen } from "../lib/api";
 import { useConfirm } from "../components/ConfirmDialog";
 import { useCredentialPrompt } from "../components/CredentialDialog";
 
@@ -345,12 +345,12 @@ export function DashboardPage() {
                   const ok = await confirm({
                     title: "Restore selected dump?",
                     danger: true,
-                    confirmLabel: "Restore dump",
+                    confirmLabel: "Restore",
                     message: (
                       <>
                         Credentials verified. Restore dump{" "}
                         <strong className="break-all text-foreground">{dumpName}</strong>
-                        {" "}into production Postgres?
+                        {" "}into this host&apos;s Docker Postgres?
                         <div className="mt-2 break-all text-[11px] text-muted">{dumpPath}</div>
                         <div className="mt-2">Existing data may be overwritten. This cannot be undone from this dialog.</div>
                       </>
@@ -368,6 +368,44 @@ export function DashboardPage() {
                       },
                     }),
                   );
+                }}
+              />
+              <LocalDumpRestorePanel
+                busy={busy}
+                isEc2Layout={Boolean(status?.isEc2Layout)}
+                onRestore={async (file: File) => {
+                  const creds = await promptCredentials({
+                    title: "Verify credentials to restore",
+                    message:
+                      "Restoring a downloaded dump into local Docker overwrites this machine's database. Enter your Backup & Deployment User Id and password.",
+                    submitLabel: "Verify",
+                    verify: async (userId, password) => {
+                      await api("/auth/verify", { method: "POST", json: { userId, password } });
+                    },
+                  });
+                  if (!creds) return;
+                  const ok = await confirm({
+                    title: "Restore dump to local Docker?",
+                    danger: true,
+                    confirmLabel: "Restore",
+                    message: (
+                      <>
+                        Restore{" "}
+                        <strong className="break-all text-foreground">{file.name}</strong> (
+                        {formatBytes(file.size)}) into local Docker Postgres (`oneview-postgres`)?
+                        <div className="mt-2">Existing local data may be overwritten.</div>
+                      </>
+                    ),
+                  });
+                  if (!ok) return;
+                  await run("Local Docker restore", async () => {
+                    const form = new FormData();
+                    form.append("dump", file);
+                    form.append("confirm", "true");
+                    form.append("userId", creds.userId);
+                    form.append("password", creds.password);
+                    await apiForm("/backups/restore/upload", form);
+                  });
                 }}
               />
             </section>
@@ -834,7 +872,7 @@ function RestorePanel({
   const [path, setPath] = useState("");
   return (
     <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-      <div className="text-[14px] font-semibold text-brand">Database restore</div>
+      <div className="text-[14px] font-semibold text-brand">Database restore (server dumps)</div>
       <p className="mt-1 text-[12px] text-muted">
         Requires credential verification and explicit confirmation. Never overwrites an existing backup file.
       </p>
@@ -858,6 +896,79 @@ function RestorePanel({
       >
         Restore selected dump…
       </button>
+    </div>
+  );
+}
+
+function LocalDumpRestorePanel({
+  busy,
+  isEc2Layout,
+  onRestore,
+}: {
+  busy: boolean;
+  isEc2Layout: boolean;
+  onRestore: (file: File) => Promise<void>;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+  const [inputEl, setInputEl] = useState<HTMLInputElement | null>(null);
+
+  if (isEc2Layout) {
+    return (
+      <div className="rounded-lg border border-border bg-white p-4">
+        <div className="text-[14px] font-semibold text-brand">Restore EC2 dump to local Docker</div>
+        <p className="mt-1 text-[12px] text-muted">
+          Not available while connected to EC2. On your laptop run{" "}
+          <code>npm run ops:dev</code>, open the local ops-console, then select a downloaded{" "}
+          <code>.dump</code> file to restore into local Docker Postgres.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-border bg-white p-4">
+      <div className="text-[14px] font-semibold text-brand">Restore EC2 dump to local Docker</div>
+      <p className="mt-1 text-[12px] text-muted">
+        Select a database <code>.dump</code> downloaded from EC2 (or any local custom-format dump) and restore it into
+        this machine&apos;s <code>oneview-postgres</code> container.
+      </p>
+      <input
+        ref={setInputEl}
+        type="file"
+        accept=".dump,application/octet-stream"
+        className="mt-3 block w-full cursor-pointer text-[12px]"
+        disabled={busy}
+        onChange={(e) => setFile(e.target.files?.[0] || null)}
+      />
+      {file && (
+        <div className="mt-2 text-[12px] text-muted">
+          Selected: <strong className="text-foreground">{file.name}</strong> · {formatBytes(file.size)}
+        </div>
+      )}
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          className="btn btn-danger cursor-pointer"
+          disabled={busy || !file}
+          onClick={() => {
+            if (!file) return;
+            void onRestore(file);
+          }}
+        >
+          {busy ? "Restoring…" : "Restore"}
+        </button>
+        <button
+          type="button"
+          className="btn btn-ghost cursor-pointer"
+          disabled={busy}
+          onClick={() => {
+            setFile(null);
+            if (inputEl) inputEl.value = "";
+          }}
+        >
+          Cancel
+        </button>
+      </div>
     </div>
   );
 }
