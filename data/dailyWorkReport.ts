@@ -352,31 +352,7 @@ export function filterDailyWorkRows(
     if (filters.confirmations.length > 0 && !filters.confirmations.includes(r.confirmation)) return false;
     if (filters.planKinds.length > 0 && !filters.planKinds.includes(r.planKind)) return false;
     if (!workDateMatchesDay(r.workDate, filters.workDay)) return false;
-    if (
-      !matchesSearchQuery(
-        filters.search,
-        r.employeeName,
-        r.employeeId,
-        r.department,
-        r.resourceOwnerName,
-        r.projectName,
-        r.projectType,
-        r.milestoneName,
-        r.milestoneType,
-        r.activityName,
-        r.activityType,
-        (r.tasks ?? []).join(" "),
-        r.confirmation,
-        r.planKind,
-        r.workDate,
-        r.plannedHours,
-        r.actualHours,
-        r.confirmedOn,
-        r.allocatedOn,
-        r.delayReason,
-        r.deviationReason
-      )
-    ) {
+    if (!matchesSearchQuery(filters.search, r.employeeName)) {
       return false;
     }
     return true;

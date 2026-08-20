@@ -217,4 +217,39 @@ describe("workday summary", () => {
     expect(filterWorkdaySummaryRows(rows, { ...empty, workDay: 31 })).toEqual([]);
     expect(filterWorkdaySummaryRows(rows, { ...empty, workDay: null })).toHaveLength(2);
   });
+
+  it("search matches employee name only", () => {
+    const rows = [
+      {
+        id: "1",
+        workDate: "2026-08-20",
+        employeeId: "E1",
+        employeeName: "Atul Karathiya",
+        department: "Engineering",
+        resourceOwnerId: "RO",
+        resourceOwnerName: "Digant Shah",
+        hasSignal: true,
+      },
+      {
+        id: "2",
+        workDate: "2026-08-20",
+        employeeId: "E2",
+        employeeName: "Bhavik Kotadiya",
+        department: "Engineering",
+        resourceOwnerId: "RO",
+        resourceOwnerName: "Digant Shah",
+        hasSignal: true,
+      },
+    ];
+    const base = {
+      search: "Digant",
+      departments: [] as string[],
+      resourceOwners: [] as string[],
+      resources: [] as string[],
+      includeEmpty: true,
+      workDay: null as number | null,
+    };
+    expect(filterWorkdaySummaryRows(rows, base)).toHaveLength(0);
+    expect(filterWorkdaySummaryRows(rows, { ...base, search: "Atul" }).map((r) => r.id)).toEqual(["1"]);
+  });
 });

@@ -157,7 +157,7 @@ export function filterWorkdaySummaryRows(
     if (!workDateMatchesDay(r.workDate, opts.workDay)) return false;
     if (
       opts.search.trim() &&
-      !matchesSearchQuery(opts.search, r.employeeName, r.department, r.resourceOwnerName, r.employeeId)
+      !matchesSearchQuery(opts.search, r.employeeName)
     ) {
       return false;
     }
