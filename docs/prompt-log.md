@@ -32,6 +32,19 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-20 16:20 IST
+
+**Prompt:**  
+> Availability 4th card Avg Free Hrs / Person wrong — should be list total / headcount (521.5/19=27.4), not 2-week sum / people (61.3).
+
+**Output:**  
+- Root cause: card averaged week1+week2 free hours ÷ unique people (double-counted the 2-week window).
+- `screens/Availability.tsx` — Avg uses `allSegmentRows` for the selected list week; subtitle “for selected week”; delta vs same week 2 weeks ago.
+- `data/availability.ts` — `avgFreeHoursPerPerson` = sum(free) / row count.
+- Tests: `tests/unit/availRollingOffSoon.test.ts` (list sum ÷ headcount; sample → 27.3).
+
+---
+
 ### 2026-08-20 15:55 IST
 
 **Prompt:**  

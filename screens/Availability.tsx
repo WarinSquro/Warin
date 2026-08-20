@@ -696,15 +696,40 @@ export function Availability() {
     [summaryFilteredRows, rollingOffRows, priorFilteredRows]
   );
 
-  const avgFreeHrs2Weeks = useMemo(
-    () => avgFreeHoursPerPerson([...summaryFilteredRows, ...summaryFilteredRowsWeek2]),
-    [summaryFilteredRows, summaryFilteredRowsWeek2]
+  const avgFreeHrs = useMemo(
+    () => avgFreeHoursPerPerson(allSegmentRows),
+    [allSegmentRows]
   );
 
+  /** Same roster/filters as the list, for the week two weeks before the selected list week. */
+  const priorWeekCompareRows = useMemo(() => {
+    const priorWs = addDaysISO(weekStart, -14);
+    const cap = weekCapacityHours(priorWs, calendarOpts) || fallbackWeekCapacity;
+    const built = buildAvailRowsFromEmployees(
+      employees,
+      cap,
+      allocations,
+      offDayIsos,
+      priorWs,
+      settings.workingDays
+    );
+    return filterAvailRowsAllSegments(applyListFilters(built), rollingOffIds);
+  }, [
+    weekStart,
+    calendarOpts,
+    fallbackWeekCapacity,
+    employees,
+    allocations,
+    offDayIsos,
+    settings.workingDays,
+    applyListFilters,
+    rollingOffIds,
+  ]);
+
   const avgFreeHrsDelta = useMemo(() => {
-    if (priorFilteredRows.length === 0) return null;
-    return roundHoursToTenth(avgFreeHrs2Weeks - avgFreeHoursPerPerson(priorFilteredRows));
-  }, [avgFreeHrs2Weeks, priorFilteredRows]);
+    if (priorWeekCompareRows.length === 0) return null;
+    return roundHoursToTenth(avgFreeHrs - avgFreeHoursPerPerson(priorWeekCompareRows));
+  }, [avgFreeHrs, priorWeekCompareRows]);
 
   const rows = useMemo(() => {
     const filtered =
@@ -807,8 +832,8 @@ export function Availability() {
           />
           <Kpi
             label="Avg Free Hrs / Person"
-            value={formatHoursDecimalLabel(avgFreeHrs2Weeks)}
-            sub="within 2 weeks"
+            value={formatHoursDecimalLabel(avgFreeHrs)}
+            sub="for selected week"
             delta={avgDeltaDisplay?.text}
             deltaClass={
               avgDeltaDisplay?.tone === "danger"

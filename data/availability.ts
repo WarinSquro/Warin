@@ -37,23 +37,22 @@ export const AVAIL_KPIS = {
 
 export type AvailAvgDeltaTone = "success" | "danger" | "muted";
 
-/** Label + tone for Avg Free Hrs / Person vs the previous 2 weeks. */
+/** Label + tone for Avg Free Hrs / Person vs the same week two weeks earlier. */
 export function availAvgDeltaDisplay(
   avgDelta: number | null
 ): { text: string; tone: AvailAvgDeltaTone } | null {
   if (avgDelta == null) return null;
-  if (avgDelta === 0) return { text: "— vs last 2 weeks", tone: "muted" };
+  if (avgDelta === 0) return { text: "— vs 2 weeks ago", tone: "muted" };
   const abs = formatHoursDecimalLabel(Math.abs(avgDelta));
-  if (avgDelta > 0) return { text: `▲ ${abs} vs last 2 weeks`, tone: "danger" };
-  return { text: `▼ ${abs} vs last 2 weeks`, tone: "success" };
+  if (avgDelta > 0) return { text: `▲ ${abs} vs 2 weeks ago`, tone: "danger" };
+  return { text: `▼ ${abs} vs 2 weeks ago`, tone: "success" };
 }
 
-/** Mean free hours per unique person. Duplicate ids (e.g. two weeks) are summed, then averaged. */
+/** Mean free hours per person for the rows shown (one week per person). */
 export function avgFreeHoursPerPerson(rows: AvailRow[]): number {
-  const ids = new Set(rows.map((r) => r.id));
-  if (ids.size === 0) return 0;
+  if (rows.length === 0) return 0;
   const total = rows.reduce((sum, r) => sum + r.freeHours, 0);
-  return roundHoursToTenth(total / ids.size);
+  return roundHoursToTenth(total / rows.length);
 }
 
 /** Rows whose allocation ends within the rolling-off window. */
