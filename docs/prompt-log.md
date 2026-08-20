@@ -32,6 +32,18 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-20 11:38 IST
+
+**Prompt:**  
+> System Parameters > on change of Idle below or Optimal up to > Preview & Save, review the calculation logic and update it if necessary. Verify that no demo data is still being used in the calculation.
+
+**Output:**  
+- **Root cause:** Band-impact preview used the **current week** and inline capacity math, while Utilization uses the **current calendar month** + `dayCapacityHours` — counts could diverge from live utilization.
+- **Fix:** `utils/utilizationBandPreview.ts` — shared live pct builder from `fetchEmployees` + `fetchAllocations` (no `UTIL_ROWS` demo data); `screens/Settings.tsx` ImpactModal now uses current month bounds aligned with Utilization.
+- **Tests:** `tests/unit/settingsImpact.test.ts` — reclassification scenario (80%→85% idle threshold) + live allocation pct derivation.
+
+---
+
 ### 2026-08-20 11:30 IST
 
 **Prompt:**  

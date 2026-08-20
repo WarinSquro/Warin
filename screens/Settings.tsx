@@ -14,10 +14,12 @@ import {
   putSettings,
   type SettingsSchedule,
 } from "../api/domain";
-import { addDaysISO, buildUtilRowsFromEmployees, mondayISO } from "../api/liveViews";
-import { weekCapacityHours } from "../data/planner";
 import { todayISO, tomorrowISO } from "../utils/date";
 import { DATE_FORMAT_OPTIONS, formatAppDate, formatAppDateTime } from "../utils/formatAppDate";
+import {
+  buildUtilizationPctsForBandImpact,
+  currentUtilizationMonthBounds,
+} from "../utils/utilizationBandPreview";
 import { computeSettingsBandImpact } from "../utils/settingsImpact";
 import { useFocusFirstField } from "../hooks/useFocusFirstField";
 import type { SettingsAuditEntry } from "../utils/settingsAudit";
@@ -851,37 +853,21 @@ function ImpactModal({
       setImpactLoading(true);
       void (async () => {
         try {
-          const weekStart = mondayISO();
-          const weekEnd = addDaysISO(weekStart, 6);
+          const { from: rangeFrom, to: rangeTo } = currentUtilizationMonthBounds();
           const offDays = draft.companyOffDays.map((d) => d.date.slice(0, 10));
           const [employees, allocations] = await Promise.all([
             fetchEmployees(),
-            fetchAllocations({ from: weekStart, to: weekEnd }),
+            fetchAllocations({ from: rangeFrom, to: rangeTo }),
           ]);
           if (cancelled) return;
-          const weekCapacity =
-            weekCapacityHours(weekStart, {
-              workingDays: draft.workingDays,
-              companyOffDays: offDays,
-              workingHoursPerDay: draft.workingHoursPerDay,
-            }) ||
-            Math.round(draft.workingHoursPerDay * draft.workingDays.length) ||
-            40;
-          const rows = buildUtilRowsFromEmployees(
-            employees,
-            weekCapacity,
-            allocations,
-            offDays,
-            weekStart,
-            weekEnd,
-            draft.workingDays,
-            draft.bands
-          );
-          const impact = computeSettingsBandImpact(
-            rows.map((r) => r.pct),
-            committedBands,
-            draft.bands
-          );
+          const pcts = buildUtilizationPctsForBandImpact(employees, allocations, {
+            workingDays: draft.workingDays,
+            companyOffDays: offDays,
+            workingHoursPerDay: draft.workingHoursPerDay,
+            rangeFrom,
+            rangeTo,
+          });
+          const impact = computeSettingsBandImpact(pcts, committedBands, draft.bands);
           setImpactRows(impact.rows);
           setImpactSummary(impact.summary);
           const lines: string[] = [];

@@ -67,7 +67,7 @@ export function computeSettingsBandImpact(
     };
   }
 
-  // Prefer a natural sentence for the largest single shift (matches prior demo tone).
+  // Prefer a natural sentence for the largest single shift.
   const top = Object.entries(shifts).sort((a, b) => b[1] - a[1])[0]!;
   const [fromTo, count] = top;
   const [fromKey, toKey] = fromTo.split("->") as [UtilBandKey, UtilBandKey];
