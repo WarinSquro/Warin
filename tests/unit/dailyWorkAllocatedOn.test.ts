@@ -123,4 +123,41 @@ describe("Daily Work confirmation codes", () => {
     expect(confirmed?.confirmedOn).toBe("2026-08-20");
     expect(confirmed?.delayReason).toBe("Late posting");
   });
+
+  it("skips confirmation lines whose allocation was soft-deleted", () => {
+    const rows = buildDailyWorkRows(
+      [emp],
+      [],
+      [],
+      [confirmation()],
+      "2026-08-19",
+      "2026-08-19",
+      WEEKDAYS
+    );
+    expect(rows.filter((r) => r.confirmation !== "Pending")).toHaveLength(0);
+  });
+
+  it("resolves Resource Owner name from the full employee lookup list", () => {
+    const owner: Employee = {
+      id: "EMP-RO",
+      name: "Riya Owner",
+      email: "ro@acme.io",
+      department: "Engineering",
+      skills: [],
+      status: "active",
+    };
+    const scoped: Employee = { ...emp, resourceOwnerId: "EMP-RO" };
+    const rows = buildDailyWorkRows(
+      [scoped],
+      [],
+      [alloc({ startDate: "2026-08-19", endDate: "2026-08-19" })],
+      [],
+      "2026-08-19",
+      "2026-08-19",
+      WEEKDAYS,
+      undefined,
+      [scoped, owner]
+    );
+    expect(rows[0]?.resourceOwnerName).toBe("Riya Owner");
+  });
 });

@@ -32,7 +32,21 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
-### 2026-08-20 13:50 IST
+### 2026-08-20 14:47 IST
+
+**Prompt:**  
+> Workday Summary and Daily Work Detail (live EC2): (1) correct calculation; (2) Department Tech & Devt shows 14 but 0 grid rows; (3) hide deleted-through-16-Aug orphans; (4) keep pagination page when leaving/returning; (5) Daily Work default columns; (6) wrong projects in dropdown; (7) blank Resource Owner / Project Type / Milestone Type.
+
+**Output:**  
+- `api/workdaySummary.ts` — ignore orphan productivity without live alloc/conf; drop confirmations whose planned lines only reference deleted allocations; optional full-employee name lookup.
+- `api/liveViews.ts` (`buildDailyWorkRows`) — skip confirmation lines tied to deleted allocations; Resource Owner names from full employee list.
+- `screens/WorkdaySummaryReport.tsx` — filter option counts use `includeEmpty` + Work Date basis (fixes count vs grid); page persistence + stable filter signature (no false page-1 reset on soft sync).
+- `screens/DailyWorkReport.tsx` — same pagination fix; pass full `employees` for RO lookup; default columns via data layer.
+- `data/dailyWorkReport.ts` — default visible: Employee, Work Date, Project, Milestone, Activity, Tasks, Planned Hrs, Confirmation, Actual Hrs; storage key `v4`.
+- `apps/oneview-api/.../projects.controller.ts` — `GET /projects` also allows report permissions so Project Type / Milestone Type resolve for report-only users.
+- `utils/reportPage.ts` + unit tests (`workdaySummary`, `dailyWorkColumns`, `dailyWorkAllocatedOn`, `reportPage`).
+
+---
 
 **Prompt:**  
 > Workday Summary > We also need to keep freeze Header rows in report.

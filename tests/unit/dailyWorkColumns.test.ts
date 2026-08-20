@@ -1,29 +1,33 @@
 import { describe, expect, it } from "vitest";
 import { DAILY_WORK_COLUMNS, defaultVisibleColumnIds } from "../../data/dailyWorkReport";
 
-const OPTIONAL_OFF = ["department", "projectType", "activityType"];
-
-const DEFAULT_ON = [
-  "employeeName",
+const OPTIONAL_OFF = [
+  "department",
   "resourceOwner",
-  "workDate",
-  "project",
-  "milestone",
+  "projectType",
   "milestoneType",
-  "activity",
-  "tasks",
+  "activityType",
   "allocatedOn",
-  "plannedHrs",
-  "confirmation",
   "confirmedOn",
   "delayReason",
   "deviationReason",
-  "actualHrs",
   "planUnplanned",
 ];
 
+const DEFAULT_ON = [
+  "employeeName",
+  "workDate",
+  "project",
+  "milestone",
+  "activity",
+  "tasks",
+  "plannedHrs",
+  "confirmation",
+  "actualHrs",
+];
+
 describe("Daily Work Detail columns", () => {
-  it("keeps Department, Project Type, and Activity Type unchecked by default", () => {
+  it("keeps optional columns unchecked by default", () => {
     const visible = defaultVisibleColumnIds();
     for (const id of OPTIONAL_OFF) {
       expect(visible.has(id as never), id).toBe(false);
@@ -31,15 +35,15 @@ describe("Daily Work Detail columns", () => {
     }
   });
 
-  it("defaults to the screenshot column set (including Milestone / Milestone Type)", () => {
+  it("defaults to the requested visible column set", () => {
     const visible = [...defaultVisibleColumnIds()];
     expect(visible).toEqual(DEFAULT_ON);
   });
 
-  it("lists Allocated on after Tasks and selected by default", () => {
+  it("lists Allocated on after Tasks and unchecked by default", () => {
     const ids = DAILY_WORK_COLUMNS.map((c) => c.id);
     expect(ids.indexOf("allocatedOn")).toBe(ids.indexOf("tasks") + 1);
-    expect(DAILY_WORK_COLUMNS.find((c) => c.id === "allocatedOn")?.defaultVisible).toBe(true);
+    expect(DAILY_WORK_COLUMNS.find((c) => c.id === "allocatedOn")?.defaultVisible).toBe(false);
     expect(DAILY_WORK_COLUMNS.find((c) => c.id === "allocatedOn")?.label).toBe("ALLOCATED ON");
   });
 

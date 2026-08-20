@@ -37,6 +37,22 @@ export function workdayComplianceCode(
   return "Pending";
 }
 
+/**
+ * Keep a confirmation only when it still has at least one live signal:
+ * unplanned lines, or planned lines whose allocation still exists.
+ */
+function confirmationStillLive(
+  confirmation: ApiConfirmation,
+  activeAllocIds: Set<string>
+): boolean {
+  if (!confirmation.lines.length) return true;
+  return confirmation.lines.some((l) => {
+    if (l.kind === "unplanned") return true;
+    if (l.allocationId == null || String(l.allocationId).trim() === "") return true;
+    return activeAllocIds.has(String(l.allocationId).trim());
+  });
+}
+
 export function buildWorkdaySummaryRows(
   employees: Employee[],
   allocations: ApiAllocation[],
@@ -45,16 +61,21 @@ export function buildWorkdaySummaryRows(
   rangeFrom: string,
   rangeTo: string,
   workingDays?: string[],
-  todayIso?: string
+  todayIso?: string,
+  /** Full employee list for Resource Owner name lookup when rows are hierarchy-scoped. */
+  nameLookupEmployees?: Employee[]
 ): WorkdaySummaryRow[] {
   const today = (todayIso ?? new Date().toISOString().slice(0, 10)).slice(0, 10);
-  const nameById = new Map(employees.map((e) => [e.id, e.name]));
+  const nameSource = nameLookupEmployees?.length ? nameLookupEmployees : employees;
+  const nameById = new Map(nameSource.map((e) => [e.id, e.name]));
+  const activeAllocIds = new Set(allocations.map((a) => String(a.id)));
   const prodByEmpDay = new Map<string, ApiTeamProductivityDay>();
   for (const p of productivity) {
     prodByEmpDay.set(`${p.employeeHrmsId}:${p.workDate}`, p);
   }
   const confByEmpDay = new Map<string, ApiConfirmation>();
   for (const c of confirmations) {
+    if (!confirmationStillLive(c, activeAllocIds)) continue;
     confByEmpDay.set(`${c.employeeHrmsId}:${c.workDate}`, c);
   }
   const allocByEmp = new Map<string, ApiAllocation[]>();
@@ -70,10 +91,12 @@ export function buildWorkdaySummaryRows(
     const mineAlloc = allocByEmp.get(emp.id) ?? [];
     for (let d = rangeFrom; d <= rangeTo; d = addDaysISO(d, 1)) {
       const key = `${emp.id}:${d}`;
-      const prod = prodByEmpDay.get(key);
       const conf = confByEmpDay.get(key);
       const covering = mineAlloc.filter((a) => allocationCoversDay(a, d, workingDays));
       const allotted = covering.reduce((s, a) => s + a.hoursPerDay, 0);
+      // Orphan productivity after allocations/confirmations were cleared must not reappear.
+      const prodRaw = prodByEmpDay.get(key);
+      const prod = covering.length > 0 || conf ? prodRaw : undefined;
 
       const marks: WorkdayMarks = prod?.workday ?? {};
       const { officeMs, productiveMs } = workdayDurationMs(marks);
@@ -90,6 +113,9 @@ export function buildWorkdaySummaryRows(
       let unplannedActual = 0;
       if (conf) {
         for (const l of conf.lines) {
+          if (l.allocationId != null && String(l.allocationId).trim() !== "") {
+            if (!activeAllocIds.has(String(l.allocationId).trim())) continue;
+          }
           if (l.kind === "unplanned") unplannedActual += l.actualHours;
           else plannedActual += l.actualHours;
         }

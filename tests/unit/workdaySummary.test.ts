@@ -147,6 +147,42 @@ describe("workday summary", () => {
     expect(row?.focusPct).toBe(80);
   });
 
+  it("ignores orphan productivity when allocations and confirmations were cleared", () => {
+    const rows = buildWorkdaySummaryRows(
+      [emp],
+      [],
+      [],
+      [prod()],
+      "2026-08-18",
+      "2026-08-18",
+      WEEKDAYS,
+      "2026-08-18"
+    );
+    const row = rows.find((r) => r.workDate === "2026-08-18");
+    expect(row?.hasSignal).toBe(false);
+    expect(row?.dayStart).toBeUndefined();
+    expect(row?.focusHours).toBeUndefined();
+  });
+
+  it("drops confirmations whose planned lines only reference deleted allocations", () => {
+    const orphanConf = conf();
+    orphanConf.lines = orphanConf.lines.filter((l) => l.kind !== "unplanned");
+    const rows = buildWorkdaySummaryRows(
+      [emp],
+      [],
+      [orphanConf],
+      [],
+      "2026-08-18",
+      "2026-08-18",
+      WEEKDAYS,
+      "2026-08-18"
+    );
+    const row = rows.find((r) => r.workDate === "2026-08-18");
+    expect(row?.hasSignal).toBe(false);
+    expect(row?.actualHours).toBeUndefined();
+    expect(row?.compliance).toBe("Pending");
+  });
+
   it("Work Date day filter keeps only that calendar day and ignores invalid days", () => {
     const rows = [
       {

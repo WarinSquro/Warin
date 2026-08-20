@@ -53,9 +53,16 @@ import type { ExportCell, ReportExportInput } from "../utils/reportExport";
 import {
   reconcileMultiSelect,
 } from "../utils/reportFilterPersistence";
-import { workDateDayFilterLabel } from "../utils/workDateDayFilter";
+import {
+  multiSelectSignature,
+  readReportPage,
+  writeReportPage,
+} from "../utils/reportPage";
+import { workDateDayFilterLabel, workDayFromIso } from "../utils/workDateDayFilter";
 import { useReportFilterSession } from "../hooks/useReportFilterSession";
 import { formatHours } from "../utils/formatHours";
+
+const DAILY_WORK_PAGE_KEY = "daily_work";
 
 function cellValue(
   row: DailyWorkRow,
@@ -156,7 +163,11 @@ export function DailyWorkReport() {
   const { projects: liveProjects } = useProjects();
   const [periodId, setPeriodId] = useState<DailyWorkPeriodId>("week");
   const [search, setSearch] = useState(() => drillEmployee || "");
-  const [page, setPage] = useState(1);
+  const [page, setPageState] = useState(() => readReportPage(DAILY_WORK_PAGE_KEY));
+  const setPage = useCallback((next: number) => {
+    setPageState(next);
+    writeReportPage(DAILY_WORK_PAGE_KEY, next);
+  }, []);
   const [pageSize, setPageSize] = useState(25);
   const toast = useToast();
   const [visibleColumns, setVisibleColumns] = useState<Set<DailyWorkSortKey>>(() =>
@@ -221,7 +232,8 @@ export function DailyWorkReport() {
         range.from,
         range.to,
         settings.workingDays,
-        settings.companyOffDays.map((d) => d.date)
+        settings.companyOffDays.map((d) => d.date),
+        employees
       ),
     [
       employees,
@@ -258,7 +270,7 @@ export function DailyWorkReport() {
   const [projects, setProjects] = useState<string[]>([]);
   const [confirmations, setConfirmations] = useState<ConfirmationCode[]>([]);
   const [planKinds, setPlanKinds] = useState<PlanKind[]>([]);
-  const [workDay, setWorkDay] = useState<number | null>(null);
+  const [workDay, setWorkDay] = useState<number | null>(() => workDayFromIso(drillDate));
 
   useEffect(() => {
     setSearch(drillEmployee || "");
@@ -266,12 +278,12 @@ export function DailyWorkReport() {
     setProjects([]);
     setConfirmations([]);
     setPlanKinds([]);
-    setWorkDay(null);
+    setWorkDay(workDayFromIso(drillDate));
     prevDeptsRef.current = [];
     prevProjectsRef.current = [];
     prevConfirmRef.current = [];
     prevPlanRef.current = [];
-  }, [sessionKey, drillEmployee]);
+  }, [sessionKey, drillEmployee, drillDate]);
 
   const prevDeptsRef = useRef<string[]>([]);
   const prevProjectsRef = useRef<string[]>([]);
@@ -353,9 +365,50 @@ export function DailyWorkReport() {
 
   const paged = useMemo(() => paginateRows(sorted, page, pageSize), [sorted, page, pageSize]);
 
+  const filterPageKey = useMemo(
+    () =>
+      [
+        search,
+        multiSelectSignature(departments),
+        multiSelectSignature(projects),
+        multiSelectSignature(confirmations),
+        multiSelectSignature(planKinds),
+        workDay == null ? "" : String(workDay),
+        pageSize,
+        range.from,
+        range.to,
+        drillDate ?? "",
+        drillEmployee ?? "",
+      ].join("|"),
+    [
+      search,
+      departments,
+      projects,
+      confirmations,
+      planKinds,
+      workDay,
+      pageSize,
+      range.from,
+      range.to,
+      drillDate,
+      drillEmployee,
+    ]
+  );
+
+  const prevFilterPageKey = useRef<string | null>(null);
   useEffect(() => {
+    prevFilterPageKey.current = null;
+  }, [sessionKey]);
+  useEffect(() => {
+    if (!filtersReady) return;
+    if (prevFilterPageKey.current === null) {
+      prevFilterPageKey.current = filterPageKey;
+      return;
+    }
+    if (prevFilterPageKey.current === filterPageKey) return;
+    prevFilterPageKey.current = filterPageKey;
     setPage(1);
-  }, [search, departments, projects, confirmations, planKinds, workDay, pageSize]);
+  }, [filtersReady, filterPageKey, setPage]);
 
   const visibleColDefs = useMemo(
     () => DAILY_WORK_COLUMNS.filter((c) => visibleColumns.has(c.id)),

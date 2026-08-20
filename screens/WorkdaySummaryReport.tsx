@@ -55,8 +55,15 @@ import type { ExportCell, ReportExportInput } from "../utils/reportExport";
 import {
   reconcileMultiSelect,
 } from "../utils/reportFilterPersistence";
+import {
+  multiSelectSignature,
+  readReportPage,
+  writeReportPage,
+} from "../utils/reportPage";
 import { useReportFilterSession } from "../hooks/useReportFilterSession";
 import { workDateDayFilterLabel } from "../utils/workDateDayFilter";
+
+const WORKDAY_SUMMARY_PAGE_KEY = "workday_summary";
 
 const GROUP_OPTIONS: { value: WorkdaySummaryGroupBy; label: string }[] = [
   { value: "none", label: "None" },
@@ -146,10 +153,18 @@ export function WorkdaySummaryReport() {
   const [rangeEnd, setRangeEnd] = useState(today);
   const range = useMemo(() => workdaySummaryRangeEnding(rangeEnd), [rangeEnd]);
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
+  const [page, setPageState] = useState(() => readReportPage(WORKDAY_SUMMARY_PAGE_KEY));
+  const setPage = useCallback((next: number) => {
+    setPageState(next);
+    writeReportPage(WORKDAY_SUMMARY_PAGE_KEY, next);
+  }, []);
   const [pageSize, setPageSize] = useState(25);
   const [includeEmpty, setIncludeEmpty] = useState(false);
   const [groupBy, setGroupBy] = useState<WorkdaySummaryGroupBy>("none");
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [resourceOwners, setResourceOwners] = useState<string[]>([]);
+  const [resources, setResources] = useState<string[]>([]);
+  const [workDay, setWorkDay] = useState<number | null>(null);
   const [visibleColumns, setVisibleColumns] = useState<Set<WorkdaySummarySortKey>>(
     () => loadVisibleWorkdayColumnIds()
   );
@@ -202,7 +217,8 @@ export function WorkdaySummaryReport() {
         range.from,
         range.to,
         settings.workingDays,
-        today
+        today,
+        employees
       ),
     [
       scopedEmployees,
@@ -213,38 +229,48 @@ export function WorkdaySummaryReport() {
       range.to,
       settings.workingDays,
       today,
+      employees,
     ]
   );
 
-  const allDepts = useMemo(() => workdaySummaryDepartments(periodRows), [periodRows]);
-  const allOwners = useMemo(() => workdaySummaryOwners(periodRows), [periodRows]);
-  const allResources = useMemo(() => workdaySummaryResources(periodRows), [periodRows]);
+  /** Option lists / badge counts must match the grid (includeEmpty + Work Date), not empty shells. */
+  const filterBasisRows = useMemo(
+    () =>
+      filterWorkdaySummaryRows(periodRows, {
+        search: "",
+        departments: [],
+        resourceOwners: [],
+        resources: [],
+        includeEmpty,
+        workDay,
+      }),
+    [periodRows, includeEmpty, workDay]
+  );
+
+  const allDepts = useMemo(() => workdaySummaryDepartments(filterBasisRows), [filterBasisRows]);
+  const allOwners = useMemo(() => workdaySummaryOwners(filterBasisRows), [filterBasisRows]);
+  const allResources = useMemo(() => workdaySummaryResources(filterBasisRows), [filterBasisRows]);
   const resourceNames = useMemo(() => allResources.map((r) => r.name), [allResources]);
 
   const deptCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const d of allDepts) counts[d] = periodRows.filter((r) => r.department === d).length;
+    for (const d of allDepts) counts[d] = filterBasisRows.filter((r) => r.department === d).length;
     return counts;
-  }, [allDepts, periodRows]);
+  }, [allDepts, filterBasisRows]);
 
   const ownerCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const o of allOwners) counts[o] = periodRows.filter((r) => r.resourceOwnerName === o).length;
+    for (const o of allOwners) counts[o] = filterBasisRows.filter((r) => r.resourceOwnerName === o).length;
     return counts;
-  }, [allOwners, periodRows]);
+  }, [allOwners, filterBasisRows]);
 
   const resourceCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const name of resourceNames) {
-      counts[name] = periodRows.filter((r) => r.employeeName === name).length;
+      counts[name] = filterBasisRows.filter((r) => r.employeeName === name).length;
     }
     return counts;
-  }, [resourceNames, periodRows]);
-
-  const [departments, setDepartments] = useState<string[]>([]);
-  const [resourceOwners, setResourceOwners] = useState<string[]>([]);
-  const [resources, setResources] = useState<string[]>([]);
-  const [workDay, setWorkDay] = useState<number | null>(null);
+  }, [resourceNames, filterBasisRows]);
 
   const prevDepts = useRef<string[]>([]);
   const prevOwners = useRef<string[]>([]);
@@ -318,21 +344,50 @@ export function WorkdaySummaryReport() {
     return groups;
   }, [groupBy, groups, sorted, page, pageSize]);
 
+  const filterPageKey = useMemo(
+    () =>
+      [
+        search,
+        multiSelectSignature(departments),
+        multiSelectSignature(resourceOwners),
+        multiSelectSignature(resources),
+        includeEmpty ? "1" : "0",
+        groupBy,
+        workDay == null ? "" : String(workDay),
+        range.from,
+        range.to,
+        sortKey,
+        sortDir,
+      ].join("|"),
+    [
+      search,
+      departments,
+      resourceOwners,
+      resources,
+      includeEmpty,
+      groupBy,
+      workDay,
+      range.from,
+      range.to,
+      sortKey,
+      sortDir,
+    ]
+  );
+
+  const prevFilterPageKey = useRef<string | null>(null);
   useEffect(() => {
+    prevFilterPageKey.current = null;
+  }, [sessionKey]);
+  useEffect(() => {
+    if (!filtersReady) return;
+    if (prevFilterPageKey.current === null) {
+      prevFilterPageKey.current = filterPageKey;
+      return;
+    }
+    if (prevFilterPageKey.current === filterPageKey) return;
+    prevFilterPageKey.current = filterPageKey;
     setPage(1);
-  }, [
-    search,
-    departments,
-    resourceOwners,
-    resources,
-    includeEmpty,
-    groupBy,
-    workDay,
-    range.from,
-    range.to,
-    sortKey,
-    sortDir,
-  ]);
+  }, [filtersReady, filterPageKey, setPage]);
 
   const visibleColDefs = useMemo(
     () => WORKDAY_SUMMARY_COLUMNS.filter((c) => visibleColumns.has(c.id)),

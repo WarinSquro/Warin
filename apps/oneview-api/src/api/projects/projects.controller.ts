@@ -225,7 +225,16 @@ export class ProjectsController {
   }
 
   @Get()
-  @RequirePermissions("projects", "planner", "availability")
+  @RequirePermissions(
+    "projects",
+    "planner",
+    "availability",
+    "reports.daily_work",
+    "reports.workday_summary",
+    "reports.deployment",
+    "reports.performance",
+    "reports.execution"
+  )
   async list(@Query("status") status?: string) {
     const rows = await this.prisma.project.findMany({
       where: {

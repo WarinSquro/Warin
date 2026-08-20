@@ -47,26 +47,26 @@ export interface DailyWorkColumnDef {
 export const DAILY_WORK_COLUMNS: DailyWorkColumnDef[] = [
   { id: "employeeName", label: "EMPLOYEE NAME", defaultVisible: true, width: "9.25rem" },
   { id: "department", label: "DEPARTMENT", defaultVisible: false, width: "7rem" },
-  { id: "resourceOwner", label: "RESOURCE OWNER", defaultVisible: true, width: "9rem" },
+  { id: "resourceOwner", label: "RESOURCE OWNER", defaultVisible: false, width: "9rem" },
   { id: "workDate", label: "WORK DATE", defaultVisible: true, width: "7rem" },
   { id: "project", label: "PROJECT", defaultVisible: true, width: "8rem" },
   { id: "projectType", label: "PROJECT TYPE", defaultVisible: false, width: "6.5rem" },
   { id: "milestone", label: "MILESTONE", defaultVisible: true, width: "11rem" },
-  { id: "milestoneType", label: "MILESTONE TYPE", defaultVisible: true, width: "8.5rem" },
+  { id: "milestoneType", label: "MILESTONE TYPE", defaultVisible: false, width: "8.5rem" },
   { id: "activity", label: "ACTIVITY", defaultVisible: true, width: "10rem" },
   { id: "activityType", label: "ACTIVITY TYPE", defaultVisible: false, width: "6.5rem" },
   { id: "tasks", label: "TASKS", defaultVisible: true, width: "8rem" },
-  { id: "allocatedOn", label: "ALLOCATED ON", stackedHeader: ["ALLOCATED", "ON"], defaultVisible: true, width: "7rem" },
+  { id: "allocatedOn", label: "ALLOCATED ON", stackedHeader: ["ALLOCATED", "ON"], defaultVisible: false, width: "7rem" },
   { id: "plannedHrs", label: "PLANNED HRS", stackedHeader: ["PLANNED", "HRS"], defaultVisible: true, width: "4.5rem" },
   { id: "confirmation", label: "CONFIRMATION", defaultVisible: true, width: "7.25rem" },
-  { id: "confirmedOn", label: "CONFIRMED ON", stackedHeader: ["CONFIRMED", "ON"], defaultVisible: true, width: "7rem" },
-  { id: "delayReason", label: "DELAY REASON", defaultVisible: true, width: "7.5rem" },
-  { id: "deviationReason", label: "DEVIATION REASON", defaultVisible: true, width: "9.5rem" },
+  { id: "confirmedOn", label: "CONFIRMED ON", stackedHeader: ["CONFIRMED", "ON"], defaultVisible: false, width: "7rem" },
+  { id: "delayReason", label: "DELAY REASON", defaultVisible: false, width: "7.5rem" },
+  { id: "deviationReason", label: "DEVIATION REASON", defaultVisible: false, width: "9.5rem" },
   { id: "actualHrs", label: "ACTUAL HRS", stackedHeader: ["ACTUAL", "HRS"], defaultVisible: true, width: "4.5rem" },
-  { id: "planUnplanned", label: "PLAN/UNPLANNED", stackedHeader: ["PLAN/", "UNPLANNED"], defaultVisible: true, width: "5.5rem" },
+  { id: "planUnplanned", label: "PLAN/UNPLANNED", stackedHeader: ["PLAN/", "UNPLANNED"], defaultVisible: false, width: "5.5rem" },
 ];
 
-export const DAILY_WORK_COLUMN_STORAGE_KEY = "oneview_daily_work_columns_v3";
+export const DAILY_WORK_COLUMN_STORAGE_KEY = "oneview_daily_work_columns_v4";
 
 import { dailyWorkPeriodOptions } from "../utils/reportPeriods";
 

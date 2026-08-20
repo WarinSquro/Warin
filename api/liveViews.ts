@@ -1081,12 +1081,16 @@ export function buildDailyWorkRows(
   rangeFrom: string,
   rangeTo: string,
   workingDays?: string[],
-  companyOffDays?: string[]
+  companyOffDays?: string[],
+  /** Full employee list for Resource Owner name lookup (scoped rows alone miss owners). */
+  nameLookupEmployees?: Employee[]
 ): DailyWorkRow[] {
   const empById = new Map(employees.map((e) => [e.id, e]));
-  const nameById = new Map(employees.map((e) => [e.id, e.name]));
+  const nameSource = nameLookupEmployees?.length ? nameLookupEmployees : employees;
+  const nameById = new Map(nameSource.map((e) => [e.id, e.name]));
   const projectByName = new Map(projects.map((p) => [p.name, p]));
   const projectByCode = new Map(projects.map((p) => [p.id, p]));
+  const activeAllocIds = new Set(allocations.map((a) => String(a.id)));
   const rows: DailyWorkRow[] = [];
   const confirmedAllocDay = new Set<string>();
 
@@ -1095,6 +1099,11 @@ export function buildDailyWorkRows(
     const emp = empById.get(c.employeeHrmsId);
     if (!emp) continue;
     for (const l of c.lines) {
+      // Skip lines tied to soft-deleted allocations so removed plans do not reappear.
+      if (l.allocationId != null && String(l.allocationId).trim() !== "") {
+        const aid = String(l.allocationId).trim();
+        if (!activeAllocIds.has(aid)) continue;
+      }
       const code = confirmationCode(c, l.kind);
       const delayed = code === "CD" || code === "DD";
       const alloc = resolveLineAllocation(
