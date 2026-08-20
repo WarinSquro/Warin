@@ -90,7 +90,7 @@ function prod(): ApiTeamProductivityDay {
           {
             id: "lap1",
             startedAt: "2026-08-18T04:00:00.000Z",
-            endedAt: "2026-08-18T10:20:00.000Z",
+            endedAt: "2026-08-18T08:48:00.000Z",
             durationMs: 4.8 * 3600000,
           },
         ],
@@ -251,5 +251,43 @@ describe("workday summary", () => {
     };
     expect(filterWorkdaySummaryRows(rows, base)).toHaveLength(0);
     expect(filterWorkdaySummaryRows(rows, { ...base, search: "Atul" }).map((r) => r.id)).toEqual(["1"]);
+  });
+
+  it("caps abandoned open focus timers to the work date (not live Date.now)", () => {
+    const segmentStartedAt = "2026-08-17T13:45:00.000Z"; // 19:15 IST
+    const rows = buildWorkdaySummaryRows(
+      [{ ...emp, id: "VIVEK", name: "Vivek Gajjar" }],
+      [
+        {
+          ...alloc(),
+          id: "77",
+          employeeHrmsId: "VIVEK",
+          employeeName: "Vivek Gajjar",
+          startDate: "2026-08-17",
+          endDate: "2026-08-17",
+        },
+      ],
+      [],
+      [
+        {
+          employeeHrmsId: "VIVEK",
+          workDate: "2026-08-17",
+          workday: { dayStart: segmentStartedAt },
+          focusByAllocation: {
+            "77": { laps: [], sessionAccumMs: 0, segmentStartedAt },
+          },
+        },
+      ],
+      "2026-08-17",
+      "2026-08-17",
+      WEEKDAYS,
+      "2026-08-20"
+    );
+    const row = rows.find((r) => r.employeeId === "VIVEK" && r.workDate === "2026-08-17");
+    expect(row?.focusHours).toBeDefined();
+    expect(row!.focusHours!).toBeLessThan(5);
+    expect(row!.focusHours!).toBeGreaterThan(4);
+    expect(row?.officeMs).toBeUndefined();
+    expect(row?.dayStart).toBe(segmentStartedAt);
   });
 });

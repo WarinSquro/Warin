@@ -117,11 +117,72 @@ export function formatCompactDuration(ms: number): string {
 /** Elapsed ms for an allocation including open segment. */
 export function focusElapsedMs(state: FocusAllocationState | undefined, now = Date.now()): number {
   if (!state) return 0;
-  const lapsMs = state.laps.reduce((s, l) => s + l.durationMs, 0);
-  let open = state.sessionAccumMs;
+  const lapsMs = state.laps.reduce((s, l) => s + lapDurationMs(l), 0);
+  let open = Math.max(0, state.sessionAccumMs || 0);
   if (state.segmentStartedAt) {
     open += Math.max(0, now - new Date(state.segmentStartedAt).getTime());
   }
+  return lapsMs + open;
+}
+
+/** Prefer started/ended timestamps; fall back to stored durationMs. */
+function lapDurationMs(lap: FocusLap): number {
+  const start = new Date(lap.startedAt).getTime();
+  const end = new Date(lap.endedAt).getTime();
+  if (!Number.isNaN(start) && !Number.isNaN(end) && end >= start) {
+    return end - start;
+  }
+  const stored = Number(lap.durationMs);
+  return Number.isFinite(stored) && stored > 0 ? stored : 0;
+}
+
+/**
+ * End of the work calendar day in the product display timezone (IST).
+ * Used to close abandoned open focus segments on historical report days.
+ */
+export function workDateEndMs(workDateIso: string): number {
+  const day = workDateIso.slice(0, 10);
+  // Asia/Kolkata is fixed UTC+05:30 (no DST).
+  return new Date(`${day}T23:59:59.999+05:30`).getTime();
+}
+
+export function workDateStartMs(workDateIso: string): number {
+  const day = workDateIso.slice(0, 10);
+  return new Date(`${day}T00:00:00.000+05:30`).getTime();
+}
+
+/**
+ * Focus elapsed for Workday Summary / historical reports.
+ * Open timers must not keep accruing against Date.now() after the work date —
+ * that produced multi-day totals (e.g. 67h) for a single row.
+ *
+ * Caps the open segment at Day End (if stamped), else end of that calendar day (IST),
+ * and never past `now`. Completed laps use started/ended timestamps.
+ */
+export function focusElapsedMsForWorkDate(
+  state: FocusAllocationState | undefined,
+  workDateIso: string,
+  opts?: { dayEndIso?: string | null; now?: number }
+): number {
+  if (!state) return 0;
+  const now = opts?.now ?? Date.now();
+  const lapsMs = state.laps.reduce((s, l) => s + lapDurationMs(l), 0);
+  let open = Math.max(0, state.sessionAccumMs || 0);
+
+  if (state.segmentStartedAt) {
+    const segStart = new Date(state.segmentStartedAt).getTime();
+    if (!Number.isNaN(segStart)) {
+      const dayStart = workDateStartMs(workDateIso);
+      const dayEndStamp = opts?.dayEndIso ? new Date(opts.dayEndIso).getTime() : NaN;
+      const dayCap = !Number.isNaN(dayEndStamp)
+        ? dayEndStamp
+        : workDateEndMs(workDateIso);
+      const asOf = Math.min(now, dayCap);
+      const from = Math.max(segStart, dayStart);
+      open += Math.max(0, asOf - from);
+    }
+  }
+
   return lapsMs + open;
 }
 
@@ -152,6 +213,10 @@ export function workdayDurationMs(marks: WorkdayMarks): {
   let lunchMs = 0;
   if (!Number.isNaN(out) && !Number.isNaN(inn) && inn >= out) {
     lunchMs = inn - out;
+  }
+  // Lunch cannot exceed office window when both are known.
+  if (officeMs > 0 && lunchMs > officeMs) {
+    lunchMs = officeMs;
   }
 
   const productiveMs = Math.max(0, officeMs - lunchMs);

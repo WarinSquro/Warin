@@ -2,7 +2,7 @@ import type { Employee } from "../data/employees";
 import type { ApiAllocation, ApiConfirmation, ApiTeamProductivityDay } from "./domain";
 import type { ConfirmationCode, WorkdaySummaryRow } from "../data/workdaySummaryReport";
 import { addDaysISO } from "../utils/date";
-import { focusElapsedMs, workdayDurationMs, type WorkdayMarks } from "../utils/confirmationProductivity";
+import { focusElapsedMsForWorkDate, workdayDurationMs, type WorkdayMarks } from "../utils/confirmationProductivity";
 import { isWorkingWeekday } from "../utils/workingCalendar";
 
 function isoDay(iso: string): string {
@@ -104,7 +104,9 @@ export function buildWorkdaySummaryRows(
       let focusMs = 0;
       if (prod?.focusByAllocation) {
         for (const st of Object.values(prod.focusByAllocation)) {
-          focusMs += focusElapsedMs(st);
+          focusMs += focusElapsedMsForWorkDate(st, d, {
+            dayEndIso: marks.dayEnd,
+          });
         }
       }
 

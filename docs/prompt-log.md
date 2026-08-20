@@ -32,7 +32,18 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
-### 2026-08-20 15:25 IST
+### 2026-08-20 15:40 IST
+
+**Prompt:**  
+> Workday Summary Focus Hours for Vivek Gajjar on 17-Aug showing ~67h — fix calculation for all columns / all employees (root cause, not display-only).
+
+**Output:**  
+- **Root cause:** `focusElapsedMs` added live `Date.now() − segmentStartedAt` for abandoned open timers, so past Workday Summary rows kept accruing for days.
+- `utils/confirmationProductivity.ts` — `focusElapsedMsForWorkDate` caps open segments at Day End or end of that IST calendar day; laps use started/ended timestamps.
+- `api/workdaySummary.ts` — uses report-safe focus helper for Focus Hrs / Focus %.
+- Tests: `tests/unit/confirmationProductivity.test.ts`, Vivek-style case in `workdaySummary.test.ts`.
+
+---
 
 **Prompt:**  
 > In Daily Work Details & Workday Summary report - Search should search only for Employee name
