@@ -122,7 +122,7 @@ Manual Commands in the UI show **EC2/POSIX** commands (production runbook). Runn
 1. Secure login (independent of WARIN auth)  
 2. Database / Application / Docker / Pre-deploy backups  
 3. Authenticated download of the latest Database / Application / Docker backup to the local computer (with confirmation)  
-4. Restore a downloaded `.dump` from the local drive into **local Docker** (laptop ops-console only; blocked on EC2)  
+4. Restore a downloaded `.dump` from the laptop into **local Docker** (file picker → Restore / Clear / Cancel; confirm before restore; blocked on EC2)  
 5. Docker container status  
 6. Allowlisted manual commands  
 7. Production deploy sequence with mandatory pre-backup gate  

@@ -327,57 +327,15 @@ export function DashboardPage() {
                   download={downloadMeta("docker", "Create a Docker backup first")}
                 />
               </div>
-              <RestorePanel
-                dumps={(backups?.filesystem || []).filter((f: any) => f.restoreAvailable)}
-                busy={busy}
-                onRestore={async (dumpPath: string) => {
-                  const dumpName = dumpPath.split(/[/\\]/).pop() || dumpPath;
-                  const creds = await promptCredentials({
-                    title: "Verify credentials to restore",
-                    message:
-                      "Database restore is destructive. Enter your Backup & Deployment User Id and password to continue.",
-                    submitLabel: "Verify",
-                    verify: async (userId, password) => {
-                      await api("/auth/verify", { method: "POST", json: { userId, password } });
-                    },
-                  });
-                  if (!creds) return;
-                  const ok = await confirm({
-                    title: "Restore selected dump?",
-                    danger: true,
-                    confirmLabel: "Restore",
-                    message: (
-                      <>
-                        Credentials verified. Restore dump{" "}
-                        <strong className="break-all text-foreground">{dumpName}</strong>
-                        {" "}into this host&apos;s Docker Postgres?
-                        <div className="mt-2 break-all text-[11px] text-muted">{dumpPath}</div>
-                        <div className="mt-2">Existing data may be overwritten. This cannot be undone from this dialog.</div>
-                      </>
-                    ),
-                  });
-                  if (!ok) return;
-                  await run("Database restore", () =>
-                    api("/backups/restore", {
-                      method: "POST",
-                      json: {
-                        path: dumpPath,
-                        confirm: true,
-                        userId: creds.userId,
-                        password: creds.password,
-                      },
-                    }),
-                  );
-                }}
-              />
-              <LocalDumpRestorePanel
+              <LocalDockerRestorePanel
                 busy={busy}
                 isEc2Layout={Boolean(status?.isEc2Layout)}
                 onRestore={async (file: File) => {
+                  const displayName = (file as File & { path?: string }).path || file.name;
                   const creds = await promptCredentials({
                     title: "Verify credentials to restore",
                     message:
-                      "Restoring a downloaded dump into local Docker overwrites this machine's database. Enter your Backup & Deployment User Id and password.",
+                      "Restoring a dump into local Docker overwrites this machine's database. Enter your Backup & Deployment User Id and password.",
                     submitLabel: "Verify",
                     verify: async (userId, password) => {
                       await api("/auth/verify", { method: "POST", json: { userId, password } });
@@ -385,13 +343,13 @@ export function DashboardPage() {
                   });
                   if (!creds) return;
                   const ok = await confirm({
-                    title: "Restore dump to local Docker?",
+                    title: "Restore database to local Docker?",
                     danger: true,
                     confirmLabel: "Restore",
                     message: (
                       <>
                         Restore{" "}
-                        <strong className="break-all text-foreground">{file.name}</strong> (
+                        <strong className="break-all text-foreground">{displayName}</strong> (
                         {formatBytes(file.size)}) into local Docker Postgres (`oneview-postgres`)?
                         <div className="mt-2">Existing local data may be overwritten.</div>
                       </>
@@ -860,47 +818,7 @@ function BackupCard({
   );
 }
 
-function RestorePanel({
-  dumps,
-  busy,
-  onRestore,
-}: {
-  dumps: any[];
-  busy: boolean;
-  onRestore: (path: string) => Promise<void>;
-}) {
-  const [path, setPath] = useState("");
-  return (
-    <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-      <div className="text-[14px] font-semibold text-brand">Database restore (server dumps)</div>
-      <p className="mt-1 text-[12px] text-muted">
-        Requires credential verification and explicit confirmation. Never overwrites an existing backup file.
-      </p>
-      <select
-        className="mt-3 h-9 w-full rounded border border-border bg-white px-2 text-[12px]"
-        value={path}
-        onChange={(e) => setPath(e.target.value)}
-      >
-        <option value="">Select dump…</option>
-        {dumps.map((d) => (
-          <option key={d.location} value={d.location}>
-            {d.location} ({formatBytes(d.sizeBytes)})
-          </option>
-        ))}
-      </select>
-      <button
-        type="button"
-        className="btn btn-danger mt-3"
-        disabled={busy || !path}
-        onClick={() => void onRestore(path)}
-      >
-        Restore selected dump…
-      </button>
-    </div>
-  );
-}
-
-function LocalDumpRestorePanel({
+function LocalDockerRestorePanel({
   busy,
   isEc2Layout,
   onRestore,
@@ -912,14 +830,22 @@ function LocalDumpRestorePanel({
   const [file, setFile] = useState<File | null>(null);
   const [inputEl, setInputEl] = useState<HTMLInputElement | null>(null);
 
+  const clearSelection = () => {
+    setFile(null);
+    if (inputEl) inputEl.value = "";
+  };
+
+  const selectedLabel = file
+    ? `${(file as File & { path?: string }).path || file.name} · ${formatBytes(file.size)}`
+    : "No file selected";
+
   if (isEc2Layout) {
     return (
       <div className="rounded-lg border border-border bg-white p-4">
-        <div className="text-[14px] font-semibold text-brand">Restore EC2 dump to local Docker</div>
+        <div className="text-[14px] font-semibold text-brand">Restore database to Local docker</div>
         <p className="mt-1 text-[12px] text-muted">
-          Not available while connected to EC2. On your laptop run{" "}
-          <code>npm run ops:dev</code>, open the local ops-console, then select a downloaded{" "}
-          <code>.dump</code> file to restore into local Docker Postgres.
+          Not available on EC2. On your laptop run <code>npm run ops:dev</code>, then select a downloaded{" "}
+          <code>.dump</code> and restore into local Docker Postgres.
         </p>
       </div>
     );
@@ -927,24 +853,35 @@ function LocalDumpRestorePanel({
 
   return (
     <div className="rounded-lg border border-border bg-white p-4">
-      <div className="text-[14px] font-semibold text-brand">Restore EC2 dump to local Docker</div>
+      <div className="text-[14px] font-semibold text-brand">Restore database to Local docker</div>
       <p className="mt-1 text-[12px] text-muted">
-        Select a database <code>.dump</code> downloaded from EC2 (or any local custom-format dump) and restore it into
-        this machine&apos;s <code>oneview-postgres</code> container.
+        Choose a <code>.dump</code> from your laptop and restore it into this machine&apos;s{" "}
+        <code>oneview-postgres</code> container.
       </p>
+
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          className="btn btn-ghost cursor-pointer"
+          disabled={busy}
+          onClick={() => inputEl?.click()}
+        >
+          Select database dump
+        </button>
+        <div className="min-w-0 flex-1 truncate text-[12px] text-muted" title={selectedLabel}>
+          {selectedLabel}
+        </div>
+      </div>
+
       <input
         ref={setInputEl}
         type="file"
         accept=".dump,application/octet-stream"
-        className="mt-3 block w-full cursor-pointer text-[12px]"
+        className="hidden"
         disabled={busy}
         onChange={(e) => setFile(e.target.files?.[0] || null)}
       />
-      {file && (
-        <div className="mt-2 text-[12px] text-muted">
-          Selected: <strong className="text-foreground">{file.name}</strong> · {formatBytes(file.size)}
-        </div>
-      )}
+
       <div className="mt-3 flex flex-wrap gap-2">
         <button
           type="button"
@@ -957,15 +894,10 @@ function LocalDumpRestorePanel({
         >
           {busy ? "Restoring…" : "Restore"}
         </button>
-        <button
-          type="button"
-          className="btn btn-ghost cursor-pointer"
-          disabled={busy}
-          onClick={() => {
-            setFile(null);
-            if (inputEl) inputEl.value = "";
-          }}
-        >
+        <button type="button" className="btn btn-ghost cursor-pointer" disabled={busy || !file} onClick={clearSelection}>
+          Clear
+        </button>
+        <button type="button" className="btn btn-ghost cursor-pointer" disabled={busy} onClick={clearSelection}>
           Cancel
         </button>
       </div>

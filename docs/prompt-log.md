@@ -32,6 +32,17 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-20 23:55 IST
+
+**Prompt:**  
+> Simplify restore UI: file select from laptop only (not dropdown); one Restore button. Layout: Restore database to Local docker / Select database dump + path / Restore Clear Cancel; confirm on Restore.
+
+**Output:**  
+- Removed server dump dropdown panel. Single panel: **Restore database to Local docker** with Select / path display / Restore / Clear / Cancel.
+- Restore still verifies credentials and asks for confirmation before upload restore to local Docker.
+- Files: `ops-console/web/src/pages/DashboardPage.tsx`, `ops-console/README.md`.
+- Validation: `npm run build` passed.
+
 ### 2026-08-20 23:40 IST
 
 **Prompt:**  
