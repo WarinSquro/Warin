@@ -1144,7 +1144,7 @@ export function buildDailyWorkRows(
         tasks: l.tasks,
         plannedHours: l.kind === "unplanned" ? undefined : l.plannedHours,
         confirmation: code,
-        confirmedOn: allocationDoneDate(c.submittedAt) ?? c.workDate,
+        confirmedOn: c.submittedAt || c.workDate,
         delayReason: delayed
           ? c.isMissedPosting
             ? (c.missReason ?? "Late posting")

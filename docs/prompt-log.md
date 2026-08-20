@@ -32,6 +32,16 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-20 23:15 IST
+
+**Prompt:**  
+> Daily Work Detail: show Date Time for Confirmed On column.
+
+**Output:**  
+- **Root cause:** `buildDailyWorkRows` stored date-only via `allocationDoneDate(submittedAt)`; UI used `formatWorkDate`.
+- **Fix:** Persist full `submittedAt` ISO on `confirmedOn`; display via `formatAppDateTime` (IST) in `DailyWorkReport` (`formatConfirmedOn`). Widened column to `11.5rem`.
+- Tests: `dailyWorkAllocatedOn.test.ts` expectations updated for full ISO.
+
 ### 2026-08-20 23:05 IST
 
 **Prompt:**  

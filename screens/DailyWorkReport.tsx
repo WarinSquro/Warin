@@ -15,6 +15,8 @@ import { getVisibleEmployeeIds } from "../utils/employeeHierarchy";
 import { scopeReportHierarchyEmployees } from "../utils/reportVisibility";
 import { dailyWorkPeriodOptions } from "../utils/reportPeriods";
 import { milestoneKindLabel } from "../data/projects";
+import { formatAppDateTime } from "../utils/formatAppDate";
+import type { DateFormatPattern } from "../data/settings";
 import {
   CONFIRMATION_CODES,
   DAILY_WORK_COLUMNS,
@@ -62,6 +64,17 @@ import { formatHours } from "../utils/formatHours";
 
 const DAILY_WORK_PAGE_KEY = "daily_work";
 
+/** Confirmed On: date+time when ISO has a time; date-only strings stay date-only. */
+function formatConfirmedOn(
+  iso: string | undefined,
+  datePattern: DateFormatPattern
+): string {
+  if (!iso) return "—";
+  const t = iso.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return formatWorkDate(t, datePattern);
+  return formatAppDateTime(t, datePattern);
+}
+
 function cellValue(
   row: DailyWorkRow,
   colId: DailyWorkSortKey,
@@ -81,6 +94,8 @@ function cellValue(
         return (row.tasks ?? []).join(", ");
       case "allocatedOn":
         return row.allocatedOn ? formatWorkDate(row.allocatedOn, datePattern) : "—";
+      case "confirmedOn":
+        return formatConfirmedOn(row.confirmedOn, datePattern);
       case "actualHrs":
         return row.actualHours != null ? String(row.actualHours) : "—";
       case "planUnplanned":
@@ -120,7 +135,7 @@ function cellValue(
     case "confirmation":
       return row.confirmation;
     case "confirmedOn":
-      return row.confirmedOn ? formatWorkDate(row.confirmedOn, datePattern) : "—";
+      return formatConfirmedOn(row.confirmedOn, datePattern);
     case "delayReason":
       return row.delayReason ?? "—";
     case "deviationReason":

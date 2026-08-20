@@ -104,7 +104,7 @@ describe("Daily Work confirmation codes", () => {
     );
     const confirmed = rows.find((r) => r.id.startsWith("dw-l") || r.confirmation === "D" || r.confirmation === "DD");
     expect(confirmed?.confirmation).toBe("D");
-    expect(confirmed?.confirmedOn).toBe("2026-08-19");
+    expect(confirmed?.confirmedOn).toBe("2026-08-19T12:00:00.000Z");
     expect(confirmed?.delayReason).toBeUndefined();
   });
 
@@ -120,7 +120,7 @@ describe("Daily Work confirmation codes", () => {
     );
     const confirmed = rows.find((r) => r.confirmation === "D" || r.confirmation === "DD");
     expect(confirmed?.confirmation).toBe("DD");
-    expect(confirmed?.confirmedOn).toBe("2026-08-20");
+    expect(confirmed?.confirmedOn).toBe("2026-08-19T18:30:00.000Z");
     expect(confirmed?.delayReason).toBe("Late posting");
   });
 
