@@ -32,6 +32,15 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-20 23:20 IST
+
+**Prompt:**  
+> Workday Summary Group by dropdown: add Work Date.
+
+**Output:**  
+- Extended `WorkdaySummaryGroupBy` with `workDate`; `groupWorkdaySummaryRows` buckets by `workDate` and labels with settings date format.
+- Added “Work Date” to `GROUP_OPTIONS` in `WorkdaySummaryReport.tsx`.
+
 ### 2026-08-20 23:15 IST
 
 **Prompt:**  

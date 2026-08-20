@@ -10,7 +10,7 @@ export type { ConfirmationCode };
 
 export const WORKDAY_SUMMARY_WINDOW_DAYS = 14;
 
-export type WorkdaySummaryGroupBy = "none" | "department" | "ro";
+export type WorkdaySummaryGroupBy = "none" | "department" | "ro" | "workDate";
 
 export type WorkdaySummarySortKey =
   | "workDate"
@@ -222,19 +222,29 @@ export interface WorkdaySummaryGroup {
 
 export function groupWorkdaySummaryRows(
   rows: WorkdaySummaryRow[],
-  groupBy: WorkdaySummaryGroupBy
+  groupBy: WorkdaySummaryGroupBy,
+  datePattern: DateFormatPattern = "dd/MM/yyyy"
 ): WorkdaySummaryGroup[] {
   if (groupBy === "none") return [{ key: "all", label: "", rows }];
   const buckets = new Map<string, WorkdaySummaryRow[]>();
   for (const r of rows) {
-    const key = groupBy === "department" ? r.department : r.resourceOwnerName || "—";
+    const key =
+      groupBy === "department"
+        ? r.department || "—"
+        : groupBy === "ro"
+          ? r.resourceOwnerName || "—"
+          : r.workDate;
     const list = buckets.get(key) ?? [];
     list.push(r);
     buckets.set(key, list);
   }
   return [...buckets.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, groupRows]) => ({ key, label: key, rows: groupRows }));
+    .map(([key, groupRows]) => ({
+      key,
+      label: groupBy === "workDate" ? formatWorkdayDate(key, datePattern) : key,
+      rows: groupRows,
+    }));
 }
 
 export function workdaySummaryDepartments(rows: WorkdaySummaryRow[]): string[] {

@@ -68,6 +68,7 @@ const GROUP_OPTIONS: { value: WorkdaySummaryGroupBy; label: string }[] = [
   { value: "none", label: "None" },
   { value: "department", label: "Department" },
   { value: "ro", label: "RO" },
+  { value: "workDate", label: "Work Date" },
 ];
 
 /** Sticky Work Date + Employee (horizontal) and sticky header row (vertical). */
@@ -326,11 +327,11 @@ export function WorkdaySummaryReport() {
 
   const groups = useMemo(
     () =>
-      groupWorkdaySummaryRows(sorted, groupBy).map((g) => ({
+      groupWorkdaySummaryRows(sorted, groupBy, dateFormat).map((g) => ({
         ...g,
         rows: sortWorkdaySummaryRows(g.rows, sortKey, sortDir),
       })),
-    [sorted, groupBy, sortKey, sortDir]
+    [sorted, groupBy, dateFormat, sortKey, sortDir]
   );
 
   const pagedGroups = useMemo(() => {
