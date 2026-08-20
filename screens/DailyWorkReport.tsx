@@ -268,7 +268,12 @@ export function DailyWorkReport() {
   }, [periodRows, visibleEmployeeIds, drillDate]);
 
   const allDepts = useMemo(() => dailyWorkDepartments(scopedRows), [scopedRows]);
-  const allProjects = useMemo(() => dailyWorkProjects(scopedRows), [scopedRows]);
+  const allProjects = useMemo(() => {
+    const known = liveProjects
+      .filter((p) => p.status === "active")
+      .map((p) => p.name);
+    return dailyWorkProjects(scopedRows, known);
+  }, [scopedRows, liveProjects]);
 
   const [departments, setDepartments] = useState<string[]>([]);
   const [projects, setProjects] = useState<string[]>([]);

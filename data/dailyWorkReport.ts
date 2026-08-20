@@ -346,7 +346,13 @@ export function filterDailyWorkRows(
   return rows.filter((r) => {
     if (!visibleEmployeeIds.has(r.employeeId)) return false;
     if (filters.departments.length > 0 && !filters.departments.includes(r.department)) return false;
-    if (filters.projects.length > 0 && r.projectName && !filters.projects.includes(r.projectName)) {
+    // Unplanned lines use free-text labels, not Project Master — gated by Plan/Unplanned only.
+    if (
+      filters.projects.length > 0 &&
+      r.planKind !== "Unplanned" &&
+      r.projectName &&
+      !filters.projects.includes(r.projectName)
+    ) {
       return false;
     }
     if (filters.confirmations.length > 0 && !filters.confirmations.includes(r.confirmation)) return false;
@@ -424,8 +430,28 @@ export function dailyWorkDepartments(rows: DailyWorkRow[]): string[] {
   return [...new Set(rows.map((r) => r.department))].sort();
 }
 
-export function dailyWorkProjects(rows: DailyWorkRow[]): string[] {
-  const names = rows.map((r) => r.projectName).filter((n): n is string => !!n);
+/**
+ * Project filter options for Daily Work Detail.
+ * Only Project Master names — never free-text unplanned `projectLabel` values
+ * (e.g. meeting titles stored on confirmation lines).
+ *
+ * When `knownProjectNames` is provided, return those names (sorted), typically
+ * active projects from Project Master. When omitted (mocks), fall back to
+ * distinct planned-row project names excluding unplanned-only free text.
+ */
+export function dailyWorkProjects(
+  rows: DailyWorkRow[],
+  knownProjectNames?: readonly string[]
+): string[] {
+  if (knownProjectNames && knownProjectNames.length > 0) {
+    return [...new Set(knownProjectNames.filter((n) => !!n.trim()))].sort((a, b) =>
+      a.localeCompare(b)
+    );
+  }
+  const names = rows
+    .filter((r) => r.planKind !== "Unplanned")
+    .map((r) => r.projectName)
+    .filter((n): n is string => !!n);
   return [...new Set(names)].sort();
 }
 

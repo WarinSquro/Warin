@@ -32,6 +32,19 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-20 17:30 IST
+
+**Prompt:**  
+> EC2 Daily Work Detail “All projects” shows more than 2 projects while Project Master has only 2 — why unknown projects?
+
+**Output:**  
+- **Root cause:** Dropdown used distinct `projectName` from all report rows. Unplanned confirmation lines store free-text in `projectLabel` (meeting titles like “HPCL HP Pay…”, “Product Point discussion”), so those appeared as fake projects.
+- `data/dailyWorkReport.ts` — `dailyWorkProjects` takes Project Master names; unplanned free-text excluded; project filter skips `planKind === "Unplanned"`.
+- `screens/DailyWorkReport.tsx` — options from active `liveProjects`.
+- Tests: `tests/unit/dailyWorkProjectsFilter.test.ts`.
+
+---
+
 ### 2026-08-20 17:12 IST
 
 **Prompt:**  
