@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildDailyWorkRows } from "../../api/liveViews";
-import type { ApiAllocation } from "../../api/domain";
+import type { ApiAllocation, ApiConfirmation } from "../../api/domain";
 import type { Employee } from "../../data/employees";
 
 const emp: Employee = {
@@ -59,5 +59,68 @@ describe("Daily Work allocatedOn", () => {
       WEEKDAYS
     );
     expect(rows[0]!.allocatedOn).toBe("2026-08-01");
+  });
+});
+
+function confirmation(partial?: Partial<ApiConfirmation>): ApiConfirmation {
+  return {
+    id: "c1",
+    employeeHrmsId: "EMP-1",
+    employeeName: "Aarav Shah",
+    workDate: "2026-08-19",
+    submittedAt: "2026-08-19T12:00:00.000Z",
+    submittedAtLabel: "",
+    isMissedPosting: false,
+    missReason: null,
+    hasDeviation: true,
+    lines: [
+      {
+        id: "l1",
+        allocationId: "99",
+        projectLabel: "SkyView Drone",
+        milestoneLabel: "General / Ongoing",
+        activity: "Dev",
+        plannedHours: 4.5,
+        actualHours: 4.5,
+        kind: "deviation",
+        reason: "Reprioritized",
+        tasks: ["Discussion"],
+      },
+    ],
+    ...partial,
+  };
+}
+
+describe("Daily Work confirmation codes", () => {
+  it("same calendar day (IST) with deviation is D, not DD", () => {
+    const rows = buildDailyWorkRows(
+      [emp],
+      [],
+      [alloc({ startDate: "2026-08-19", endDate: "2026-08-19" })],
+      [confirmation()],
+      "2026-08-19",
+      "2026-08-19",
+      WEEKDAYS
+    );
+    const confirmed = rows.find((r) => r.id.startsWith("dw-l") || r.confirmation === "D" || r.confirmation === "DD");
+    expect(confirmed?.confirmation).toBe("D");
+    expect(confirmed?.confirmedOn).toBe("2026-08-19");
+    expect(confirmed?.delayReason).toBeUndefined();
+  });
+
+  it("next calendar day (IST) with deviation is DD", () => {
+    const rows = buildDailyWorkRows(
+      [emp],
+      [],
+      [alloc({ startDate: "2026-08-19", endDate: "2026-08-19" })],
+      [confirmation({ submittedAt: "2026-08-19T18:30:00.000Z" })],
+      "2026-08-19",
+      "2026-08-19",
+      WEEKDAYS
+    );
+    const confirmed = rows.find((r) => r.confirmation === "D" || r.confirmation === "DD");
+    expect(confirmed?.confirmation).toBe("DD");
+    expect(confirmed?.confirmedOn).toBe("2026-08-20");
+    expect(confirmed?.delayReason).toBe("Late posting");
   });
 });

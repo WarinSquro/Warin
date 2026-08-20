@@ -215,8 +215,11 @@ function utilBand(pct: number): Band {
   return "idle";
 }
 
+/** Delayed only when confirmed on a later calendar day than the work date (IST). */
 function isDelayed(submittedAt: string, workDate: string): boolean {
-  return new Date(submittedAt).getTime() > new Date(`${workDate}T10:00:00`).getTime();
+  const submittedDay = allocationDoneDate(submittedAt);
+  if (!submittedDay) return false;
+  return submittedDay > workDate.slice(0, 10);
 }
 
 function confirmationCode(c: ApiConfirmation, lineKind: string): ConfirmationCode {
@@ -1092,7 +1095,7 @@ export function buildDailyWorkRows(
         tasks: l.tasks,
         plannedHours: l.kind === "unplanned" ? undefined : l.plannedHours,
         confirmation: code,
-        confirmedOn: c.workDate,
+        confirmedOn: allocationDoneDate(c.submittedAt) ?? c.workDate,
         delayReason: delayed
           ? c.isMissedPosting
             ? (c.missReason ?? "Late posting")

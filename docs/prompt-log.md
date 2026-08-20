@@ -32,6 +32,19 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-20 09:45 IST
+
+**Prompt:**  
+> Check Work Detail Report > In the Confirmation column, review the calculation logic and update it if necessary. Verify that no demo data is still being used in the calculation.
+
+**Output:**  
+- Root cause: `buildDailyWorkRows` marked confirmation Delayed if `submittedAt` was after **10:00** on the work date. Same-day confirmations after 10:00 (e.g. 19 Aug allocated + 19 Aug confirmed) showed **DD** instead of **D**. `confirmedOn` was also set to `workDate`, so the report hid the real submit date.
+- Demo data: Daily Work Detail already uses live allocations/confirmations via `buildDailyWorkRows` — mock rows in `data/dailyWorkReport.ts` are not used on this screen.
+- Files: `api/liveViews.ts` — Delayed only when the IST calendar date of `submittedAt` is **after** the work date. `confirmedOn` uses that submit date. `tests/unit/dailyWorkAllocatedOn.test.ts` — same-day deviation → D; next IST day → DD.
+- Tests: `npx vitest run tests/unit/dailyWorkAllocatedOn.test.ts` — 4 passed.
+
+---
+
 ### 2026-08-19 17:50 IST
 
 **Prompt:**  
