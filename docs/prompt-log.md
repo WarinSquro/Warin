@@ -32,6 +32,18 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-20 10:25 IST
+
+**Prompt:**  
+> Utilization 4th card Idle/Under shows "<70% booked" but System Parameters Idle below is 80%. Check and correct.
+
+**Output:**  
+- Root cause: Utilization KPI labels and `utilBand()` were hardcoded at 70%/100%, ignoring `settings.bands.idleBelow`.
+- Fix: labels use `settings.bands`; row classification uses `classifyUtilBand` with those bands. Settings impact preview also classifies with draft bands.
+- Files: `api/liveViews.ts`, `screens/Utilization.tsx`, `screens/Settings.tsx`, `tests/unit/utilKpis.test.ts`.
+
+---
+
 ### 2026-08-20 10:15 IST
 
 **Prompt:**  

@@ -871,7 +871,11 @@ function ImpactModal({
             employees,
             weekCapacity,
             allocations,
-            offDays
+            offDays,
+            weekStart,
+            weekEnd,
+            draft.workingDays,
+            draft.bands
           );
           const impact = computeSettingsBandImpact(
             rows.map((r) => r.pct),

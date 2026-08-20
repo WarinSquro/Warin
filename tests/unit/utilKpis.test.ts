@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { computeUtilKpis, utilAvgDeltaDisplay, type UtilRow } from "../../data/utilization";
+import { classifyUtilBand } from "../../utils/settingsImpact";
 import { shiftMonthId } from "../../utils/reportPeriods";
 
 function row(pct: number, band: UtilRow["band"] = "optimal"): UtilRow {
@@ -44,5 +45,15 @@ describe("utilAvgDeltaDisplay", () => {
     expect(utilAvgDeltaDisplay(-3)).toEqual({ text: "▼ 3% vs last mo", tone: "danger" });
     expect(utilAvgDeltaDisplay(0)).toEqual({ text: "— vs last mo", tone: "muted" });
     expect(utilAvgDeltaDisplay(null)).toBeNull();
+  });
+});
+
+describe("classifyUtilBand uses System Parameters", () => {
+  it("treats below Idle below as idle", () => {
+    const bands = { idleBelow: 80, optimalTo: 100 };
+    expect(classifyUtilBand(79, bands)).toBe("idle");
+    expect(classifyUtilBand(80, bands)).toBe("optimal");
+    expect(classifyUtilBand(100, bands)).toBe("optimal");
+    expect(classifyUtilBand(101, bands)).toBe("over");
   });
 });

@@ -143,9 +143,10 @@ export function Utilization() {
         offDays,
         monthRange.from,
         monthRange.to,
-        settings.workingDays
+        settings.workingDays,
+        settings.bands
       ),
-    [employees, periodCapacity, allocations, offDays, monthRange.from, monthRange.to, settings.workingDays]
+    [employees, periodCapacity, allocations, offDays, monthRange.from, monthRange.to, settings.workingDays, settings.bands]
   );
   const priorUtilRows = useMemo(
     () =>
@@ -156,7 +157,8 @@ export function Utilization() {
         offDays,
         priorMonthRange.from,
         priorMonthRange.to,
-        settings.workingDays
+        settings.workingDays,
+        settings.bands
       ),
     [
       employees,
@@ -166,6 +168,7 @@ export function Utilization() {
       priorMonthRange.from,
       priorMonthRange.to,
       settings.workingDays,
+      settings.bands,
     ]
   );
   const utilDepartments = useMemo(
@@ -351,7 +354,7 @@ export function Utilization() {
           <Kpi
             label="Overloaded"
             value={kpis.over}
-            sub=">100% booked"
+            sub={`>${settings.bands.optimalTo}% booked`}
             accent="border-l-danger"
             valueClass="text-danger"
             active={seg === "over"}
@@ -360,7 +363,7 @@ export function Utilization() {
           <Kpi
             label="Optimal"
             value={kpis.optimal}
-            sub="70–100%"
+            sub={`${settings.bands.idleBelow}–${settings.bands.optimalTo}%`}
             accent="border-l-success"
             valueClass="text-success"
             active={seg === "optimal"}
@@ -369,7 +372,7 @@ export function Utilization() {
           <Kpi
             label="Idle / Under"
             value={kpis.idle}
-            sub="<70% booked"
+            sub={`<${settings.bands.idleBelow}% booked`}
             accent="border-l-muted-foreground"
             valueClass="text-muted"
             active={seg === "idle"}

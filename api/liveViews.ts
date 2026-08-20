@@ -4,12 +4,14 @@
  */
 import type { Employee } from "../data/employees";
 import type { AvailRow, RollingOffPerson } from "../data/availability";
-import type { Band, UtilRow } from "../data/utilization";
+import type { UtilRow } from "../data/utilization";
 import type { DeploymentRow, DeploymentStatus } from "../data/deploymentReport";
 import { workingWeekBounds } from "../utils/workingWeek";
 import { APP_DISPLAY_TIMEZONE } from "../utils/formatAppDate";
 import { roundHoursToTenth } from "../utils/formatHours";
 import { isWorkingWeekday, normalizedWorkingDays, workingDayStatus } from "../utils/workingCalendar";
+import { classifyUtilBand } from "../utils/settingsImpact";
+import { DEFAULT_SETTINGS, type UtilBands } from "../data/settings";
 import type {
   PerformanceHistory,
   PerformanceHistoryMonth,
@@ -207,12 +209,6 @@ export function bookedHoursInRange(
     entry.primaryProject = best;
   }
   return map;
-}
-
-function utilBand(pct: number): Band {
-  if (pct > 100) return "over";
-  if (pct >= 70) return "optimal";
-  return "idle";
 }
 
 /** Delayed only when confirmed on a later calendar day than the work date (IST). */
@@ -514,7 +510,8 @@ export function buildUtilRowsFromEmployees(
   companyOffDays?: string[],
   rangeFrom = mondayISO(),
   rangeTo = addDaysISO(mondayISO(), 6),
-  workingDays?: string[]
+  workingDays?: string[],
+  bands: UtilBands = DEFAULT_SETTINGS.bands
 ): UtilRow[] {
   const booked = bookedHoursInRange(allocations, rangeFrom, rangeTo, companyOffDays, workingDays);
   const weekStarts = utilWeekStarts(rangeFrom, rangeTo);
@@ -551,7 +548,7 @@ export function buildUtilRowsFromEmployees(
         role: e.skills[0] ?? "—",
         department: e.department,
         pct,
-        band: utilBand(pct),
+        band: classifyUtilBand(pct, bands),
         trend: trend.slice(-4),
         primaryWork: entry?.primaryProject ?? "Unallocated",
         primaryMuted: !entry?.primaryProject,
