@@ -32,7 +32,18 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
-### 2026-08-20 15:40 IST
+### 2026-08-20 15:55 IST
+
+**Prompt:**  
+> Confirmation page: (1) no timer before Day Start; (2) Lunch Start pauses all / blocks start; (3) Lunch End allows restart; (4) Day End/Log Out stops all timers into laps with totals.
+
+**Output:**  
+- `utils/confirmationProductivity.ts` — `isFocusStartBlocked`, `pauseAllRunningFocusTimers`, `stopAllOpenFocusTimers` / `stopFocusTimerOnDay`.
+- `screens/WorkConfirmation.tsx` — Lunch Start pauses all; Day End finalizes all open sessions to laps; Start gated on timeline.
+- `components/ConfirmationProductivity.tsx` — `startDisabled` on focus timer UI.
+- Tests extended in `tests/unit/confirmationProductivity.test.ts`.
+
+---
 
 **Prompt:**  
 > Workday Summary Focus Hours for Vivek Gajjar on 17-Aug showing ~67h — fix calculation for all columns / all employees (root cause, not display-only).

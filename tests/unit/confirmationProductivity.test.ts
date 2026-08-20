@@ -1,16 +1,19 @@
 import { describe, expect, it } from "vitest";
 import {
+  emptyDayProductivity,
   focusElapsedMs,
   focusElapsedMsForWorkDate,
+  isFocusStartBlocked,
+  pauseAllRunningFocusTimers,
+  stopAllOpenFocusTimers,
   workDateEndMs,
   workdayDurationMs,
 } from "../../utils/confirmationProductivity";
 
 describe("focusElapsedMsForWorkDate", () => {
   it("does not let an abandoned open timer grow across later calendar days", () => {
-    // Vivek-style: Day Start ~19:15 IST on 17-Aug, timer left running; report viewed on 20-Aug.
-    const segmentStartedAt = "2026-08-17T13:45:00.000Z"; // 19:15 IST
-    const viewNow = new Date("2026-08-20T09:41:00.000Z").getTime(); // ~15:11 IST
+    const segmentStartedAt = "2026-08-17T13:45:00.000Z";
+    const viewNow = new Date("2026-08-20T09:41:00.000Z").getTime();
     const live = focusElapsedMs(
       { laps: [], sessionAccumMs: 0, segmentStartedAt },
       viewNow
@@ -22,7 +25,6 @@ describe("focusElapsedMsForWorkDate", () => {
       "2026-08-17",
       { now: viewNow }
     );
-    // Caps at end of 17-Aug IST (~4h 45m from 19:15), not ~68h.
     expect(reported).toBeLessThan(5 * 3600000);
     expect(reported).toBeGreaterThan(4 * 3600000);
     expect(reported).toBe(workDateEndMs("2026-08-17") - new Date(segmentStartedAt).getTime());
@@ -47,7 +49,7 @@ describe("focusElapsedMsForWorkDate", () => {
             id: "1",
             startedAt: "2026-08-17T04:00:00.000Z",
             endedAt: "2026-08-17T06:30:00.000Z",
-            durationMs: 999999999, // corrupt stored value — ignore in favor of timestamps
+            durationMs: 999999999,
           },
         ],
         sessionAccumMs: 0,
@@ -78,5 +80,91 @@ describe("workdayDurationMs", () => {
     });
     expect(officeMs).toBe(0);
     expect(productiveMs).toBe(0);
+  });
+});
+
+describe("confirmation focus workday gates", () => {
+  it("blocks Start before Day Start, during lunch, and after Day End", () => {
+    expect(isFocusStartBlocked({})).toBe(true);
+    expect(isFocusStartBlocked({ dayStart: "2026-08-20T03:00:00.000Z" })).toBe(false);
+    expect(
+      isFocusStartBlocked({
+        dayStart: "2026-08-20T03:00:00.000Z",
+        lunchOut: "2026-08-20T07:00:00.000Z",
+      })
+    ).toBe(true);
+    expect(
+      isFocusStartBlocked({
+        dayStart: "2026-08-20T03:00:00.000Z",
+        lunchOut: "2026-08-20T07:00:00.000Z",
+        lunchIn: "2026-08-20T07:30:00.000Z",
+      })
+    ).toBe(false);
+    expect(
+      isFocusStartBlocked({
+        dayStart: "2026-08-20T03:00:00.000Z",
+        dayEnd: "2026-08-20T12:00:00.000Z",
+      })
+    ).toBe(true);
+  });
+
+  it("Lunch Start pauses all running timers without creating laps", () => {
+    const now = new Date("2026-08-20T07:00:00.000Z").getTime();
+    const day = pauseAllRunningFocusTimers(
+      {
+        ...emptyDayProductivity(),
+        activeTimerId: "a1",
+        focusByAllocation: {
+          a1: {
+            laps: [],
+            sessionAccumMs: 1000,
+            segmentStartedAt: new Date(now - 5000).toISOString(),
+          },
+        },
+      },
+      now
+    );
+    expect(day.activeTimerId).toBeNull();
+    expect(day.focusByAllocation.a1?.segmentStartedAt).toBeNull();
+    expect(day.focusByAllocation.a1?.sessionAccumMs).toBe(6000);
+    expect(day.focusByAllocation.a1?.laps).toHaveLength(0);
+  });
+
+  it("Day End / Log Out stops all open timers into laps and updates totals", () => {
+    const now = new Date("2026-08-20T12:00:00.000Z").getTime();
+    const day = stopAllOpenFocusTimers(
+      {
+        ...emptyDayProductivity(),
+        activeTimerId: "a1",
+        focusByAllocation: {
+          a1: {
+            laps: [],
+            sessionAccumMs: 2000,
+            segmentStartedAt: new Date(now - 3000).toISOString(),
+          },
+          a2: {
+            laps: [
+              {
+                id: "old",
+                startedAt: "2026-08-20T04:00:00.000Z",
+                endedAt: "2026-08-20T05:00:00.000Z",
+                durationMs: 3600000,
+              },
+            ],
+            sessionAccumMs: 4000,
+            segmentStartedAt: null,
+          },
+        },
+      },
+      now
+    );
+    expect(day.activeTimerId).toBeNull();
+    expect(day.focusByAllocation.a1?.segmentStartedAt).toBeNull();
+    expect(day.focusByAllocation.a1?.sessionAccumMs).toBe(0);
+    expect(day.focusByAllocation.a1?.laps).toHaveLength(1);
+    expect(day.focusByAllocation.a1?.laps[0]?.durationMs).toBe(5000);
+    expect(day.focusByAllocation.a2?.laps).toHaveLength(2);
+    expect(day.focusByAllocation.a2?.laps[1]?.durationMs).toBe(4000);
+    expect(day.focusByAllocation.a2?.sessionAccumMs).toBe(0);
   });
 });

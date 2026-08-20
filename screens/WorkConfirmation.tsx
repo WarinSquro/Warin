@@ -40,10 +40,15 @@ import {
   computeConfirmationWorkHours,
   emptyFocusState,
   focusElapsedMs,
+  focusStartBlockedReason,
   getDayProductivity,
   hasAnyUnstoppedFocusSession,
+  isFocusStartBlocked,
   loadProductivityStore,
+  pauseAllRunningFocusTimers,
   saveProductivityStore,
+  stopAllOpenFocusTimers,
+  stopFocusTimerOnDay,
   upsertDayProductivity,
   canStampWorkdayAction,
 } from "../utils/confirmationProductivity";
@@ -307,6 +312,22 @@ function EmployeeConfirm() {
         setDayEndConfirmOpen(true);
         return;
       }
+      // Log Out / Day End: finalize paused sessions into laps even when nothing is running.
+      const day = stopAllOpenFocusTimers({
+        ...todayProd,
+        workday: { ...todayProd.workday, dayEnd: new Date().toISOString() },
+      });
+      persistDay(workDate, day);
+      return;
+    }
+
+    if (key === "lunchOut") {
+      const day = pauseAllRunningFocusTimers({
+        ...todayProd,
+        workday: { ...todayProd.workday, lunchOut: new Date().toISOString() },
+      });
+      persistDay(workDate, day);
+      return;
     }
 
     persistDay(workDate, {
@@ -315,59 +336,16 @@ function EmployeeConfirm() {
     });
   };
 
-  /** Stop a running/paused allocation focus session (same rules as Stop button). */
-  const stopFocusTimerOnDay = (day: DayProductivity, allocationId: string): DayProductivity => {
-    const id = String(allocationId);
-    const current = day.focusByAllocation[id] ?? emptyFocusState();
-    let sessionMs = current.sessionAccumMs;
-    if (current.segmentStartedAt) {
-      sessionMs += Math.max(0, Date.now() - new Date(current.segmentStartedAt).getTime());
-    }
-    if (sessionMs <= 0 && current.laps.length === 0) {
-      return {
-        ...day,
-        activeTimerId: day.activeTimerId === id ? null : day.activeTimerId,
-        focusByAllocation: {
-          ...day.focusByAllocation,
-          [id]: emptyFocusState(),
-        },
-      };
-    }
-    const lap = {
-      id: `lap-${Date.now()}`,
-      startedAt: current.segmentStartedAt ?? new Date().toISOString(),
-      endedAt: new Date().toISOString(),
-      durationMs: sessionMs,
-    };
-    return {
-      ...day,
-      activeTimerId: day.activeTimerId === id ? null : day.activeTimerId,
-      focusByAllocation: {
-        ...day.focusByAllocation,
-        [id]: {
-          laps: [...current.laps, lap],
-          sessionAccumMs: 0,
-          segmentStartedAt: null,
-        },
-      },
-    };
-  };
-
   const confirmDayEndWithAllocationStop = () => {
     if (!canUseProductivity) return;
     if (!canStampWorkdayAction(todayProd.workday, "dayEnd")) {
       setDayEndConfirmOpen(false);
       return;
     }
-    let day: DayProductivity = { ...todayProd };
-    for (const [id, st] of Object.entries(day.focusByAllocation)) {
-      if (!st?.segmentStartedAt) continue;
-      day = stopFocusTimerOnDay(day, id);
-    }
-    day = {
-      ...day,
-      workday: { ...day.workday, dayEnd: new Date().toISOString() },
-    };
+    const day = stopAllOpenFocusTimers({
+      ...todayProd,
+      workday: { ...todayProd.workday, dayEnd: new Date().toISOString() },
+    });
     persistDay(workDate, day);
     setDayEndConfirmOpen(false);
   };
@@ -400,6 +378,7 @@ function EmployeeConfirm() {
       let day = { ...getDayProductivity(prev, workDate) };
       const current = day.focusByAllocation[id] ?? emptyFocusState();
       if (current.segmentStartedAt) {
+        // Pause is always allowed while a segment is running (e.g. before Lunch Start fires).
         const added = Math.max(0, Date.now() - new Date(current.segmentStartedAt).getTime());
         day = {
           ...day,
@@ -414,6 +393,7 @@ function EmployeeConfirm() {
           },
         };
       } else {
+        if (isFocusStartBlocked(day.workday)) return prev;
         day = pauseActiveTimer(day, id);
         day = {
           ...day,
@@ -437,6 +417,7 @@ function EmployeeConfirm() {
   const handleFocusStop = (allocationId: string) => {
     const id = String(allocationId);
     if (!hrmsId || !canUseProductivity || submitted) return;
+    if (todayProd.workday.dayEnd) return;
     setProdStore((prev) => {
       const day = stopFocusTimerOnDay({ ...getDayProductivity(prev, workDate) }, id);
       const next = upsertDayProductivity(prev, workDate, day);
@@ -982,6 +963,8 @@ function EmployeeConfirm() {
               onFocusStartPause={canUseProductivity ? handleFocusStartPause : undefined}
               onFocusStop={canUseProductivity ? handleFocusStop : undefined}
               focusDisabled={Boolean(todayProd.workday.dayEnd)}
+              focusStartDisabled={isFocusStartBlocked(todayProd.workday)}
+              focusStartDisabledReason={focusStartBlockedReason(todayProd.workday)}
             />
           ))}
 
@@ -1091,8 +1074,8 @@ function EmployeeConfirm() {
               Allocation timer running
             </div>
             <div id="day-end-alloc-desc" className="mt-1.5 text-[13px] text-muted-foreground">
-              Allocation timer is already running, and Day End will stop that timer. Do you want to
-              continue?
+              Allocation timer is running. Day End (Log Out) will stop all timers and save laps.
+              Do you want to continue?
             </div>
             <div className="mt-5 flex gap-2">
               <button
@@ -1127,6 +1110,8 @@ function LineRow({
   onFocusStartPause,
   onFocusStop,
   focusDisabled = false,
+  focusStartDisabled = false,
+  focusStartDisabledReason,
 }: {
   line: PlannedLine;
   state: LineState | undefined;
@@ -1137,6 +1122,8 @@ function LineRow({
   onFocusStartPause?: (allocationId: string) => void;
   onFocusStop?: (allocationId: string) => void;
   focusDisabled?: boolean;
+  focusStartDisabled?: boolean;
+  focusStartDisabledReason?: string;
 }) {
   const { settings } = useSettings();
   const dateFmt = settings.dateFormat ?? "dd/MM/yyyy";
@@ -1163,6 +1150,8 @@ function LineRow({
               onStartPause={onFocusStartPause}
               onStop={onFocusStop}
               disabled={focusDisabled}
+              startDisabled={focusStartDisabled}
+              startDisabledReason={focusStartDisabledReason}
             />
           )}
         </div>

@@ -42,6 +42,115 @@ export function emptyFocusState(): FocusAllocationState {
   return { laps: [], sessionAccumMs: 0, segmentStartedAt: null };
 }
 
+/** True when Start is blocked by workday timeline (Day Start / Lunch / Day End). */
+export function isFocusStartBlocked(marks: WorkdayMarks): boolean {
+  if (!marks.dayStart) return true;
+  if (marks.dayEnd) return true;
+  if (marks.lunchOut && !marks.lunchIn) return true;
+  return false;
+}
+
+export function focusStartBlockedReason(marks: WorkdayMarks): string | undefined {
+  if (!marks.dayStart) return "Complete Day Start before using focus timers";
+  if (marks.dayEnd) return "Focus timers are locked after Day End";
+  if (marks.lunchOut && !marks.lunchIn) return "Focus timers are paused during lunch";
+  return undefined;
+}
+
+/** Pause every running focus segment (keeps sessionAccumMs; no new lap). */
+export function pauseAllRunningFocusTimers(
+  day: DayProductivity,
+  now = Date.now()
+): DayProductivity {
+  const focusByAllocation: Record<string, FocusAllocationState> = {
+    ...day.focusByAllocation,
+  };
+  let changed = false;
+  for (const [id, st] of Object.entries(focusByAllocation)) {
+    if (!st?.segmentStartedAt) continue;
+    const added = Math.max(0, now - new Date(st.segmentStartedAt).getTime());
+    focusByAllocation[id] = {
+      ...st,
+      sessionAccumMs: st.sessionAccumMs + added,
+      segmentStartedAt: null,
+    };
+    changed = true;
+  }
+  if (!changed) return { ...day, activeTimerId: null };
+  return { ...day, activeTimerId: null, focusByAllocation };
+}
+
+/** Stop one allocation session into a completed lap (running or paused). */
+export function stopFocusTimerOnDay(
+  day: DayProductivity,
+  allocationId: string,
+  now = Date.now()
+): DayProductivity {
+  const id = String(allocationId);
+  const current = day.focusByAllocation[id] ?? emptyFocusState();
+  let sessionMs = current.sessionAccumMs;
+  if (current.segmentStartedAt) {
+    sessionMs += Math.max(0, now - new Date(current.segmentStartedAt).getTime());
+  }
+  if (sessionMs <= 0 && current.laps.length === 0) {
+    return {
+      ...day,
+      activeTimerId: day.activeTimerId === id ? null : day.activeTimerId,
+      focusByAllocation: {
+        ...day.focusByAllocation,
+        [id]: emptyFocusState(),
+      },
+    };
+  }
+  if (sessionMs <= 0) {
+    return {
+      ...day,
+      activeTimerId: day.activeTimerId === id ? null : day.activeTimerId,
+      focusByAllocation: {
+        ...day.focusByAllocation,
+        [id]: {
+          ...current,
+          sessionAccumMs: 0,
+          segmentStartedAt: null,
+        },
+      },
+    };
+  }
+  const lap: FocusLap = {
+    id: `lap-${now}-${id}`,
+    startedAt: current.segmentStartedAt ?? new Date(now).toISOString(),
+    endedAt: new Date(now).toISOString(),
+    durationMs: sessionMs,
+  };
+  return {
+    ...day,
+    activeTimerId: day.activeTimerId === id ? null : day.activeTimerId,
+    focusByAllocation: {
+      ...day.focusByAllocation,
+      [id]: {
+        laps: [...current.laps, lap],
+        sessionAccumMs: 0,
+        segmentStartedAt: null,
+      },
+    },
+  };
+}
+
+/** Day End / Log Out: finalize every open session into laps (running + paused). */
+export function stopAllOpenFocusTimers(
+  day: DayProductivity,
+  now = Date.now()
+): DayProductivity {
+  let next = day;
+  for (const [id, st] of Object.entries(day.focusByAllocation)) {
+    if (!st) continue;
+    if (st.segmentStartedAt || st.sessionAccumMs > 0) {
+      next = stopFocusTimerOnDay(next, id, now);
+    }
+  }
+  return { ...next, activeTimerId: null };
+}
+
 /** True when Start/Pause session is still open (running or paused, Stop not pressed). */
 export function hasUnstoppedFocusSession(state: FocusAllocationState | undefined): boolean {
   if (!state) return false;

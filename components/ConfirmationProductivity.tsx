@@ -169,14 +169,19 @@ export function AllocationFocusTimer({
   onStartPause,
   onStop,
   disabled = false,
+  startDisabled = false,
+  startDisabledReason,
 }: {
   allocationId: string;
   state: FocusAllocationState | undefined;
   isActiveRunner: boolean;
   onStartPause: (allocationId: string) => void;
   onStop: (allocationId: string) => void;
-  /** When true (e.g. confirmation already submitted), Start/Pause/Stop are locked. */
+  /** When true (e.g. confirmation already submitted / Day End), Start/Pause/Stop are locked. */
   disabled?: boolean;
+  /** Blocks Start (not Pause) — e.g. before Day Start or during lunch. */
+  startDisabled?: boolean;
+  startDisabledReason?: string;
 }) {
   const st = state ?? emptyFocusState();
   const running = !!st.segmentStartedAt;
@@ -191,6 +196,7 @@ export function AllocationFocusTimer({
   const sessionMs = sessionDisplayMs(st, now);
   const totalMs = focusElapsedMs(st, now);
   const stopDisabled = disabled || (!running && st.sessionAccumMs <= 0);
+  const playDisabled = disabled || (!running && startDisabled);
   // Started (running) → mint · Paused (session open) → cream · Stopped (Stop disabled) → cool gray
   const tint = running && !disabled
     ? "border-success-border bg-success-soft"
@@ -205,18 +211,20 @@ export function AllocationFocusTimer({
           <button
             type="button"
             onClick={() => onStartPause(allocationId)}
-            disabled={disabled}
+            disabled={playDisabled}
             aria-label={running ? "Pause" : "Start"}
             title={
               disabled
                 ? "Focus timer locked"
                 : running
                   ? "Pause"
-                  : "Start"
+                  : startDisabled
+                    ? startDisabledReason ?? "Start is not available"
+                    : "Start"
             }
             className={`inline-flex h-8 w-9 items-center justify-center text-white disabled:cursor-not-allowed disabled:opacity-40 ${
               running ? "bg-warning hover:brightness-95" : "bg-primary hover:brightness-95"
-            } ${disabled ? "" : "cursor-pointer"}`}
+            } ${playDisabled ? "" : "cursor-pointer"}`}
           >
             {running ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5 fill-current" />}
           </button>
