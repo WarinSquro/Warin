@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { DAILY_WORK_COLUMNS, defaultVisibleColumnIds } from "../../data/dailyWorkReport";
+import {
+  DAILY_WORK_COLUMNS,
+  DAILY_WORK_COLUMN_STORAGE_KEY,
+  defaultVisibleColumnIds,
+  loadVisibleColumnIds,
+} from "../../data/dailyWorkReport";
 
 const OPTIONAL_OFF = [
   "department",
@@ -52,5 +57,25 @@ describe("Daily Work Detail columns", () => {
       expect(col.width.includes("fr"), col.id).toBe(false);
       expect(col.width.endsWith("rem"), col.id).toBe(true);
     }
+  });
+
+  it("loadVisibleColumnIds ignores legacy v4 all-selected prefs and uses product defaults", () => {
+    const memory = new Map<string, string>();
+    const storage = {
+      getItem: (k: string) => memory.get(k) ?? null,
+      setItem: (k: string, v: string) => {
+        memory.set(k, v);
+      },
+      removeItem: (k: string) => {
+        memory.delete(k);
+      },
+    };
+    // @ts-expect-error test stub
+    globalThis.localStorage = storage;
+    memory.set("oneview_daily_work_columns_v4", JSON.stringify(DAILY_WORK_COLUMNS.map((c) => c.id)));
+    const loaded = loadVisibleColumnIds();
+    expect([...loaded]).toEqual(DEFAULT_ON);
+    expect(memory.has("oneview_daily_work_columns_v4")).toBe(false);
+    expect(DAILY_WORK_COLUMN_STORAGE_KEY).toBe("oneview_daily_work_columns_v5");
   });
 });

@@ -32,6 +32,18 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-20 17:50 IST
+
+**Prompt:**  
+> EC2 Daily Work Detail shows all columns selected instead of the default subset (image).
+
+**Output:**  
+- **Root cause:** Browser `localStorage` still held an older full column set under `oneview_daily_work_columns_v4`, so the picker showed every column checked instead of product defaults.
+- `data/dailyWorkReport.ts` — storage key **v5**; clear legacy v1–v4 keys on load; validate ids against `DAILY_WORK_COLUMNS`; fall back to `defaultVisibleColumnIds()`.
+- Tests: `tests/unit/dailyWorkColumns.test.ts`.
+
+---
+
 ### 2026-08-20 17:40 IST
 
 **Prompt:**  

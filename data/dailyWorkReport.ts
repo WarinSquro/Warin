@@ -66,7 +66,16 @@ export const DAILY_WORK_COLUMNS: DailyWorkColumnDef[] = [
   { id: "planUnplanned", label: "PLAN/UNPLANNED", stackedHeader: ["PLAN/", "UNPLANNED"], defaultVisible: false, width: "5.5rem" },
 ];
 
-export const DAILY_WORK_COLUMN_STORAGE_KEY = "oneview_daily_work_columns_v4";
+export const DAILY_WORK_COLUMN_STORAGE_KEY = "oneview_daily_work_columns_v5";
+
+/** Prior keys — cleared on load so stale “all columns” prefs cannot stick. */
+const DAILY_WORK_COLUMN_LEGACY_KEYS = [
+  "oneview_daily_work_columns",
+  "oneview_daily_work_columns_v1",
+  "oneview_daily_work_columns_v2",
+  "oneview_daily_work_columns_v3",
+  "oneview_daily_work_columns_v4",
+] as const;
 
 import { dailyWorkPeriodOptions } from "../utils/reportPeriods";
 
@@ -466,15 +475,22 @@ export function formatProjectTypeDisplay(type: ProjectType | undefined): string 
 
 export function loadVisibleColumnIds(): Set<DailyWorkSortKey> {
   try {
+    for (const key of DAILY_WORK_COLUMN_LEGACY_KEYS) {
+      localStorage.removeItem(key);
+    }
     const raw = localStorage.getItem(DAILY_WORK_COLUMN_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as string[];
-      if (parsed.length > 0) return new Set(parsed as DailyWorkSortKey[]);
+      const allowed = new Set(DAILY_WORK_COLUMNS.map((c) => c.id));
+      const next = parsed.filter((id): id is DailyWorkSortKey =>
+        allowed.has(id as DailyWorkSortKey)
+      );
+      if (next.length > 0) return new Set(next);
     }
   } catch {
     /* use defaults */
   }
-  return new Set(DAILY_WORK_COLUMNS.filter((c) => c.defaultVisible).map((c) => c.id));
+  return defaultVisibleColumnIds();
 }
 
 export function saveVisibleColumnIds(ids: Set<DailyWorkSortKey>): void {
