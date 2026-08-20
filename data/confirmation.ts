@@ -171,25 +171,18 @@ export interface ComplianceRow {
   todayLabel: string;
 }
 
+/** @deprecated Unused mock seeds — Team Compliance uses GET /confirmations/team (live DB). */
 export const MGR_CONF_KPIS = {
-  confirmedPct: 82,
-  confirmedCount: 18,
-  pending: 5,
-  deviations: 3,
-  onLeave: 1,
-  team: 24,
+  confirmedPct: 0,
+  confirmedCount: 0,
+  pending: 0,
+  deviations: 0,
+  onLeave: 0,
+  team: 0,
 };
 
-// Today = Tuesday (index 1)
-export const COMPLIANCE_ROWS: ComplianceRow[] = [
-  { id: "c1", name: "Ravi Sharma", initials: "RS", role: "Sr Developer", week: ["confirmed_delayed", "confirmed", "future", "future", "future"], todayLabel: "Confirmed 9:12 AM" },
-  { id: "c2", name: "Arjun Mehta", initials: "AM", role: "Developer", week: ["confirmed", "deviation_delayed", "future", "future", "future"], todayLabel: "Deviation reported" },
-  { id: "c3", name: "Priya Nair", initials: "PN", role: "QA Engineer", week: ["confirmed", "confirmed", "future", "future", "future"], todayLabel: "Confirmed 9:40 AM" },
-  { id: "c4", name: "Vikram Kaul", initials: "VK", role: "Sr Backend Dev", week: ["deviation", "pending", "future", "future", "future"], todayLabel: "Not yet confirmed" },
-  { id: "c5", name: "Deepa Menon", initials: "DM", role: "Backend Dev", week: ["confirmed", "pending", "future", "future", "future"], todayLabel: "Not yet confirmed" },
-  { id: "c6", name: "Sneha Rao", initials: "SR", role: "Support Exec", week: ["leave", "leave", "future", "future", "future"], todayLabel: "On leave" },
-  { id: "c7", name: "Tara Gupta", initials: "TG", role: "Automation Eng", week: ["confirmed_delayed", "deviation", "future", "future", "future"], todayLabel: "Deviation reported" },
-];
+/** @deprecated Unused mock seeds — Team Compliance uses GET /confirmations/team (live DB). */
+export const COMPLIANCE_ROWS: ComplianceRow[] = [];
 
 export interface DeviationEntry {
   id: string;
@@ -205,8 +198,5 @@ export interface DeviationEntry {
   addedAt?: string;
 }
 
-export const DEVIATION_FEED: DeviationEntry[] = [
-  { id: "d1", name: "Arjun Mehta", initials: "AM", line: "Project Atlas · Development", planned: 8, actual: 4, reason: "Blocked / waiting on input", workDate: "2026-01-06", addedAt: "2026-01-06" },
-  { id: "d2", name: "Tara Gupta", initials: "TG", line: "Project Falcon · Automation", planned: 6, actual: 8, reason: "Reprioritized to another task", workDate: "2026-01-06", addedAt: "2026-01-06" },
-  { id: "d3", name: "Kiran Bose", initials: "KB", line: "Support queue", planned: 8, actual: 5, reason: "On partial leave", workDate: "2026-01-06", addedAt: "2026-01-06" },
-];
+/** @deprecated Unused mock seeds — deviation feed comes from GET /confirmations/team. */
+export const DEVIATION_FEED: DeviationEntry[] = [];

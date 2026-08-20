@@ -1254,7 +1254,7 @@ const COMPLIANCE_STATUS_LEGEND: {
   { short: "Devi.", full: "Deviation", dot: DAY_DOT.deviation },
   { short: "DD", full: "Deviation and Delayed", dot: DAY_DOT.deviation_delayed },
   { short: "Pending", full: "Pending", dot: DAY_DOT.pending },
-  { short: "Leave", full: "Leave", dot: DAY_DOT.leave },
+  { short: "Leave", full: "No plan / leave", dot: DAY_DOT.leave },
 ];
 
 const STATUS_FULL_LABEL: Record<DayStatus, string> = {
@@ -1263,7 +1263,7 @@ const STATUS_FULL_LABEL: Record<DayStatus, string> = {
   deviation: "Deviation",
   deviation_delayed: "Deviation and Delayed",
   pending: "Pending",
-  leave: "Leave",
+  leave: "No plan / leave",
   future: "Future",
 };
 
@@ -1272,6 +1272,7 @@ function todayLabelClass(status: DayStatus) {
   if (status === "deviation_delayed") return "text-danger";
   if (status === "deviation") return "text-red-400";
   if (status === "confirmed_delayed") return "text-green-600";
+  if (status === "leave") return "text-muted-foreground";
   return "text-muted-foreground";
 }
 
@@ -1315,6 +1316,7 @@ function ManagerCompliance() {
       const deviationsCount = todayStatuses.filter(
         (s) => s === "deviation" || s === "deviation_delayed"
       ).length;
+      const onLeave = todayStatuses.filter((s) => s === "leave").length;
       const team = visible.length;
       setKpis({
         confirmedPct: team > 0 ? Math.round((confirmedCount / team) * 100) : 0,
@@ -1322,7 +1324,7 @@ function ManagerCompliance() {
         team,
         pending,
         deviations: deviationsCount,
-        onLeave: 0,
+        onLeave,
       });
       setRows(
         visible.map((r) => ({

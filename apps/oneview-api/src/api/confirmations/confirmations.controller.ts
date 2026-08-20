@@ -159,8 +159,48 @@ function formatPlanDateLabel(iso: string): string {
   });
 }
 
+/** Delayed only when confirmed on a later calendar day than the work date (IST).
+ * Keep in sync with `utils/confirmationDelay.ts` → `isConfirmationDelayed`. */
 function isDelayed(submittedAt: Date, workDateIso: string): boolean {
-  return submittedAt.getTime() > new Date(`${workDateIso}T10:00:00`).getTime();
+  const submittedDay = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(submittedAt);
+  return submittedDay > workDateIso.slice(0, 10);
+}
+
+/**
+ * Team Compliance day cell — live DB only (no demo seeds).
+ * Keep in sync with `utils/teamComplianceDay.ts` → `teamComplianceDayStatus`.
+ */
+function teamDayStatus(input: {
+  workDate: string;
+  today: string;
+  isCompanyOff: boolean;
+  hasPlan: boolean;
+  confirmation?: { hasDeviation: boolean; submittedAt: Date } | null;
+}):
+  | "confirmed"
+  | "confirmed_delayed"
+  | "deviation"
+  | "deviation_delayed"
+  | "pending"
+  | "leave"
+  | "future" {
+  const workDate = input.workDate.slice(0, 10);
+  const today = input.today.slice(0, 10);
+  if (workDate > today) return "future";
+  if (input.isCompanyOff) return "leave";
+  const conf = input.confirmation;
+  if (conf) {
+    const delayed = isDelayed(conf.submittedAt, workDate);
+    if (conf.hasDeviation) return delayed ? "deviation_delayed" : "deviation";
+    return delayed ? "confirmed_delayed" : "confirmed";
+  }
+  if (!input.hasPlan) return "leave";
+  return "pending";
 }
 
 type LineBody = {
@@ -819,6 +859,15 @@ export class ConfirmationsController {
     const fri = weekDates[weekDates.length - 1] ?? addDaysISO(mon, 4);
     const todayIndex = weekDates.indexOf(today);
 
+    const offRows = await this.prisma.companyOffDay.findMany({
+      where: {
+        isDeleted: false,
+        date: { gte: parseDate(mon)!, lte: parseDate(fri)! },
+      },
+      select: { date: true },
+    });
+    const companyOffSet = new Set(offRows.map((r) => isoDate(r.date)));
+
     const viewer = await this.prisma.employee.findFirst({
       where: { hrmsId: req.user.hrmsId, isDeleted: false },
       select: { id: true },
@@ -851,11 +900,13 @@ export class ConfirmationsController {
           return active.filter((e) => allowed.has(e.id.toString()));
         })();
 
+    const rosterIds = roster.map((e) => e.id);
+
     const confirmations = await this.prisma.workConfirmation.findMany({
       where: {
         isDeleted: false,
         workDate: { gte: parseDate(mon)!, lte: parseDate(fri)! },
-        employeeId: { in: roster.map((e) => e.id) },
+        employeeId: { in: rosterIds },
       },
       include: {
         lines: true,
@@ -863,10 +914,33 @@ export class ConfirmationsController {
       },
     });
 
+    const allocations =
+      rosterIds.length === 0
+        ? []
+        : await this.prisma.allocation.findMany({
+            where: {
+              isDeleted: false,
+              employeeId: { in: rosterIds },
+              startDate: { lte: parseDate(fri)! },
+              endDate: { gte: parseDate(mon)! },
+            },
+            select: { employeeId: true, startDate: true, endDate: true },
+          });
+
     const byEmpDate = new Map<string, (typeof confirmations)[0]>();
     for (const c of confirmations) {
       byEmpDate.set(`${c.employeeId.toString()}:${isoDate(c.workDate)}`, c);
     }
+
+    const hasPlanOnDay = (employeeId: bigint, dayIso: string): boolean => {
+      for (const a of allocations) {
+        if (a.employeeId !== employeeId) continue;
+        const start = isoDate(a.startDate);
+        const end = isoDate(a.endDate);
+        if (dayIso >= start && dayIso <= end) return true;
+      }
+      return false;
+    };
 
     type DayStatus =
       | "confirmed"
@@ -878,15 +952,15 @@ export class ConfirmationsController {
       | "future";
 
     const rows = roster.map((e) => {
-      const week = weekDates.map((d, i): DayStatus => {
-        if (todayIndex >= 0 && i > todayIndex) return "future";
-        if (d > today) return "future";
-        const c = byEmpDate.get(`${e.id.toString()}:${d}`);
-        if (!c) return "pending";
-        const delayed = isDelayed(c.submittedAt, d);
-        if (c.hasDeviation) return delayed ? "deviation_delayed" : "deviation";
-        return delayed ? "confirmed_delayed" : "confirmed";
-      });
+      const week = weekDates.map((d): DayStatus =>
+        teamDayStatus({
+          workDate: d,
+          today,
+          isCompanyOff: companyOffSet.has(d),
+          hasPlan: hasPlanOnDay(e.id, d),
+          confirmation: byEmpDate.get(`${e.id.toString()}:${d}`) ?? null,
+        })
+      );
 
       const todayStatus = todayIndex >= 0 ? week[todayIndex] : "pending";
       const todayConf =
@@ -896,6 +970,7 @@ export class ConfirmationsController {
 
       let todayLabel = "Not yet confirmed";
       if (todayStatus === "future") todayLabel = "—";
+      else if (todayStatus === "leave") todayLabel = "No plan / leave";
       else if (todayStatus === "pending") todayLabel = "Not yet confirmed";
       else if (todayStatus === "deviation" || todayStatus === "deviation_delayed") {
         todayLabel = "Deviation reported";
@@ -922,6 +997,7 @@ export class ConfirmationsController {
     const deviations = todayRows.filter((r) =>
       ["deviation", "deviation_delayed"].includes(r.todayStatus)
     ).length;
+    const onLeave = todayRows.filter((r) => r.todayStatus === "leave").length;
     const team = todayRows.length;
     const confirmedPct = team > 0 ? Math.round((confirmedToday / team) * 100) : 0;
 
@@ -951,7 +1027,7 @@ export class ConfirmationsController {
         confirmedCount: confirmedToday,
         pending,
         deviations,
-        onLeave: 0,
+        onLeave,
         team,
       },
       rows,

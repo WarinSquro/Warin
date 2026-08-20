@@ -32,6 +32,33 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-20 21:20 IST
+
+**Prompt:**  
+> Review ComplianceRowView calculation logic; verify no demo data is used; update if necessary.
+
+**Output:**  
+- **Verified:** Manager `ComplianceRowView` is fed only by `GET /confirmations/team` (live Postgres). Demo `COMPLIANCE_ROWS` / `MGR_CONF_KPIS` / `DEVIATION_FEED` were unused; cleared to empty deprecated stubs.
+- **Calc updates:** `utils/teamComplianceDay.ts` — future / company-off→leave / confirmation C·CD·D·DD (IST calendar-day delay) / no plan→leave / planned+unconfirmed→pending.
+- API `confirmations.controller.ts` team endpoint loads company off-days + week allocations; same rules; `onLeave` KPI populated.
+- UI KPI `onLeave` from live today statuses; leave label “No plan / leave”.
+- Tests: `tests/unit/teamComplianceDay.test.ts`.
+
+---
+
+### 2026-08-20 19:40 IST
+
+**Prompt:**  
+> Check Compliance of Gaurav Pithwa "D" not "DD" Check and correct. Now you are in Agent mode ... do it
+
+**Output:**  
+- Root cause: Workday Summary (and Team compliance / weekly delay count) still treated confirmation as Delayed if `submittedAt` was after **10:00** on the work date. Same-day deviation (e.g. Gaurav 19-Aug, 40% unplanned) showed **DD** instead of **D**. Daily Work Detail already used IST calendar-day.
+- Fix: Delayed only when the IST calendar date of `submittedAt` is **after** the work date. Shared helper `utils/confirmationDelay.ts`.
+- Files: `api/workdaySummary.ts`, `api/liveViews.ts` (weekly `confirmationDelayCount`), `apps/oneview-api/src/api/confirmations/confirmations.controller.ts` (team compliance dots).
+- Tests: `tests/unit/workdaySummary.test.ts` (D vs DD vs C), `tests/unit/confirmationDelay.test.ts`. `npx vitest run` those + `dailyWorkAllocatedOn` — 20 passed.
+
+---
+
 ### 2026-08-20 18:55 IST
 
 **Prompt:**  
