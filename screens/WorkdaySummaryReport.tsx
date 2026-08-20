@@ -608,12 +608,15 @@ export function WorkdaySummaryReport() {
                             <tr key={`g-${group.key}`}>
                               <td
                                 colSpan={visibleColDefs.length}
-                                className="border-b border-border-soft bg-accent-soft/40 px-4 py-2 text-[12px] font-semibold text-foreground"
+                                className="border-b border-border-soft bg-accent-soft/40 p-0 text-[12px] font-semibold text-foreground"
                               >
-                                {group.label}
-                                <span className="ml-2 font-normal text-muted-foreground">
-                                  {group.rows.length} row{group.rows.length !== 1 ? "s" : ""}
-                                </span>
+                                {/* Keep label visible while the wide colspan cell scrolls horizontally */}
+                                <div className="sticky left-0 z-[25] w-max bg-accent-soft px-4 py-2">
+                                  {group.label}
+                                  <span className="ml-2 font-normal text-muted-foreground">
+                                    {group.rows.length} row{group.rows.length !== 1 ? "s" : ""}
+                                  </span>
+                                </div>
                               </td>
                             </tr>,
                           ]

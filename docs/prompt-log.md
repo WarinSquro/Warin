@@ -32,6 +32,36 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-20 22:45 IST
+
+**Prompt:**  
+> Workday Summary group header (e.g. “DEVT 13 rows”) hides when scrolling horizontally — keep it visible with the scrollbar.
+
+**Output:**  
+- **Root cause:** Group header was a full-width `colSpan` `<td>`; label text scrolled off with the table.
+- **Fix:** Inner `sticky left-0` label wrapper on the group header in `screens/WorkdaySummaryReport.tsx` (`bg-accent-soft`, `z-[25]`).
+
+### 2026-08-20 22:40 IST
+
+**Prompt:**  
+> Work Date dropdown (Workday Summary + Daily Work Detail): show max 8 items at a time; scroll for the rest.
+
+**Output:**  
+- Replaced native `<select>` in shared `components/WorkDateDaySelect.tsx` with a custom listbox (same API: `value` / `onChange`).
+- Open menu: `maxHeight = 8 × 28px`, `overflow-y-auto`; options = All dates + 1–31.
+- Both `WorkdaySummaryReport` and `DailyWorkReport` already use this component — no screen changes.
+
+### 2026-08-20 22:12 IST
+
+**Prompt:**  
+> Local PC (not EC2): Chandan Kushwaha shows CD (“Confirmed but Delayed”) at 9:12 PM same day — must be Confirmed (C) only; explain if CD.
+
+**Output:**  
+- **Root cause (local):** Running Docker `oneview-api` **dist still had the old 10:00 cutoff** (`submittedAt > workDate T10:00:00`). Chandan’s row: `has_deviation=false`, `submitted_at` → **2026-08-20 21:12 IST** (same calendar day as work date). Old rule → **CD**; correct IST calendar-day rule → **C**. Repo source was already fixed; container image/dist was stale.
+- **Verified:** DB + in-container logic: new delay=`false`, old 10:00 delay=`true`.
+- **Action:** Hot-patched `/app/.../confirmations.controller.js` `isDelayed` to IST calendar-day and restarted `oneview-api` (health ok). Full `docker compose up -d --build api` still running to bake the same fix into the image.
+- **UI:** Hard-refresh Work Confirmation; Thursday for Chandan should be solid Conf. (C), not CD.
+
 ### 2026-08-20 21:50 IST
 
 **Prompt:**  
