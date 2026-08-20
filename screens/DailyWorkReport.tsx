@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FileSpreadsheet, FileText, Search } from "lucide-react";
+import { FileSpreadsheet, Search } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import { FilterMultiSelect } from "../components/FilterMultiSelect";
@@ -17,9 +17,7 @@ import { dailyWorkPeriodOptions } from "../utils/reportPeriods";
 import { milestoneKindLabel } from "../data/projects";
 import {
   CONFIRMATION_CODES,
-  CONFIRMATION_CODE_LABELS,
   DAILY_WORK_COLUMNS,
-  confirmationCodeLabel,
   dailyWorkDepartments,
   dailyWorkProjects,
   defaultVisibleColumnIds,
@@ -631,7 +629,6 @@ export function DailyWorkReport() {
                   >
                     {visibleColDefs.map((col) => {
                       const value = cellValue(row, col.id, dateFormat);
-                      const isConfirmation = col.id === "confirmation";
                       const isNumeric = col.id === "plannedHrs" || col.id === "actualHrs";
                       return (
                         <div
@@ -639,17 +636,8 @@ export function DailyWorkReport() {
                           className={`min-w-0 w-full overflow-hidden whitespace-normal break-words [overflow-wrap:anywhere] ${
                             isNumeric ? "tabular-nums" : ""
                           } ${col.id === "employeeName" ? "font-medium text-foreground" : "text-foreground"}`}
-                          title={
-                            isConfirmation
-                              ? confirmationCodeLabel(row.confirmation)
-                              : undefined
-                          }
                         >
-                          {isConfirmation ? (
-                            <span className="font-semibold">{value}</span>
-                          ) : (
-                            value
-                          )}
+                          {value}
                         </div>
                       );
                     })}
@@ -666,12 +654,6 @@ export function DailyWorkReport() {
             onPageChange={setPage}
             onPageSizeChange={setPageSize}
           />
-        </div>
-
-        <div className="mt-2 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          <FileText className="h-3.5 w-3.5" />
-          Confirmation codes:{" "}
-          {CONFIRMATION_CODES.map((c) => `${c} = ${CONFIRMATION_CODE_LABELS[c]}`).join(" · ")}
         </div>
       </div>
     </div>

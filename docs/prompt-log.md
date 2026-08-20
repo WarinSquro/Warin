@@ -32,6 +32,17 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-20 22:55 IST
+
+**Prompt:**  
+> Daily Work Detail: remove Confirmation column and footer “Confirmation codes:…”.
+
+**Output:**  
+- Removed `confirmation` from `DAILY_WORK_COLUMNS` (`data/dailyWorkReport.ts`); column storage key bumped to `v6` (clears `v5`).
+- Removed footer legend and confirmation cell styling from `screens/DailyWorkReport.tsx`.
+- Confirmations filter multi-select kept; row `confirmation` field still used for filtering.
+- Tests: `tests/unit/dailyWorkColumns.test.ts` updated; `npx vitest run tests/unit/dailyWorkColumns.test.ts` passed.
+
 ### 2026-08-20 22:45 IST
 
 **Prompt:**  

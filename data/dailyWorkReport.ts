@@ -58,7 +58,6 @@ export const DAILY_WORK_COLUMNS: DailyWorkColumnDef[] = [
   { id: "tasks", label: "TASKS", defaultVisible: true, width: "8rem" },
   { id: "allocatedOn", label: "ALLOCATED ON", stackedHeader: ["ALLOCATED", "ON"], defaultVisible: false, width: "7rem" },
   { id: "plannedHrs", label: "PLANNED HRS", stackedHeader: ["PLANNED", "HRS"], defaultVisible: true, width: "4.5rem" },
-  { id: "confirmation", label: "CONFIRMATION", defaultVisible: true, width: "7.25rem" },
   { id: "confirmedOn", label: "CONFIRMED ON", stackedHeader: ["CONFIRMED", "ON"], defaultVisible: false, width: "7rem" },
   { id: "delayReason", label: "DELAY REASON", defaultVisible: false, width: "7.5rem" },
   { id: "deviationReason", label: "DEVIATION REASON", defaultVisible: false, width: "9.5rem" },
@@ -66,7 +65,7 @@ export const DAILY_WORK_COLUMNS: DailyWorkColumnDef[] = [
   { id: "planUnplanned", label: "PLAN/UNPLANNED", stackedHeader: ["PLAN/", "UNPLANNED"], defaultVisible: false, width: "5.5rem" },
 ];
 
-export const DAILY_WORK_COLUMN_STORAGE_KEY = "oneview_daily_work_columns_v5";
+export const DAILY_WORK_COLUMN_STORAGE_KEY = "oneview_daily_work_columns_v6";
 
 /** Prior keys — cleared on load so stale “all columns” prefs cannot stick. */
 const DAILY_WORK_COLUMN_LEGACY_KEYS = [
@@ -75,6 +74,7 @@ const DAILY_WORK_COLUMN_LEGACY_KEYS = [
   "oneview_daily_work_columns_v2",
   "oneview_daily_work_columns_v3",
   "oneview_daily_work_columns_v4",
+  "oneview_daily_work_columns_v5",
 ] as const;
 
 import { dailyWorkPeriodOptions } from "../utils/reportPeriods";

@@ -27,7 +27,6 @@ const DEFAULT_ON = [
   "activity",
   "tasks",
   "plannedHrs",
-  "confirmation",
   "actualHrs",
 ];
 
@@ -76,6 +75,6 @@ describe("Daily Work Detail columns", () => {
     const loaded = loadVisibleColumnIds();
     expect([...loaded]).toEqual(DEFAULT_ON);
     expect(memory.has("oneview_daily_work_columns_v4")).toBe(false);
-    expect(DAILY_WORK_COLUMN_STORAGE_KEY).toBe("oneview_daily_work_columns_v5");
+    expect(DAILY_WORK_COLUMN_STORAGE_KEY).toBe("oneview_daily_work_columns_v6");
   });
 });
