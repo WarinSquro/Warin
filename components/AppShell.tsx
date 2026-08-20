@@ -23,6 +23,7 @@ import {
   SlidersHorizontal,
   Target,
   Crosshair,
+  CalendarDays,
   type LucideIcon,
 } from "lucide-react";
 import { ProductLogo } from "./ProductLogo";
@@ -39,6 +40,7 @@ const NAV_ICONS: Record<string, LucideIcon> = {
   "reports.performance": TrendingUp,
   "reports.execution": BarChart3,
   "reports.daily_work": TableProperties,
+  "reports.workday_summary": CalendarDays,
   "my_team.weekly_check_in": UsersRound,
   "my_team.kpi_results": Target,
   "masters.weekly_check_in": SlidersHorizontal,
