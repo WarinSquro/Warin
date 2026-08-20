@@ -32,6 +32,18 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-20 21:50 IST
+
+**Prompt:**  
+> Chandan Kushwaha 20-Aug-2026 Workday Summary compliance = C but Work Confirmation shows CD — fix for him and all employees.
+
+**Output:**  
+- **Root cause:** EC2 API was still on `0448846` with Delayed = submitted after **10:00** on the work date. Chandan confirmed **9:12 PM** same day → painted **CD** instead of **C**. Workday Summary already used IST calendar-day delay.
+- **Fix already on `main` (`21da511`):** Team Compliance Delayed only when IST calendar date of `submittedAt` is after work date; D/DD from deviation/unplanned lines.
+- **Deployed:** `git pull` + `ec2-deploy.sh --with-api` on EC2 → `LIVE_COMMIT=21da511`, `API_HEALTH_OK`. Hard-refresh browser.
+
+---
+
 ### 2026-08-20 21:35 IST
 
 **Prompt:**  
