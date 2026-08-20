@@ -32,6 +32,30 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-20 17:12 IST
+
+**Prompt:**  
+> Resolve EC2 deploy failure: `workDayFromIso` is not exported by `utils/workDateDayFilter.ts` (imported by DailyWorkReport).
+
+**Output:**  
+- **Root cause:** `DailyWorkReport.tsx` on `main` imported `workDayFromIso`, but the helper was only in a local uncommitted `workDateDayFilter.ts`.
+- Exported `workDayFromIso` + unit tests; committed/pushed so EC2 `ec2-deploy.sh` SPA build can succeed.
+
+---
+
+### 2026-08-20 17:10 IST
+
+**Prompt:**  
+> Confirmation > On Logout: by default stop all active timers; record/display completed lap(s) and updated total time for each timer.
+
+**Output:**  
+- **Root cause:** Log Out (Day End) already called `stopAllOpenFocusTimers`, but Pause→Stop/Log Out wrote `startedAt≈endedAt` while `durationMs` held the real session. Totals used timestamp span first → **Total showed 0 / undercount** while lap chips used `durationMs`.
+- `utils/confirmationProductivity.ts` — lap `startedAt = now − sessionMs`; `lapDurationMs` falls back to `durationMs` when span is 0; workday button label **Log Out**; lock message updated.
+- `screens/WorkConfirmation.tsx` — confirm copy for Log Out → stop all, save laps, update totals.
+- Tests: `tests/unit/confirmationProductivity.test.ts` (10 passed).
+
+---
+
 ### 2026-08-20 16:48 IST
 
 **Prompt:**  

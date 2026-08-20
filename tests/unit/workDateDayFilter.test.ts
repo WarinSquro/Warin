@@ -3,6 +3,7 @@ import {
   WORK_DATE_DAYS,
   workDateDayFilterLabel,
   workDateMatchesDay,
+  workDayFromIso,
 } from "../../utils/workDateDayFilter";
 
 describe("workDateMatchesDay", () => {
@@ -39,5 +40,12 @@ describe("workDateMatchesDay", () => {
   it("labels the filter for export", () => {
     expect(workDateDayFilterLabel(null)).toBe("All dates");
     expect(workDateDayFilterLabel(15)).toBe("15");
+  });
+
+  it("derives Work Date dropdown value from an ISO drill date", () => {
+    expect(workDayFromIso("2026-08-20")).toBe(20);
+    expect(workDayFromIso("2026-02-31")).toBeNull();
+    expect(workDayFromIso("")).toBeNull();
+    expect(workDayFromIso(null)).toBeNull();
   });
 });

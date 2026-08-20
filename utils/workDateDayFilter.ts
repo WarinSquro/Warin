@@ -23,3 +23,12 @@ export function workDateMatchesDay(iso: string | undefined, day: number | null):
 export function workDateDayFilterLabel(day: number | null): string {
   return day == null ? "All dates" : String(day);
 }
+
+/** Day-of-month from an ISO date for Work Date dropdown preselection; null if missing/invalid. */
+export function workDayFromIso(iso: string | undefined | null): number | null {
+  if (!iso) return null;
+  const slice = iso.slice(0, 10);
+  const day = Number(slice.slice(8, 10));
+  if (!Number.isInteger(day) || day < 1 || day > 31) return null;
+  return workDateMatchesDay(slice, day) ? day : null;
+}
