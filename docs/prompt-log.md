@@ -32,6 +32,16 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-20 10:40 IST
+
+**Prompt:**  
+> My Workspace > Department Health: info icon after title opens a modal explaining how the score is calculated. Health bands use design tokens and Critical/High/Medium from Demand priority order (no emoji).
+
+**Output:**  
+- File: `components/CockpitDeptHealthList.tsx` — Info icon beside “Department Health”; modal with score formula, components, averaging rule, example, and health bands (Below 70 / 70–79 / 80+) using danger/warning/success tokens and demand-priority labels.
+
+---
+
 ### 2026-08-20 10:25 IST
 
 **Prompt:**  
