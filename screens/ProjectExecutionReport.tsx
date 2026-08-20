@@ -60,10 +60,8 @@ import {
   visibleEmployeeIdSet,
 } from "../utils/reportVisibility";
 import {
-  loadReportFilters,
+  clearStoredReportFilters,
   reconcileMultiSelect,
-  saveReportFilters,
-  serializeMultiSelect,
 } from "../utils/reportFilterPersistence";
 
 const REPORT_GRID =
@@ -71,20 +69,6 @@ const REPORT_GRID =
 
 const HEALTH_FILTER_ITEMS = HEALTH_OPTIONS.map((h) => HEALTH_LABELS[h]);
 const STATUS_FILTER_ITEMS = EXECUTION_STATUS_OPTIONS.map((s) => EXECUTION_STATUS_LABELS[s]);
-
-type ExecutionPersistedFilters = {
-  periodId: ExecutionPeriodId;
-  customMonthId: ExecutionCustomMonthId;
-  compareOn: boolean;
-  search: string;
-  projects: string[] | null;
-  departments: string[] | null;
-  resourceOwners: string[] | null;
-  healthFilters: string[] | null;
-  statusFilters: string[] | null;
-  sortKey: ExecutionSortKey;
-  sortDir: "asc" | "desc";
-};
 
 export function ProjectExecutionReport() {
   const navigate = useNavigate();
@@ -99,18 +83,12 @@ export function ProjectExecutionReport() {
   );
   const [searchParams] = useSearchParams();
   const attentionPreset = searchParams.get("preset") === "attention";
-  const storedFilters = useMemo(
-    () => loadReportFilters<ExecutionPersistedFilters>("execution"),
-    []
-  );
-  const [periodId, setPeriodId] = useState<ExecutionPeriodId>(
-    () => storedFilters?.periodId ?? "month"
-  );
+  const [periodId, setPeriodId] = useState<ExecutionPeriodId>("month");
   const [customMonthId, setCustomMonthId] = useState<ExecutionCustomMonthId>(
-    () => storedFilters?.customMonthId ?? DEFAULT_EXECUTION_CUSTOM_MONTH
+    DEFAULT_EXECUTION_CUSTOM_MONTH
   );
-  const [compareOn, setCompareOn] = useState(() => storedFilters?.compareOn ?? false);
-  const [search, setSearch] = useState(() => storedFilters?.search ?? "");
+  const [compareOn, setCompareOn] = useState(false);
+  const [search, setSearch] = useState("");
   const toast = useToast();
   const [drawerRow, setDrawerRow] = useState<ExecutionRow | null>(null);
   const [allocations, setAllocations] = useState<ApiAllocation[]>([]);
@@ -202,19 +180,17 @@ export function ProjectExecutionReport() {
   const allOwners = useMemo(() => executionResourceOwners(periodRows), [periodRows]);
   const ownerNames = useMemo(() => allOwners.map((o) => o.name), [allOwners]);
 
-  const [projects, setProjects] = useState<string[]>(() => storedFilters?.projects ?? []);
-  const [departments, setDepartments] = useState<string[]>(() => storedFilters?.departments ?? []);
-  const [resourceOwners, setResourceOwners] = useState<string[]>(
-    () => storedFilters?.resourceOwners ?? []
+  const [projects, setProjects] = useState<string[]>([]);
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [resourceOwners, setResourceOwners] = useState<string[]>([]);
+  const [healthFilters, setHealthFilters] = useState<string[]>(() =>
+    attentionPreset ? [HEALTH_LABELS.amber, HEALTH_LABELS.red] : []
   );
-  const [healthFilters, setHealthFilters] = useState<string[]>(() => {
-    if (storedFilters?.healthFilters?.length) return storedFilters.healthFilters;
-    if (attentionPreset) return [HEALTH_LABELS.amber, HEALTH_LABELS.red];
-    return [...HEALTH_FILTER_ITEMS];
-  });
-  const [statusFilters, setStatusFilters] = useState<string[]>(
-    () => storedFilters?.statusFilters ?? [...STATUS_FILTER_ITEMS]
-  );
+  const [statusFilters, setStatusFilters] = useState<string[]>([]);
+
+  useEffect(() => {
+    clearStoredReportFilters("execution");
+  }, []);
 
   const prevProjectsRef = useRef<string[]>([]);
   const prevDeptsRef = useRef<string[]>([]);
@@ -251,40 +227,9 @@ export function ProjectExecutionReport() {
   }, [allProjects, allDepts, ownerNames]);
 
   const { sortKey, sortDir, handleSort } = useColumnSort<ExecutionSortKey>(
-    storedFilters?.sortKey ?? (attentionPreset ? "health" : "project"),
-    storedFilters?.sortDir ?? (attentionPreset ? "desc" : "asc")
+    attentionPreset ? "health" : "project",
+    attentionPreset ? "desc" : "asc"
   );
-
-  useEffect(() => {
-    saveReportFilters("execution", {
-      periodId,
-      customMonthId,
-      compareOn,
-      search,
-      projects: serializeMultiSelect(projects, allProjects),
-      departments: serializeMultiSelect(departments, allDepts),
-      resourceOwners: serializeMultiSelect(resourceOwners, ownerNames),
-      healthFilters: serializeMultiSelect(healthFilters, HEALTH_FILTER_ITEMS),
-      statusFilters: serializeMultiSelect(statusFilters, STATUS_FILTER_ITEMS),
-      sortKey,
-      sortDir,
-    } satisfies ExecutionPersistedFilters);
-  }, [
-    periodId,
-    customMonthId,
-    compareOn,
-    search,
-    projects,
-    departments,
-    resourceOwners,
-    healthFilters,
-    statusFilters,
-    sortKey,
-    sortDir,
-    allProjects,
-    allDepts,
-    ownerNames,
-  ]);
 
   const healthStatuses = useMemo(
     () =>

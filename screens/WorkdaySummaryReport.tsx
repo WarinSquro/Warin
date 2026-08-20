@@ -52,22 +52,9 @@ import { confirmationCodeLabel } from "../data/dailyWorkReport";
 import { runReportExport, summarizeFilter } from "../utils/reportExport";
 import type { ExportCell, ReportExportInput } from "../utils/reportExport";
 import {
-  loadReportFilters,
+  clearStoredReportFilters,
   reconcileMultiSelect,
-  saveReportFilters,
 } from "../utils/reportFilterPersistence";
-
-type Persisted = {
-  search: string;
-  pageSize: number;
-  departments: string[] | null;
-  resourceOwners: string[] | null;
-  resources: string[] | null;
-  groupBy: WorkdaySummaryGroupBy;
-  includeEmpty: boolean;
-  sortKey: WorkdaySummarySortKey;
-  sortDir: "asc" | "desc";
-};
 
 const GROUP_OPTIONS: { value: WorkdaySummaryGroupBy; label: string }[] = [
   { value: "none", label: "None" },
@@ -121,22 +108,18 @@ export function WorkdaySummaryReport() {
   const { settings } = useSettings();
   const { employees } = useEmployees();
   const toast = useToast();
-  const stored = useMemo(() => loadReportFilters<Persisted>("workday_summary"), []);
   const today = toLocalISO();
   const [rangeEnd, setRangeEnd] = useState(today);
   const range = useMemo(() => workdaySummaryRangeEnding(rangeEnd), [rangeEnd]);
-  const [search, setSearch] = useState(() => stored?.search ?? "");
+  const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(() => stored?.pageSize ?? 25);
-  const [includeEmpty, setIncludeEmpty] = useState(() => stored?.includeEmpty ?? false);
-  const [groupBy, setGroupBy] = useState<WorkdaySummaryGroupBy>(() => stored?.groupBy ?? "none");
+  const [pageSize, setPageSize] = useState(25);
+  const [includeEmpty, setIncludeEmpty] = useState(false);
+  const [groupBy, setGroupBy] = useState<WorkdaySummaryGroupBy>("none");
   const [visibleColumns, setVisibleColumns] = useState<Set<WorkdaySummarySortKey>>(
     () => loadVisibleWorkdayColumnIds()
   );
-  const { sortKey, sortDir, handleSort } = useColumnSort<WorkdaySummarySortKey>(
-    stored?.sortKey ?? "workDate",
-    stored?.sortDir ?? "desc"
-  );
+  const { sortKey, sortDir, handleSort } = useColumnSort<WorkdaySummarySortKey>("workDate", "desc");
 
   const [allocations, setAllocations] = useState<ApiAllocation[]>([]);
   const [confirmations, setConfirmations] = useState<ApiConfirmation[]>([]);
@@ -222,9 +205,13 @@ export function WorkdaySummaryReport() {
     return counts;
   }, [resourceNames, periodRows]);
 
-  const [departments, setDepartments] = useState<string[]>(() => stored?.departments ?? []);
-  const [resourceOwners, setResourceOwners] = useState<string[]>(() => stored?.resourceOwners ?? []);
-  const [resources, setResources] = useState<string[]>(() => stored?.resources ?? []);
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [resourceOwners, setResourceOwners] = useState<string[]>([]);
+  const [resources, setResources] = useState<string[]>([]);
+
+  useEffect(() => {
+    clearStoredReportFilters("workday_summary");
+  }, []);
 
   const prevDepts = useRef<string[]>([]);
   const prevOwners = useRef<string[]>([]);
@@ -297,30 +284,6 @@ export function WorkdaySummaryReport() {
     groupBy,
     range.from,
     range.to,
-    sortKey,
-    sortDir,
-  ]);
-
-  useEffect(() => {
-    saveReportFilters("workday_summary", {
-      search,
-      pageSize,
-      departments,
-      resourceOwners,
-      resources,
-      groupBy,
-      includeEmpty,
-      sortKey,
-      sortDir,
-    } satisfies Persisted);
-  }, [
-    search,
-    pageSize,
-    departments,
-    resourceOwners,
-    resources,
-    groupBy,
-    includeEmpty,
     sortKey,
     sortDir,
   ]);

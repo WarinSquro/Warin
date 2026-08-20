@@ -32,6 +32,18 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-20 12:05 IST
+
+**Prompt:**  
+> WARIN – Report Filter Behavior: default all selected; keep while on report; reset to all selected on navigate away and return; consistent across all reports.
+
+**Output:**  
+- **Root cause:** `sessionStorage` via `loadReportFilters` / `saveReportFilters` restored filter picks after leaving a report.
+- **Fix:** Removed session persistence; filters live in component state only. `reconcileMultiSelect` still defaults to all options when lists load. Clears legacy keys on mount. Deployment report aligned to same reconcile helper. Applied to Daily Work, Deployment, Performance, Execution, Workday Summary.
+- **Tests:** `tests/unit/reportFilterPersistence.test.ts`.
+
+---
+
 ### 2026-08-20 11:55 IST
 
 **Prompt:**  

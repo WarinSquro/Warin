@@ -50,23 +50,9 @@ import {
 import { runReportExport, summarizeFilter } from "../utils/reportExport";
 import type { ExportCell, ReportExportInput } from "../utils/reportExport";
 import {
-  loadReportFilters,
+  clearStoredReportFilters,
   reconcileMultiSelect,
-  saveReportFilters,
-  serializeMultiSelect,
 } from "../utils/reportFilterPersistence";
-
-type DailyWorkPersistedFilters = {
-  periodId: DailyWorkPeriodId;
-  search: string;
-  pageSize: number;
-  departments: string[] | null;
-  projects: string[] | null;
-  confirmations: ConfirmationCode[] | null;
-  planKinds: PlanKind[] | null;
-  sortKey: DailyWorkSortKey;
-  sortDir: "asc" | "desc";
-};
 import { formatHours } from "../utils/formatHours";
 
 function cellValue(
@@ -165,16 +151,10 @@ export function DailyWorkReport() {
   const { settings } = useSettings();
   const { employees } = useEmployees();
   const { projects: liveProjects } = useProjects();
-  const storedFilters = useMemo(
-    () => loadReportFilters<DailyWorkPersistedFilters>("daily_work"),
-    []
-  );
-  const [periodId, setPeriodId] = useState<DailyWorkPeriodId>(
-    () => storedFilters?.periodId ?? "week"
-  );
-  const [search, setSearch] = useState(() => drillEmployee || storedFilters?.search || "");
+  const [periodId, setPeriodId] = useState<DailyWorkPeriodId>("week");
+  const [search, setSearch] = useState(() => drillEmployee || "");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(() => storedFilters?.pageSize ?? 25);
+  const [pageSize, setPageSize] = useState(25);
   const toast = useToast();
   const [visibleColumns, setVisibleColumns] = useState<Set<DailyWorkSortKey>>(() =>
     loadVisibleColumnIds()
@@ -269,16 +249,14 @@ export function DailyWorkReport() {
   const allDepts = useMemo(() => dailyWorkDepartments(scopedRows), [scopedRows]);
   const allProjects = useMemo(() => dailyWorkProjects(scopedRows), [scopedRows]);
 
-  const [departments, setDepartments] = useState<string[]>(
-    () => storedFilters?.departments ?? []
-  );
-  const [projects, setProjects] = useState<string[]>(() => storedFilters?.projects ?? []);
-  const [confirmations, setConfirmations] = useState<ConfirmationCode[]>(
-    () => storedFilters?.confirmations ?? [...CONFIRMATION_CODES]
-  );
-  const [planKinds, setPlanKinds] = useState<PlanKind[]>(
-    () => storedFilters?.planKinds ?? ["Plan", "Unplanned"]
-  );
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [projects, setProjects] = useState<string[]>([]);
+  const [confirmations, setConfirmations] = useState<ConfirmationCode[]>([]);
+  const [planKinds, setPlanKinds] = useState<PlanKind[]>([]);
+
+  useEffect(() => {
+    clearStoredReportFilters("daily_work");
+  }, []);
 
   const prevDeptsRef = useRef<string[]>([]);
   const prevProjectsRef = useRef<string[]>([]);
@@ -310,38 +288,7 @@ export function DailyWorkReport() {
     });
   }, [allDepts, allProjects]);
 
-  const { sortKey, sortDir, handleSort } = useColumnSort<DailyWorkSortKey>(
-    storedFilters?.sortKey ?? "workDate",
-    storedFilters?.sortDir ?? "desc"
-  );
-
-  useEffect(() => {
-    saveReportFilters("daily_work", {
-      periodId,
-      search,
-      pageSize,
-      departments: serializeMultiSelect(departments, allDepts),
-      projects: serializeMultiSelect(projects, allProjects),
-      confirmations: serializeMultiSelect(confirmations, [...CONFIRMATION_CODES]) as
-        | ConfirmationCode[]
-        | null,
-      planKinds: serializeMultiSelect(planKinds, ["Plan", "Unplanned"]) as PlanKind[] | null,
-      sortKey,
-      sortDir,
-    } satisfies DailyWorkPersistedFilters);
-  }, [
-    periodId,
-    search,
-    pageSize,
-    departments,
-    projects,
-    confirmations,
-    planKinds,
-    sortKey,
-    sortDir,
-    allDepts,
-    allProjects,
-  ]);
+  const { sortKey, sortDir, handleSort } = useColumnSort<DailyWorkSortKey>("workDate", "desc");
 
   const filters: DailyWorkFilters = {
     search,

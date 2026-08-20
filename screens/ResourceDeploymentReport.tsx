@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { FileSpreadsheet, FileText, Search } from "lucide-react";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
@@ -40,24 +40,9 @@ import type { ReportExportInput } from "../utils/reportExport";
 import { formatHoursLabel } from "../utils/formatHours";
 import { scopeEmployeesForViewer } from "../utils/reportVisibility";
 import {
-  forgetStaleUnallocatedSentinel,
-  loadReportFilters,
-  saveReportFilters,
-  serializeMultiSelect,
+  clearStoredReportFilters,
+  reconcileMultiSelect,
 } from "../utils/reportFilterPersistence";
-
-type DeploymentPersistedFilters = {
-  periodId: ReportPeriodId;
-  search: string;
-  groupBy: DeploymentGroupBy;
-  departments: string[] | null;
-  projects: string[] | null;
-  resourceOwners: string[] | null;
-  skills: string[] | null;
-  statuses: string[] | null;
-  sortKey: DeploymentSortKey;
-  sortDir: "asc" | "desc";
-};
 
 const GROUP_OPTIONS: { value: DeploymentGroupBy; label: string }[] = [
   { value: "none", label: "None" },
@@ -87,17 +72,9 @@ export function ResourceDeploymentReport() {
   }, [employees, currentEmployee, isSuperAdmin]);
   const [searchParams] = useSearchParams();
   const statusPreset = searchParams.get("status");
-  const storedFilters = useMemo(
-    () => loadReportFilters<DeploymentPersistedFilters>("deployment"),
-    []
-  );
-  const [periodId, setPeriodId] = useState<ReportPeriodId>(
-    () => storedFilters?.periodId ?? "week"
-  );
-  const [search, setSearch] = useState(() => storedFilters?.search ?? "");
-  const [groupBy, setGroupBy] = useState<DeploymentGroupBy>(
-    () => storedFilters?.groupBy ?? "none"
-  );
+  const [periodId, setPeriodId] = useState<ReportPeriodId>("week");
+  const [search, setSearch] = useState("");
+  const [groupBy, setGroupBy] = useState<DeploymentGroupBy>("none");
   const toast = useToast();
   const [allocations, setAllocations] = useState<ApiAllocation[]>([]);
   const [confirmations, setConfirmations] = useState<ApiConfirmation[]>([]);
@@ -173,77 +150,57 @@ export function ResourceDeploymentReport() {
 
   const ownerNames = useMemo(() => allOwners.map((o) => o.name), [allOwners]);
 
-  const [departments, setDepartments] = useState<string[]>(
-    () => storedFilters?.departments ?? []
-  );
-  const [projects, setProjects] = useState<string[]>(() =>
-    forgetStaleUnallocatedSentinel(storedFilters?.projects)
-  );
-  const [resourceOwners, setResourceOwners] = useState<string[]>(
-    () => storedFilters?.resourceOwners ?? []
-  );
-  const [skills, setSkills] = useState<string[]>(() => storedFilters?.skills ?? []);
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [projects, setProjects] = useState<string[]>([]);
+  const [resourceOwners, setResourceOwners] = useState<string[]>([]);
+  const [skills, setSkills] = useState<string[]>([]);
   const [statuses, setStatuses] = useState<string[]>(() => {
-    if (storedFilters?.statuses?.length) return storedFilters.statuses;
     if (statusPreset && DEPLOYMENT_STATUSES.includes(statusPreset as DeploymentStatus)) {
       return [statusPreset];
     }
-    return [...DEPLOYMENT_STATUSES];
+    return [];
   });
 
+  const prevDeptsRef = useRef<string[]>([]);
+  const prevProjectsRef = useRef<string[]>([]);
+  const prevOwnersRef = useRef<string[]>([]);
+  const prevSkillsRef = useRef<string[]>([]);
+  const prevStatusesRef = useRef<string[]>([]);
+
   useEffect(() => {
-    const prune = (prev: string[], available: string[]) => {
-      if (prev.length === 0 || available.length === 0) return prev;
-      if (
-        available.length === 1 &&
-        available[0] === "Unallocated" &&
-        prev.some((v) => v !== "Unallocated")
-      ) {
-        return prev;
-      }
-      const next = prev.filter((v) => available.includes(v));
-      return next.length === prev.length && next.every((v, i) => v === prev[i]) ? prev : next;
-    };
-    setDepartments((prev) => prune(prev, allDepts));
-    setProjects((prev) => prune(prev, allProjects));
-    setResourceOwners((prev) => prune(prev, ownerNames));
-    setSkills((prev) => prune(prev, allSkills));
+    clearStoredReportFilters("deployment");
+  }, []);
+
+  useEffect(() => {
+    setDepartments((prev) => {
+      const next = reconcileMultiSelect(prev, allDepts, prevDeptsRef.current);
+      prevDeptsRef.current = [...allDepts];
+      return next;
+    });
+    setProjects((prev) => {
+      const next = reconcileMultiSelect(prev, allProjects, prevProjectsRef.current);
+      prevProjectsRef.current = [...allProjects];
+      return next;
+    });
+    setResourceOwners((prev) => {
+      const next = reconcileMultiSelect(prev, ownerNames, prevOwnersRef.current);
+      prevOwnersRef.current = [...ownerNames];
+      return next;
+    });
+    setSkills((prev) => {
+      const next = reconcileMultiSelect(prev, allSkills, prevSkillsRef.current);
+      prevSkillsRef.current = [...allSkills];
+      return next;
+    });
+    setStatuses((prev) => {
+      const all = [...DEPLOYMENT_STATUSES];
+      const next = reconcileMultiSelect(prev, all, prevStatusesRef.current);
+      prevStatusesRef.current = all;
+      return next;
+    });
   }, [allDepts, allProjects, ownerNames, allSkills]);
 
-  const { sortKey, sortDir, handleSort } = useColumnSort<DeploymentSortKey>(
-    storedFilters?.sortKey ?? "employee",
-    storedFilters?.sortDir ?? "asc"
-  );
-
-  useEffect(() => {
-    saveReportFilters("deployment", {
-      periodId,
-      search,
-      groupBy,
-      departments: serializeMultiSelect(departments, allDepts),
-      projects: serializeMultiSelect(projects, allProjects),
-      resourceOwners: serializeMultiSelect(resourceOwners, ownerNames),
-      skills: serializeMultiSelect(skills, allSkills),
-      statuses: serializeMultiSelect(statuses, [...DEPLOYMENT_STATUSES]),
-      sortKey,
-      sortDir,
-    } satisfies DeploymentPersistedFilters);
-  }, [
-    periodId,
-    search,
-    groupBy,
-    departments,
-    projects,
-    resourceOwners,
-    skills,
-    statuses,
-    sortKey,
-    sortDir,
-    allDepts,
-    allProjects,
-    ownerNames,
-    allSkills,
-  ]);
+  const { sortKey, sortDir, handleSort } = useColumnSort<DeploymentSortKey>("employee", "asc");
 
   const filters: DeploymentFilters = {
     search,

@@ -1,27 +1,32 @@
 /**
- * Persist report filter/UI state across browser refresh (sessionStorage).
- * Multi-select lists are reconciled against live options without wiping user picks.
+ * Report multi-select helpers.
+ *
+ * Filter selections live in component state while the report is mounted.
+ * Leaving the report remounts with all options selected (no sessionStorage restore).
  */
 
+/** @deprecated Legacy prefix — cleared on report mount so old keys cannot leak back. */
 const STORAGE_PREFIX = "warin_report_filters_v3:";
 
-export function loadReportFilters<T extends object>(reportKey: string): Partial<T> | null {
-  if (typeof sessionStorage === "undefined") return null;
-  try {
-    const raw = sessionStorage.getItem(STORAGE_PREFIX + reportKey);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
-    return parsed as Partial<T>;
-  } catch {
-    return null;
-  }
-}
+export const REPORT_FILTER_STORAGE_KEYS = [
+  "daily_work",
+  "deployment",
+  "performance",
+  "execution",
+  "workday_summary",
+] as const;
 
-export function saveReportFilters(reportKey: string, state: object): void {
+/** Remove legacy persisted filters for one report (or all reports when omitted). */
+export function clearStoredReportFilters(reportKey?: string): void {
   if (typeof sessionStorage === "undefined") return;
   try {
-    sessionStorage.setItem(STORAGE_PREFIX + reportKey, JSON.stringify(state));
+    if (reportKey) {
+      sessionStorage.removeItem(STORAGE_PREFIX + reportKey);
+      return;
+    }
+    for (const key of REPORT_FILTER_STORAGE_KEYS) {
+      sessionStorage.removeItem(STORAGE_PREFIX + key);
+    }
   } catch {
     /* quota / private mode */
   }
@@ -40,17 +45,6 @@ export function isAllSelected(selected: string[], available: string[]): boolean 
 }
 
 /**
- * Persist partial multi-selects only. `null` means “all options” so a later
- * option-list expansion (e.g. projects after allocations load) does not stick
- * on a stale singleton like `["Unallocated"]`.
- */
-export function serializeMultiSelect(selected: string[], available: string[]): string[] | null {
-  if (selected.length === 0) return null;
-  if (available.length === 0) return selected;
-  return isAllSelected(selected, available) ? null : selected;
-}
-
-/**
  * First paint of Deployment Report used to auto-select only "Unallocated"
  * before allocations loaded. That is "all", not an explicit project filter.
  */
@@ -63,9 +57,9 @@ export function forgetStaleUnallocatedSentinel(
 }
 
 /**
- * Keep the user's multi-select across data reloads.
+ * Keep the user's multi-select across data reloads while the report stays mounted.
  * - Empty available → leave selection as-is
- * - Empty selection + available → select all (first populate)
+ * - Empty selection + available → select all (default)
  * - If selection matched the previous full option list (“all”), stay on all
  * - Otherwise keep intersection; if nothing survives, select all
  */
