@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildWorkdaySummaryRows } from "../../api/workdaySummary";
+import { buildWorkdaySummaryRows, workdayComplianceCode } from "../../api/workdaySummary";
 import { formatHoursAsHhMm, filterWorkdaySummaryRows, workdaySummaryRangeEnding } from "../../data/workdaySummaryReport";
 import type { ApiAllocation, ApiConfirmation, ApiTeamProductivityDay } from "../../api/domain";
 import type { Employee } from "../../data/employees";
@@ -130,6 +130,36 @@ describe("workday summary", () => {
     expect(row?.actualHours).toBe(8);
     expect(row?.unplannedPct).toBe(25);
     expect(row?.compliance).toBe("C");
+  });
+
+  it("same IST calendar day with deviation is D, not DD", () => {
+    const c = {
+      ...conf(),
+      workDate: "2026-08-19",
+      submittedAt: "2026-08-19T12:00:00.000Z",
+      hasDeviation: true,
+    };
+    expect(workdayComplianceCode(c, "2026-08-19", "2026-08-20", true)).toBe("D");
+  });
+
+  it("next IST calendar day with deviation is DD", () => {
+    const c = {
+      ...conf(),
+      workDate: "2026-08-19",
+      submittedAt: "2026-08-19T18:30:00.000Z",
+      hasDeviation: true,
+    };
+    expect(workdayComplianceCode(c, "2026-08-19", "2026-08-20", true)).toBe("DD");
+  });
+
+  it("same IST calendar day without deviation is C, not CD (after 10:00 local)", () => {
+    const c = {
+      ...conf(),
+      workDate: "2026-08-19",
+      submittedAt: "2026-08-19T12:00:00.000Z",
+      hasDeviation: false,
+    };
+    expect(workdayComplianceCode(c, "2026-08-19", "2026-08-20", true)).toBe("C");
   });
 
   it("computes focus % against planned actual hours only", () => {

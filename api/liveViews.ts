@@ -7,6 +7,7 @@ import type { AvailRow, RollingOffPerson } from "../data/availability";
 import type { UtilRow } from "../data/utilization";
 import type { DeploymentRow, DeploymentStatus } from "../data/deploymentReport";
 import { workingWeekBounds } from "../utils/workingWeek";
+import { isConfirmationDelayed } from "../utils/confirmationDelay";
 import { APP_DISPLAY_TIMEZONE } from "../utils/formatAppDate";
 import { roundHoursToTenth } from "../utils/formatHours";
 import { isWorkingWeekday, normalizedWorkingDays, workingDayStatus } from "../utils/workingCalendar";
@@ -213,9 +214,7 @@ export function bookedHoursInRange(
 
 /** Delayed only when confirmed on a later calendar day than the work date (IST). */
 function isDelayed(submittedAt: string, workDate: string): boolean {
-  const submittedDay = allocationDoneDate(submittedAt);
-  if (!submittedDay) return false;
-  return submittedDay > workDate.slice(0, 10);
+  return isConfirmationDelayed(submittedAt, workDate);
 }
 
 function confirmationCode(c: ApiConfirmation, lineKind: string): ConfirmationCode {
@@ -1374,9 +1373,7 @@ export function buildLiveWeeklyEvidence(
   let planningDeviationCount = 0;
   let confirmationDelayCount = 0;
   for (const c of mineConf) {
-    const delayed =
-      new Date(c.submittedAt).getTime() > new Date(`${c.workDate}T10:00:00`).getTime();
-    if (delayed) confirmationDelayCount += 1;
+    if (isConfirmationDelayed(c.submittedAt, c.workDate)) confirmationDelayCount += 1;
     for (const l of c.lines) {
       planned += l.plannedHours;
       actual += l.actualHours;

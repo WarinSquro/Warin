@@ -32,6 +32,20 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-20 21:35 IST
+
+**Prompt:**  
+> ComplianceRowView colors still wrong vs Deviation feed / legends — check deviation, unplanned, mark color.
+
+**Output:**  
+- **Root cause (EC2):** live API still on `0448846` with **10:00 cutoff** for Delayed → same-day afternoon confirmations painted as **CD/DD** (light green / solid red) instead of **C/D**. Legend + Deviation feed expect IST calendar-day delay only.
+- **Also:** `utils/confirmationDelay.ts` was missing from git while imported by team compliance helpers.
+- Status now derived from **confirmation lines** (`deviation` / `unplanned` → D/DD), matching Deviation feed; labels distinguish Unplanned vs Deviation.
+- Legend colors: Conf. solid green, CD soft green, Devi. warning amber, DD danger red, Pending red ring.
+- Must deploy API: `ec2-deploy.sh --with-api`.
+
+---
+
 ### 2026-08-20 21:20 IST
 
 **Prompt:**  

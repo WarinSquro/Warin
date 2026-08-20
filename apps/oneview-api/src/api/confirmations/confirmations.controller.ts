@@ -180,7 +180,11 @@ function teamDayStatus(input: {
   today: string;
   isCompanyOff: boolean;
   hasPlan: boolean;
-  confirmation?: { hasDeviation: boolean; submittedAt: Date } | null;
+  confirmation?: {
+    hasDeviation: boolean;
+    submittedAt: Date;
+    lines: Array<{ kind: string }>;
+  } | null;
 }):
   | "confirmed"
   | "confirmed_delayed"
@@ -196,7 +200,11 @@ function teamDayStatus(input: {
   const conf = input.confirmation;
   if (conf) {
     const delayed = isDelayed(conf.submittedAt, workDate);
-    if (conf.hasDeviation) return delayed ? "deviation_delayed" : "deviation";
+    const deviant =
+      conf.lines.length > 0
+        ? conf.lines.some((l) => l.kind === "deviation" || l.kind === "unplanned")
+        : conf.hasDeviation;
+    if (deviant) return delayed ? "deviation_delayed" : "deviation";
     return delayed ? "confirmed_delayed" : "confirmed";
   }
   if (!input.hasPlan) return "leave";
@@ -973,7 +981,11 @@ export class ConfirmationsController {
       else if (todayStatus === "leave") todayLabel = "No plan / leave";
       else if (todayStatus === "pending") todayLabel = "Not yet confirmed";
       else if (todayStatus === "deviation" || todayStatus === "deviation_delayed") {
-        todayLabel = "Deviation reported";
+        const onlyUnplanned =
+          !!todayConf &&
+          todayConf.lines.some((l) => l.kind === "unplanned") &&
+          !todayConf.lines.some((l) => l.kind === "deviation");
+        todayLabel = onlyUnplanned ? "Unplanned work" : "Deviation reported";
       } else if (todayConf) {
         todayLabel = `Confirmed ${formatTime(todayConf.submittedAt)}`;
       }

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { teamComplianceDayStatus } from "../../utils/teamComplianceDay";
+import {
+  confirmationHasDeviantWork,
+  teamComplianceDayStatus,
+} from "../../utils/teamComplianceDay";
 
 describe("teamComplianceDayStatus", () => {
   const today = "2026-08-20";
@@ -41,16 +44,16 @@ describe("teamComplianceDayStatus", () => {
     ).toBe("pending");
   });
 
-  it("uses confirmation + IST calendar-day delay (not clock cutoff)", () => {
+  it("same-day deviation/unplanned is Devi. (D), not DD — ignores 10:00 cutoff", () => {
     expect(
       teamComplianceDayStatus({
         workDate: "2026-08-19",
         today,
         hasPlan: true,
         confirmation: {
-          hasDeviation: true,
           // 19:03 IST same day
           submittedAt: "2026-08-19T13:33:35.704Z",
+          lines: [{ kind: "unplanned" }],
         },
       })
     ).toBe("deviation");
@@ -61,11 +64,49 @@ describe("teamComplianceDayStatus", () => {
         today,
         hasPlan: true,
         confirmation: {
-          hasDeviation: false,
-          // next IST calendar day
-          submittedAt: "2026-08-19T18:30:00.000Z",
+          submittedAt: "2026-08-19T13:33:35.704Z",
+          lines: [{ kind: "deviation" }],
         },
       })
-    ).toBe("confirmed_delayed");
+    ).toBe("deviation");
+  });
+
+  it("next IST calendar day with deviation is DD", () => {
+    expect(
+      teamComplianceDayStatus({
+        workDate: "2026-08-19",
+        today,
+        hasPlan: true,
+        confirmation: {
+          submittedAt: "2026-08-19T18:30:00.000Z",
+          lines: [{ kind: "deviation" }],
+        },
+      })
+    ).toBe("deviation_delayed");
+  });
+
+  it("as-planned same day is Conf., not CD", () => {
+    expect(
+      teamComplianceDayStatus({
+        workDate: "2026-08-19",
+        today,
+        hasPlan: true,
+        confirmation: {
+          submittedAt: "2026-08-19T13:00:00.000Z",
+          lines: [{ kind: "planned" }],
+        },
+      })
+    ).toBe("confirmed");
+  });
+});
+
+describe("confirmationHasDeviantWork", () => {
+  it("treats deviation and unplanned lines as deviant (like Deviation feed)", () => {
+    expect(
+      confirmationHasDeviantWork({ lines: [{ kind: "planned" }, { kind: "unplanned" }] })
+    ).toBe(true);
+    expect(confirmationHasDeviantWork({ lines: [{ kind: "deviation" }] })).toBe(true);
+    expect(confirmationHasDeviantWork({ lines: [{ kind: "planned" }] })).toBe(false);
+    expect(confirmationHasDeviantWork({ hasDeviation: true })).toBe(true);
   });
 });

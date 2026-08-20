@@ -2,6 +2,7 @@ import type { Employee } from "../data/employees";
 import type { ApiAllocation, ApiConfirmation, ApiTeamProductivityDay } from "./domain";
 import type { ConfirmationCode, WorkdaySummaryRow } from "../data/workdaySummaryReport";
 import { addDaysISO } from "../utils/date";
+import { isConfirmationDelayed } from "../utils/confirmationDelay";
 import { focusElapsedMsForWorkDate, workdayDurationMs, type WorkdayMarks } from "../utils/confirmationProductivity";
 import { isWorkingWeekday } from "../utils/workingCalendar";
 
@@ -28,8 +29,7 @@ export function workdayComplianceCode(
 ): ConfirmationCode | undefined {
   if (workDate > todayIso) return undefined;
   if (confirmation) {
-    const delayed =
-      new Date(confirmation.submittedAt).getTime() > new Date(`${workDate}T10:00:00`).getTime();
+    const delayed = isConfirmationDelayed(confirmation.submittedAt, workDate);
     if (confirmation.hasDeviation) return delayed ? "DD" : "D";
     return delayed ? "CD" : "C";
   }

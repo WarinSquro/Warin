@@ -1235,12 +1235,19 @@ function LineRow({
 /* ---------------- Manager view ---------------- */
 
 const DAY_DOT: Record<DayStatus, string> = {
+  /** Conf. — solid success green */
   confirmed: "bg-success",
-  confirmed_delayed: "bg-green-300",
-  deviation: "bg-red-300",
+  /** CD — lighter green fill */
+  confirmed_delayed: "bg-success/40",
+  /** Devi. — solid warning/amber (deviation or unplanned, on-time) */
+  deviation: "bg-warning",
+  /** DD — solid danger red (deviation/unplanned + delayed) */
   deviation_delayed: "bg-danger",
+  /** Pending — red ring, soft fill */
   pending: "border-2 border-danger bg-danger-soft",
+  /** Leave / no plan */
   leave: "border border-border bg-surface",
+  /** Future */
   future: "border border-dashed border-border bg-surface",
 };
 
@@ -1251,8 +1258,8 @@ const COMPLIANCE_STATUS_LEGEND: {
 }[] = [
   { short: "Conf.", full: "Confirmed", dot: DAY_DOT.confirmed },
   { short: "CD", full: "Confirmed but Delayed", dot: DAY_DOT.confirmed_delayed },
-  { short: "Devi.", full: "Deviation", dot: DAY_DOT.deviation },
-  { short: "DD", full: "Deviation and Delayed", dot: DAY_DOT.deviation_delayed },
+  { short: "Devi.", full: "Deviation / unplanned (on time)", dot: DAY_DOT.deviation },
+  { short: "DD", full: "Deviation / unplanned and Delayed", dot: DAY_DOT.deviation_delayed },
   { short: "Pending", full: "Pending", dot: DAY_DOT.pending },
   { short: "Leave", full: "No plan / leave", dot: DAY_DOT.leave },
 ];
@@ -1260,8 +1267,8 @@ const COMPLIANCE_STATUS_LEGEND: {
 const STATUS_FULL_LABEL: Record<DayStatus, string> = {
   confirmed: "Confirmed",
   confirmed_delayed: "Confirmed but Delayed",
-  deviation: "Deviation",
-  deviation_delayed: "Deviation and Delayed",
+  deviation: "Deviation / unplanned",
+  deviation_delayed: "Deviation / unplanned and Delayed",
   pending: "Pending",
   leave: "No plan / leave",
   future: "Future",
