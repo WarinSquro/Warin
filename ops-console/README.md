@@ -121,7 +121,7 @@ Manual Commands in the UI show **EC2/POSIX** commands (production runbook). Runn
 
 1. Secure login (independent of WARIN auth)  
 2. Database / Application / Docker / Pre-deploy backups  
-3. Authenticated download of the latest Database / Application / Docker backup to the local computer
+3. Authenticated download of the latest Database / Application / Docker backup to the local computer (with confirmation)
 4. Docker container status  
 5. Allowlisted manual commands  
 6. Production deploy sequence with mandatory pre-backup gate  

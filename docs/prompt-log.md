@@ -32,6 +32,19 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-20 18:55 IST
+
+**Prompt:**  
+> After check downloads > database is ok. Check the size of application backup and Docker Deploy backup size and correct. WARIN Application zip showing 1 kb of size and 6 kb for docker. Also confirm before download and before Create backup.
+
+**Output:**  
+- Root cause: Application backup only tared empty `/data/files` (~85 B); Docker backup only packed a few tiny compose/script files (~6 KB).
+- Application backup now archives published SPA (`shared/web`) + uploaded files volume into `backups/app/warin_application_*.tar.gz`.
+- Docker backup now includes compose, full `scripts/` + `infra/` + `prisma/`, package manifests, host Nginx site, and docker inventory text (no image layers; `.env` stays in meta only).
+- UI: confirmation dialogs before Create backup and Download to local.
+- Files: `ops-console/server/src/ops/backups.ts`, `ops-console/server/src/ops/commands.ts`, `ops-console/web/src/pages/DashboardPage.tsx`, `ops-console/README.md`.
+- Validation: `npm run build` in ops-console passed; push + EC2 reinstall to verify larger archive sizes.
+
 ### 2026-08-20 18:40 IST
 
 **Prompt:**  

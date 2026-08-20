@@ -110,16 +110,19 @@ export async function createApplicationBackup(user: string): Promise<BackupRecor
   const id = newId("bak");
   const stamp = new Date().toISOString().replace(/[:.]/g, "").slice(0, 15);
   const sha = await gitSha();
-  const tarName = `files_application_${stamp}_${sha}.tar.gz`;
-  const location = path.join(config.backupRoot, "files", tarName);
+  const tarName = `warin_application_${stamp}_${sha}.tar.gz`;
+  const location = path.join(config.backupRoot, "app", tarName);
   const metaGit = path.join(config.backupRoot, "meta", `git_application_${stamp}_${sha}.txt`);
+  const staging = path.join(config.backupRoot, "meta", `staging_application_${stamp}_${sha}`);
   const createdAt = new Date().toISOString();
   const exp = expiresFor("application", new Date(createdAt));
   const tmpInContainer = "/tmp/ops-files-backup.tar.gz";
 
   fs.mkdirSync(path.dirname(location), { recursive: true });
   fs.mkdirSync(path.dirname(metaGit), { recursive: true });
-  fs.writeFileSync(metaGit, `git_sha=${sha}\nat=${createdAt}\n`, { mode: 0o600 });
+  fs.rmSync(staging, { recursive: true, force: true });
+  fs.mkdirSync(path.join(staging, "web"), { recursive: true });
+  fs.mkdirSync(path.join(staging, "files"), { recursive: true });
 
   mutateStore((s) => {
     s.backups.unshift({
@@ -137,24 +140,129 @@ export async function createApplicationBackup(user: string): Promise<BackupRecor
   });
   appendAudit(user, "backup.application.started", "info", { gitSha: sha });
 
-  const tar = await runDocker(
-    ["exec", "oneview-api", "sh", "-c", `cd /data/files && tar -czf ${tmpInContainer} .`],
-    { timeoutMs: 20 * 60 * 1000 },
-  );
-  if (!tar.ok) failBackup(id, user, "backup.application.failed", sha, tar.stderr || "files tar failed");
+  try {
+    const parts: string[] = [];
+    let spaBytes = 0;
+    let filesBytes = 0;
 
-  const cp = await runDocker(["cp", `oneview-api:${tmpInContainer}`, location], {
-    timeoutMs: 10 * 60 * 1000,
-  });
-  await runDocker(["exec", "oneview-api", "rm", "-f", tmpInContainer]);
+    // Live published SPA (host Nginx root) — primary WARIN application artifact on EC2
+    if (fs.existsSync(config.sharedWebPath)) {
+      copyDirectoryRecursive(config.sharedWebPath, path.join(staging, "web"));
+      spaBytes = directorySize(path.join(staging, "web"));
+      parts.push(`web=${config.sharedWebPath} (${spaBytes} bytes)`);
+    } else {
+      parts.push(`web=missing:${config.sharedWebPath}`);
+    }
 
-  if (!cp.ok || !fs.existsSync(location)) {
-    failBackup(id, user, "backup.application.failed", sha, cp.stderr || "docker cp failed");
+    // Uploaded files volume via API container (may be empty)
+    const filesArchive = path.join(staging, "files_volume.tar.gz");
+    const tar = await runDocker(
+      ["exec", "oneview-api", "sh", "-c", `cd /data/files && tar -czf ${tmpInContainer} .`],
+      { timeoutMs: 20 * 60 * 1000 },
+    );
+    if (tar.ok) {
+      const cp = await runDocker(["cp", `oneview-api:${tmpInContainer}`, filesArchive], {
+        timeoutMs: 10 * 60 * 1000,
+      });
+      await runDocker(["exec", "oneview-api", "rm", "-f", tmpInContainer]);
+      if (cp.ok && fs.existsSync(filesArchive) && fileSize(filesArchive) > 32) {
+        filesBytes = fileSize(filesArchive);
+        parts.push(`files_volume=/data/files (${filesBytes} bytes)`);
+      } else {
+        try {
+          fs.unlinkSync(filesArchive);
+        } catch {
+          /* */
+        }
+        fs.writeFileSync(
+          path.join(staging, "files", "README.txt"),
+          "Uploaded files volume was empty at backup time.\n",
+          { mode: 0o600 },
+        );
+        parts.push("files_volume=empty");
+      }
+    } else {
+      await runDocker(["exec", "oneview-api", "rm", "-f", tmpInContainer]);
+      fs.writeFileSync(
+        path.join(staging, "files", "README.txt"),
+        `Uploaded files volume unavailable: ${tar.stderr || "oneview-api exec failed"}\n`,
+        { mode: 0o600 },
+      );
+      parts.push("files_volume=unavailable");
+    }
+
+    const manifestBody =
+      [
+        `type=application`,
+        `git_sha=${sha}`,
+        `at=${createdAt}`,
+        `spa_root=${config.sharedWebPath}`,
+        `spa_bytes=${spaBytes}`,
+        `files_bytes=${filesBytes}`,
+        ...parts.map((p) => `part=${p}`),
+        `note=Includes published SPA (shared/web) plus uploaded files volume when present`,
+      ].join("\n") + "\n";
+    fs.writeFileSync(path.join(staging, "MANIFEST.txt"), manifestBody, { mode: 0o600 });
+    fs.writeFileSync(metaGit, manifestBody, { mode: 0o600 });
+
+    if (spaBytes <= 0 && filesBytes <= 0) {
+      failBackup(
+        id,
+        user,
+        "backup.application.failed",
+        sha,
+        "Application backup is empty — published SPA and uploaded files are both missing/empty",
+      );
+    }
+
+    const pack = await runCommand(
+      resolveTarBin(),
+      ["-czf", location, "-C", staging, "."],
+      { timeoutMs: 20 * 60 * 1000 },
+    );
+    if (!pack.ok || !fs.existsSync(location) || fileSize(location) <= 0) {
+      failBackup(id, user, "backup.application.failed", sha, pack.stderr || pack.stdout || "application tar failed");
+    }
+
+    succeedBackup(id, location, fileSize(location));
+    appendAudit(user, "backup.application.completed", "success", {
+      gitSha: sha,
+      detail: `${location} spa=${spaBytes} files=${filesBytes}`,
+    });
+    return loadStore().backups.find((x) => x.id === id)!;
+  } finally {
+    fs.rmSync(staging, { recursive: true, force: true });
   }
+}
 
-  succeedBackup(id, location, fileSize(location));
-  appendAudit(user, "backup.application.completed", "success", { gitSha: sha, detail: location });
-  return loadStore().backups.find((x) => x.id === id)!;
+function copyDirectoryRecursive(src: string, dest: string) {
+  fs.mkdirSync(dest, { recursive: true });
+  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+    const from = path.join(src, entry.name);
+    const to = path.join(dest, entry.name);
+    if (entry.isDirectory()) {
+      copyDirectoryRecursive(from, to);
+    } else if (entry.isFile()) {
+      fs.copyFileSync(from, to);
+    }
+  }
+}
+
+function directorySize(dir: string): number {
+  let total = 0;
+  if (!fs.existsSync(dir)) return 0;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) total += directorySize(full);
+    else if (entry.isFile()) {
+      try {
+        total += fs.statSync(full).size;
+      } catch {
+        /* */
+      }
+    }
+  }
+  return total;
 }
 
 export async function createDockerBackup(user: string): Promise<BackupRecord> {
@@ -164,11 +272,14 @@ export async function createDockerBackup(user: string): Promise<BackupRecord> {
   const archiveName = `docker_deploy_${stamp}_${sha}.tar.gz`;
   const location = path.join(config.backupRoot, "docker", archiveName);
   const manifest = path.join(config.backupRoot, "meta", `MANIFEST_docker_${stamp}_${sha}.txt`);
+  const staging = path.join(config.backupRoot, "meta", `staging_docker_${stamp}_${sha}`);
   const createdAt = new Date().toISOString();
   const exp = expiresFor("docker", new Date(createdAt));
 
   fs.mkdirSync(path.dirname(location), { recursive: true });
   fs.mkdirSync(path.dirname(manifest), { recursive: true });
+  fs.rmSync(staging, { recursive: true, force: true });
+  fs.mkdirSync(staging, { recursive: true });
 
   const envCopy = path.join(config.backupRoot, "meta", `env_docker_${stamp}_${sha}.env`);
   let envCopied = false;
@@ -181,19 +292,6 @@ export async function createDockerBackup(user: string): Promise<BackupRecord> {
     }
     envCopied = true;
   }
-
-  fs.writeFileSync(
-    manifest,
-    [
-      `type=docker`,
-      `git_sha=${sha}`,
-      `at=${createdAt}`,
-      `compose=${path.join(config.warinAppDir, "docker-compose.yml")}`,
-      `env_copy=${envCopied ? envCopy : "none"}`,
-      `note=.env content never exposed via ops-console API`,
-    ].join("\n") + "\n",
-    { mode: 0o600 },
-  );
 
   mutateStore((s) => {
     s.backups.unshift({
@@ -212,35 +310,115 @@ export async function createDockerBackup(user: string): Promise<BackupRecord> {
   });
   appendAudit(user, "backup.docker.started", "info", { gitSha: sha });
 
-  const relEntries = [
-    "docker-compose.yml",
-    "scripts/ec2-backup.sh",
-    "scripts/backup-postgres.sh",
-    "scripts/restore-postgres.sh",
-  ].filter((rel) => fs.existsSync(path.join(config.warinAppDir, rel)));
+  try {
+    const included: string[] = [];
+    const repoEntries = [
+      "docker-compose.yml",
+      "scripts",
+      "infra",
+      "prisma",
+      "package.json",
+      "package-lock.json",
+      "apps/Dockerfile",
+      "apps/README.md",
+    ];
 
-  if (fs.existsSync(path.join(config.warinAppDir, "infra", "nginx"))) {
-    relEntries.push("infra/nginx");
+    for (const rel of repoEntries) {
+      const src = path.join(config.warinAppDir, rel);
+      if (!fs.existsSync(src)) continue;
+      const dest = path.join(staging, "repo", rel);
+      const st = fs.statSync(src);
+      if (st.isDirectory()) {
+        copyDirectoryRecursive(src, dest);
+      } else {
+        fs.mkdirSync(path.dirname(dest), { recursive: true });
+        fs.copyFileSync(src, dest);
+      }
+      included.push(`repo/${rel}`);
+    }
+
+    // Host Nginx site config (live EC2) — not always in git
+    const hostNginxCandidates = [
+      "/etc/nginx/sites-available/warin",
+      "/etc/nginx/sites-enabled/warin",
+    ];
+    for (const nginxPath of hostNginxCandidates) {
+      if (!fs.existsSync(nginxPath)) continue;
+      const destDir = path.join(staging, "host-nginx");
+      fs.mkdirSync(destDir, { recursive: true });
+      const dest = path.join(destDir, path.basename(nginxPath));
+      fs.copyFileSync(nginxPath, dest);
+      included.push(`host-nginx/${path.basename(nginxPath)}`);
+      break;
+    }
+
+    // Runtime docker inventory (text only — not image layers)
+    const ps = await runDocker(["ps", "-a", "--format", "{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}"], {
+      timeoutMs: 60_000,
+    });
+    const images = await runDocker(
+      ["images", "--format", "{{.Repository}}:{{.Tag}}\t{{.ID}}\t{{.Size}}"],
+      { timeoutMs: 60_000 },
+    );
+    const composeConfig = await runDocker(["compose", "config"], {
+      cwd: config.warinAppDir,
+      timeoutMs: 60_000,
+    });
+    fs.writeFileSync(
+      path.join(staging, "docker-ps.txt"),
+      (ps.ok ? ps.stdout : `ERROR\n${ps.stderr}`) + "\n",
+      { mode: 0o600 },
+    );
+    fs.writeFileSync(
+      path.join(staging, "docker-images.txt"),
+      (images.ok ? images.stdout : `ERROR\n${images.stderr}`) + "\n",
+      { mode: 0o600 },
+    );
+    if (composeConfig.ok && composeConfig.stdout.trim()) {
+      fs.writeFileSync(path.join(staging, "docker-compose.resolved.yml"), composeConfig.stdout, {
+        mode: 0o600,
+      });
+      included.push("docker-compose.resolved.yml");
+    }
+    included.push("docker-ps.txt", "docker-images.txt");
+
+    const manifestBody =
+      [
+        `type=docker`,
+        `git_sha=${sha}`,
+        `at=${createdAt}`,
+        `compose=${path.join(config.warinAppDir, "docker-compose.yml")}`,
+        `env_copy=${envCopied ? envCopy : "none"}`,
+        `included=${included.join(",")}`,
+        `note=.env content never exposed via ops-console API; Docker images themselves are not archived (rebuild from Git)`,
+      ].join("\n") + "\n";
+    fs.writeFileSync(manifest, manifestBody, { mode: 0o600 });
+    fs.writeFileSync(path.join(staging, "MANIFEST.txt"), manifestBody, { mode: 0o600 });
+    // Keep .env only in meta/ on disk — never inside the downloadable archive
+
+    if (included.length === 0) {
+      failBackup(id, user, "backup.docker.failed", sha, "No compose/scripts/infra found to archive");
+    }
+
+    const result = await runCommand(
+      resolveTarBin(),
+      ["-czf", location, "-C", staging, "."],
+      { timeoutMs: 15 * 60 * 1000 },
+    );
+
+    if (!result.ok || !fs.existsSync(location) || fileSize(location) <= 0) {
+      failBackup(id, user, "backup.docker.failed", sha, result.stderr || result.stdout || "Docker/config backup failed");
+    }
+
+    succeedBackup(id, location, fileSize(location));
+    appendAudit(user, "backup.docker.completed", "success", {
+      gitSha: sha,
+      detail: `${location} bytes=${fileSize(location)}`,
+    });
+    return loadStore().backups.find((x) => x.id === id)!;
+  } finally {
+    fs.rmSync(staging, { recursive: true, force: true });
   }
-
-  if (relEntries.length === 0) {
-    failBackup(id, user, "backup.docker.failed", sha, "No compose/scripts found to archive");
-  }
-
-  // Use system tar (Linux or Windows System32\tar.exe) — avoids powershell.exe PATH ENOENT on Windows
-  const result = await runCommand(
-    resolveTarBin(),
-    ["-czf", location, "-C", config.warinAppDir, ...relEntries],
-    { timeoutMs: 10 * 60 * 1000 },
-  );
-
-  if (!result.ok || !fs.existsSync(location) || fileSize(location) <= 0) {
-    failBackup(id, user, "backup.docker.failed", sha, result.stderr || result.stdout || "Docker/config backup failed");
-  }
-
-  succeedBackup(id, location, fileSize(location));
-  appendAudit(user, "backup.docker.completed", "success", { gitSha: sha, detail: location });
-  return loadStore().backups.find((x) => x.id === id)!;
 }
 
 export async function createPredeployBackup(user: string): Promise<BackupRecord> {
@@ -377,31 +555,35 @@ export type BackupArtifactInfo = {
 function scanBackupDirForLatest(
   kind: DownloadableBackupKind,
 ): BackupArtifactInfo | null {
-  const subdir = kind === "database" ? "db" : kind === "application" ? "files" : "docker";
+  const subdirs =
+    kind === "database" ? ["db"] : kind === "application" ? ["app", "files"] : ["docker"];
   const ext = kind === "database" ? ".dump" : ".tar.gz";
-  const dir = path.join(config.backupRoot, subdir);
-  if (!fs.existsSync(dir)) return null;
 
   let newest: BackupArtifactInfo | null = null;
   let newestMtime = 0;
-  for (const f of fs.readdirSync(dir)) {
-    if (!f.toLowerCase().endsWith(ext)) continue;
-    const full = path.join(dir, f);
-    try {
-      const st = fs.statSync(full);
-      if (!st.isFile() || st.mtimeMs <= newestMtime) continue;
-      const resolved = assertDownloadableBackupArtifact(full, kind);
-      const realPath = assertDownloadableBackupArtifact(fs.realpathSync(resolved), kind);
-      newestMtime = st.mtimeMs;
-      newest = {
-        kind,
-        path: realPath,
-        name: path.basename(realPath),
-        sizeBytes: st.size,
-        createdAt: st.mtime.toISOString(),
-      };
-    } catch {
-      /* skip unsafe / missing */
+  for (const subdir of subdirs) {
+    const dir = path.join(config.backupRoot, subdir);
+    if (!fs.existsSync(dir)) continue;
+    for (const f of fs.readdirSync(dir)) {
+      if (!f.toLowerCase().endsWith(ext)) continue;
+      // Prefer meaningful application archives; skip tiny legacy empty files_*.tar.gz when newer app/ exists
+      const full = path.join(dir, f);
+      try {
+        const st = fs.statSync(full);
+        if (!st.isFile() || st.mtimeMs <= newestMtime) continue;
+        const resolved = assertDownloadableBackupArtifact(full, kind);
+        const realPath = assertDownloadableBackupArtifact(fs.realpathSync(resolved), kind);
+        newestMtime = st.mtimeMs;
+        newest = {
+          kind,
+          path: realPath,
+          name: path.basename(realPath),
+          sizeBytes: st.size,
+          createdAt: st.mtime.toISOString(),
+        };
+      } catch {
+        /* skip unsafe / missing */
+      }
     }
   }
   return newest;

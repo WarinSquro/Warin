@@ -277,11 +277,12 @@ export function assertDownloadableBackupArtifact(
     throw new Error("Path outside backup root");
   }
 
-  const subdir = kind === "database" ? "db" : kind === "application" ? "files" : "docker";
   const expectedExt = kind === "database" ? ".dump" : ".tar.gz";
   const normRel = rel.replace(/\\/g, "/");
-  if (!normRel.startsWith(`${subdir}/`) && normRel !== subdir) {
-    throw new Error(`Download path must be under backups/${subdir}`);
+  const allowedPrefixes =
+    kind === "database" ? ["db/"] : kind === "application" ? ["app/", "files/"] : ["docker/"];
+  if (!allowedPrefixes.some((p) => normRel.startsWith(p) || normRel === p.replace(/\/$/, ""))) {
+    throw new Error(`Download path must be under backups/${allowedPrefixes.join(" or ")}`);
   }
   if (!resolved.toLowerCase().endsWith(expectedExt)) {
     throw new Error(`Only ${expectedExt} files may be downloaded for ${kind} backups`);

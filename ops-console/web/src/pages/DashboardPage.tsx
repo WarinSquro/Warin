@@ -90,6 +90,17 @@ export function DashboardPage() {
   };
 
   const runBackup = async (kind: "database" | "application" | "docker", label: string, path: string) => {
+    const ok = await confirm({
+      title: `Create ${label}?`,
+      confirmLabel: "Create backup",
+      message:
+        kind === "database"
+          ? "This creates a PostgreSQL custom-format dump on the server. Continue?"
+          : kind === "application"
+            ? "This archives the published WARIN SPA (shared/web) and uploaded files volume on the server. Continue?"
+            : "This archives Docker Compose, scripts, infra, Prisma, and host Nginx deploy config on the server. Continue?",
+    });
+    if (!ok) return;
     setActiveBackup(kind);
     try {
       await run(label, () => api(path, { method: "POST", json: {} }));
@@ -113,7 +124,21 @@ export function DashboardPage() {
   const summary = backups?.summary;
   const latestArtifacts = backups?.latestArtifacts || {};
 
-  const downloadLatestBackup = (kind: "database" | "application" | "docker", label: string) => {
+  const downloadLatestBackup = async (kind: "database" | "application" | "docker", label: string) => {
+    const artifact = latestArtifacts[kind];
+    const ok = await confirm({
+      title: `Download ${label} to this computer?`,
+      confirmLabel: "Download",
+      message: artifact ? (
+        <>
+          Download <strong className="break-all text-foreground">{artifact.name}</strong> (
+          {formatBytes(artifact.sizeBytes)}) to your local machine?
+        </>
+      ) : (
+        `Download the latest ${label.toLowerCase()} to your local machine?`
+      ),
+    });
+    if (!ok) return;
     setErr(null);
     setMsg(`${label} download started`);
     const link = document.createElement("a");
@@ -133,7 +158,7 @@ export function DashboardPage() {
         ? `${artifact.name} · ${formatWhen(artifact.createdAt)} · ${formatBytes(artifact.sizeBytes)}`
         : emptyHint,
       onDownload: () =>
-        downloadLatestBackup(
+        void downloadLatestBackup(
           kind,
           kind === "database"
             ? "Database dump"
@@ -283,7 +308,7 @@ export function DashboardPage() {
                 />
                 <BackupCard
                   title="Application Backup"
-                  hint="Uploaded files volume (/data/files)"
+                  hint="Published SPA (shared/web) + uploaded files volume"
                   latest={backups?.records?.find((b: any) => b.type === "application")}
                   count={backups?.records?.filter((b: any) => b.type === "application").length}
                   busy={busy}
@@ -293,7 +318,7 @@ export function DashboardPage() {
                 />
                 <BackupCard
                   title="Docker / Deployment Backup"
-                  hint="Compose, scripts, infra — secrets copied but never shown"
+                  hint="Compose, scripts, infra, Prisma, host Nginx — secrets stay on server"
                   latest={backups?.records?.find((b: any) => b.type === "docker")}
                   count={backups?.records?.filter((b: any) => b.type === "docker").length}
                   busy={busy}
