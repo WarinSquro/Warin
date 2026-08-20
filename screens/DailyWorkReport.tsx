@@ -533,7 +533,7 @@ export function DailyWorkReport() {
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search employee, project, tasks…"
+                placeholder="Search employee…"
                 className="w-full rounded-md border border-border bg-surface py-1.5 pl-8 pr-2.5 text-[12px] text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
               />
             </div>

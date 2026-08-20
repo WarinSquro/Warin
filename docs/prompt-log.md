@@ -32,6 +32,18 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-20 15:25 IST
+
+**Prompt:**  
+> In Daily Work Details & Workday Summary report - Search should search only for Employee name
+
+**Output:**  
+- `data/dailyWorkReport.ts` / `data/workdaySummaryReport.ts` — search matches `employeeName` only.
+- `screens/DailyWorkReport.tsx` — placeholder `Search employee…`.
+- Tests: `tests/unit/dailyWorkSearch.test.ts`, `tests/unit/workdaySummary.test.ts`.
+
+---
+
 ### 2026-08-20 15:15 IST
 
 **Prompt:**  
@@ -46,6 +58,8 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ---
 
+### 2026-08-20 14:47 IST
+
 **Prompt:**  
 > Workday Summary and Daily Work Detail (live EC2): (1) correct calculation; (2) Department Tech & Devt shows 14 but 0 grid rows; (3) hide deleted-through-16-Aug orphans; (4) keep pagination page when leaving/returning; (5) Daily Work default columns; (6) wrong projects in dropdown; (7) blank Resource Owner / Project Type / Milestone Type.
 
@@ -59,6 +73,8 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 - `utils/reportPage.ts` + unit tests (`workdaySummary`, `dailyWorkColumns`, `dailyWorkAllocatedOn`, `reportPage`).
 
 ---
+
+### 2026-08-20 13:50 IST
 
 **Prompt:**  
 > Workday Summary > We also need to keep freeze Header rows in report.
