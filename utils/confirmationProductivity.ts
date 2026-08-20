@@ -52,7 +52,7 @@ export function isFocusStartBlocked(marks: WorkdayMarks): boolean {
 
 export function focusStartBlockedReason(marks: WorkdayMarks): string | undefined {
   if (!marks.dayStart) return "Complete Day Start before using focus timers";
-  if (marks.dayEnd) return "Focus timers are locked after Day End";
+  if (marks.dayEnd) return "Focus timers are locked after Log Out";
   if (marks.lunchOut && !marks.lunchIn) return "Focus timers are paused during lunch";
   return undefined;
 }
@@ -116,9 +116,10 @@ export function stopFocusTimerOnDay(
       },
     };
   }
+  // Anchor startedAt to full session length so Total (timestamp-based) matches lap chips.
   const lap: FocusLap = {
     id: `lap-${now}-${id}`,
-    startedAt: current.segmentStartedAt ?? new Date(now).toISOString(),
+    startedAt: new Date(now - sessionMs).toISOString(),
     endedAt: new Date(now).toISOString(),
     durationMs: sessionMs,
   };
@@ -234,15 +235,21 @@ export function focusElapsedMs(state: FocusAllocationState | undefined, now = Da
   return lapsMs + open;
 }
 
-/** Prefer started/ended timestamps; fall back to stored durationMs. */
+/**
+ * Completed-lap duration for totals.
+ * Prefer started/ended when they yield a positive span; if the span is 0/invalid
+ * (e.g. older Pause→Stop rows that stamped startedAt≈endedAt), use durationMs.
+ */
 function lapDurationMs(lap: FocusLap): number {
+  const stored = Number(lap.durationMs);
   const start = new Date(lap.startedAt).getTime();
   const end = new Date(lap.endedAt).getTime();
-  if (!Number.isNaN(start) && !Number.isNaN(end) && end >= start) {
-    return end - start;
-  }
-  const stored = Number(lap.durationMs);
-  return Number.isFinite(stored) && stored > 0 ? stored : 0;
+  const fromRange =
+    !Number.isNaN(start) && !Number.isNaN(end) && end >= start ? end - start : NaN;
+  if (Number.isFinite(fromRange) && fromRange > 0) return fromRange;
+  if (Number.isFinite(stored) && stored > 0) return stored;
+  if (Number.isFinite(fromRange) && fromRange === 0) return 0;
+  return 0;
 }
 
 /**
@@ -376,7 +383,7 @@ export const WORKDAY_ACTIONS: { key: WorkdayMarkKey; label: string }[] = [
   { key: "dayStart", label: "Day Start" },
   { key: "lunchOut", label: "Lunch Start" },
   { key: "lunchIn", label: "Lunch End" },
-  { key: "dayEnd", label: "Day End" },
+  { key: "dayEnd", label: "Log Out" },
 ];
 
 /** Lunch was skipped when the day ended without a lunch-out stamp. */

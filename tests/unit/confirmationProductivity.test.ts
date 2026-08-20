@@ -59,6 +59,25 @@ describe("focusElapsedMsForWorkDate", () => {
     );
     expect(ms).toBe(2.5 * 3600000);
   });
+
+  it("uses durationMs when startedAt≈endedAt (legacy Pause→Stop / Log Out rows)", () => {
+    const ms = focusElapsedMsForWorkDate(
+      {
+        laps: [
+          {
+            id: "1",
+            startedAt: "2026-08-17T12:00:00.000Z",
+            endedAt: "2026-08-17T12:00:00.000Z",
+            durationMs: 45_000,
+          },
+        ],
+        sessionAccumMs: 0,
+        segmentStartedAt: null,
+      },
+      "2026-08-17"
+    );
+    expect(ms).toBe(45_000);
+  });
 });
 
 describe("workdayDurationMs", () => {
@@ -166,5 +185,30 @@ describe("confirmation focus workday gates", () => {
     expect(day.focusByAllocation.a2?.laps).toHaveLength(2);
     expect(day.focusByAllocation.a2?.laps[1]?.durationMs).toBe(4000);
     expect(day.focusByAllocation.a2?.sessionAccumMs).toBe(0);
+    // Totals must include every finalized lap (chips + Total stay in sync).
+    expect(focusElapsedMs(day.focusByAllocation.a1)).toBe(5000);
+    expect(focusElapsedMs(day.focusByAllocation.a2)).toBe(3600000 + 4000);
+  });
+
+  it("Log Out after Pause records lap duration in Total (not zero from collapsed timestamps)", () => {
+    const now = new Date("2026-08-20T12:00:00.000Z").getTime();
+    const day = stopAllOpenFocusTimers(
+      {
+        ...emptyDayProductivity(),
+        activeTimerId: null,
+        focusByAllocation: {
+          a1: {
+            laps: [],
+            sessionAccumMs: 12_000,
+            segmentStartedAt: null,
+          },
+        },
+      },
+      now
+    );
+    const lap = day.focusByAllocation.a1?.laps[0];
+    expect(lap?.durationMs).toBe(12_000);
+    expect(new Date(lap!.endedAt).getTime() - new Date(lap!.startedAt).getTime()).toBe(12_000);
+    expect(focusElapsedMs(day.focusByAllocation.a1)).toBe(12_000);
   });
 });

@@ -312,7 +312,7 @@ function EmployeeConfirm() {
         setDayEndConfirmOpen(true);
         return;
       }
-      // Log Out / Day End: finalize paused sessions into laps even when nothing is running.
+      // Log Out: finalize every open session (running + paused) into laps and update totals.
       const day = stopAllOpenFocusTimers({
         ...todayProd,
         workday: { ...todayProd.workday, dayEnd: new Date().toISOString() },
@@ -1074,8 +1074,8 @@ function EmployeeConfirm() {
               Allocation timer running
             </div>
             <div id="day-end-alloc-desc" className="mt-1.5 text-[13px] text-muted-foreground">
-              Allocation timer is running. Day End (Log Out) will stop all timers and save laps.
-              Do you want to continue?
+              Allocation timer is running. Log Out will stop all active timers, save lap(s), and update
+              totals. Do you want to continue?
             </div>
             <div className="mt-5 flex gap-2">
               <button
