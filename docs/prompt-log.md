@@ -32,6 +32,18 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-20 11:55 IST
+
+**Prompt:**  
+> System Parameters: Fix cancelled changes still displayed after leaving and returning — Cancel in Review popup must discard edits; only last saved values on return.
+
+**Output:**  
+- **Root cause:** Review & Save edits live in global `SettingsContext`; Cancel only closed the modal without restoring committed snapshots; unmount left dirty state in context.
+- **Fix:** `utils/settingsReviewDraft.ts` — restore patches for one/all review cards; `screens/Settings.tsx` — revert section on Cancel, revert all unsaved review drafts on page unmount.
+- **Tests:** `tests/unit/settingsReviewDraft.test.ts`.
+
+---
+
 ### 2026-08-20 11:38 IST
 
 **Prompt:**  

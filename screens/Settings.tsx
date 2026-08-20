@@ -29,8 +29,12 @@ import { ConfirmDeleteDialog } from "../components/ConfirmDeleteDialog";
 import { AppDateInput } from "../components/AppDateInput";
 import { useAppDateFormat } from "../hooks/useAppDateFormat";
 import { usePauseSharedDataSync, useSharedDataSync, MASTER_TXN_SYNC_INTERVAL_MS } from "../hooks/useSharedDataSync";
-
-type ReviewSection = "utilization" | "planning" | "capacity" | "overallocation";
+import {
+  restoreAllReviewDraftsPatch,
+  restoreReviewSectionPatch,
+  type ReviewCommittedSnapshot,
+  type ReviewSection,
+} from "../utils/settingsReviewDraft";
 
 function settingsPutBody(s: SettingsState, companyOffDays = s.companyOffDays) {
   return {
@@ -124,6 +128,45 @@ export function Settings() {
     });
     setCommittedDateFormat(src.dateFormat ?? DEFAULT_SETTINGS.dateFormat);
   };
+
+  const reviewCommittedSnapshot = (): ReviewCommittedSnapshot | null => {
+    if (
+      committedBands == null ||
+      committedMetricBands == null ||
+      committedCapacityBasis == null ||
+      committedOverallocationLimit == null
+    ) {
+      return null;
+    }
+    return {
+      bands: committedBands,
+      metricBands: committedMetricBands,
+      capacityBasis: committedCapacityBasis,
+      overallocationLimit: committedOverallocationLimit,
+    };
+  };
+
+  const revertReviewSection = (section: ReviewSection) => {
+    const committed = reviewCommittedSnapshot();
+    if (!committed) return;
+    patchSettings(restoreReviewSectionPatch(section, committed));
+  };
+
+  const revertAllReviewDrafts = () => {
+    const committed = reviewCommittedSnapshot();
+    if (!committed) return;
+    const restore = restoreAllReviewDraftsPatch(s, committed);
+    if (restore) patchSettings(restore);
+  };
+
+  const reviewDraftRef = useRef({ s, revertAllReviewDrafts });
+  reviewDraftRef.current = { s, revertAllReviewDrafts };
+
+  useEffect(() => {
+    return () => {
+      reviewDraftRef.current.revertAllReviewDrafts();
+    };
+  }, []);
 
   // After API hydrate (and whenever a full load finishes), set baselines so Save stays disabled until edit.
   useEffect(() => {
@@ -768,6 +811,7 @@ export function Settings() {
           committedCapacityBasis={committedCapacityBasis}
           committedOverallocationLimit={committedOverallocationLimit}
           onClose={() => {
+            if (reviewSection) revertReviewSection(reviewSection);
             setConfirmOpen(false);
             setReviewSection(null);
           }}
