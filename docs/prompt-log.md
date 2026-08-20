@@ -32,6 +32,17 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-20 23:30 IST
+
+**Prompt:**  
+> Now release ALL to EC2.
+
+**Output:**  
+- Pushed remaining UI: `6897fe2` (Work Date 8-row dropdown + Workday Summary nav icon). Prior session commits already on `origin/main`.
+- Skipped local-only: `warin-web.tgz`, `docs/prompt-log - Copy.md`, `docs/OneView_Table_Structure.xlsx` (unrelated/binary).
+- EC2: `git pull` + `ec2-deploy.sh --with-api` → `LIVE_COMMIT=6897fe2`, `SPA_PUBLISH_OK`, `API_HEALTH_OK`.
+- Hard-refresh https://seworkspace.com/
+
 ### 2026-08-20 23:20 IST
 
 **Prompt:**  
