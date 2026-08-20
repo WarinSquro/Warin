@@ -32,6 +32,17 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-20 11:30 IST
+
+**Prompt:**  
+> in Workday Summary Report > odd behaves when click on filter dropwons > screen being white and nothing displayed. Check and Fix.
+
+**Output:**  
+- **Root cause:** `FilterMultiSelect` requires a `counts` prop; Workday Summary filters omitted it, causing a runtime crash (`counts[item]`) when opening a dropdown.
+- **Fix:** `screens/WorkdaySummaryReport.tsx` — added `deptCounts`, `ownerCounts`, and `resourceCounts` from `periodRows` and passed them to all three filter dropdowns.
+
+---
+
 ### 2026-08-20 11:20 IST
 
 **Prompt:**  

@@ -202,6 +202,26 @@ export function WorkdaySummaryReport() {
   const allResources = useMemo(() => workdaySummaryResources(periodRows), [periodRows]);
   const resourceNames = useMemo(() => allResources.map((r) => r.name), [allResources]);
 
+  const deptCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const d of allDepts) counts[d] = periodRows.filter((r) => r.department === d).length;
+    return counts;
+  }, [allDepts, periodRows]);
+
+  const ownerCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const o of allOwners) counts[o] = periodRows.filter((r) => r.resourceOwnerName === o).length;
+    return counts;
+  }, [allOwners, periodRows]);
+
+  const resourceCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const name of resourceNames) {
+      counts[name] = periodRows.filter((r) => r.employeeName === name).length;
+    }
+    return counts;
+  }, [resourceNames, periodRows]);
+
   const [departments, setDepartments] = useState<string[]>(() => stored?.departments ?? []);
   const [resourceOwners, setResourceOwners] = useState<string[]>(() => stored?.resourceOwners ?? []);
   const [resources, setResources] = useState<string[]>(() => stored?.resources ?? []);
@@ -414,6 +434,7 @@ export function WorkdaySummaryReport() {
           items={allDepts}
           selected={departments}
           onChange={setDepartments}
+          counts={deptCounts}
           allLabel="All departments"
           pluralLabel="departments"
           emptyNeutral
@@ -422,6 +443,7 @@ export function WorkdaySummaryReport() {
           items={allOwners}
           selected={resourceOwners}
           onChange={setResourceOwners}
+          counts={ownerCounts}
           allLabel="All resource owners"
           pluralLabel="owners"
           emptyNeutral
@@ -430,6 +452,7 @@ export function WorkdaySummaryReport() {
           items={resourceNames}
           selected={resources}
           onChange={setResources}
+          counts={resourceCounts}
           allLabel="All resources"
           pluralLabel="resources"
           emptyNeutral
