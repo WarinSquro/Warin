@@ -32,6 +32,18 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-20 11:20 IST
+
+**Prompt:**  
+> if someone is inactive since last 30 minutes then auto logout shall work.
+
+**Output:**  
+- `hooks/useIdleSessionTimeout.ts` — 30-minute idle timer; resets on click/key/touch/scroll; re-checks when tab becomes visible; sets login notice before sign-out.
+- `context/AuthContext.tsx` — enabled for authenticated sessions.
+- `tests/unit/idleSessionTimeout.test.ts`.
+
+---
+
 ### 2026-08-20 11:07 IST
 
 **Prompt:**  

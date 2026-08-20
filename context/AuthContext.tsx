@@ -25,6 +25,7 @@ import {
   type LoginOkResponse,
 } from "../api/client";
 import { DATA_CHANGED_EVENT, type DataChangedEvent } from "../api/realtimeEvents";
+import { useIdleSessionTimeout } from "../hooks/useIdleSessionTimeout";
 
 const SESSION_KEY = "oneview_session_email";
 const USER_KEY = "oneview_session_user";
@@ -248,6 +249,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       /* ignore */
     }
   }, []);
+
+  useIdleSessionTimeout(Boolean(user && sessionEmail), signOut);
 
   const refreshAllowedKeys = useCallback(async () => {
     if (syncInFlight.current) return syncInFlight.current;
