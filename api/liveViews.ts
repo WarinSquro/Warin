@@ -239,6 +239,42 @@ function weekdayCount(
   return workingDayCount(from, to, companyOffDays, workingDays);
 }
 
+function appTodayIso(now = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: APP_DISPLAY_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+}
+
+/**
+ * Confirmation discipline % = confirmed working days / elapsed working days.
+ * In-progress period: elapsed through as-of (today). Completed period: full range.
+ */
+function confirmationDisciplinePct(
+  confirmations: { workDate: string }[],
+  rangeFrom: string,
+  rangeTo: string,
+  workingDays?: string[],
+  companyOffDays?: string[],
+  asOf = appTodayIso()
+): number | undefined {
+  const from = rangeFrom.slice(0, 10);
+  const to = rangeTo.slice(0, 10);
+  const today = asOf.slice(0, 10);
+  if (today < from) return undefined;
+  const through = today < to ? today : to;
+  const denom = weekdayCount(from, through, workingDays, companyOffDays);
+  if (denom <= 0) return undefined;
+  const confirmedDays = new Set(
+    confirmations
+      .map((c) => c.workDate.slice(0, 10))
+      .filter((d) => d >= from && d <= through)
+  ).size;
+  return Math.round((confirmedDays / denom) * 100);
+}
+
 export function buildAvailRowsFromEmployees(
   employees: Employee[],
   weekCapacity = 40,
@@ -574,12 +610,14 @@ export function buildDeploymentRowsFromEmployees(
     if (!emp) continue;
     const sample = sampleByKey.get(key);
     const mine = confByEmp.get(emp.id) ?? [];
-    const weekdays = weekdayCount(rangeFrom, rangeTo, calendar.workingDays, calendar.companyOffDays);
-    const confirmedDays = mine.filter(
-      (c) => c.workDate >= rangeFrom && c.workDate <= rangeTo
-    ).length;
-    const discipline =
-      weekdays > 0 ? Math.round((confirmedDays / weekdays) * 100) : undefined;
+    const discipline = confirmationDisciplinePct(
+      mine,
+      rangeFrom,
+      rangeTo,
+      calendar.workingDays,
+      calendar.companyOffDays,
+      calendar.asOf
+    );
 
     let planned = 0;
     let actual = 0;
@@ -647,7 +685,8 @@ export function buildPerformanceRowsFromEmployees(
   rangeFrom = mondayISO(),
   rangeTo = addDaysISO(mondayISO(), 6),
   workingDays?: string[],
-  companyOffDays?: string[]
+  companyOffDays?: string[],
+  asOf?: string
 ): PerformanceRow[] {
   const nameById = new Map(employees.map((e) => [e.id, e.name]));
   const booked = bookedHoursInRange(allocations, rangeFrom, rangeTo, companyOffDays, workingDays);
@@ -664,9 +703,14 @@ export function buildPerformanceRowsFromEmployees(
     const hours = booked.get(e.id)?.hours ?? 0;
     const mine = confByEmp.get(e.id) ?? [];
     const inRange = mine.filter((c) => c.workDate >= rangeFrom && c.workDate <= rangeTo);
-    const confirmedDays = inRange.length;
-    const discipline =
-      weekdays > 0 ? Math.round((confirmedDays / weekdays) * 100) : undefined;
+    const discipline = confirmationDisciplinePct(
+      mine,
+      rangeFrom,
+      rangeTo,
+      workingDays,
+      companyOffDays,
+      asOf
+    );
 
     let planned = 0;
     let actual = 0;

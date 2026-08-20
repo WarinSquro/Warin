@@ -32,6 +32,18 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-20 10:15 IST
+
+**Prompt:**  
+> Resource Deployment Report and Resource Performance Report CONFIRMATION DISCIPLINE: when a week is running, % shall use days passed (e.g. 3rd day 1/3=33%, 4th day 1/4=25%).
+
+**Output:**  
+- Root cause: both reports used confirmed days / **full week** working days (always /5).
+- Fix: in-progress period uses working days from range start **through today** (IST). Completed periods still use the full range.
+- Files: `api/liveViews.ts` (`confirmationDisciplinePct`), `tests/unit/confirmationDisciplineElapsed.test.ts`.
+
+---
+
 ### 2026-08-20 10:00 IST
 
 **Prompt:**  
