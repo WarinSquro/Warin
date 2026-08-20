@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { ChevronLeft, ChevronRight, FileSpreadsheet, FileText, Search } from "lucide-react";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
@@ -63,6 +63,37 @@ const GROUP_OPTIONS: { value: WorkdaySummaryGroupBy; label: string }[] = [
   { value: "department", label: "Department" },
   { value: "ro", label: "RO" },
 ];
+
+/** Sticky Work Date + Employee (horizontal) and sticky header row (vertical). */
+function stickyColClass(index: number, kind: "th" | "td"): string {
+  if (kind === "th") {
+    const isFrozenCol = index <= 1;
+    const z = isFrozenCol ? "z-40" : "z-30";
+    const left = index === 0 ? "left-0" : "";
+    const edge =
+      index === 1
+        ? "overflow-hidden border-b border-r border-border-soft"
+        : "overflow-hidden border-b border-border-soft";
+    return `sticky top-0 ${left} ${z} bg-surface-alt ${edge}`.trim();
+  }
+  if (index > 1) return "";
+  const edge = index === 1 ? "overflow-hidden border-r border-border-soft" : "overflow-hidden";
+  return `sticky ${index === 0 ? "left-0" : ""} z-20 bg-surface group-hover:bg-surface-alt ${edge}`.trim();
+}
+
+function stickyColStyle(
+  index: number,
+  col: { width: string },
+  firstWidth: string | undefined
+): CSSProperties | undefined {
+  if (index > 1) return undefined;
+  return {
+    left: index === 0 ? 0 : firstWidth,
+    width: col.width,
+    minWidth: col.width,
+    maxWidth: col.width,
+  };
+}
 
 function displayCell(
   row: WorkdaySummaryRow,
@@ -494,14 +525,8 @@ export function WorkdaySummaryReport() {
                   {visibleColDefs.map((col, i) => (
                     <th
                       key={col.id}
-                      className={`whitespace-nowrap px-3 py-2 text-left ${
-                        i === 0
-                          ? "sticky left-0 z-20 bg-surface-alt"
-                          : i === 1
-                            ? "sticky z-20 bg-surface-alt"
-                            : ""
-                      }`}
-                      style={i === 1 ? { left: visibleColDefs[0]?.width } : undefined}
+                      className={`whitespace-nowrap px-3 py-2 text-left ${stickyColClass(i, "th")}`}
+                      style={stickyColStyle(i, col, visibleColDefs[0]?.width)}
                     >
                       <SortColHeader
                         label={col.label}
@@ -543,21 +568,20 @@ export function WorkdaySummaryReport() {
                           ]
                         : [];
                     const body = group.rows.map((row) => (
-                      <tr key={row.id} className="border-b border-border-soft hover:bg-surface-alt/60">
+                      <tr
+                        key={row.id}
+                        className="group border-b border-border-soft hover:bg-surface-alt/60"
+                      >
                         {visibleColDefs.map((col, i) => {
                           const value = displayCell(row, col.id, dateFormat);
                           const drill = col.id === "workDate" || col.id === "employeeName";
                           return (
                             <td
                               key={col.id}
-                              className={`whitespace-nowrap px-3 py-2.5 ${
-                                i === 0
-                                  ? "sticky left-0 z-10 bg-surface"
-                                  : i === 1
-                                    ? "sticky z-10 bg-surface"
-                                    : ""
-                              } ${col.id === "employeeName" ? "font-medium text-foreground" : "text-foreground"}`}
-                              style={i === 1 ? { left: visibleColDefs[0]?.width } : undefined}
+                              className={`whitespace-nowrap px-3 py-2.5 ${stickyColClass(i, "td")} ${
+                                col.id === "employeeName" ? "font-medium text-foreground" : "text-foreground"
+                              }`}
+                              style={stickyColStyle(i, col, visibleColDefs[0]?.width)}
                               title={
                                 col.id === "compliance" && row.compliance
                                   ? confirmationCodeLabel(row.compliance)

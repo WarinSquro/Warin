@@ -32,6 +32,29 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-20 13:50 IST
+
+**Prompt:**  
+> Workday Summary > We also need to keep freeze Header rows in report.
+
+**Output:**  
+- `screens/WorkdaySummaryReport.tsx` — all header cells use `sticky top-0` with opaque `bg-surface-alt` and elevated z-index; Work Date/Employee header cells remain sticky in both axes (`z-40`) so vertical + horizontal scroll stay sealed.
+
+---
+
+### 2026-08-20 13:25 IST
+
+**Prompt:**  
+> Workday Summary: (1) frozen columns must not show scrolled columns behind them; (2) Employee click opens Daily Work with Work Date dropdown set; (3) distinct nav icon vs My Workspace.
+
+**Output:**  
+- Sticky Work Date + Employee: fixed width/min/max, opaque `bg-surface` / `group-hover:bg-surface-alt`, higher z-index, right border on 2nd sticky so scroll never shows through gaps.
+- Daily Work Detail: `workDayFromIso(?date=)` preselects Work Date dropdown on drill-down.
+- AppShell: `reports.workday_summary` → `CalendarDays` (not LayoutDashboard).
+- Tests: `workDayFromIso` in `tests/unit/workDateDayFilter.test.ts`.
+
+---
+
 ### 2026-08-20 12:48 IST
 
 **Prompt:**  
