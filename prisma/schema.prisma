@@ -118,6 +118,7 @@ model Employee {
   settingsSchedulesCreated AppSettingsSchedule[] @relation("SettingsScheduleCreator")
   kpiFrameworkItems        KpiFrameworkItem[] @relation("KpiEmployee")
   kpiResultsUpdated        KpiFrameworkItem[] @relation("KpiResultUpdater")
+  projectMaps              EmployeeProjectMap[]
 
   @@index([departmentId])
   @@index([resourceOwnerId])
@@ -200,6 +201,21 @@ model EmployeeSkill {
 
   @@id([employeeId, skillId])
   @@map("employee_skills")
+}
+
+/// Eligibility: which projects a resource may be allocated against (Setup → Map Employees).
+model EmployeeProjectMap {
+  employeeId BigInt   @map("employee_id")
+  projectId  BigInt   @map("project_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+  createdBy  BigInt?  @map("created_by")
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  project  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@id([employeeId, projectId])
+  @@index([projectId])
+  @@map("employee_project_maps")
 }
 
 model EmployeePermission {
@@ -311,6 +327,7 @@ model Project {
   milestones  ProjectMilestone[]
   demandLines ProjectDemandLine[]
   allocations Allocation[]
+  employeeMaps EmployeeProjectMap[]
 
   @@index([customerId])
   @@index([isDeleted, isActive])

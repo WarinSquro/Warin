@@ -32,6 +32,14 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-21 19:38 IST
+
+**Prompt:**  
+> Keep Resource Name, Department and Project filter widths same as the table headers in Map Employees to Projects.
+
+**Output:**  
+- `components/MapEmployeesToProjectsModal.tsx`: moved filters into the same `table-fixed` + `colgroup` as the grid (checkbox spacer + 28% / 22% / remainder) so filter inputs align with Resource Name, Department, Mapped Projects headers.
+
 ### 2026-08-21 19:16 IST
 
 **Prompt:**  

@@ -144,6 +144,12 @@ const rows: Row[] = [
   { tableNo: 14, tableName: "welcome_pin_email_logs", fieldNo: 4, fieldName: "status", dataType: "TEXT", size: "sent | failed", defaultValue: "—", remarks: "Delivery outcome", rule: "Required" },
   { tableNo: 14, tableName: "welcome_pin_email_logs", fieldNo: 5, fieldName: "error_message", dataType: "TEXT", size: "—", defaultValue: "NULL", remarks: "Failure detail if any", rule: "Optional; No PIN in message" },
   { tableNo: 14, tableName: "welcome_pin_email_logs", fieldNo: 6, fieldName: "created_at", dataType: "TIMESTAMP", size: "—", defaultValue: "now()", remarks: "When email was attempted", rule: "System-set" },
+
+  // T15 employee_project_maps
+  { tableNo: 15, tableName: "employee_project_maps", fieldNo: 1, fieldName: "employee_id", dataType: "BIGINT", size: "—", defaultValue: "—", remarks: "FK → employees.id", rule: "PK (composite); FK; Cascade delete with employee" },
+  { tableNo: 15, tableName: "employee_project_maps", fieldNo: 2, fieldName: "project_id", dataType: "BIGINT", size: "—", defaultValue: "—", remarks: "FK → projects.id", rule: "PK (composite); FK; Cascade delete with project" },
+  { tableNo: 15, tableName: "employee_project_maps", fieldNo: 3, fieldName: "created_at", dataType: "TIMESTAMP", size: "—", defaultValue: "now()", remarks: "When mapping was created", rule: "System-set" },
+  { tableNo: 15, tableName: "employee_project_maps", fieldNo: 4, fieldName: "created_by", dataType: "BIGINT", size: "—", defaultValue: "NULL", remarks: "Actor employee PK who mapped", rule: "Optional" },
 ];
 
 const tableIndex = [
@@ -161,6 +167,7 @@ const tableIndex = [
   { no: 12, name: "company_off_days", purpose: "Company holidays / off days" },
   { no: 13, name: "smtp_settings", purpose: "Product SMTP + connection_verified gate for welcome email" },
   { no: 14, name: "welcome_pin_email_logs", purpose: "Audit of welcome temporary-PIN emails (no plaintext PIN)" },
+  { no: 15, name: "employee_project_maps", purpose: "Resource ↔ Project eligibility for Work Allocation (Map Employees)" },
 ];
 
 const enums = [

@@ -14,6 +14,7 @@ import { isSelfAllocation } from "../utils/selfAllocation";
 import { canManageAllocation, DIRECT_RO_ALLOCATION_MESSAGE } from "../utils/allocationPermission";
 import { useAuth } from "../context/AuthContext";
 import { useEmployees } from "../context/EmployeesContext";
+import { fetchMappedProjectCodesForEmployee } from "../api/domain";
 import { X, TriangleAlert, Info, Trash2 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 
@@ -135,6 +136,7 @@ export function AllocationDrawer({ open, onClose, prefill, people, allocations =
   const [taskInput, setTaskInput] = useState("");
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [mappedProjectCodes, setMappedProjectCodes] = useState<string[] | null>(null);
   const focusRef = useFocusFirstField<HTMLDivElement>(open);
   const today = todayISO();
   /** End date cannot be before start (and in create mode, not before today). */
@@ -193,7 +195,57 @@ export function AllocationDrawer({ open, onClose, prefill, people, allocations =
     }
   }, [open, prefill, projects, assignableRoster, activities, activityMilestones]);
 
+  useEffect(() => {
+    if (!open || !form.personId) {
+      setMappedProjectCodes(null);
+      return;
+    }
+    let cancelled = false;
+    setMappedProjectCodes(null);
+    void (async () => {
+      try {
+        const codes = await fetchMappedProjectCodesForEmployee(form.personId);
+        if (!cancelled) setMappedProjectCodes(codes);
+      } catch {
+        if (!cancelled) setMappedProjectCodes([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, form.personId]);
+
   const person = assignableRoster.find((p) => p.id === form.personId);
+  const mappedSet = useMemo(
+    () => new Set(mappedProjectCodes ?? []),
+    [mappedProjectCodes]
+  );
+  const selectableProjects = useMemo(() => {
+    const active = projects.filter((p) => p.status === "active");
+    if (!form.personId || mappedProjectCodes == null) return [];
+    const mapped = active.filter((p) => mappedSet.has(p.id));
+    // Edit: keep current project visible even if unmapped so existing rows remain editable.
+    if (isEdit && form.projectId && !mapped.some((p) => p.id === form.projectId)) {
+      const current = projects.find((p) => p.id === form.projectId);
+      if (current) return [...mapped, current];
+    }
+    return mapped;
+  }, [
+    projects,
+    form.personId,
+    form.projectId,
+    mappedProjectCodes,
+    mappedSet,
+    isEdit,
+  ]);
+
+  useEffect(() => {
+    if (!form.personId || mappedProjectCodes == null || !form.projectId) return;
+    if (!selectableProjects.some((p) => p.id === form.projectId)) {
+      setForm((f) => ({ ...f, projectId: "", milestoneId: "", activity: "" }));
+    }
+  }, [form.personId, form.projectId, mappedProjectCodes, selectableProjects]);
+
   const project = projects.find((p) => p.id === form.projectId);
   const projectMilestones = project?.milestones ?? [];
   const selectedProjectMilestone = projectMilestones.find((m) => m.id === form.milestoneId);
@@ -390,7 +442,19 @@ export function AllocationDrawer({ open, onClose, prefill, people, allocations =
 
         <div className="flex flex-1 flex-col gap-3.5 overflow-y-auto px-[18px] py-[18px]">
           <Field label="Team Member" required>
-            <Select value={form.personId} onChange={(v) => set("personId", v)} placeholder="Select person">
+            <Select
+              value={form.personId}
+              onChange={(v) => {
+                setForm((f) => ({
+                  ...f,
+                  personId: v,
+                  projectId: "",
+                  milestoneId: "",
+                  activity: "",
+                }));
+              }}
+              placeholder="Select person"
+            >
               {assignableRoster.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
@@ -401,11 +465,35 @@ export function AllocationDrawer({ open, onClose, prefill, people, allocations =
           </Field>
 
           <Field label="Project" required>
-            <Select value={form.projectId} onChange={(v) => { set("projectId", v); set("milestoneId", ""); set("activity", ""); }} placeholder="Select project">
-              {projects.filter((p) => p.status === "active").map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
+            <Select
+              value={form.projectId}
+              onChange={(v) => {
+                set("projectId", v);
+                set("milestoneId", "");
+                set("activity", "");
+              }}
+              placeholder={
+                !form.personId
+                  ? "Select person first"
+                  : mappedProjectCodes == null
+                    ? "Loading projects…"
+                    : selectableProjects.length === 0
+                      ? "No projects mapped to this resource"
+                      : "Select project"
+              }
+              disabled={!form.personId || mappedProjectCodes == null}
+            >
+              {selectableProjects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
               ))}
             </Select>
+            {form.personId && mappedProjectCodes && selectableProjects.length === 0 && (
+              <div className="mt-1.5 text-[11px] text-muted-foreground">
+                Map this resource to a project under Projects → Map Employees.
+              </div>
+            )}
           </Field>
 
           <Field label="Milestone" required hint="from milestones added to this project">

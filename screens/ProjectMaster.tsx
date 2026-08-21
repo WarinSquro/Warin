@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useMemo, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Plus, Search, X, AlertTriangle, Calendar, Trash2, Upload } from "lucide-react";
+import { Plus, Search, X, AlertTriangle, Calendar, Trash2, Upload, Users } from "lucide-react";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
+import { MapEmployeesToProjectsModal } from "../components/MapEmployeesToProjectsModal";
 import { FilterMultiSelect } from "../components/FilterMultiSelect";
 import {
   ReportColumnPicker,
@@ -69,25 +70,25 @@ const PROJECT_COLUMNS: ProjectColumnDef[] = [
   { id: "demand", label: "DEMAND", defaultVisible: true, width: "minmax(0,0.9fr)", sortable: true },
   {
     id: "health",
-    label: "Project Health",
+    label: "PROJECT HEALTH",
     defaultVisible: true,
     width: "6.75rem",
     sortable: true,
   },
   {
     id: "createdAt",
-    label: "Project created date & time",
+    label: "PROJECT CREATED DATE & TIME",
     defaultVisible: false,
     width: "minmax(9rem,0.95fr)",
   },
   {
     id: "modifiedAt",
-    label: "Updated date & time",
+    label: "UPDATED DATE & TIME",
     defaultVisible: false,
     width: "minmax(9rem,0.95fr)",
   },
-  { id: "createdBy", label: "Created by", defaultVisible: false, width: "minmax(7rem,0.85fr)" },
-  { id: "modifiedBy", label: "Updated by", defaultVisible: false, width: "minmax(7rem,0.85fr)" },
+  { id: "createdBy", label: "CREATED BY", defaultVisible: false, width: "minmax(7rem,0.85fr)" },
+  { id: "modifiedBy", label: "UPDATED BY", defaultVisible: false, width: "minmax(7rem,0.85fr)" },
   {
     id: "action",
     label: "ACTION",
@@ -1274,6 +1275,7 @@ export function ProjectMaster() {
   const [q, setQ] = useState("");
   const [editing, setEditing] = useState<Project | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [mapEmployeesOpen, setMapEmployeesOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [hardDelete, setHardDelete] = useState<{ id: string; name: string } | null>(null);
   const [hardDeleting, setHardDeleting] = useState(false);
@@ -1282,8 +1284,8 @@ export function ProjectMaster() {
     () => defaultProjectVisibleColumns()
   );
 
-  usePauseSharedDataSync(drawerOpen || !!hardDelete);
-  useSharedDataSync(!drawerOpen, () => refresh(), {
+  usePauseSharedDataSync(drawerOpen || mapEmployeesOpen || !!hardDelete);
+  useSharedDataSync(!drawerOpen && !mapEmployeesOpen, () => refresh(), {
     resources: ["projects"],
     intervalMs: MASTER_TXN_SYNC_INTERVAL_MS,
   });
@@ -1466,12 +1468,22 @@ export function ProjectMaster() {
             {activeCount} active · {inactiveCount} inactive · Paid requires PO · POC requires approver details
           </div>
         </div>
-        <button
-          onClick={openNew}
-          className="flex items-center gap-1.5 rounded-md bg-primary px-3.5 py-1.5 text-[12px] font-medium text-primary-foreground"
-        >
-          <Plus className="h-3.5 w-3.5" /> Add project
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setMapEmployeesOpen(true)}
+            className="flex cursor-pointer items-center gap-1.5 rounded-md border border-border bg-surface px-3.5 py-1.5 text-[12px] font-medium text-foreground hover:bg-surface-alt"
+          >
+            <Users className="h-3.5 w-3.5" /> Map Employees
+          </button>
+          <button
+            type="button"
+            onClick={openNew}
+            className="flex cursor-pointer items-center gap-1.5 rounded-md bg-primary px-3.5 py-1.5 text-[12px] font-medium text-primary-foreground"
+          >
+            <Plus className="h-3.5 w-3.5" /> Add project
+          </button>
+        </div>
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background p-5">
@@ -1571,6 +1583,9 @@ export function ProjectMaster() {
           onClose={() => setDrawerOpen(false)}
           onSave={saveProject}
         />
+      )}
+      {mapEmployeesOpen && (
+        <MapEmployeesToProjectsModal onClose={() => setMapEmployeesOpen(false)} />
       )}
       <HardDeleteDialog
         open={!!hardDelete}

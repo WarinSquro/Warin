@@ -561,6 +561,47 @@ export async function updateProject(
   return mapApiProject(row);
 }
 
+export type EmployeeProjectMapRow = {
+  hrmsId: string;
+  name: string;
+  department: string;
+  projects: { projectCode: string; name: string }[];
+};
+
+export async function fetchEmployeeProjectMaps(): Promise<EmployeeProjectMapRow[]> {
+  const res = await apiFetch<{ employees: EmployeeProjectMapRow[] }>("/employee-project-maps");
+  return res.employees ?? [];
+}
+
+export async function fetchMappedProjectCodesForEmployee(
+  employeeHrmsId: string
+): Promise<string[]> {
+  const res = await apiFetch<{ projectCodes: string[] }>(
+    `/employee-project-maps/for-employee/${encodeURIComponent(employeeHrmsId)}`
+  );
+  return res.projectCodes ?? [];
+}
+
+export async function mapEmployeesToProject(body: {
+  employeeHrmsIds: string[];
+  projectCode: string;
+}): Promise<{ ok: boolean; mapped: number; projectCode: string }> {
+  return apiFetch("/employee-project-maps", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function unmapEmployeeFromProject(body: {
+  employeeHrmsId: string;
+  projectCode: string;
+}): Promise<{ ok: boolean }> {
+  return apiFetch("/employee-project-maps", {
+    method: "DELETE",
+    body: JSON.stringify(body),
+  });
+}
+
 export async function fetchSettings(): Promise<SettingsState> {
   const res = await apiFetch<ApiSettingsResponse>("/settings");
   return mapApiSettings(res);

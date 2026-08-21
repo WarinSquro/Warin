@@ -118,7 +118,8 @@ export class AllocationsController {
     } as const;
   }
 
-  private async resolveRefs(body: AllocBody) {
+  private async resolveRefs(body: AllocBody, opts?: { requireMapping?: boolean }) {
+    const requireMapping = opts?.requireMapping !== false;
     const employee = await this.prisma.employee.findFirst({
       where: { hrmsId: body.employeeHrmsId?.trim(), isDeleted: false },
     });
@@ -128,6 +129,19 @@ export class AllocationsController {
       where: { projectCode: body.projectCode?.trim(), isDeleted: false },
     });
     if (!project) throw new BadRequestException("Project not found");
+
+    if (requireMapping) {
+      const mapped = await this.prisma.employeeProjectMap.findUnique({
+        where: {
+          employeeId_projectId: { employeeId: employee.id, projectId: project.id },
+        },
+      });
+      if (!mapped) {
+        throw new BadRequestException(
+          "Project is not mapped to this resource — map them under Projects → Map Employees first"
+        );
+      }
+    }
 
     if (!/^\d+$/.test(body.milestoneId)) {
       throw new BadRequestException("Invalid milestoneId");
@@ -272,13 +286,19 @@ export class AllocationsController {
     if (!/^\d+$/.test(id)) throw new NotFoundException("Allocation not found");
     const existing = await this.prisma.allocation.findFirst({
       where: { id: BigInt(id), isDeleted: false },
-      include: { employee: { select: { id: true, resourceOwnerId: true, hrmsId: true } } },
+      include: {
+        employee: { select: { id: true, resourceOwnerId: true, hrmsId: true } },
+        project: { select: { projectCode: true } },
+      },
     });
     if (!existing) throw new NotFoundException("Allocation not found");
     await assertCanPlanForEmployee(this.prisma, req.user, existing.employee);
     assertNotSelfAllocation(req.user, existing.employee);
 
-    const refs = await this.resolveRefs(body);
+    const samePair =
+      existing.employee.hrmsId === body.employeeHrmsId?.trim() &&
+      existing.project.projectCode === body.projectCode?.trim();
+    const refs = await this.resolveRefs(body, { requireMapping: !samePair });
     await assertCanPlanForEmployee(this.prisma, req.user, refs.employee);
     assertNotSelfAllocation(req.user, refs.employee);
     const updated = await this.prisma.allocation.update({

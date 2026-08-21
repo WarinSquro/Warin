@@ -20,6 +20,7 @@ import { WeeklyCheckInModule } from "./api/weekly-check-in/weekly-check-in.modul
 import { KpiModule } from "./api/kpi/kpi.module";
 import { RealtimeModule } from "./api/realtime/realtime.module";
 import { HardDeleteModule } from "./api/hard-delete/hard-delete.module";
+import { EmployeeProjectMapsModule } from "./api/employee-project-maps/employee-project-maps.module";
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { HardDeleteModule } from "./api/hard-delete/hard-delete.module";
     MastersModule,
     EmployeesModule,
     ProjectsModule,
+    EmployeeProjectMapsModule,
     SettingsModule,
     AccessRightsModule,
     CockpitModule,

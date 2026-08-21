@@ -113,6 +113,7 @@ Use with [`docs/specs/HOW-TO-USE-FRD.md`](./specs/HOW-TO-USE-FRD.md). Re-score r
 | Module | Status | Notes |
 |--------|--------|-------|
 | Org / Skills / Activities / Employees / Projects | **Match** | |
+| Map Employees → Projects (`phase1-emp2prj-frd.pdf`) | **Match** | `employee_project_maps`; Projects → Map Employees modal; Allocation project dropdown filtered by mapping; Super Admin all / RO direct+indirect / else empty |
 | Planner / Utilization / Confirmations / Remind / Auth | **Match** | RO immediate-reports scope on Planning screens + allocate/remind API |
 | Availability rolling-off | **Match** | Live end dates within 2 weeks (`buildRollingOffFromLive`) |
 | Settings schedule + durable audit | **Match** | Bands/calendar + DB audit + scheduled apply (FR-033); demandPriority Should |
