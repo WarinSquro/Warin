@@ -290,6 +290,11 @@ function EmployeeConfirm() {
     () => getDayProductivity(prodStore, workDate),
     [prodStore, workDate]
   );
+  /** Productivity for the calendar-selected day (laps shown read-only on past dates). */
+  const viewProd = useMemo(
+    () => getDayProductivity(prodStore, calendarDate),
+    [prodStore, calendarDate]
+  );
 
   const syncProductivityToApi = (dateIso: string, day: DayProductivity) => {
     void upsertConfirmationProductivity({
@@ -504,6 +509,48 @@ function EmployeeConfirm() {
     });
     return linesFromAllocations(rows);
   };
+
+  /** Show allocations for the calendar-selected day in the plan panel. */
+  const loadPlanForCalendarDate = useCallback(
+    async (dateIso: string) => {
+      if (!hrmsId) return;
+      setPlanHeading(
+        dateIso === today
+          ? "Your plan for today"
+          : `Your plan for ${formatPlanDate(dateIso, dateFmt)}`
+      );
+      setSaveError("");
+      try {
+        const existing = await fetchMyConfirmation(dateIso);
+        if (existing) {
+          const hydrated = hydrateFromConfirmation(existing);
+          setActiveLines(hydrated.lines);
+          setStates(hydrated.states);
+          setUnplanned(hydrated.unplanned);
+          return;
+        }
+        const lines = await loadPlanForDate(dateIso);
+        setActiveLines(lines);
+        setStates(initLineStates(lines));
+        setUnplanned([]);
+      } catch {
+        setActiveLines(EMPTY_LINES);
+        setStates(initLineStates(EMPTY_LINES));
+        setUnplanned([]);
+      }
+    },
+    // loadPlanForDate closes over hrmsId; include deps used for heading/fetch
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: hrmsId/today/dateFmt
+    [hrmsId, today, dateFmt]
+  );
+
+  const handleCalendarSelect = (iso: string) => {
+    setCalendarDate(iso);
+    void loadPlanForCalendarDate(iso);
+  };
+
+  /** Plan edit / confirm only for the day being confirmed (today or fetched miss date). */
+  const viewingConfirmableDate = calendarDate === workDate;
 
   const loadMyDay = useCallback(async () => {
     try {
@@ -761,7 +808,7 @@ function EmployeeConfirm() {
       />
       <ConfirmationDayCalendar
         selectedDate={calendarDate}
-        onSelectDate={setCalendarDate}
+        onSelectDate={handleCalendarSelect}
         dayMeta={calendarDayMeta}
         liveDate={workDate}
         liveWorkHours={liveWorkHours}
@@ -992,11 +1039,26 @@ function EmployeeConfirm() {
               state={states[l.id]}
               first={i === 0}
               onChange={(p) => setLine(l.id, p)}
-              focusState={canUseProductivity ? todayProd.focusByAllocation[l.id] : undefined}
-              isActiveRunner={canUseProductivity && todayProd.activeTimerId === l.id}
-              onFocusStartPause={canUseProductivity ? handleFocusStartPause : undefined}
-              onFocusStop={canUseProductivity ? handleFocusStop : undefined}
-              focusDisabled={Boolean(todayProd.workday.dayEnd)}
+              statusDisabled={!viewingConfirmableDate || submitted}
+              showFocus={canUseProductivity}
+              focusState={
+                canUseProductivity ? viewProd.focusByAllocation[l.id] : undefined
+              }
+              isActiveRunner={
+                canUseProductivity &&
+                viewingConfirmableDate &&
+                todayProd.activeTimerId === l.id
+              }
+              onFocusStartPause={
+                canUseProductivity && viewingConfirmableDate ? handleFocusStartPause : undefined
+              }
+              onFocusStop={
+                canUseProductivity && viewingConfirmableDate ? handleFocusStop : undefined
+              }
+              focusShowControls={viewingConfirmableDate}
+              focusWorkDateIso={calendarDate}
+              focusDayEndIso={viewProd.workday.dayEnd}
+              focusDisabled={Boolean(todayProd.workday.dayEnd) || submitted}
               focusStartDisabled={isFocusStartBlocked(todayProd.workday)}
               focusStartDisabledReason={focusStartBlockedReason(todayProd.workday)}
             />
@@ -1006,41 +1068,47 @@ function EmployeeConfirm() {
             <div key={u.id} className="border-t border-border-soft bg-accent-soft/30 px-4 py-3">
               <div className="flex items-center justify-between">
                 <div className="text-[12px] font-medium text-primary">Unplanned work</div>
-                <button
-                  onClick={() => setUnplanned((arr) => arr.filter((x) => x.id !== u.id))}
-                  className="text-muted-foreground hover:text-danger"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
+                {viewingConfirmableDate && !submitted && (
+                  <button
+                    type="button"
+                    onClick={() => setUnplanned((arr) => arr.filter((x) => x.id !== u.id))}
+                    className="cursor-pointer text-muted-foreground hover:text-danger"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
               <div className="mt-2 flex items-center gap-2">
                 <input
                   placeholder="What did you work on?"
                   value={u.project}
+                  disabled={!viewingConfirmableDate || submitted}
                   onChange={(e) =>
                     setUnplanned((arr) =>
                       arr.map((x) => (x.id === u.id ? { ...x, project: e.target.value } : x))
                     )
                   }
-                  className="flex-1 rounded-md border border-border bg-surface px-2.5 py-1.5 text-[12px] text-foreground outline-none focus:border-accent-line"
+                  className="flex-1 rounded-md border border-border bg-surface px-2.5 py-1.5 text-[12px] text-foreground outline-none focus:border-accent-line disabled:bg-surface-alt disabled:text-muted-foreground"
                 />
                 <input
                   type="number"
                   step={0.5}
                   min={0}
                   value={u.hours}
+                  disabled={!viewingConfirmableDate || submitted}
                   onChange={(e) =>
                     setUnplanned((arr) =>
                       arr.map((x) => (x.id === u.id ? { ...x, hours: Number(e.target.value) } : x))
                     )
                   }
-                  className="w-[4.25rem] rounded-md border border-border bg-surface px-2.5 py-1.5 text-[12px] text-foreground outline-none focus:border-accent-line"
+                  className="w-[4.25rem] rounded-md border border-border bg-surface px-2.5 py-1.5 text-[12px] text-foreground outline-none focus:border-accent-line disabled:bg-surface-alt"
                 />
                 <span className="text-[11px] text-muted-foreground">h</span>
               </div>
             </div>
           ))}
 
+          {viewingConfirmableDate && !submitted && (
           <button
             type="button"
             disabled={blockUnplannedAdd}
@@ -1060,10 +1128,20 @@ function EmployeeConfirm() {
           >
             <Plus className="h-3.5 w-3.5" /> Add unplanned work
           </button>
+          )}
         </div>
 
-        {saveError && <div className="mt-2 text-[12px] text-danger">{saveError}</div>}
-        {canUseProductivity &&
+        {viewingConfirmableDate && saveError && (
+          <div className="mt-2 text-[12px] text-danger">{saveError}</div>
+        )}
+        {!viewingConfirmableDate && (
+          <div className="mt-2 text-[12px] text-muted-foreground">
+            Viewing plan for {formatPlanDate(calendarDate, dateFmt)}. Select{" "}
+            {workDate === today ? "today" : formatPlanDate(workDate, dateFmt)} to confirm or edit.
+          </div>
+        )}
+        {viewingConfirmableDate &&
+          canUseProductivity &&
           !focusTimersAllStopped &&
           activeLines.length + unplanned.length > 0 && (
             <div className="mt-2 text-[12px] text-warning">
@@ -1071,6 +1149,7 @@ function EmployeeConfirm() {
             </div>
           )}
 
+        {viewingConfirmableDate && !submitted && (
         <div className="mt-4 flex items-center gap-3">
           <button
             disabled={!canSubmit || saving}
@@ -1092,6 +1171,7 @@ function EmployeeConfirm() {
                 : `Submit confirmation · ${deviationCount} deviation${deviationCount > 1 ? "s" : ""}`}
           </button>
         </div>
+        )}
       </div>
       {productivitySidebar}
       </div>
@@ -1150,10 +1230,15 @@ function LineRow({
   state,
   first,
   onChange,
+  statusDisabled = false,
+  showFocus = false,
   focusState,
   isActiveRunner,
   onFocusStartPause,
   onFocusStop,
+  focusShowControls = true,
+  focusWorkDateIso,
+  focusDayEndIso,
   focusDisabled = false,
   focusStartDisabled = false,
   focusStartDisabledReason,
@@ -1162,10 +1247,16 @@ function LineRow({
   state: LineState | undefined;
   first: boolean;
   onChange: (p: Partial<LineState>) => void;
+  statusDisabled?: boolean;
+  showFocus?: boolean;
   focusState?: FocusAllocationState;
   isActiveRunner?: boolean;
   onFocusStartPause?: (allocationId: string) => void;
   onFocusStop?: (allocationId: string) => void;
+  /** Past-date browse: show Total + laps without Start/Pause/Stop. */
+  focusShowControls?: boolean;
+  focusWorkDateIso?: string;
+  focusDayEndIso?: string | null;
   focusDisabled?: boolean;
   focusStartDisabled?: boolean;
   focusStartDisabledReason?: string;
@@ -1187,13 +1278,16 @@ function LineRow({
           <div className="text-[11px] text-muted-foreground">
             Allocated On · {formatPlanDate(line.allocatedOn, dateFmt)}
           </div>
-          {onFocusStartPause && onFocusStop && (
+          {showFocus && (
             <AllocationFocusTimer
               allocationId={line.id}
               state={focusState}
               isActiveRunner={!!isActiveRunner}
               onStartPause={onFocusStartPause}
               onStop={onFocusStop}
+              showControls={focusShowControls}
+              workDateIso={focusWorkDateIso}
+              dayEndIso={focusDayEndIso}
               disabled={focusDisabled}
               startDisabled={focusStartDisabled}
               startDisabledReason={focusStartDisabledReason}
@@ -1216,14 +1310,22 @@ function LineRow({
         <div className="flex w-[200px] flex-shrink-0 justify-end">
           <div className="inline-flex overflow-hidden rounded-md border border-border text-[11px]">
             <button
+              type="button"
+              disabled={statusDisabled}
               onClick={() => onChange({ mode: "planned" })}
-              className={`cursor-pointer whitespace-nowrap px-2.5 py-1 ${!dev ? "bg-success text-white" : "text-muted"}`}
+              className={`whitespace-nowrap px-2.5 py-1 ${
+                statusDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+              } ${!dev ? "bg-success text-white" : "text-muted"}`}
             >
               As planned
             </button>
             <button
+              type="button"
+              disabled={statusDisabled}
               onClick={() => onChange({ mode: "deviation" })}
-              className={`cursor-pointer whitespace-nowrap px-2.5 py-1 ${dev ? "bg-warning text-white" : "text-muted"}`}
+              className={`whitespace-nowrap px-2.5 py-1 ${
+                statusDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+              } ${dev ? "bg-warning text-white" : "text-muted"}`}
             >
               Deviation
             </button>
@@ -1239,15 +1341,17 @@ function LineRow({
               step={0.5}
               min={0}
               value={st.actual}
+              disabled={statusDisabled}
               onChange={(e) => onChange({ actual: Number(e.target.value) })}
-              className="w-[4.25rem] rounded-md border border-border bg-surface px-2 py-1.5 text-[12px] text-foreground outline-none focus:border-accent-line"
+              className="w-[4.25rem] rounded-md border border-border bg-surface px-2 py-1.5 text-[12px] text-foreground outline-none focus:border-accent-line disabled:bg-surface-alt"
             />
             <span className="text-[11px] text-muted-foreground">h</span>
           </div>
           <select
             value={st.reason}
+            disabled={statusDisabled}
             onChange={(e) => onChange({ reason: e.target.value })}
-            className={`flex-1 rounded-md border bg-surface px-2 py-1.5 text-[12px] outline-none focus:border-accent-line ${
+            className={`flex-1 rounded-md border bg-surface px-2 py-1.5 text-[12px] outline-none focus:border-accent-line disabled:bg-surface-alt ${
               st.reason ? "border-border text-foreground" : "border-warning-border text-muted-foreground"
             }`}
           >

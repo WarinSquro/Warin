@@ -11,10 +11,12 @@ import {
   canStampWorkdayAction,
   emptyFocusState,
   focusElapsedMs,
+  focusElapsedMsForWorkDate,
   formatClockAmPm,
   formatCompactDuration,
   formatHms,
   isLunchSkipped,
+  lapDurationMs,
   monthDays,
   sessionDisplayMs,
   workdayDurationMs,
@@ -171,82 +173,100 @@ export function AllocationFocusTimer({
   disabled = false,
   startDisabled = false,
   startDisabledReason,
+  showControls = true,
+  workDateIso,
+  dayEndIso,
 }: {
   allocationId: string;
   state: FocusAllocationState | undefined;
   isActiveRunner: boolean;
-  onStartPause: (allocationId: string) => void;
-  onStop: (allocationId: string) => void;
+  onStartPause?: (allocationId: string) => void;
+  onStop?: (allocationId: string) => void;
   /** When true (e.g. confirmation already submitted / Day End), Start/Pause/Stop are locked. */
   disabled?: boolean;
   /** Blocks Start (not Pause) — e.g. before Day Start or during lunch. */
   startDisabled?: boolean;
   startDisabledReason?: string;
+  /** When false (past-date browse), hide Start/Pause/Stop but still show Total + laps. */
+  showControls?: boolean;
+  /** Caps live open-segment accrual when viewing a historical work date. */
+  workDateIso?: string;
+  dayEndIso?: string | null;
 }) {
   const st = state ?? emptyFocusState();
-  const running = !!st.segmentStartedAt;
+  const running = !!st.segmentStartedAt && showControls;
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    if (!running || disabled) return;
+    if (!running || disabled || !showControls) return;
     const id = window.setInterval(() => setNow(Date.now()), 250);
     return () => window.clearInterval(id);
-  }, [running, disabled]);
+  }, [running, disabled, showControls]);
 
-  const sessionMs = sessionDisplayMs(st, now);
-  const totalMs = focusElapsedMs(st, now);
+  const sessionMs = showControls ? sessionDisplayMs(st, now) : 0;
+  const totalMs = workDateIso
+    ? focusElapsedMsForWorkDate(st, workDateIso, { now, dayEndIso })
+    : focusElapsedMs(st, now);
   const stopDisabled = disabled || (!running && st.sessionAccumMs <= 0);
   const playDisabled = disabled || (!running && startDisabled);
   // Started (running) → mint · Paused (session open) → cream · Stopped (Stop disabled) → cool gray
-  const tint = running && !disabled
-    ? "border-success-border bg-success-soft"
-    : !stopDisabled && !disabled
-      ? "border-warning-border bg-warning-soft"
-      : "border-border-soft bg-[#F8F9FC]";
+  const tint =
+    showControls && running && !disabled
+      ? "border-success-border bg-success-soft"
+      : showControls && !stopDisabled && !disabled
+        ? "border-warning-border bg-warning-soft"
+        : "border-border-soft bg-[#F8F9FC]";
+
+  const hasEvidence = st.laps.length > 0 || totalMs > 0 || (showControls && st.sessionAccumMs > 0);
+  if (!showControls && !hasEvidence) return null;
 
   return (
     <div className={`mt-2.5 max-w-[380px] rounded-md border px-2.5 py-2 ${tint}`}>
       <div className="flex items-center gap-2">
-        <div className="inline-flex flex-shrink-0 overflow-hidden rounded-md border border-border">
-          <button
-            type="button"
-            onClick={() => onStartPause(allocationId)}
-            disabled={playDisabled}
-            aria-label={running ? "Pause" : "Start"}
-            title={
-              disabled
-                ? "Focus timer locked"
-                : running
-                  ? "Pause"
-                  : startDisabled
-                    ? startDisabledReason ?? "Start is not available"
-                    : "Start"
-            }
-            className={`inline-flex h-8 w-9 items-center justify-center text-white disabled:cursor-not-allowed disabled:opacity-40 ${
-              running ? "bg-warning hover:brightness-95" : "bg-primary hover:brightness-95"
-            } ${playDisabled ? "" : "cursor-pointer"}`}
-          >
-            {running ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5 fill-current" />}
-          </button>
-          <button
-            type="button"
-            onClick={() => onStop(allocationId)}
-            disabled={stopDisabled}
-            aria-label="Stop"
-            title={
-              disabled
-                ? "Focus timer locked"
-                : "Stop · complete lap"
-            }
-            className="inline-flex h-8 w-9 cursor-pointer items-center justify-center border-l border-border bg-surface text-danger hover:bg-danger-soft disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <Square className="h-3 w-3 fill-current" />
-          </button>
-        </div>
-        <div className="font-mono text-[13px] font-bold tabular-nums tracking-tight text-foreground">
-          {formatHms(sessionMs)}
-        </div>
-        <div className="ml-auto flex-shrink-0 font-mono text-[10px] tabular-nums text-muted">
+        {showControls && onStartPause && onStop && (
+          <div className="inline-flex flex-shrink-0 overflow-hidden rounded-md border border-border">
+            <button
+              type="button"
+              onClick={() => onStartPause(allocationId)}
+              disabled={playDisabled}
+              aria-label={running ? "Pause" : "Start"}
+              title={
+                disabled
+                  ? "Focus timer locked"
+                  : running
+                    ? "Pause"
+                    : startDisabled
+                      ? startDisabledReason ?? "Start is not available"
+                      : "Start"
+              }
+              className={`inline-flex h-8 w-9 items-center justify-center text-white disabled:cursor-not-allowed disabled:opacity-40 ${
+                running ? "bg-warning hover:brightness-95" : "bg-primary hover:brightness-95"
+              } ${playDisabled ? "" : "cursor-pointer"}`}
+            >
+              {running ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5 fill-current" />}
+            </button>
+            <button
+              type="button"
+              onClick={() => onStop(allocationId)}
+              disabled={stopDisabled}
+              aria-label="Stop"
+              title={disabled ? "Focus timer locked" : "Stop · complete lap"}
+              className="inline-flex h-8 w-9 cursor-pointer items-center justify-center border-l border-border bg-surface text-danger hover:bg-danger-soft disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Square className="h-3 w-3 fill-current" />
+            </button>
+          </div>
+        )}
+        {showControls && (
+          <div className="font-mono text-[13px] font-bold tabular-nums tracking-tight text-foreground">
+            {formatHms(sessionMs)}
+          </div>
+        )}
+        <div
+          className={`flex-shrink-0 font-mono text-[10px] tabular-nums text-muted ${
+            showControls ? "ml-auto" : ""
+          }`}
+        >
           Total {formatHms(totalMs)}
         </div>
       </div>
@@ -257,14 +277,18 @@ export function AllocationFocusTimer({
               key={lap.id}
               className="rounded border border-border-soft bg-surface px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-muted-foreground"
             >
-              {formatHms(lap.durationMs)}
+              {formatHms(lapDurationMs(lap))}
             </span>
           ))}
         </div>
       )}
-      {!isActiveRunner && running === false && st.laps.length === 0 && st.sessionAccumMs === 0 && (
-        <div className="sr-only">Focus timer unused · 00:00:00</div>
-      )}
+      {showControls &&
+        !isActiveRunner &&
+        running === false &&
+        st.laps.length === 0 &&
+        st.sessionAccumMs === 0 && (
+          <div className="sr-only">Focus timer unused · 00:00:00</div>
+        )}
     </div>
   );
 }

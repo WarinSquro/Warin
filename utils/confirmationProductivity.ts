@@ -289,7 +289,7 @@ export function focusElapsedMs(state: FocusAllocationState | undefined, now = Da
  * Prefer started/ended when they yield a positive span; if the span is 0/invalid
  * (e.g. older Pause→Stop rows that stamped startedAt≈endedAt), use durationMs.
  */
-function lapDurationMs(lap: FocusLap): number {
+export function lapDurationMs(lap: FocusLap): number {
   const stored = Number(lap.durationMs);
   const start = new Date(lap.startedAt).getTime();
   const end = new Date(lap.endedAt).getTime();

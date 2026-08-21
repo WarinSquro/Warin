@@ -32,6 +32,25 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-21 19:16 IST
+
+**Prompt:**  
+> Past-date Confirmation plan rows: show focus Total + lap times like today, but do not show timer play/stop buttons.
+
+**Output:**  
+- `AllocationFocusTimer`: added `showControls` / `workDateIso` / `dayEndIso`; when controls hidden, render Total + lap chips only (null if no evidence).
+- `WorkConfirmation` `LineRow`: past calendar days load `viewProd` focus state; `focusShowControls={viewingConfirmableDate}`.
+- Exported `lapDurationMs` from `utils/confirmationProductivity.ts`.
+- Tests: `npx vitest run tests/unit/confirmationProductivity.test.ts` — 15 passed.
+
+### 2026-08-21 19:15 IST
+
+**Prompt:**  
+> When a date with allocations is selected on Confirmation calendar, show those allocations in "Your plan for today" area.
+
+**Output:**  
+- `screens/WorkConfirmation.tsx` — calendar date select loads that day's allocations/confirmation into the plan panel; heading updates; edit/confirm/unplanned only for the confirmable day (`workDate`); other days are view-only with a short hint.
+
 ### 2026-08-21 19:05 IST
 
 **Prompt:**  
