@@ -57,6 +57,16 @@ export function focusStartBlockedReason(marks: WorkdayMarks): string | undefined
   return undefined;
 }
 
+/** Unplanned rows on today's confirmation require Day Start first. */
+export function isUnplannedEntryBlocked(marks: WorkdayMarks): boolean {
+  return !marks.dayStart;
+}
+
+export function unplannedEntryBlockedReason(marks: WorkdayMarks): string | undefined {
+  if (!marks.dayStart) return "Complete Day Start before adding unplanned work";
+  return undefined;
+}
+
 /** Pause every running focus segment (keeps sessionAccumMs; no new lap). */
 export function pauseAllRunningFocusTimers(
   day: DayProductivity,

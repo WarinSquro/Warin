@@ -32,6 +32,17 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-21 14:20 IST
+
+**Prompt:**  
+> Before Day Start Unplanned entry not allowed (Add unplanned work button).
+
+**Output:**  
+- **Root cause:** `+ Add unplanned work` had no Day Start gate (unlike focus timers).
+- `utils/confirmationProductivity.ts` — `isUnplannedEntryBlocked` / `unplannedEntryBlockedReason` (require `dayStart`).
+- `screens/WorkConfirmation.tsx` — disable/add guard on today only; miss-posting past days still allowed; tooltip + disabled styling.
+- Test: `tests/unit/confirmationProductivity.test.ts` unplanned gate case.
+
 ### 2026-08-21 13:50 IST
 
 **Prompt:**  

@@ -44,6 +44,8 @@ import {
   getDayProductivity,
   hasAnyUnstoppedFocusSession,
   isFocusStartBlocked,
+  isUnplannedEntryBlocked,
+  unplannedEntryBlockedReason,
   FOCUS_TIMERS_FINALIZED_EVENT,
   loadProductivityStore,
   pauseAllRunningFocusTimers,
@@ -653,6 +655,13 @@ function EmployeeConfirm() {
   const focusTimersAllStopped =
     !canUseProductivity || !hasAnyUnstoppedFocusSession(todayProd.focusByAllocation);
 
+  /** Today: require Day Start before adding unplanned. Miss-posting past days: still allowed. */
+  const blockUnplannedAdd =
+    isTodayWorkDate && isUnplannedEntryBlocked(todayProd.workday);
+  const unplannedAddBlockedReason = blockUnplannedAdd
+    ? unplannedEntryBlockedReason(todayProd.workday)
+    : undefined;
+
   const canSubmit =
     activeLines.length + unplanned.length > 0 &&
     activeLines.every((l) => states[l.id]?.mode === "planned" || states[l.id]?.reason !== "") &&
@@ -1021,10 +1030,21 @@ function EmployeeConfirm() {
           ))}
 
           <button
-            onClick={() =>
-              setUnplanned((arr) => [...arr, { id: `u${Date.now()}`, project: "", hours: 1, reason: "logged" }])
-            }
-            className="flex w-full items-center gap-1.5 border-t border-dashed border-border px-4 py-2.5 text-[12px] text-primary hover:bg-surface-alt"
+            type="button"
+            disabled={blockUnplannedAdd}
+            title={unplannedAddBlockedReason}
+            onClick={() => {
+              if (blockUnplannedAdd) return;
+              setUnplanned((arr) => [
+                ...arr,
+                { id: `u${Date.now()}`, project: "", hours: 1, reason: "logged" },
+              ]);
+            }}
+            className={`flex w-full items-center gap-1.5 border-t border-dashed border-border px-4 py-2.5 text-[12px] ${
+              blockUnplannedAdd
+                ? "cursor-not-allowed text-muted-foreground opacity-50"
+                : "cursor-pointer text-primary hover:bg-surface-alt"
+            }`}
           >
             <Plus className="h-3.5 w-3.5" /> Add unplanned work
           </button>

@@ -5,9 +5,11 @@ import {
   focusElapsedMs,
   focusElapsedMsForWorkDate,
   isFocusStartBlocked,
+  isUnplannedEntryBlocked,
   loadProductivityStore,
   pauseAllRunningFocusTimers,
   stopAllOpenFocusTimers,
+  unplannedEntryBlockedReason,
   workDateEndMs,
   workdayDurationMs,
 } from "../../utils/confirmationProductivity";
@@ -101,6 +103,20 @@ describe("workdayDurationMs", () => {
     });
     expect(officeMs).toBe(0);
     expect(productiveMs).toBe(0);
+  });
+});
+
+describe("confirmation unplanned entry gate", () => {
+  it("blocks unplanned entry before Day Start only", () => {
+    expect(isUnplannedEntryBlocked({})).toBe(true);
+    expect(unplannedEntryBlockedReason({})).toMatch(/Day Start/i);
+    expect(isUnplannedEntryBlocked({ dayStart: "2026-08-20T03:00:00.000Z" })).toBe(false);
+    expect(
+      isUnplannedEntryBlocked({
+        dayStart: "2026-08-20T03:00:00.000Z",
+        dayEnd: "2026-08-20T12:00:00.000Z",
+      })
+    ).toBe(false);
   });
 });
 
