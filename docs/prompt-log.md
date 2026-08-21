@@ -32,6 +32,18 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-21 09:05 IST
+
+**Prompt:**  
+> Rolling off card: instead of hours, keep only project name and frees on date. e.g. "Project Falcom · frees on Aug 10" not "Project Falcom · frees 16h on Aug 10".
+
+**Output:**  
+- Root cause: `RollingOffCard` interpolated `person.freeingHours` into the subtitle.
+- UI: `{project} · frees on {date}` only. Hours still computed internally (who appears in the strip); not shown on the card.
+- Files: `screens/Availability.tsx`, `docs/prompt-log.md`.
+
+---
+
 ### 2026-08-20 23:55 IST
 
 **Prompt:**  

@@ -194,7 +194,7 @@ function RollingOffCard({
         <div className="truncate text-[12px] font-semibold text-foreground">{person.name}</div>
       </div>
       <div className="line-clamp-2 text-[11px] text-muted-foreground">
-        {person.currentProject} · frees {person.freeingHours}h on {person.rollsOffDate}
+        {person.currentProject} · frees on {person.rollsOffDate}
       </div>
       <button
         type="button"
