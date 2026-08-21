@@ -124,6 +124,63 @@ export class KpiController {
     return out;
   }
 
+  /** Self + direct + indirect (RO view scope). */
+  private async visibleScopeIds(ownerId: bigint): Promise<bigint[]> {
+    const subtree = await this.subtreeEmployeeIds(ownerId);
+    return [ownerId, ...subtree];
+  }
+
+  private isAdministratorEmployee(emp: {
+    isSuperAdmin?: boolean;
+    name?: string | null;
+    hrmsId?: string | null;
+  }): boolean {
+    return (
+      Boolean(emp.isSuperAdmin) ||
+      (emp.hrmsId ?? "").trim() === "EMP-0001" ||
+      (emp.name ?? "").trim().toLowerCase() === "administrator"
+    );
+  }
+
+  private assertNotAdministrator(emp: {
+    isSuperAdmin?: boolean;
+    name?: string | null;
+    hrmsId?: string | null;
+  }) {
+    if (this.isAdministratorEmployee(emp)) {
+      throw new BadRequestException("Administrator cannot be used as a KPI resource");
+    }
+  }
+
+  /** View: self + recursive reports (non–super-admin). */
+  private async assertCanViewEmployee(
+    req: { user: JwtPayload },
+    employeeId: bigint
+  ): Promise<void> {
+    if (req.user.isSuperAdmin) return;
+    const actor = await this.actorEmployee(req.user);
+    const scope = await this.visibleScopeIds(actor.id);
+    if (!scope.some((id) => id === employeeId)) {
+      throw new ForbiddenException("Employee is outside your resource ownership");
+    }
+  }
+
+  /** Update: direct reports only (non–super-admin). */
+  private async assertCanEditEmployee(
+    req: { user: JwtPayload },
+    employeeId: bigint
+  ): Promise<void> {
+    if (req.user.isSuperAdmin) return;
+    const actor = await this.actorEmployee(req.user);
+    const emp = await this.prisma.employee.findFirst({
+      where: { id: employeeId, isDeleted: false },
+      select: { id: true, resourceOwnerId: true },
+    });
+    if (!emp || emp.resourceOwnerId !== actor.id) {
+      throw new ForbiddenException("You can only update KPIs for your direct reports");
+    }
+  }
+
   private mapItem(row: {
     id: bigint;
     employeeId: bigint;
@@ -366,6 +423,7 @@ export class KpiController {
   @Get("framework")
   @RequirePermissions("masters.kpi_framework")
   async listFramework(
+    @Req() req: { user: JwtPayload },
     @Query("calendarYear") calendarYear?: string,
     @Query("assessmentCycle") assessmentCycle?: string,
     @Query("employeeHrmsId") employeeHrmsId?: string,
@@ -384,11 +442,18 @@ export class KpiController {
     }
 
     let employeeId: bigint | undefined;
+    let scopeIds: bigint[] | null = null;
+    if (!req.user.isSuperAdmin) {
+      const actor = await this.actorEmployee(req.user);
+      scopeIds = await this.visibleScopeIds(actor.id);
+    }
+
     if (employeeHrmsId) {
       const emp = await this.prisma.employee.findFirst({
         where: { hrmsId: employeeHrmsId, isDeleted: false },
       });
-      if (!emp) return [];
+      if (!emp || this.isAdministratorEmployee(emp)) return [];
+      await this.assertCanViewEmployee(req, emp.id);
       employeeId = emp.id;
     }
 
@@ -397,10 +462,16 @@ export class KpiController {
         isDeleted: false,
         ...(year ? { calendarYear: year } : {}),
         ...(cycle ? { assessmentCycle: cycle } : {}),
-        ...(employeeId ? { employeeId } : {}),
-        ...(departmentId
-          ? { employee: { departmentId: BigInt(departmentId), isDeleted: false } }
-          : {}),
+        ...(employeeId
+          ? { employeeId }
+          : scopeIds
+            ? { employeeId: { in: scopeIds } }
+            : {}),
+        employee: {
+          isDeleted: false,
+          isSuperAdmin: false,
+          ...(departmentId ? { departmentId: BigInt(departmentId) } : {}),
+        },
       },
       include: {
         employee: { select: { id: true, hrmsId: true, name: true, departmentId: true } },
@@ -417,6 +488,7 @@ export class KpiController {
   @RequirePermissions("masters.kpi_framework")
   @EmitDataChange("kpi", "create")
   async createFrameworkItem(
+    @Req() req: { user: JwtPayload },
     @Body()
     body: {
       employeeHrmsId?: string;
@@ -444,6 +516,8 @@ export class KpiController {
       where: { hrmsId: body.employeeHrmsId, isDeleted: false },
     });
     if (!emp) throw new NotFoundException("Employee not found");
+    this.assertNotAdministrator(emp);
+    await this.assertCanEditEmployee(req, emp.id);
 
     const periodErr = validatePeriodMonths(
       cycle,
@@ -494,6 +568,7 @@ export class KpiController {
   @RequirePermissions("masters.kpi_framework")
   @EmitDataChange("kpi", "update")
   async updateFrameworkItem(
+    @Req() req: { user: JwtPayload },
     @Param("id") id: string,
     @Body()
     body: {
@@ -512,6 +587,7 @@ export class KpiController {
       where: { id: BigInt(id), isDeleted: false },
     });
     if (!existing) throw new NotFoundException("KPI not found");
+    await this.assertCanEditEmployee(req, existing.employeeId);
     if (existing.status !== "draft") {
       throw new BadRequestException("KPI framework is locked for this status");
     }
@@ -554,11 +630,12 @@ export class KpiController {
   @Delete("framework/:id")
   @RequirePermissions("masters.kpi_framework")
   @EmitDataChange("kpi", "delete")
-  async deleteFrameworkItem(@Param("id") id: string) {
+  async deleteFrameworkItem(@Req() req: { user: JwtPayload }, @Param("id") id: string) {
     const existing = await this.prisma.kpiFrameworkItem.findFirst({
       where: { id: BigInt(id), isDeleted: false },
     });
     if (!existing) throw new NotFoundException("KPI not found");
+    await this.assertCanEditEmployee(req, existing.employeeId);
     if (existing.status !== "draft") {
       throw new BadRequestException("KPI framework is locked for this status");
     }
@@ -573,6 +650,7 @@ export class KpiController {
   @RequirePermissions("masters.kpi_framework")
   @EmitDataChange("kpi", "create")
   async copyFramework(
+    @Req() req: { user: JwtPayload },
     @Body()
     body: {
       targetEmployeeHrmsId?: string;
@@ -597,6 +675,10 @@ export class KpiController {
       }),
     ]);
     if (!target || !source) throw new NotFoundException("Employee not found");
+    this.assertNotAdministrator(target);
+    this.assertNotAdministrator(source);
+    await this.assertCanEditEmployee(req, target.id);
+    await this.assertCanViewEmployee(req, source.id);
 
     const existingCount = await this.prisma.kpiFrameworkItem.count({
       where: {
@@ -677,7 +759,7 @@ export class KpiController {
 
     let scopeIds: bigint[] | null = null;
     if (!req.user.isSuperAdmin) {
-      scopeIds = await this.subtreeEmployeeIds(actor.id);
+      scopeIds = await this.visibleScopeIds(actor.id);
       if (scopeIds.length === 0) return { items: [], summary: emptySummary() };
     }
 
@@ -686,7 +768,7 @@ export class KpiController {
       const emp = await this.prisma.employee.findFirst({
         where: { hrmsId: employeeHrmsId, isDeleted: false },
       });
-      if (!emp) return { items: [], summary: emptySummary() };
+      if (!emp || this.isAdministratorEmployee(emp)) return { items: [], summary: emptySummary() };
       if (scopeIds && !scopeIds.some((id) => id === emp.id)) {
         throw new ForbiddenException("Employee is outside your resource ownership");
       }
@@ -703,9 +785,11 @@ export class KpiController {
       calendarYear: year,
       assessmentCycle: cycle,
       ...(employeeId ? { employeeId } : scopeIds ? { employeeId: { in: scopeIds } } : {}),
-      ...(departmentId
-        ? { employee: { departmentId: BigInt(departmentId), isDeleted: false } }
-        : {}),
+      employee: {
+        isDeleted: false,
+        isSuperAdmin: false,
+        ...(departmentId ? { departmentId: BigInt(departmentId) } : {}),
+      },
     };
 
     // Load full scope first so tab/summary counts stay stable across status filters.
@@ -742,7 +826,7 @@ export class KpiController {
     });
     if (!existing) throw new NotFoundException("KPI not found");
     if (!req.user.isSuperAdmin) {
-      const scope = await this.subtreeEmployeeIds(actor.id);
+      const scope = await this.visibleScopeIds(actor.id);
       if (!scope.some((x) => x === existing.employeeId)) {
         throw new ForbiddenException("Employee is outside your resource ownership");
       }
@@ -774,6 +858,7 @@ export class KpiController {
   @EmitDataChange("kpi", "update")
   async deleteResultAttachment(@Req() req: { user: JwtPayload }, @Param("id") id: string) {
     const { existing } = await this.requireResultItem(req, id);
+    await this.assertCanEditEmployee(req, existing.employeeId);
     if (existing.status === "completed") {
       throw new BadRequestException("KPI result is locked");
     }
@@ -807,12 +892,7 @@ export class KpiController {
     });
     if (!existing) throw new NotFoundException("KPI not found");
 
-    if (!req.user.isSuperAdmin) {
-      const scope = await this.subtreeEmployeeIds(actor.id);
-      if (!scope.some((x) => x === existing.employeeId)) {
-        throw new ForbiddenException("Employee is outside your resource ownership");
-      }
-    }
+    await this.assertCanEditEmployee(req, existing.employeeId);
 
     if (existing.status === "completed") {
       throw new BadRequestException("KPI result is locked");

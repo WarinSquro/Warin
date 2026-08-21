@@ -32,6 +32,19 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-21 11:55 IST
+
+**Prompt:**  
+> KPI Framework & KPI Results: design-system dropdowns; Calendar Year 2026 & 2027 only; Cycle default from current month (Q3 through Sep); hide Administrator from resources; RO pages = self + direct + indirect view; update only direct reports (grid + drawer).
+
+**Output:**  
+- Shared `FilterSelect` + `utils/kpiFilters.ts` (years, default cycle, RO scope helpers).
+- Framework & Results filters/tables use design-system dropdowns; years fixed to 2026–2027; cycle defaults to current quarter.
+- Resource lists = self + recursive reports, excluding Administrator. Edits (framework + results) only for direct reports; self/indirect view-only.
+- API: view scope includes self; mutations require direct report; Administrator blocked as KPI resource.
+- Tests: `tests/unit/kpiFilters.test.ts`.
+- Files: `components/FilterSelect.tsx`, `utils/kpiFilters.ts`, `screens/KpiFramework.tsx`, `screens/KpiResults.tsx`, `apps/oneview-api/src/api/kpi/kpi.controller.ts`, `tests/unit/kpiFilters.test.ts`, `docs/prompt-log.md`.
+
 ### 2026-08-21 11:22 IST
 
 **Prompt:**  

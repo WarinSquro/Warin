@@ -11,6 +11,7 @@ import {
   type KpiRowStatus,
 } from "../api/domain";
 import { ConfirmDeleteDialog } from "../components/ConfirmDeleteDialog";
+import { FilterSelect } from "../components/FilterSelect";
 import { useEmployees } from "../context/EmployeesContext";
 import { useMasters } from "../context/MastersContext";
 import { useToast } from "../context/ToastContext";
@@ -19,8 +20,15 @@ import { useFocusFirstField } from "../hooks/useFocusFirstField";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import { useAppDateFormat } from "../hooks/useAppDateFormat";
 import { useSharedDataSync, usePauseSharedDataSync, MASTER_TXN_SYNC_INTERVAL_MS } from "../hooks/useSharedDataSync";
+import {
+  defaultAssessmentCycle,
+  defaultKpiCalendarYear,
+  isKpiDirectReport,
+  KPI_CALENDAR_YEARS,
+  KPI_CYCLE_OPTIONS,
+  scopeKpiResourceEmployees,
+} from "../utils/kpiFilters";
 
-const CYCLES: AssessmentCycle[] = ["Q1", "Q2", "Q3", "Q4"];
 const fieldClass =
   "w-full rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none";
 
@@ -51,8 +59,8 @@ export function KpiResults() {
   const { currentEmployee, isSuperAdmin } = useAuth();
   const { employees } = useEmployees();
   const { departments } = useMasters();
-  const [year, setYear] = useState(new Date().getFullYear());
-  const [cycle, setCycle] = useState<AssessmentCycle>("Q2");
+  const [year, setYear] = useState(() => defaultKpiCalendarYear());
+  const [cycle, setCycle] = useState<AssessmentCycle>(() => defaultAssessmentCycle());
   const [deptId, setDeptId] = useState("");
   const [resourceId, setResourceId] = useState("");
   const [statusTab, setStatusTab] = useState<"all" | "pending_result" | "completed">("all");
@@ -69,28 +77,32 @@ export function KpiResults() {
   );
 
   const ownedEmployees = useMemo(() => {
-    let list = employees.filter((e) => e.status === "active");
-    if (!isSuperAdmin && currentEmployee) {
-      const ownerId = currentEmployee.id;
-      const ids = new Set<string>();
-      const queue = [ownerId];
-      while (queue.length) {
-        const cur = queue.shift()!;
-        for (const e of employees) {
-          if (e.resourceOwnerId === cur && !ids.has(e.id)) {
-            ids.add(e.id);
-            queue.push(e.id);
-          }
-        }
-      }
-      list = list.filter((e) => ids.has(e.id));
-    }
+    let list = scopeKpiResourceEmployees(employees, currentEmployee, isSuperAdmin);
     if (deptId) {
       const dept = activeDepts.find((d) => d.dbId === deptId || d.id === deptId);
       if (dept) list = list.filter((e) => e.department === dept.name);
     }
     return list;
   }, [employees, isSuperAdmin, currentEmployee, deptId, activeDepts]);
+
+  const yearOptions = useMemo(
+    () => KPI_CALENDAR_YEARS.map((y) => ({ value: String(y), label: String(y) })),
+    []
+  );
+  const deptOptions = useMemo(
+    () => [
+      { value: "", label: "All" },
+      ...activeDepts.map((d) => ({ value: d.dbId ?? d.id, label: d.name })),
+    ],
+    [activeDepts]
+  );
+  const resourceOptions = useMemo(
+    () => [
+      { value: "", label: "All" },
+      ...ownedEmployees.map((e) => ({ value: e.id, label: e.name })),
+    ],
+    [ownedEmployees]
+  );
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setLoading(true);
@@ -174,7 +186,7 @@ export function KpiResults() {
         <div>
           <div className="text-[15px] font-semibold tracking-tight text-foreground">KPI Results</div>
           <div className="text-[12px] text-muted-foreground">
-            My Team · enter results for your direct and indirect reports
+            My Team · view self, direct, and indirect reports · update direct reports only
           </div>
         </div>
       </header>
@@ -215,54 +227,40 @@ export function KpiResults() {
         <div className="mb-3 flex flex-wrap items-end justify-between gap-3 rounded-lg border border-border bg-surface px-4 py-3 shadow-sm">
           <div className="flex flex-wrap gap-3">
             <Filter label="Calendar Year">
-              <select
-                value={year}
-                onChange={(e) => setYear(Number(e.target.value))}
-                className={fieldClass}
-              >
-                {[year - 1, year, year + 1].map((y) => (
-                  <option key={y} value={y}>
-                    {y}
-                  </option>
-                ))}
-              </select>
+              <FilterSelect
+                aria-label="Calendar Year"
+                value={String(year)}
+                onChange={(v) => setYear(Number(v))}
+                options={yearOptions}
+                className="min-w-[120px]"
+              />
             </Filter>
             <Filter label="Cycle">
-              <select
+              <FilterSelect
+                aria-label="Cycle"
                 value={cycle}
-                onChange={(e) => setCycle(e.target.value as AssessmentCycle)}
-                className={fieldClass}
-              >
-                {CYCLES.map((c) => (
-                  <option key={c} value={c}>
-                    Quarter {c.slice(1)}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => setCycle(v as AssessmentCycle)}
+                options={KPI_CYCLE_OPTIONS}
+                className="min-w-[120px]"
+              />
             </Filter>
             <Filter label="Department">
-              <select value={deptId} onChange={(e) => setDeptId(e.target.value)} className={fieldClass}>
-                <option value="">All</option>
-                {activeDepts.map((d) => (
-                  <option key={d.id} value={d.dbId ?? d.id}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
+              <FilterSelect
+                aria-label="Department"
+                value={deptId}
+                onChange={setDeptId}
+                options={deptOptions}
+                className="min-w-[140px]"
+              />
             </Filter>
             <Filter label="Resource">
-              <select
+              <FilterSelect
+                aria-label="Resource"
                 value={resourceId}
-                onChange={(e) => setResourceId(e.target.value)}
-                className={fieldClass}
-              >
-                <option value="">All</option>
-                {ownedEmployees.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.name}
-                  </option>
-                ))}
-              </select>
+                onChange={setResourceId}
+                options={resourceOptions}
+                className="min-w-[160px]"
+              />
             </Filter>
           </div>
           <div className="flex overflow-hidden rounded-md border border-border text-[12px]">
@@ -396,6 +394,10 @@ export function KpiResults() {
       {selected && (
         <ResultDrawer
           item={selected}
+          canEditResource={
+            isSuperAdmin ||
+            isKpiDirectReport(currentEmployee?.id, selected.employeeHrmsId, employees)
+          }
           onClose={() => setSelected(null)}
           onSaved={async () => {
             setSelected(null);
@@ -411,18 +413,20 @@ export function KpiResults() {
 
 function ResultDrawer({
   item,
+  canEditResource,
   onClose,
   onSaved,
   onError,
 }: {
   item: ApiKpiItem;
+  canEditResource: boolean;
   onClose: () => void;
   onSaved: () => void | Promise<void>;
   onError: (msg: string) => void;
 }) {
   const focusRef = useFocusFirstField<HTMLDivElement>();
   const locked = item.status === "completed";
-  const canSave = item.periodExpired && !locked;
+  const canSave = canEditResource && item.periodExpired && !locked;
   const [kpiResult, setKpiResult] = useState(item.kpiResult != null ? String(item.kpiResult) : "");
   const [kpiScore, setKpiScore] = useState(item.kpiScore != null ? String(item.kpiScore) : "");
   const [remarks, setRemarks] = useState(() => (item.remarks ?? "").slice(0, KPI_RO_REMARKS_MAX));
@@ -485,7 +489,13 @@ function ResultDrawer({
     }
   };
 
-  const title = locked ? "KPI Result" : canSave ? "Update KPI Result" : "KPI Result";
+  const title = locked
+    ? "KPI Result"
+    : !canEditResource
+      ? "KPI Result"
+      : canSave
+        ? "Update KPI Result"
+        : "KPI Result";
 
   const save = async () => {
     if (!canSave || saving) return;
@@ -571,6 +581,11 @@ function ResultDrawer({
           {!item.periodExpired && (
             <div className="rounded-md border border-warning-border bg-warning-soft px-3 py-2 text-[12px] text-warning">
               Results can be submitted only after the KPI period ends.
+            </div>
+          )}
+          {!canEditResource && (
+            <div className="rounded-md border border-border bg-surface-alt px-3 py-2 text-[12px] text-muted-foreground">
+              View only — you can update results for direct reports only.
             </div>
           )}
 

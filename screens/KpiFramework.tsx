@@ -16,14 +16,22 @@ import {
   type KpiTargetDirection,
 } from "../api/domain";
 import { ConfirmDeleteDialog } from "../components/ConfirmDeleteDialog";
+import { FilterSelect } from "../components/FilterSelect";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import { useSharedDataSync, usePauseSharedDataSync, MASTER_TXN_SYNC_INTERVAL_MS } from "../hooks/useSharedDataSync";
 import { useAuth } from "../context/AuthContext";
 import { useEmployees } from "../context/EmployeesContext";
 import { useMasters } from "../context/MastersContext";
 import { useToast } from "../context/ToastContext";
-import { getImmediateReports } from "../data/employees";
 import { clampKpiMasterName, KPI_MASTER_NAME_MAX } from "../utils/kpiMasterLimits";
+import {
+  defaultAssessmentCycle,
+  defaultKpiCalendarYear,
+  isKpiDirectReport,
+  KPI_CALENDAR_YEARS,
+  KPI_CYCLE_OPTIONS,
+  scopeKpiResourceEmployees,
+} from "../utils/kpiFilters";
 
 type PageSeg = "framework" | "masters";
 type MasterTab = "categories" | "methods" | "units";
@@ -45,7 +53,6 @@ const FRAMEWORK_STATUS_ORDER: Record<string, number> = {
   completed: 2,
 };
 
-const CYCLES: AssessmentCycle[] = ["Q1", "Q2", "Q3", "Q4"];
 const CYCLE_MONTHS: Record<AssessmentCycle, number[]> = {
   Q1: [1, 2, 3],
   Q2: [4, 5, 6],
@@ -82,8 +89,8 @@ export function KpiFramework() {
   const { departments } = useMasters();
   const [seg, setSeg] = useState<PageSeg>("framework");
   const [masterTab, setMasterTab] = useState<MasterTab>("categories");
-  const [year, setYear] = useState(new Date().getFullYear());
-  const [cycle, setCycle] = useState<AssessmentCycle>("Q1");
+  const [year, setYear] = useState(() => defaultKpiCalendarYear());
+  const [cycle, setCycle] = useState<AssessmentCycle>(() => defaultAssessmentCycle());
   const [deptId, setDeptId] = useState("");
   const [resourceId, setResourceId] = useState("");
   const [copyFromId, setCopyFromId] = useState("");
@@ -108,20 +115,19 @@ export function KpiFramework() {
     () => departments.filter((d) => d.status === "active"),
     [departments]
   );
+  const scopedResources = useMemo(
+    () => scopeKpiResourceEmployees(employees, currentEmployee, isSuperAdmin),
+    [employees, currentEmployee, isSuperAdmin]
+  );
   const activeEmployees = useMemo(() => {
-    let list = employees.filter((e) => e.status === "active");
-    if (!isSuperAdmin) {
-      list = currentEmployee
-        ? getImmediateReports(currentEmployee.id, list, { activeOnly: true })
-        : [];
-    }
+    let list = scopedResources;
     if (deptId) {
       const dept = activeDepts.find((d) => d.dbId === deptId || d.id === deptId);
       const name = dept?.name;
       if (name) list = list.filter((e) => e.department === name);
     }
     return list;
-  }, [employees, deptId, activeDepts, isSuperAdmin, currentEmployee]);
+  }, [scopedResources, deptId, activeDepts]);
 
   useEffect(() => {
     const ids = new Set(activeEmployees.map((e) => e.id));
@@ -133,8 +139,64 @@ export function KpiFramework() {
   const periodOptions = useMemo(() => periodRangeOptions(months), [months]);
   const weightTotal = items.reduce((s, i) => s + Number(i.weightage || 0), 0);
   const weightOk = Math.abs(weightTotal - 100) < 0.01;
-  const canEdit = items.every((i) => i.status === "draft") && !items.some((i) => i.cycleExpired);
-  const canCopy = Boolean(resourceId) && items.length === 0;
+  const canEditResource =
+    isSuperAdmin || isKpiDirectReport(currentEmployee?.id, resourceId, employees);
+  const canEdit =
+    canEditResource &&
+    items.every((i) => i.status === "draft") &&
+    !items.some((i) => i.cycleExpired);
+  const canCopy = Boolean(resourceId) && canEditResource && items.length === 0;
+
+  const yearOptions = useMemo(
+    () => KPI_CALENDAR_YEARS.map((y) => ({ value: String(y), label: String(y) })),
+    []
+  );
+  const deptOptions = useMemo(
+    () => [
+      { value: "", label: "All" },
+      ...activeDepts.map((d) => ({ value: d.dbId ?? d.id, label: d.name })),
+    ],
+    [activeDepts]
+  );
+  const resourceOptions = useMemo(
+    () => [
+      { value: "", label: "Select…" },
+      ...activeEmployees.map((e) => ({ value: e.id, label: e.name })),
+    ],
+    [activeEmployees]
+  );
+  const copyFromOptions = useMemo(
+    () => [
+      { value: "", label: "Select…" },
+      ...activeEmployees
+        .filter((e) => e.id !== resourceId)
+        .map((e) => ({ value: e.id, label: e.name })),
+    ],
+    [activeEmployees, resourceId]
+  );
+  const categoryOptions = useMemo(
+    () => categories.map((c) => ({ value: c.id, label: c.name })),
+    [categories]
+  );
+  const methodOptions = useMemo(
+    () => methods.map((m) => ({ value: m.id, label: m.name })),
+    [methods]
+  );
+  const unitOptions = useMemo(
+    () => units.map((u) => ({ value: u.id, label: u.name })),
+    [units]
+  );
+  const directionOptions = useMemo(
+    () => [
+      { value: "higher_is_better", label: "High" },
+      { value: "lower_is_better", label: "Low" },
+    ],
+    []
+  );
+  const periodSelectOptions = useMemo(
+    () => periodOptions.map((opt) => ({ value: opt.value, label: opt.label })),
+    [periodOptions]
+  );
 
   const sortedItems = useMemo(() => {
     const mul = sortDir === "asc" ? 1 : -1;
@@ -489,83 +551,56 @@ export function KpiFramework() {
           <div className="space-y-3">
             <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface px-4 py-3 shadow-sm">
               <Filter label="Calendar Year">
-                <select
-                  value={year}
-                  onChange={(e) => setYear(Number(e.target.value))}
-                  className={fieldClass}
-                >
-                  {[year - 1, year, year + 1].map((y) => (
-                    <option key={y} value={y}>
-                      {y}
-                    </option>
-                  ))}
-                </select>
+                <FilterSelect
+                  aria-label="Calendar Year"
+                  value={String(year)}
+                  onChange={(v) => setYear(Number(v))}
+                  options={yearOptions}
+                  className="min-w-[120px]"
+                />
               </Filter>
               <Filter label="Cycle">
-                <select
+                <FilterSelect
+                  aria-label="Cycle"
                   value={cycle}
-                  onChange={(e) => setCycle(e.target.value as AssessmentCycle)}
-                  className={fieldClass}
-                >
-                  {CYCLES.map((c) => (
-                    <option key={c} value={c}>
-                      {c === "Q1"
-                        ? "Quarter 1"
-                        : c === "Q2"
-                          ? "Quarter 2"
-                          : c === "Q3"
-                            ? "Quarter 3"
-                            : "Quarter 4"}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(v) => setCycle(v as AssessmentCycle)}
+                  options={KPI_CYCLE_OPTIONS}
+                  className="min-w-[120px]"
+                />
               </Filter>
               <Filter label="Department">
-                <select value={deptId} onChange={(e) => setDeptId(e.target.value)} className={fieldClass}>
-                  <option value="">All</option>
-                  {activeDepts.map((d) => (
-                    <option key={d.id} value={d.dbId ?? d.id}>
-                      {d.name}
-                    </option>
-                  ))}
-                </select>
+                <FilterSelect
+                  aria-label="Department"
+                  value={deptId}
+                  onChange={setDeptId}
+                  options={deptOptions}
+                  className="min-w-[140px]"
+                />
               </Filter>
               <Filter label="Resource">
-                <select
+                <FilterSelect
+                  aria-label="Resource"
                   value={resourceId}
-                  onChange={(e) => setResourceId(e.target.value)}
-                  className={fieldClass}
-                >
-                  <option value="">Select…</option>
-                  {activeEmployees.map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {e.name}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setResourceId}
+                  options={resourceOptions}
+                  className="min-w-[160px]"
+                />
               </Filter>
               <Filter label="Copy from Resource">
                 <div className="flex gap-1.5">
-                  <select
+                  <FilterSelect
+                    aria-label="Copy from Resource"
                     value={copyFromId}
-                    onChange={(e) => setCopyFromId(e.target.value)}
+                    onChange={setCopyFromId}
+                    options={copyFromOptions}
                     disabled={!canCopy}
-                    className={fieldClass}
-                  >
-                    <option value="">Select…</option>
-                    {activeEmployees
-                      .filter((e) => e.id !== resourceId)
-                      .map((e) => (
-                        <option key={e.id} value={e.id}>
-                          {e.name}
-                        </option>
-                      ))}
-                  </select>
+                    className="min-w-[160px]"
+                  />
                   <button
                     type="button"
                     disabled={!canCopy || !copyFromId}
                     onClick={() => void doCopy()}
-                    className="rounded-md border border-border px-2.5 py-1.5 text-[12px] disabled:opacity-40"
+                    className="cursor-pointer rounded-md border border-border px-2.5 py-1.5 text-[12px] disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     Copy
                   </button>
@@ -577,11 +612,14 @@ export function KpiFramework() {
                 >
                   Weightage {weightTotal.toFixed(0)}% / 100%
                 </span>
+                {!canEditResource && resourceId ? (
+                  <span className="text-[11px] text-muted-foreground">View only (direct reports editable)</span>
+                ) : null}
                 <button
                   type="button"
                   disabled={!resourceId || !canEdit}
                   onClick={() => void addKpi()}
-                  className="flex items-center gap-1 rounded-md bg-brand px-3 py-1.5 text-[12px] font-medium text-white disabled:opacity-40"
+                  className="flex cursor-pointer items-center gap-1 rounded-md bg-brand px-3 py-1.5 text-[12px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <Plus className="h-3.5 w-3.5" /> Add KPI
                 </button>
@@ -690,22 +728,17 @@ export function KpiFramework() {
                     </thead>
                     <tbody>
                       {sortedItems.map((row) => {
-                        const locked = row.status !== "draft" || row.cycleExpired;
+                        const locked = !canEditResource || row.status !== "draft" || row.cycleExpired;
                         return (
                           <tr key={row.id} className="border-b border-border-soft last:border-b-0">
                             <td className="px-3 py-2">
-                              <select
+                              <FilterSelect
+                                aria-label="Category"
                                 disabled={locked}
                                 value={row.categoryId}
-                                onChange={(e) => void patchRow(row.id, { categoryId: e.target.value })}
-                                className={fieldClass}
-                              >
-                                {categories.map((c) => (
-                                  <option key={c.id} value={c.id}>
-                                    {c.name}
-                                  </option>
-                                ))}
-                              </select>
+                                onChange={(v) => void patchRow(row.id, { categoryId: v })}
+                                options={categoryOptions}
+                              />
                             </td>
                             <td className="px-3 py-2">
                               <input
@@ -719,34 +752,22 @@ export function KpiFramework() {
                               />
                             </td>
                             <td className="px-3 py-2">
-                              <select
+                              <FilterSelect
+                                aria-label="Method"
                                 disabled={locked}
                                 value={row.measurementMethodId}
-                                onChange={(e) =>
-                                  void patchRow(row.id, { measurementMethodId: e.target.value })
-                                }
-                                className={fieldClass}
-                              >
-                                {methods.map((m) => (
-                                  <option key={m.id} value={m.id}>
-                                    {m.name}
-                                  </option>
-                                ))}
-                              </select>
+                                onChange={(v) => void patchRow(row.id, { measurementMethodId: v })}
+                                options={methodOptions}
+                              />
                             </td>
                             <td className="px-3 py-2">
-                              <select
+                              <FilterSelect
+                                aria-label="Unit"
                                 disabled={locked}
                                 value={row.unitId}
-                                onChange={(e) => void patchRow(row.id, { unitId: e.target.value })}
-                                className={fieldClass}
-                              >
-                                {units.map((u) => (
-                                  <option key={u.id} value={u.id}>
-                                    {u.name}
-                                  </option>
-                                ))}
-                              </select>
+                                onChange={(v) => void patchRow(row.id, { unitId: v })}
+                                options={unitOptions}
+                              />
                             </td>
                             <td className="w-16 px-3 py-2">
                               <input
@@ -758,44 +779,37 @@ export function KpiFramework() {
                                   if (Number.isFinite(v) && v !== row.target)
                                     void patchRow(row.id, { target: v });
                                 }}
-                                className="w-14 rounded-md border border-border bg-surface px-1.5 py-1.5 text-[12px] text-foreground outline-none"
+                                className="w-14 rounded-md border border-border bg-surface px-1.5 py-1.5 text-[12px] text-foreground outline-none disabled:cursor-not-allowed disabled:bg-surface-alt disabled:text-muted"
                               />
                             </td>
                             <td className="px-3 py-2">
-                              <select
+                              <FilterSelect
+                                aria-label="Direction"
                                 disabled={locked}
                                 value={row.targetDirection}
-                                onChange={(e) =>
+                                onChange={(v) =>
                                   void patchRow(row.id, {
-                                    targetDirection: e.target.value as KpiTargetDirection,
+                                    targetDirection: v as KpiTargetDirection,
                                   })
                                 }
-                                className={fieldClass}
-                              >
-                                <option value="higher_is_better">High</option>
-                                <option value="lower_is_better">Low</option>
-                              </select>
+                                options={directionOptions}
+                              />
                             </td>
                             <td className="px-3 py-2">
-                              <select
+                              <FilterSelect
+                                aria-label="Period"
                                 disabled={locked}
                                 value={`${row.periodStartMonth}-${row.periodEndMonth}`}
-                                onChange={(e) => {
-                                  const [start, end] = e.target.value.split("-").map(Number);
+                                onChange={(v) => {
+                                  const [start, end] = v.split("-").map(Number);
                                   if (!Number.isFinite(start) || !Number.isFinite(end)) return;
                                   void patchRow(row.id, {
                                     periodStartMonth: start,
                                     periodEndMonth: end,
                                   });
                                 }}
-                                className={fieldClass}
-                              >
-                                {periodOptions.map((opt) => (
-                                  <option key={opt.value} value={opt.value}>
-                                    {opt.label}
-                                  </option>
-                                ))}
-                              </select>
+                                options={periodSelectOptions}
+                              />
                             </td>
                             <td className="w-16 px-3 py-2">
                               <input
@@ -807,7 +821,7 @@ export function KpiFramework() {
                                   if (Number.isFinite(v) && v !== row.weightage)
                                     void patchRow(row.id, { weightage: v });
                                 }}
-                                className="w-14 rounded-md border border-border bg-surface px-1.5 py-1.5 text-[12px] text-foreground outline-none"
+                                className="w-14 rounded-md border border-border bg-surface px-1.5 py-1.5 text-[12px] text-foreground outline-none disabled:cursor-not-allowed disabled:bg-surface-alt disabled:text-muted"
                               />
                             </td>
                             <td className="px-3 py-2">
@@ -818,7 +832,7 @@ export function KpiFramework() {
                                 <button
                                   type="button"
                                   onClick={() => setPendingDeleteId(row.id)}
-                                  className="rounded p-1 text-danger hover:bg-danger-soft"
+                                  className="cursor-pointer rounded p-1 text-danger hover:bg-danger-soft"
                                   aria-label="Delete KPI"
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
