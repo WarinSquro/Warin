@@ -76,6 +76,27 @@ export function filterAvailRowsAllSegments(
   return rows.filter((r) => r.availableFrom === "Now" || rollingOffIds.has(r.id));
 }
 
+/** Combine this-week and next-week rows per person (hours, capacity, booked %). */
+export function mergeAvailRowsTwoWeeks(week1: AvailRow[], week2: AvailRow[]): AvailRow[] {
+  const week1ById = new Map(week1.map((r) => [r.id, r]));
+  const week2ById = new Map(week2.map((r) => [r.id, r]));
+  const ids = new Set<string>([...week1ById.keys(), ...week2ById.keys()]);
+
+  return [...ids].map((id) => {
+    const a = week1ById.get(id);
+    const b = week2ById.get(id);
+    const base = a ?? b!;
+    const freeHours = roundHoursToTenth((a?.freeHours ?? 0) + (b?.freeHours ?? 0));
+    const capacity = roundHoursToTenth((a?.capacity ?? 0) + (b?.capacity ?? 0));
+    const bookedHours =
+      (a ? (a.bookedPct / 100) * a.capacity : 0) + (b ? (b.bookedPct / 100) * b.capacity : 0);
+    const bookedPct = capacity > 0 ? Math.round((bookedHours / capacity) * 100) : 0;
+    const availableFrom =
+      capacity > 0 && freeHours >= capacity ? "Now" : freeHours <= 0 ? "Fully booked" : "Partial";
+    return { ...base, freeHours, capacity, bookedPct, availableFrom };
+  });
+}
+
 /** Highest-free people for a week KPI (positive free hours only). */
 export function availTopFreePeople(rows: AvailRow[], limit = 3): AvailRow[] {
   return [...rows]

@@ -9,6 +9,7 @@ import {
   computeAvailKpis,
   filterAvailRowsAllSegments,
   filterAvailRowsRollingOffSoon,
+  mergeAvailRowsTwoWeeks,
   type AvailRow,
 } from "../../data/availability";
 
@@ -58,6 +59,34 @@ describe("filterAvailRowsAllSegments", () => {
     ];
     const all = filterAvailRowsAllSegments(rows, new Set(["rolling", "both"]));
     expect(all.map((r) => r.id).sort()).toEqual(["both", "now", "rolling"]);
+  });
+});
+
+describe("mergeAvailRowsTwoWeeks", () => {
+  it("sums free hours and capacity and recomputes booked percent", () => {
+    const week1 = [row({ id: "a", name: "Ada", freeHours: 40, capacity: 40, bookedPct: 0 })];
+    const week2 = [row({ id: "a", name: "Ada", freeHours: 32, capacity: 40, bookedPct: 20 })];
+    expect(mergeAvailRowsTwoWeeks(week1, week2)).toEqual([
+      expect.objectContaining({
+        id: "a",
+        freeHours: 72,
+        capacity: 80,
+        bookedPct: 10,
+        availableFrom: "Partial",
+      }),
+    ]);
+  });
+
+  it("includes a person who appears in only one week", () => {
+    const week1 = [row({ id: "a", name: "Ada", freeHours: 40, capacity: 40, bookedPct: 0 })];
+    const week2 = [row({ id: "b", name: "Bea", freeHours: 34, capacity: 34, bookedPct: 0 })];
+    expect(mergeAvailRowsTwoWeeks(week1, week2).map((r) => r.id).sort()).toEqual(["a", "b"]);
+  });
+
+  it("is Now when both weeks are fully free", () => {
+    const week1 = [row({ id: "a", freeHours: 40, capacity: 40, bookedPct: 0 })];
+    const week2 = [row({ id: "a", freeHours: 34, capacity: 34, bookedPct: 0 })];
+    expect(mergeAvailRowsTwoWeeks(week1, week2)[0]?.availableFrom).toBe("Now");
   });
 });
 

@@ -276,9 +276,12 @@ export function buildAvailRowsFromEmployees(
   allocations: ApiAllocation[] = [],
   companyOffDays?: string[],
   weekStart = mondayISO(),
-  workingDays?: string[]
+  workingDays?: string[],
+  nameLookupEmployees?: Employee[]
 ): AvailRow[] {
   const booked = bookedHoursByEmployee(allocations, weekStart, companyOffDays, workingDays);
+  const nameSource = nameLookupEmployees?.length ? nameLookupEmployees : employees;
+  const nameById = new Map(nameSource.map((e) => [e.id, e.name]));
   return employees
     .filter((e) => e.status === "active")
     .map((e) => {
@@ -296,6 +299,10 @@ export function buildAvailRowsFromEmployees(
           freeHours >= weekCapacity ? "Now" : hours >= weekCapacity ? "Fully booked" : "Partial",
         skills: e.skills,
         bookedPct: weekCapacity > 0 ? Math.round((hours / weekCapacity) * 100) : 0,
+        resourceOwnerId: e.resourceOwnerId ?? "",
+        resourceOwnerName: e.resourceOwnerId
+          ? (nameById.get(e.resourceOwnerId) ?? "—")
+          : "—",
       };
     });
 }
