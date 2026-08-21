@@ -32,6 +32,16 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-21 13:50 IST
+
+**Prompt:**  
+> Change idle session timeout from 30 minutes to 120 minutes and live on EC2.
+
+**Output:**  
+- `hooks/useIdleSessionTimeout.ts` — `IDLE_SESSION_TIMEOUT_MS = 120 * 60 * 1000`; login notice text updated to 120 minutes.
+- `tests/unit/idleSessionTimeout.test.ts` — expects 120-minute window.
+- SPA-only change: commit/push `main`, then EC2 `bash scripts/ec2-deploy.sh` (no `--with-api`).
+
 ### 2026-08-21 12:18 IST
 
 **Prompt:**  

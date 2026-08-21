@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { LOGIN_NOTICE_KEY } from "../api/client";
 
 /** Sign out after this much time without user activity. */
-export const IDLE_SESSION_TIMEOUT_MS = 30 * 60 * 1000;
+export const IDLE_SESSION_TIMEOUT_MS = 120 * 60 * 1000;
 
 const ACTIVITY_THROTTLE_MS = 5_000;
 
@@ -34,7 +34,7 @@ export function useIdleSessionTimeout(enabled: boolean, onTimeout: () => void) {
       try {
         sessionStorage.setItem(
           LOGIN_NOTICE_KEY,
-          "You were signed out after 30 minutes of inactivity."
+          "You were signed out after 120 minutes of inactivity."
         );
       } catch {
         /* ignore */
