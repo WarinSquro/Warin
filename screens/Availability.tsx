@@ -7,7 +7,7 @@ import {
   avgFreeHoursPerPerson,
   availFreeOfCapacityParts,
   availTopFreePeople,
-  filterAvailRowsAllSegments,
+  mergeAvailRowsTwoWeeks,
   filterAvailRowsRollingOffSoon,
 } from "../data/availability";
 import type { AvailRow, RollingOffPerson } from "../data/availability";
@@ -25,14 +25,12 @@ import { useSettings } from "../context/SettingsContext";
 import { useToast } from "../context/ToastContext";
 import { useAuth } from "../context/AuthContext";
 import { allocationBlockedMessage } from "../utils/allocationPermission";
-import { WeeklyCheckInWeekPicker } from "../components/WeeklyCheckInWeekPicker";
 import { buildAvailRowsFromEmployees, buildRollingOffFromLive, addDaysISO, mondayISO } from "../api/liveViews";
 import { createAllocation, fetchAllocations, type ApiAllocation } from "../api/domain";
 import { TruncateText } from "../components/TruncateText";
 import { formatHoursDecimalLabel, formatHoursLabel, roundHoursToTenth } from "../utils/formatHours";
-import { formatWeekLabel, type ReviewWeekOption } from "../data/weeklyCheckIn";
 
-type Segment = "capacity" | "capacityNext" | "all" | "now" | "rolling";
+type Segment = "all" | "now" | "next" | "rolling";
 type AvailSortKey = "name" | "freeHours" | "availableFrom" | "resourceOwner" | "skills";
 
 /** Current week + next week for the Availability week picker. */
@@ -76,14 +74,13 @@ function availFromOrder(value: string) {
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
-function FreeOfCapacityDelta({ freeHrs, capacityHrs }: { freeHrs: number; capacityHrs: number }) {
-  const { ofHours, pct } = availFreeOfCapacityParts(freeHrs, capacityHrs);
-  return (
-    <>
-      {ofHours}{" "}
-      <span className={pct > 20 ? "font-bold text-danger" : undefined}>({pct}%)</span>
-    </>
-  );
+function FreeOfCapacityHours({ freeHrs, capacityHrs }: { freeHrs: number; capacityHrs: number }) {
+  return <>{availFreeOfCapacityParts(freeHrs, capacityHrs).ofHours}</>;
+}
+
+function FreeOfCapacityPct({ freeHrs, capacityHrs }: { freeHrs: number; capacityHrs: number }) {
+  const { pct } = availFreeOfCapacityParts(freeHrs, capacityHrs);
+  return <span className={pct > 20 ? "font-bold text-danger" : undefined}>{pct}%</span>;
 }
 
 function TopFreePeopleList({ people }: { people: AvailRow[] }) {
@@ -114,6 +111,7 @@ function Kpi({
   active,
   subClass,
   aside,
+  labelAddon,
 }: {
   label: string;
   value: string | number;
@@ -126,6 +124,7 @@ function Kpi({
   active?: boolean;
   subClass?: string;
   aside?: ReactNode;
+  labelAddon?: ReactNode;
 }) {
   const className = [
     "rounded-lg border border-border bg-surface px-3.5 py-3.5 text-left",
@@ -135,9 +134,12 @@ function Kpi({
   ].join(" ");
 
   const body = (
-    <div className="flex items-start justify-between gap-3">
+    <div className="flex items-center justify-between gap-3">
       <div className="min-w-0 flex-1">
-        <div className="mb-1.5 text-[11px] text-muted">{label}</div>
+        <div className="mb-1.5 flex flex-wrap items-baseline gap-1.5 text-[11px] text-muted">
+          <span>{label}</span>
+          {labelAddon}
+        </div>
         <div className="flex flex-wrap items-baseline gap-1.5">
           <div className={`text-[23px] font-semibold ${valueClass ?? "text-foreground"}`}>
             {value}
@@ -152,7 +154,7 @@ function Kpi({
           </div>
         )}
       </div>
-      {aside ? <div className="min-w-0 shrink-0 pt-0.5">{aside}</div> : null}
+      {aside ? <div className="min-w-0 shrink-0">{aside}</div> : null}
     </div>
   );
 
@@ -176,13 +178,15 @@ function Tab({
   active: boolean;
   onClick: () => void;
   children: React.ReactNode;
-  tone?: "success" | "warning" | "muted";
+  tone?: "success" | "warning" | "muted" | "accent";
 }) {
   const inactive =
     tone === "success"
       ? "text-success"
       : tone === "warning"
       ? "text-warning"
+      : tone === "accent"
+      ? "text-accent-softfg"
       : "text-muted";
   return (
     <button
@@ -213,14 +217,14 @@ function SkillChip({ label, highlight }: { label: string; highlight?: boolean })
 function FreeCapacityBar({ freeHours, capacity }: { freeHours: number; capacity: number }) {
   const freePct = capacity > 0 ? (freeHours / capacity) * 100 : 0;
   return (
-    <div className="flex items-center gap-2">
-      <div className="h-1.5 w-[80px] flex-shrink-0 rounded-full bg-border-soft">
+    <div className="flex min-w-0 items-center gap-1.5">
+      <div className="h-1.5 w-[72px] flex-shrink-0 rounded-full bg-border-soft">
         <div
           className="h-full rounded-full bg-success"
           style={{ width: `${freePct}%` }}
         />
       </div>
-      <span className="text-[12px] font-semibold text-success">{formatHoursDecimalLabel(freeHours)} free</span>
+      <span className="min-w-0 truncate text-[12px] font-semibold text-success">{formatHoursDecimalLabel(freeHours)} free</span>
     </div>
   );
 }
@@ -365,6 +369,9 @@ function RollingOffCarousel({
   );
 }
 
+const AVAIL_GRID =
+  "grid w-full grid-cols-[minmax(9.75rem,1.3fr)_minmax(9rem,1fr)_minmax(8.25rem,0.85fr)_minmax(7.75rem,1fr)_minmax(4.75rem,0.75fr)_5.5rem] gap-x-3 px-4";
+
 function AvailTableRow({
   row,
   canAllocate,
@@ -378,9 +385,9 @@ function AvailTableRow({
 }) {
   const isNow = row.availableFrom === "Now";
   return (
-    <div className="flex items-start border-b border-border-soft px-4 py-3 last:border-b-0">
+    <div className={`${AVAIL_GRID} items-start border-b border-border-soft py-3 last:border-b-0`}>
       {/* Team member */}
-      <div className="flex w-[200px] shrink-0 items-center gap-2.5">
+      <div className="flex min-w-0 items-center gap-2.5">
         <div
           className={`flex h-[30px] w-[30px] flex-shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
             isNow
@@ -390,14 +397,22 @@ function AvailTableRow({
         >
           {row.initials}
         </div>
-        <div>
-          <div className="text-[13px] font-medium text-foreground">{row.name}</div>
-          <div className="text-[11px] text-muted-foreground">{row.department}</div>
+        <div className="min-w-0">
+          <TruncateText
+            as="div"
+            text={row.name}
+            className="text-[13px] font-medium text-foreground"
+          />
+          <TruncateText
+            as="div"
+            text={row.department}
+            className="text-[11px] text-muted-foreground"
+          />
         </div>
       </div>
 
       {/* Free capacity */}
-      <div className="w-[160px] shrink-0">
+      <div className="min-w-0">
         <FreeCapacityBar freeHours={row.freeHours} capacity={row.capacity} />
         <div className="mt-0.5 text-[11px] text-muted-foreground">
           {row.bookedPct}% booked
@@ -405,7 +420,7 @@ function AvailTableRow({
       </div>
 
       {/* Available from */}
-      <div className="w-[130px] shrink-0 pt-1">
+      <div className="min-w-0 pt-1">
         <span
           className={`text-[12px] font-medium ${
             isNow ? "text-success" : "text-muted-foreground"
@@ -416,7 +431,7 @@ function AvailTableRow({
       </div>
 
       {/* Resource owner */}
-      <div className="w-[168px] shrink-0 pt-1 pr-4">
+      <div className="min-w-0 pt-1">
         <TruncateText
           as="div"
           text={row.resourceOwnerName || "—"}
@@ -425,21 +440,21 @@ function AvailTableRow({
       </div>
 
       {/* Skills */}
-      <div className="flex w-[140px] min-w-0 shrink flex-wrap content-start gap-1 pr-3 pt-0.5">
+      <div className="flex min-w-0 flex-wrap content-start gap-1 pt-0.5">
         {row.skills.map((s) => (
           <SkillChip key={s} label={s} highlight={isNow} />
         ))}
       </div>
 
       {/* Action */}
-      <div className="w-[100px] shrink-0 pt-1 text-right">
+      <div className="pt-1 text-right">
         {canAllocate ? (
         <button
           type="button"
           onClick={() => onAllocate(row)}
-          className="inline-flex cursor-pointer items-center gap-0.5 text-[11px] text-primary hover:underline"
+          className="inline-flex cursor-pointer items-center gap-0.5 whitespace-nowrap text-[11px] text-primary hover:underline"
         >
-          Allocate <ArrowRight className="h-3 w-3" />
+          Allocate <ArrowRight className="h-3 w-3 shrink-0" />
         </button>
         ) : (
           <span
@@ -597,7 +612,7 @@ export function Availability() {
     [skillRows]
   );
 
-  const [seg, setSeg] = useState<Segment>("capacity");
+  const [seg, setSeg] = useState<Segment>("now");
   const [rollingOffExpanded, setRollingOffExpanded] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [prefill, setPrefill] = useState<AllocationPrefill | null>(null);
@@ -707,8 +722,6 @@ export function Availability() {
     [selectedDepts, selectedSkills, minFreeHours]
   );
 
-  const filteredRows = useMemo(() => applyListFilters(availRows), [applyListFilters, availRows]);
-
   /** Header KPI cards — same skill/dept/min filters, locked to this week (forward-supply week 1). */
   const summaryFilteredRows = useMemo(
     () => applyListFilters(summaryRows),
@@ -751,16 +764,20 @@ export function Availability() {
     [rollingOffAll]
   );
 
-  /** Same people as the KPI card: 14-day allocation end, plus list filters. */
-  const rollingOffRows = useMemo(
-    () => filterAvailRowsRollingOffSoon(filteredRows, rollingOffIds),
-    [filteredRows, rollingOffIds]
+  /** All tab = this week + next week hours per person. */
+  const twoWeekRows = useMemo(
+    () => mergeAvailRowsTwoWeeks(summaryRows, summaryRowsWeek2),
+    [summaryRows, summaryRowsWeek2]
+  );
+  const twoWeekFilteredRows = useMemo(
+    () => applyListFilters(twoWeekRows),
+    [applyListFilters, twoWeekRows]
   );
 
-  /** All tab = Available now ∪ Rolling off soon (no ongoing Partial / Fully booked). */
-  const allSegmentRows = useMemo(
-    () => filterAvailRowsAllSegments(filteredRows, rollingOffIds),
-    [filteredRows, rollingOffIds]
+  /** Rolling-off people with two-week hours, plus list filters. */
+  const rollingOffRows = useMemo(
+    () => filterAvailRowsRollingOffSoon(twoWeekFilteredRows, rollingOffIds),
+    [twoWeekFilteredRows, rollingOffIds]
   );
 
   const rollingOff = useMemo(() => {
@@ -793,15 +810,13 @@ export function Availability() {
 
   const rows = useMemo(() => {
     const filtered =
-      seg === "capacity"
+      seg === "now"
         ? summaryFilteredRows
-        : seg === "capacityNext"
+        : seg === "next"
           ? summaryFilteredRowsWeek2
-          : seg === "now"
-            ? filteredRows.filter((r) => r.availableFrom === "Now")
-            : seg === "rolling"
-              ? rollingOffRows
-              : allSegmentRows;
+          : seg === "rolling"
+            ? rollingOffRows
+            : twoWeekFilteredRows;
 
     return [...filtered].sort((a, b) => {
       const mul = sortDir === "asc" ? 1 : -1;
@@ -820,7 +835,7 @@ export function Availability() {
       }
       return mul * a.skills.join(", ").localeCompare(b.skills.join(", "));
     });
-  }, [allSegmentRows, filteredRows, rollingOffRows, seg, sortKey, sortDir, summaryFilteredRows, summaryFilteredRowsWeek2]);
+  }, [rollingOffRows, seg, sortKey, sortDir, summaryFilteredRows, summaryFilteredRowsWeek2, twoWeekFilteredRows]);
 
   const allFiltersActive =
     selectedDepts.length === availDepartments.length &&
@@ -879,21 +894,29 @@ export function Availability() {
             value={formatHoursDecimalLabel(totalFreeHrsThisWeek)}
             delta={
               totalCapacityThisWeek > 0 ? (
-                <FreeOfCapacityDelta
+                <FreeOfCapacityHours
                   freeHrs={totalFreeHrsThisWeek}
                   capacityHrs={totalCapacityThisWeek}
                 />
               ) : undefined
             }
             deltaClass="text-muted-foreground"
+            labelAddon={
+              totalCapacityThisWeek > 0 ? (
+                <FreeOfCapacityPct
+                  freeHrs={totalFreeHrsThisWeek}
+                  capacityHrs={totalCapacityThisWeek}
+                />
+              ) : undefined
+            }
             sub="this week"
             subClass="inline-flex rounded-sm bg-success-soft px-1.5 py-0.5 text-[10px] font-semibold text-success-fg"
             accent="border-l-success"
             valueClass="text-success"
             aside={<TopFreePeopleList people={topFreeThisWeek} />}
-            active={seg === "capacity"}
+            active={seg === "now"}
             onClick={() => {
-              setSeg("capacity");
+              setSeg("now");
               setWeekStart(supplyFrom);
             }}
           />
@@ -902,21 +925,29 @@ export function Availability() {
             value={formatHoursDecimalLabel(totalFreeHrsNextWeek)}
             delta={
               totalCapacityNextWeek > 0 ? (
-                <FreeOfCapacityDelta
+                <FreeOfCapacityHours
                   freeHrs={totalFreeHrsNextWeek}
                   capacityHrs={totalCapacityNextWeek}
                 />
               ) : undefined
             }
             deltaClass="text-muted-foreground"
+            labelAddon={
+              totalCapacityNextWeek > 0 ? (
+                <FreeOfCapacityPct
+                  freeHrs={totalFreeHrsNextWeek}
+                  capacityHrs={totalCapacityNextWeek}
+                />
+              ) : undefined
+            }
             sub="next week"
             subClass="inline-flex rounded-sm bg-accent-soft px-1.5 py-0.5 text-[10px] font-semibold text-accent-softfg"
             accent="border-l-success"
             valueClass="text-success"
             aside={<TopFreePeopleList people={topFreeNextWeek} />}
-            active={seg === "capacityNext"}
+            active={seg === "next"}
             onClick={() => {
-              setSeg("capacityNext");
+              setSeg("next");
               setWeekStart(nextWeekStart);
             }}
           />
@@ -987,14 +1018,27 @@ export function Availability() {
           <div className="flex flex-shrink-0 items-center justify-between border-b border-border-soft px-4 py-2.5">
             <div className="flex gap-1">
               <Tab active={seg === "all"} onClick={() => setSeg("all")}>
-                All {allSegmentRows.length}
+                All {twoWeekFilteredRows.length}
               </Tab>
               <Tab
                 active={seg === "now"}
-                onClick={() => setSeg("now")}
+                onClick={() => {
+                  setSeg("now");
+                  setWeekStart(supplyFrom);
+                }}
                 tone="success"
               >
                 This week
+              </Tab>
+              <Tab
+                active={seg === "next"}
+                onClick={() => {
+                  setSeg("next");
+                  setWeekStart(nextWeekStart);
+                }}
+                tone="accent"
+              >
+                Next week
               </Tab>
               <Tab
                 active={seg === "rolling"}
@@ -1008,11 +1052,8 @@ export function Availability() {
               weekStart={weekStart}
               onChange={(ws) => {
                 setWeekStart(ws);
-                if (seg === "capacity" || seg === "capacityNext") {
-                  if (ws === supplyFrom) setSeg("capacity");
-                  else if (ws === nextWeekStart) setSeg("capacityNext");
-                  else setSeg("all");
-                }
+                if (ws === supplyFrom) setSeg("now");
+                else if (ws === nextWeekStart) setSeg("next");
               }}
               weeks={availabilityWeeks}
             />
@@ -1020,8 +1061,8 @@ export function Availability() {
 
           {/* Single scrollport: sticky header + rows share width (scrollbar no longer shifts columns). */}
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-            <div className="sticky top-0 z-10 flex items-center border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold text-muted">
-              <div className="w-[200px] shrink-0">
+            <div className={`${AVAIL_GRID} sticky top-0 z-10 items-center border-b border-border-soft bg-surface-alt py-2 text-[11px] font-semibold text-muted`}>
+              <div className="min-w-0">
                 <SortColHeader
                   label="TEAM MEMBER"
                   col="name"
@@ -1030,7 +1071,7 @@ export function Availability() {
                   onSort={handleSort}
                 />
               </div>
-              <div className="w-[160px] shrink-0">
+              <div className="min-w-0">
                 <SortColHeader
                   label="FREE CAPACITY"
                   col="freeHours"
@@ -1039,7 +1080,7 @@ export function Availability() {
                   onSort={handleSort}
                 />
               </div>
-              <div className="w-[130px] shrink-0">
+              <div className="min-w-0">
                 <SortColHeader
                   label="AVAILABLE FROM"
                   col="availableFrom"
@@ -1048,7 +1089,7 @@ export function Availability() {
                   onSort={handleSort}
                 />
               </div>
-              <div className="w-[168px] shrink-0 pr-4">
+              <div className="min-w-0">
                 <SortColHeader
                   label="RESOURCE OWNER"
                   col="resourceOwner"
@@ -1057,7 +1098,7 @@ export function Availability() {
                   onSort={handleSort}
                 />
               </div>
-              <div className="w-[140px] min-w-0 shrink pr-3">
+              <div className="min-w-0">
                 <SortColHeader
                   label="SKILLS"
                   col="skills"
@@ -1066,7 +1107,7 @@ export function Availability() {
                   onSort={handleSort}
                 />
               </div>
-              <div className="w-[100px] shrink-0 text-right">ACTION</div>
+              <div className="text-right">ACTION</div>
             </div>
 
             {rows.length === 0 ? (

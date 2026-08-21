@@ -32,6 +32,55 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-21 11:18 IST
+
+**Prompt:**  
+> Availability table columns shall have proper width and shall not be too close to the next columns.
+
+**Output:**  
+- Header and rows share a 6-column grid with `gap-x-3` and minmax widths so AVAILABLE FROM / RESOURCE OWNER / SKILLS no longer collide.
+- Long names and owners truncate with hover titles.
+- Files: `screens/Availability.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-21 11:10 IST
+
+**Prompt:**  
+> Vertically center the top-3 free names list on the Total Free Capacity KPI cards.
+
+**Output:**  
+- KPI body uses `items-center`; removed the aside `pt-0.5` offset.
+- Files: `screens/Availability.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-21 10:48 IST
+
+**Prompt:**  
+> ACTION column takes a lot of space but still wraps Allocate and leaves white space. Problem is the ACTION header `w-[100px]`.
+
+**Output:**  
+- ACTION is `w-[5.5rem]` with `whitespace-nowrap` so Allocate → stays one line.
+- SKILLS is `flex-1` so leftover width goes there instead of an oversized ACTION cell (and skills wrap less).
+- Files: `screens/Availability.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-21 10:35 IST
+
+**Prompt:**  
+> All tab = this week + next week consolidated per resource (hours, booked %, bar). This-week KPI selects This week tab and this-week rows. Add Next week tab (after This week); next-week KPI selects it. Rolling off soon tab = rolling-off people with two-week hours.
+
+**Output:**  
+- Tabs: All {n} | This week | Next week | Rolling off soon.
+- All merges both weeks per person (`72h free` / combined booked %). Rolling off uses the same two-week hours for that set only.
+- This-week / next-week KPIs and tabs stay in sync; week picker switches those two tabs.
+- Files: `data/availability.ts` (`mergeAvailRowsTwoWeeks`), `screens/Availability.tsx`, `tests/unit/availRollingOffSoon.test.ts`, `docs/prompt-log.md`.
+
+### 2026-08-21 10:22 IST
+
+**Prompt:**  
+> Move `(64%)` beside the Total Free Capacity title. Keep the same colors/style. Drop the parentheses so it shows `64%`. Apply to both this-week and next-week cards.
+
+**Output:**  
+- Title row is `Total Free Capacity 64%`. Percent stays 11px; `font-bold text-danger` when > 20%. Suffix under the hours is only `of 807.5h`.
+- Files: `screens/Availability.tsx`, `docs/prompt-log.md`.
+
 ### 2026-08-21 10:18 IST
 
 **Prompt:**  
