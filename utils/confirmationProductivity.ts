@@ -388,6 +388,24 @@ export function workdayDurationMs(marks: WorkdayMarks): {
   return { officeMs, lunchMs, productiveMs };
 }
 
+/** Exact message when Confirm all as planned is blocked by a short productive window. */
+export const CONFIRM_AS_PLANNED_PRODUCTIVE_WINDOW_MESSAGE =
+  "Your productive window is less than the actual hours planned for you. Please update the appropriate deviation and submit the confirmation with deviation.";
+
+/**
+ * Day-end rule: cannot confirm everything as planned when productive window &lt; planned hours.
+ * Productive window ≥ planned hours → allow.
+ */
+export function isConfirmAllAsPlannedBlockedByProductiveWindow(
+  productiveMs: number,
+  plannedHours: number
+): boolean {
+  const planned = Number(plannedHours) || 0;
+  if (planned <= 0) return false;
+  const productive = Math.max(0, Number(productiveMs) || 0);
+  return productive < planned * 3600000;
+}
+
 /**
  * Total (Planned/Unplan.) Work Hours:
  *   Σ allocated hours for as-planned lines (plannedHours)

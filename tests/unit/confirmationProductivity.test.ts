@@ -12,7 +12,26 @@ import {
   unplannedEntryBlockedReason,
   workDateEndMs,
   workdayDurationMs,
+  isConfirmAllAsPlannedBlockedByProductiveWindow,
+  CONFIRM_AS_PLANNED_PRODUCTIVE_WINDOW_MESSAGE,
 } from "../../utils/confirmationProductivity";
+
+describe("confirm all as planned vs productive window", () => {
+  it("blocks when productive window is less than planned hours", () => {
+    expect(isConfirmAllAsPlannedBlockedByProductiveWindow(7.5 * 3600000, 8.5)).toBe(true);
+    expect(isConfirmAllAsPlannedBlockedByProductiveWindow(0, 8)).toBe(true);
+  });
+
+  it("allows when productive window is greater than or equal to planned hours", () => {
+    expect(isConfirmAllAsPlannedBlockedByProductiveWindow(8.5 * 3600000, 8.5)).toBe(false);
+    expect(isConfirmAllAsPlannedBlockedByProductiveWindow(9 * 3600000, 8.5)).toBe(false);
+  });
+
+  it("exposes the product message for Case 1", () => {
+    expect(CONFIRM_AS_PLANNED_PRODUCTIVE_WINDOW_MESSAGE).toMatch(/productive window is less than/i);
+    expect(CONFIRM_AS_PLANNED_PRODUCTIVE_WINDOW_MESSAGE).toMatch(/deviation/i);
+  });
+});
 
 describe("focusElapsedMsForWorkDate", () => {
   it("does not let an abandoned open timer grow across later calendar days", () => {

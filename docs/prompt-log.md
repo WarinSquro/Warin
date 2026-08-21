@@ -32,6 +32,65 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-21 19:05 IST
+
+**Prompt:**  
+> Work Confirmation Day-End: block "Confirm all as planned" when productive window &lt; planned hours; allow when ≥.
+
+**Output:**  
+- `utils/confirmationProductivity.ts` — `isConfirmAllAsPlannedBlockedByProductiveWindow` + message constant.
+- `screens/WorkConfirmation.tsx` — on submit with no deviations (today productivity), compare `workdayDurationMs` productive window vs `plannedTotal`; toast + saveError on Case 1.
+- Tests: `tests/unit/confirmationProductivity.test.ts`.
+
+### 2026-08-21 18:55 IST
+
+**Prompt:**  
+> Projects Columns picker: Project Health / created / updated / by labels should be capital.
+
+**Output:**  
+- `screens/ProjectMaster.tsx` — `PROJECT_COLUMNS` labels → `PROJECT HEALTH`, `PROJECT CREATED DATE & TIME`, `UPDATED DATE & TIME`, `CREATED BY`, `UPDATED BY`.
+
+### 2026-08-21 18:50 IST
+
+**Prompt:**  
+> Map Employees modal: shift Map-to-project controls to bottom (select employees in grid first, then map).
+
+**Output:**  
+- `components/MapEmployeesToProjectsModal.tsx` — search filters stay above the grid; **Map to project** dropdown + Map button + selection hint moved to a footer bar below the grid.
+
+### 2026-08-21 18:35 IST
+
+**Prompt:**  
+> Check and correct Failed to fetch on login (5173).
+
+**Output:**  
+- **Root cause:** `.env.local` pointed Vite at `http://127.0.0.1:3001` but host `api:dev` was down → browser `Failed to fetch`.
+- Removed `.env.local` so Vite uses `.env` → `http://127.0.0.1:8080/api/v1` (Docker API healthy; maps route also present → 401 without JWT).
+- **User:** restart `npm run dev` and hard-refresh login.
+
+### 2026-08-21 18:05 IST
+
+**Prompt:**  
+> Fix Cannot GET /api/v1/employee-project-maps on Map Employees modal.
+
+**Output:**  
+- **Root cause:** Vite SPA called Docker nginx `:8080` API image that was still old (no new routes). Docker `--build api` was stuck/slow.
+- **Fix (local):** Host `npm run api:dev` on `:3001` with routes registered; `.env.local` → `VITE_API_BASE_URL=http://127.0.0.1:3001/api/v1` (gitignored). Restart Vite to pick up env.
+- Longer-term: finish `docker compose up -d --build api` so `:8080` serves the new controller.
+
+### 2026-08-21 17:05 IST
+
+**Prompt:**  
+> Implement Map Employees to Projects FRD (`phase1-emp2prj-frd.pdf`) with agreed decisions (large modal, chip unmap, RO scope B, super-admin all, no backfill, strict empty project dropdown).
+
+**Output:**  
+- **DB:** `employee_project_maps` (Prisma + migration `20260821170000_employee_project_maps`); table workbook regenerated (T15).
+- **API:** `EmployeeProjectMapsController` — list/map/unmap + `for-employee/:hrmsId`; allocations create requires mapping; update allows same employee+project without remapping.
+- **UI:** Projects → **Map Employees** (before Add project) → large modal; AllocationDrawer filters projects by mapping.
+- **Scope:** Super Admin all active − Administrator; RO direct+indirect only; else empty.
+- **Spec:** `docs/specs/phase1-emp2prj-frd.pdf`, README + frd-gap-checklist updated.
+- **Tests:** `tests/unit/employeeProjectMapScope.test.ts` passed.
+
 ### 2026-08-21 14:20 IST
 
 **Prompt:**  

@@ -43,9 +43,12 @@ import {
   focusStartBlockedReason,
   getDayProductivity,
   hasAnyUnstoppedFocusSession,
+  isConfirmAllAsPlannedBlockedByProductiveWindow,
   isFocusStartBlocked,
   isUnplannedEntryBlocked,
   unplannedEntryBlockedReason,
+  CONFIRM_AS_PLANNED_PRODUCTIVE_WINDOW_MESSAGE,
+  workdayDurationMs,
   FOCUS_TIMERS_FINALIZED_EVENT,
   loadProductivityStore,
   pauseAllRunningFocusTimers,
@@ -673,6 +676,15 @@ function EmployeeConfirm() {
     if (canUseProductivity && hasAnyUnstoppedFocusSession(todayProd.focusByAllocation)) {
       toast.error("Stop all focus timers before submitting confirmation.");
       return;
+    }
+    // Day-end: block "Confirm all as planned" when productive window < planned hours.
+    if (canUseProductivity && deviationCount === 0) {
+      const { productiveMs } = workdayDurationMs(todayProd.workday);
+      if (isConfirmAllAsPlannedBlockedByProductiveWindow(productiveMs, plannedTotal)) {
+        setSaveError(CONFIRM_AS_PLANNED_PRODUCTIVE_WINDOW_MESSAGE);
+        toast.error(CONFIRM_AS_PLANNED_PRODUCTIVE_WINDOW_MESSAGE);
+        return;
+      }
     }
     setSaving(true);
     setSaveError("");
