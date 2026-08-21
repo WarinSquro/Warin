@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   AVAIL_ROWS,
   availAvgDeltaDisplay,
+  availFreeOfCapacityLabel,
+  availFreeOfCapacityParts,
+  availTopFreePeople,
   avgFreeHoursPerPerson,
   computeAvailKpis,
   filterAvailRowsAllSegments,
@@ -102,16 +105,58 @@ describe("computeAvailKpis avgDelta", () => {
 });
 
 describe("availAvgDeltaDisplay", () => {
-  it("formats up, down, and unchanged vs 2 weeks ago", () => {
+  it("formats up, down, and unchanged vs prior week", () => {
     expect(availAvgDeltaDisplay(6)).toEqual({
-      text: "▲ 6.0h vs 2 weeks ago",
+      text: "▲ 6.0h vs prior week",
       tone: "danger",
     });
     expect(availAvgDeltaDisplay(-2.5)).toEqual({
-      text: "▼ 2.5h vs 2 weeks ago",
+      text: "▼ 2.5h vs prior week",
       tone: "success",
     });
-    expect(availAvgDeltaDisplay(0)).toEqual({ text: "— vs 2 weeks ago", tone: "muted" });
+    expect(availAvgDeltaDisplay(0)).toEqual({ text: "— vs prior week", tone: "muted" });
     expect(availAvgDeltaDisplay(null)).toBeNull();
+  });
+});
+
+describe("availFreeOfCapacityLabel", () => {
+  it("formats of-capacity hours and rounded percent", () => {
+    expect(availFreeOfCapacityLabel(170, 250)).toBe("of 250.0h (68%)");
+    expect(availFreeOfCapacityLabel(1165, 2500)).toBe("of 2500.0h (47%)");
+  });
+
+  it("is 0% when capacity is 0", () => {
+    expect(availFreeOfCapacityLabel(10, 0)).toBe("of 0.0h (0%)");
+  });
+});
+
+describe("availFreeOfCapacityParts", () => {
+  it("splits hours suffix from percent", () => {
+    expect(availFreeOfCapacityParts(170, 250)).toEqual({ ofHours: "of 250.0h", pct: 68 });
+  });
+
+  it("marks percents above 20 as the critical threshold for the KPI", () => {
+    expect(availFreeOfCapacityParts(50, 250).pct).toBe(20);
+    expect(availFreeOfCapacityParts(52.5, 250).pct).toBeGreaterThan(20);
+  });
+});
+
+describe("availTopFreePeople", () => {
+  it("returns up to 3 people with the highest free hours", () => {
+    const rows = [
+      row({ id: "a", name: "Ada", freeHours: 10 }),
+      row({ id: "b", name: "Bea", freeHours: 40 }),
+      row({ id: "c", name: "Cal", freeHours: 38 }),
+      row({ id: "d", name: "Dee", freeHours: 32 }),
+    ];
+    expect(availTopFreePeople(rows).map((r) => r.id)).toEqual(["b", "c", "d"]);
+  });
+
+  it("omits people with no free hours and returns fewer than 3 when needed", () => {
+    const rows = [
+      row({ id: "a", name: "Ada", freeHours: 8 }),
+      row({ id: "b", name: "Bea", freeHours: 0 }),
+    ];
+    expect(availTopFreePeople(rows).map((r) => r.id)).toEqual(["a"]);
   });
 });

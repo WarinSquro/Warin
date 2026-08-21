@@ -32,6 +32,48 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-21 10:18 IST
+
+**Prompt:**  
+> Remove the Rolling Off Soon KPI card. On the this-week and next-week Total Free Capacity cards, show the 3 resources with the highest free hours for that week (e.g. `Kiran Bose (40h)`), small font, right side. Those two cards can take more width; Avg Free Hrs / Person sized accordingly.
+
+**Output:**  
+- Removed Rolling Off Soon KPI. Table tab and rolling-off band unchanged.
+- Each capacity card lists top 3 positive-free people for that week (`Name (40h)`), right-aligned 11px, truncated with hover title.
+- KPI row: `1.4fr / 1.4fr / 0.85fr`.
+- Files: `data/availability.ts` (`availTopFreePeople`), `screens/Availability.tsx`, `tests/unit/availRollingOffSoon.test.ts`, `docs/prompt-log.md`.
+
+### 2026-08-21 10:08 IST
+
+**Prompt:**  
+> On Total Free Capacity KPI suffixes (`of 807.5h (64%)` and `of 646.0h (100%)`), if the % is above 20% show only the `(64%)` / `(100%)` part in red bold. Font size stays 11px. Use design-system critical/danger colors. Apply to both this-week and next-week cards.
+
+**Output:**  
+- Percent in the suffix uses `text-danger font-bold` when pct > 20; `of {hours}` stays muted 11px. 20% stays muted.
+- Files: `data/availability.ts` (`availFreeOfCapacityParts`), `screens/Availability.tsx`, `tests/unit/availRollingOffSoon.test.ts`, `docs/prompt-log.md`.
+
+### 2026-08-21 10:16 IST
+
+**Prompt:**  
+> Remove the number from the Rolling off soon tab button.
+
+**Output:**  
+- Tab label is now `Rolling off soon` with no count.
+- Files: `screens/Availability.tsx`, `docs/prompt-log.md`.
+
+---
+
+### 2026-08-21 10:15 IST
+
+**Prompt:**  
+> Change the "Available now 5" tab caption to "This week" with no number.
+
+**Output:**  
+- Tab label is now `This week`. Count removed. Filter behavior unchanged (still the previous Available now segment).
+- Files: `screens/Availability.tsx`, `docs/prompt-log.md`.
+
+---
+
 ### 2026-08-21 10:12 IST
 
 **Prompt:**  

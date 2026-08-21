@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   MIN_FREE_HOUR_OPTIONS,
   availAvgDeltaDisplay,
   avgFreeHoursPerPerson,
-  availFreeOfCapacityLabel,
-  computeAvailKpis,
+  availFreeOfCapacityParts,
+  availTopFreePeople,
   filterAvailRowsAllSegments,
   filterAvailRowsRollingOffSoon,
 } from "../data/availability";
@@ -29,7 +29,7 @@ import { WeeklyCheckInWeekPicker } from "../components/WeeklyCheckInWeekPicker";
 import { buildAvailRowsFromEmployees, buildRollingOffFromLive, addDaysISO, mondayISO } from "../api/liveViews";
 import { createAllocation, fetchAllocations, type ApiAllocation } from "../api/domain";
 import { TruncateText } from "../components/TruncateText";
-import { formatHoursDecimalLabel, roundHoursToTenth } from "../utils/formatHours";
+import { formatHoursDecimalLabel, formatHoursLabel, roundHoursToTenth } from "../utils/formatHours";
 import { formatWeekLabel, type ReviewWeekOption } from "../data/weeklyCheckIn";
 
 type Segment = "capacity" | "capacityNext" | "all" | "now" | "rolling";
@@ -76,6 +76,32 @@ function availFromOrder(value: string) {
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
+function FreeOfCapacityDelta({ freeHrs, capacityHrs }: { freeHrs: number; capacityHrs: number }) {
+  const { ofHours, pct } = availFreeOfCapacityParts(freeHrs, capacityHrs);
+  return (
+    <>
+      {ofHours}{" "}
+      <span className={pct > 20 ? "font-bold text-danger" : undefined}>({pct}%)</span>
+    </>
+  );
+}
+
+function TopFreePeopleList({ people }: { people: AvailRow[] }) {
+  if (people.length === 0) return null;
+  return (
+    <ul className="space-y-0.5 text-[11px] leading-tight text-muted-foreground">
+      {people.map((p) => {
+        const label = `${p.name} (${formatHoursLabel(roundHoursToTenth(p.freeHours))})`;
+        return (
+          <li key={p.id} className="max-w-[11.5rem]">
+            <TruncateText text={label} className="block text-right" />
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 function Kpi({
   label,
   value,
@@ -87,17 +113,19 @@ function Kpi({
   onClick,
   active,
   subClass,
+  aside,
 }: {
   label: string;
   value: string | number;
   sub?: string;
-  delta?: string;
+  delta?: ReactNode;
   deltaClass?: string;
   accent?: string;
   valueClass?: string;
   onClick?: () => void;
   active?: boolean;
   subClass?: string;
+  aside?: ReactNode;
 }) {
   const className = [
     "rounded-lg border border-border bg-surface px-3.5 py-3.5 text-left",
@@ -107,22 +135,25 @@ function Kpi({
   ].join(" ");
 
   const body = (
-    <>
-      <div className="mb-1.5 text-[11px] text-muted">{label}</div>
-      <div className="flex flex-wrap items-baseline gap-1.5">
-        <div className={`text-[23px] font-semibold ${valueClass ?? "text-foreground"}`}>
-          {value}
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0 flex-1">
+        <div className="mb-1.5 text-[11px] text-muted">{label}</div>
+        <div className="flex flex-wrap items-baseline gap-1.5">
+          <div className={`text-[23px] font-semibold ${valueClass ?? "text-foreground"}`}>
+            {value}
+          </div>
+          {delta && (
+            <div className={`text-[11px] ${deltaClass ?? "text-success"}`}>{delta}</div>
+          )}
         </div>
-        {delta && (
-          <div className={`text-[11px] ${deltaClass ?? "text-success"}`}>{delta}</div>
+        {sub && (
+          <div className="mt-1">
+            <span className={subClass ?? "text-[11px] text-muted-foreground"}>{sub}</span>
+          </div>
         )}
       </div>
-      {sub && (
-        <div className="mt-1">
-          <span className={subClass ?? "text-[11px] text-muted-foreground"}>{sub}</span>
-        </div>
-      )}
-    </>
+      {aside ? <div className="min-w-0 shrink-0 pt-0.5">{aside}</div> : null}
+    </div>
   );
 
   if (onClick) {
@@ -737,9 +768,13 @@ export function Availability() {
     return rollingOffAll.filter((p) => visible.has(p.id));
   }, [rollingOffAll, rollingOffRows]);
 
-  const kpis = useMemo(
-    () => computeAvailKpis(summaryFilteredRows, rollingOffRows.length, summaryFilteredRowsLastWeek),
-    [summaryFilteredRows, rollingOffRows, summaryFilteredRowsLastWeek]
+  const topFreeThisWeek = useMemo(
+    () => availTopFreePeople(summaryFilteredRows),
+    [summaryFilteredRows]
+  );
+  const topFreeNextWeek = useMemo(
+    () => availTopFreePeople(summaryFilteredRowsWeek2),
+    [summaryFilteredRowsWeek2]
   );
 
   const avgSourceRows =
@@ -787,8 +822,6 @@ export function Availability() {
     });
   }, [allSegmentRows, filteredRows, rollingOffRows, seg, sortKey, sortDir, summaryFilteredRows, summaryFilteredRowsWeek2]);
 
-  const nowCount = filteredRows.filter((r) => r.availableFrom === "Now").length;
-  const rollingCount = rollingOffRows.length;
   const allFiltersActive =
     selectedDepts.length === availDepartments.length &&
     selectedSkills.length === availSkills.length &&
@@ -840,20 +873,24 @@ export function Availability() {
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden bg-background p-5">
         {/* KPI row */}
-        <div className="grid flex-shrink-0 grid-cols-4 gap-3">
+        <div className="grid flex-shrink-0 grid-cols-[minmax(0,1.4fr)_minmax(0,1.4fr)_minmax(11.5rem,0.85fr)] gap-3">
           <Kpi
             label="Total Free Capacity"
             value={formatHoursDecimalLabel(totalFreeHrsThisWeek)}
             delta={
-              totalCapacityThisWeek > 0
-                ? availFreeOfCapacityLabel(totalFreeHrsThisWeek, totalCapacityThisWeek)
-                : undefined
+              totalCapacityThisWeek > 0 ? (
+                <FreeOfCapacityDelta
+                  freeHrs={totalFreeHrsThisWeek}
+                  capacityHrs={totalCapacityThisWeek}
+                />
+              ) : undefined
             }
             deltaClass="text-muted-foreground"
             sub="this week"
             subClass="inline-flex rounded-sm bg-success-soft px-1.5 py-0.5 text-[10px] font-semibold text-success-fg"
             accent="border-l-success"
             valueClass="text-success"
+            aside={<TopFreePeopleList people={topFreeThisWeek} />}
             active={seg === "capacity"}
             onClick={() => {
               setSeg("capacity");
@@ -864,29 +901,24 @@ export function Availability() {
             label="Total Free Capacity"
             value={formatHoursDecimalLabel(totalFreeHrsNextWeek)}
             delta={
-              totalCapacityNextWeek > 0
-                ? availFreeOfCapacityLabel(totalFreeHrsNextWeek, totalCapacityNextWeek)
-                : undefined
+              totalCapacityNextWeek > 0 ? (
+                <FreeOfCapacityDelta
+                  freeHrs={totalFreeHrsNextWeek}
+                  capacityHrs={totalCapacityNextWeek}
+                />
+              ) : undefined
             }
             deltaClass="text-muted-foreground"
             sub="next week"
             subClass="inline-flex rounded-sm bg-accent-soft px-1.5 py-0.5 text-[10px] font-semibold text-accent-softfg"
             accent="border-l-success"
             valueClass="text-success"
+            aside={<TopFreePeopleList people={topFreeNextWeek} />}
             active={seg === "capacityNext"}
             onClick={() => {
               setSeg("capacityNext");
               setWeekStart(nextWeekStart);
             }}
-          />
-          <Kpi
-            label="Rolling Off Soon"
-            value={kpis.rollingOffSoon}
-            sub="within 2 weeks"
-            accent="border-l-warning"
-            valueClass="text-warning"
-            active={seg === "rolling"}
-            onClick={() => setSeg("rolling")}
           />
           <Kpi
             label="Avg Free Hrs / Person"
@@ -962,14 +994,14 @@ export function Availability() {
                 onClick={() => setSeg("now")}
                 tone="success"
               >
-                Available now {nowCount}
+                This week
               </Tab>
               <Tab
                 active={seg === "rolling"}
                 onClick={() => setSeg("rolling")}
                 tone="warning"
               >
-                Rolling off soon {rollingCount}
+                Rolling off soon
               </Tab>
             </div>
             <WeeklyCheckInWeekPicker

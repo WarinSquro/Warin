@@ -26,6 +26,8 @@ export interface AvailRow {
   availableFrom: string; // "Now" or a date string
   skills: string[];
   bookedPct: number;   // 0–100
+  resourceOwnerId?: string;
+  resourceOwnerName?: string;
 }
 
 export const AVAIL_KPIS = {
@@ -37,15 +39,15 @@ export const AVAIL_KPIS = {
 
 export type AvailAvgDeltaTone = "success" | "danger" | "muted";
 
-/** Label + tone for Avg Free Hrs / Person vs the same week two weeks earlier. */
+/** Label + tone for Avg Free Hrs / Person vs the prior week. */
 export function availAvgDeltaDisplay(
   avgDelta: number | null
 ): { text: string; tone: AvailAvgDeltaTone } | null {
   if (avgDelta == null) return null;
-  if (avgDelta === 0) return { text: "— vs 2 weeks ago", tone: "muted" };
+  if (avgDelta === 0) return { text: "— vs prior week", tone: "muted" };
   const abs = formatHoursDecimalLabel(Math.abs(avgDelta));
-  if (avgDelta > 0) return { text: `▲ ${abs} vs 2 weeks ago`, tone: "danger" };
-  return { text: `▼ ${abs} vs 2 weeks ago`, tone: "success" };
+  if (avgDelta > 0) return { text: `▲ ${abs} vs prior week`, tone: "danger" };
+  return { text: `▼ ${abs} vs prior week`, tone: "success" };
 }
 
 /** Mean free hours per person for the rows shown (one week per person). */
@@ -72,6 +74,35 @@ export function filterAvailRowsAllSegments(
   rollingOffIds: ReadonlySet<string>
 ): AvailRow[] {
   return rows.filter((r) => r.availableFrom === "Now" || rollingOffIds.has(r.id));
+}
+
+/** Highest-free people for a week KPI (positive free hours only). */
+export function availTopFreePeople(rows: AvailRow[], limit = 3): AvailRow[] {
+  return [...rows]
+    .filter((r) => r.freeHours > 0)
+    .sort((a, b) => {
+      const byHours = b.freeHours - a.freeHours;
+      if (byHours !== 0) return byHours;
+      return a.name.localeCompare(b.name);
+    })
+    .slice(0, limit);
+}
+
+/** Hours suffix + free% of capacity. */
+export function availFreeOfCapacityParts(
+  freeHrs: number,
+  capacityHrs: number
+): { ofHours: string; pct: number } {
+  const cap = roundHoursToTenth(capacityHrs);
+  const free = roundHoursToTenth(freeHrs);
+  const pct = cap > 0 ? Math.round((free / cap) * 100) : 0;
+  return { ofHours: `of ${formatHoursDecimalLabel(cap)}`, pct };
+}
+
+/** Small KPI suffix: `of 250.0h (68%)`. */
+export function availFreeOfCapacityLabel(freeHrs: number, capacityHrs: number): string {
+  const { ofHours, pct } = availFreeOfCapacityParts(freeHrs, capacityHrs);
+  return `${ofHours} (${pct}%)`;
 }
 
 export function computeAvailKpis(
