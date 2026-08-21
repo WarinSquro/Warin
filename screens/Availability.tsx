@@ -28,11 +28,12 @@ import { allocationBlockedMessage } from "../utils/allocationPermission";
 import { WeeklyCheckInWeekPicker } from "../components/WeeklyCheckInWeekPicker";
 import { buildAvailRowsFromEmployees, buildRollingOffFromLive, addDaysISO, mondayISO } from "../api/liveViews";
 import { createAllocation, fetchAllocations, type ApiAllocation } from "../api/domain";
+import { TruncateText } from "../components/TruncateText";
 import { formatHoursDecimalLabel, roundHoursToTenth } from "../utils/formatHours";
 import { formatWeekLabel, type ReviewWeekOption } from "../data/weeklyCheckIn";
 
-type Segment = "capacity" | "all" | "now" | "rolling";
-type AvailSortKey = "name" | "freeHours" | "availableFrom" | "skills";
+type Segment = "capacity" | "capacityNext" | "all" | "now" | "rolling";
+type AvailSortKey = "name" | "freeHours" | "availableFrom" | "resourceOwner" | "skills";
 
 /** Current week + next week for the Availability week picker. */
 function getAvailabilityWeeks(workingDays?: string[]): ReviewWeekOption[] {
@@ -85,6 +86,7 @@ function Kpi({
   valueClass,
   onClick,
   active,
+  subClass,
 }: {
   label: string;
   value: string | number;
@@ -95,6 +97,7 @@ function Kpi({
   valueClass?: string;
   onClick?: () => void;
   active?: boolean;
+  subClass?: string;
 }) {
   const className = [
     "rounded-lg border border-border bg-surface px-3.5 py-3.5 text-left",
@@ -114,7 +117,11 @@ function Kpi({
           <div className={`text-[11px] ${deltaClass ?? "text-success"}`}>{delta}</div>
         )}
       </div>
-      {sub && <div className="mt-0.5 text-[11px] text-muted-foreground">{sub}</div>}
+      {sub && (
+        <div className="mt-1">
+          <span className={subClass ?? "text-[11px] text-muted-foreground"}>{sub}</span>
+        </div>
+      )}
     </>
   );
 
@@ -340,7 +347,7 @@ function AvailTableRow({
 }) {
   const isNow = row.availableFrom === "Now";
   return (
-    <div className="flex items-center border-b border-border-soft px-4 py-3 last:border-b-0">
+    <div className="flex items-start border-b border-border-soft px-4 py-3 last:border-b-0">
       {/* Team member */}
       <div className="flex w-[200px] shrink-0 items-center gap-2.5">
         <div
@@ -367,7 +374,7 @@ function AvailTableRow({
       </div>
 
       {/* Available from */}
-      <div className="w-[130px] shrink-0">
+      <div className="w-[130px] shrink-0 pt-1">
         <span
           className={`text-[12px] font-medium ${
             isNow ? "text-success" : "text-muted-foreground"
@@ -377,15 +384,24 @@ function AvailTableRow({
         </span>
       </div>
 
+      {/* Resource owner */}
+      <div className="w-[168px] shrink-0 pt-1 pr-4">
+        <TruncateText
+          as="div"
+          text={row.resourceOwnerName || "—"}
+          className="text-[12px] text-foreground"
+        />
+      </div>
+
       {/* Skills */}
-      <div className="flex flex-1 flex-wrap gap-1 pr-4">
+      <div className="flex w-[140px] min-w-0 shrink flex-wrap content-start gap-1 pr-3 pt-0.5">
         {row.skills.map((s) => (
           <SkillChip key={s} label={s} highlight={isNow} />
         ))}
       </div>
 
       {/* Action */}
-      <div className="w-[100px] shrink-0 text-right">
+      <div className="w-[100px] shrink-0 pt-1 text-right">
         {canAllocate ? (
         <button
           type="button"
@@ -419,6 +435,8 @@ export function Availability() {
   const { settings } = useSettings();
   const toast = useToast();
   const { start: supplyFrom, end: supplyTo } = useMemo(() => forwardSupplyBounds(), []);
+  const nextWeekStart = useMemo(() => addDaysISO(supplyFrom, 7), [supplyFrom]);
+  const lastWeekStart = useMemo(() => addDaysISO(supplyFrom, -7), [supplyFrom]);
   const supplyRangeLabel = useMemo(
     () => formatForwardSupplyRange(supplyFrom, supplyTo),
     [supplyFrom, supplyTo]
@@ -449,9 +467,13 @@ export function Availability() {
   const fallbackWeekCapacity =
     Math.round(settings.workingHoursPerDay * settings.workingDays.length) || 40;
 
-  /** Capacity / free hrs for header KPI cards — locked to forward-supply week 1 (not week picker). */
+  /** Capacity / free hrs for this-week KPI — locked to forward-supply week 1. */
   const summaryWeekCapacity =
     weekCapacityHours(supplyFrom, calendarOpts) || fallbackWeekCapacity;
+  const nextWeekCapacity =
+    weekCapacityHours(nextWeekStart, calendarOpts) || fallbackWeekCapacity;
+  const lastWeekCapacity =
+    weekCapacityHours(lastWeekStart, calendarOpts) || fallbackWeekCapacity;
   /** Capacity for the table — follows week picker. */
   const weekCapacity = weekCapacityHours(weekStart, calendarOpts) || fallbackWeekCapacity;
   const [allocations, setAllocations] = useState<ApiAllocation[]>([]);
@@ -478,34 +500,39 @@ export function Availability() {
         allocations,
         offDayIsos,
         supplyFrom,
-        settings.workingDays
+        settings.workingDays,
+        allEmployees
       ),
-    [employees, summaryWeekCapacity, allocations, offDayIsos, supplyFrom, settings.workingDays]
+    [employees, summaryWeekCapacity, allocations, offDayIsos, supplyFrom, settings.workingDays, allEmployees]
   );
 
-  /** Same people/filters as the KPI, for the two weeks before the forward-supply window. */
-  const priorSummaryRows = useMemo(() => {
-    const weeks = [addDaysISO(supplyFrom, -14), addDaysISO(supplyFrom, -7)];
-    return weeks.flatMap((ws) => {
-      const cap = weekCapacityHours(ws, calendarOpts) || fallbackWeekCapacity;
-      return buildAvailRowsFromEmployees(
+  const summaryRowsWeek2 = useMemo(
+    () =>
+      buildAvailRowsFromEmployees(
         employees,
-        cap,
+        nextWeekCapacity,
         allocations,
         offDayIsos,
-        ws,
-        settings.workingDays
-      );
-    });
-  }, [
-    employees,
-    allocations,
-    offDayIsos,
-    supplyFrom,
-    settings.workingDays,
-    calendarOpts,
-    fallbackWeekCapacity,
-  ]);
+        nextWeekStart,
+        settings.workingDays,
+        allEmployees
+      ),
+    [employees, nextWeekCapacity, allocations, offDayIsos, nextWeekStart, settings.workingDays, allEmployees]
+  );
+
+  const summaryRowsLastWeek = useMemo(
+    () =>
+      buildAvailRowsFromEmployees(
+        employees,
+        lastWeekCapacity,
+        allocations,
+        offDayIsos,
+        lastWeekStart,
+        settings.workingDays,
+        allEmployees
+      ),
+    [employees, lastWeekCapacity, allocations, offDayIsos, lastWeekStart, settings.workingDays, allEmployees]
+  );
 
   const availRows = useMemo(
     () =>
@@ -515,9 +542,10 @@ export function Availability() {
         allocations,
         offDayIsos,
         weekStart,
-        settings.workingDays
+        settings.workingDays,
+        allEmployees
       ),
-    [employees, weekCapacity, allocations, offDayIsos, weekStart, settings.workingDays]
+    [employees, weekCapacity, allocations, offDayIsos, weekStart, settings.workingDays, allEmployees]
   );
   const rollingOffAll = useMemo(
     () =>
@@ -656,21 +684,35 @@ export function Availability() {
     [applyListFilters, summaryRows]
   );
 
+  const summaryFilteredRowsWeek2 = useMemo(
+    () => applyListFilters(summaryRowsWeek2),
+    [applyListFilters, summaryRowsWeek2]
+  );
+
+  const summaryFilteredRowsLastWeek = useMemo(
+    () => applyListFilters(summaryRowsLastWeek),
+    [applyListFilters, summaryRowsLastWeek]
+  );
+
   /** Total Free Capacity for this week only. */
   const totalFreeHrsThisWeek = useMemo(
     () => roundHoursToTenth(summaryFilteredRows.reduce((s, r) => s + r.freeHours, 0)),
     [summaryFilteredRows]
   );
 
-  /** Matching team capacity for the same week and filters. */
   const totalCapacityThisWeek = useMemo(
     () => roundHoursToTenth(summaryFilteredRows.reduce((s, r) => s + r.capacity, 0)),
     [summaryFilteredRows]
   );
 
-  const priorFilteredRows = useMemo(
-    () => applyListFilters(priorSummaryRows),
-    [applyListFilters, priorSummaryRows]
+  const totalFreeHrsNextWeek = useMemo(
+    () => roundHoursToTenth(summaryFilteredRowsWeek2.reduce((s, r) => s + r.freeHours, 0)),
+    [summaryFilteredRowsWeek2]
+  );
+
+  const totalCapacityNextWeek = useMemo(
+    () => roundHoursToTenth(summaryFilteredRowsWeek2.reduce((s, r) => s + r.capacity, 0)),
+    [summaryFilteredRowsWeek2]
   );
 
   const rollingOffIds = useMemo(
@@ -696,54 +738,35 @@ export function Availability() {
   }, [rollingOffAll, rollingOffRows]);
 
   const kpis = useMemo(
-    () => computeAvailKpis(summaryFilteredRows, rollingOffRows.length, priorFilteredRows),
-    [summaryFilteredRows, rollingOffRows, priorFilteredRows]
+    () => computeAvailKpis(summaryFilteredRows, rollingOffRows.length, summaryFilteredRowsLastWeek),
+    [summaryFilteredRows, rollingOffRows, summaryFilteredRowsLastWeek]
   );
 
+  const avgSourceRows =
+    weekStart === nextWeekStart ? summaryFilteredRowsWeek2 : summaryFilteredRows;
   const avgFreeHrs = useMemo(
-    () => avgFreeHoursPerPerson(allSegmentRows),
-    [allSegmentRows]
+    () => avgFreeHoursPerPerson(avgSourceRows),
+    [avgSourceRows]
   );
 
-  /** Same roster/filters as the list, for the week two weeks before the selected list week. */
-  const priorWeekCompareRows = useMemo(() => {
-    const priorWs = addDaysISO(weekStart, -14);
-    const cap = weekCapacityHours(priorWs, calendarOpts) || fallbackWeekCapacity;
-    const built = buildAvailRowsFromEmployees(
-      employees,
-      cap,
-      allocations,
-      offDayIsos,
-      priorWs,
-      settings.workingDays
-    );
-    return filterAvailRowsAllSegments(applyListFilters(built), rollingOffIds);
-  }, [
-    weekStart,
-    calendarOpts,
-    fallbackWeekCapacity,
-    employees,
-    allocations,
-    offDayIsos,
-    settings.workingDays,
-    applyListFilters,
-    rollingOffIds,
-  ]);
-
+  const priorAvgRows =
+    weekStart === nextWeekStart ? summaryFilteredRows : summaryFilteredRowsLastWeek;
   const avgFreeHrsDelta = useMemo(() => {
-    if (priorWeekCompareRows.length === 0) return null;
-    return roundHoursToTenth(avgFreeHrs - avgFreeHoursPerPerson(priorWeekCompareRows));
-  }, [avgFreeHrs, priorWeekCompareRows]);
+    if (priorAvgRows.length === 0) return null;
+    return roundHoursToTenth(avgFreeHrs - avgFreeHoursPerPerson(priorAvgRows));
+  }, [avgFreeHrs, priorAvgRows]);
 
   const rows = useMemo(() => {
     const filtered =
       seg === "capacity"
         ? summaryFilteredRows
-        : seg === "now"
-          ? filteredRows.filter((r) => r.availableFrom === "Now")
-          : seg === "rolling"
-            ? rollingOffRows
-            : allSegmentRows;
+        : seg === "capacityNext"
+          ? summaryFilteredRowsWeek2
+          : seg === "now"
+            ? filteredRows.filter((r) => r.availableFrom === "Now")
+            : seg === "rolling"
+              ? rollingOffRows
+              : allSegmentRows;
 
     return [...filtered].sort((a, b) => {
       const mul = sortDir === "asc" ? 1 : -1;
@@ -757,9 +780,12 @@ export function Availability() {
       if (sortKey === "availableFrom") {
         return mul * (availFromOrder(a.availableFrom) - availFromOrder(b.availableFrom));
       }
+      if (sortKey === "resourceOwner") {
+        return mul * (a.resourceOwnerName ?? "—").localeCompare(b.resourceOwnerName ?? "—");
+      }
       return mul * a.skills.join(", ").localeCompare(b.skills.join(", "));
     });
-  }, [allSegmentRows, filteredRows, rollingOffRows, seg, sortKey, sortDir, summaryFilteredRows]);
+  }, [allSegmentRows, filteredRows, rollingOffRows, seg, sortKey, sortDir, summaryFilteredRows, summaryFilteredRowsWeek2]);
 
   const nowCount = filteredRows.filter((r) => r.availableFrom === "Now").length;
   const rollingCount = rollingOffRows.length;
@@ -825,6 +851,7 @@ export function Availability() {
             }
             deltaClass="text-muted-foreground"
             sub="this week"
+            subClass="inline-flex rounded-sm bg-success-soft px-1.5 py-0.5 text-[10px] font-semibold text-success-fg"
             accent="border-l-success"
             valueClass="text-success"
             active={seg === "capacity"}
@@ -834,13 +861,23 @@ export function Availability() {
             }}
           />
           <Kpi
-            label="Fully Available"
-            value={kpis.fullyAvailable}
-            sub="0% booked · ready now"
+            label="Total Free Capacity"
+            value={formatHoursDecimalLabel(totalFreeHrsNextWeek)}
+            delta={
+              totalCapacityNextWeek > 0
+                ? availFreeOfCapacityLabel(totalFreeHrsNextWeek, totalCapacityNextWeek)
+                : undefined
+            }
+            deltaClass="text-muted-foreground"
+            sub="next week"
+            subClass="inline-flex rounded-sm bg-accent-soft px-1.5 py-0.5 text-[10px] font-semibold text-accent-softfg"
             accent="border-l-success"
             valueClass="text-success"
-            active={seg === "now"}
-            onClick={() => setSeg("now")}
+            active={seg === "capacityNext"}
+            onClick={() => {
+              setSeg("capacityNext");
+              setWeekStart(nextWeekStart);
+            }}
           />
           <Kpi
             label="Rolling Off Soon"
@@ -854,7 +891,12 @@ export function Availability() {
           <Kpi
             label="Avg Free Hrs / Person"
             value={formatHoursDecimalLabel(avgFreeHrs)}
-            sub="for selected week"
+            sub={weekStart === nextWeekStart ? "next week" : "this week"}
+            subClass={
+              weekStart === nextWeekStart
+                ? "inline-flex rounded-sm bg-accent-soft px-1.5 py-0.5 text-[10px] font-semibold text-accent-softfg"
+                : "inline-flex rounded-sm bg-success-soft px-1.5 py-0.5 text-[10px] font-semibold text-success-fg"
+            }
             delta={avgDeltaDisplay?.text}
             deltaClass={
               avgDeltaDisplay?.tone === "danger"
@@ -934,7 +976,11 @@ export function Availability() {
               weekStart={weekStart}
               onChange={(ws) => {
                 setWeekStart(ws);
-                if (seg === "capacity" && ws !== supplyFrom) setSeg("all");
+                if (seg === "capacity" || seg === "capacityNext") {
+                  if (ws === supplyFrom) setSeg("capacity");
+                  else if (ws === nextWeekStart) setSeg("capacityNext");
+                  else setSeg("all");
+                }
               }}
               weeks={availabilityWeeks}
             />
@@ -970,7 +1016,16 @@ export function Availability() {
                   onSort={handleSort}
                 />
               </div>
-              <div className="min-w-0 flex-1 pr-4">
+              <div className="w-[168px] shrink-0 pr-4">
+                <SortColHeader
+                  label="RESOURCE OWNER"
+                  col="resourceOwner"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                />
+              </div>
+              <div className="w-[140px] min-w-0 shrink pr-3">
                 <SortColHeader
                   label="SKILLS"
                   col="skills"

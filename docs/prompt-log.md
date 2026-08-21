@@ -32,6 +32,85 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-21 10:12 IST
+
+**Prompt:**  
+> Availability grid: Resource Owner column needs proper width and must not sit too close to Skills. Reduce Skills width if needed.
+
+**Output:**  
+- Resource Owner is 168px with 16px padding before Skills. Skills is capped at 140px (wraps). Header and rows use the same widths.
+- Files: `screens/Availability.tsx`, `docs/prompt-log.md`.
+
+---
+
+### 2026-08-21 10:08 IST
+
+**Prompt:**  
+> Showing blank screen. Please check and correct.
+
+**Output:**  
+- Root cause: Availability import of `formatHoursDecimalLabel` / `roundHoursToTenth` was overwritten when adding `TruncateText`. Runtime `ReferenceError` whitescreened `/availability`.
+- Restored `../utils/formatHours` import.
+- Files: `screens/Availability.tsx`, `docs/prompt-log.md`.
+
+---
+
+### 2026-08-21 10:05 IST
+
+**Prompt:**  
+> Availability table: add RESOURCE OWNER after AVAILABLE FROM. Reduce SKILLS width; wrap extra skills. Owner is who owns that team member.
+
+**Output:**  
+- New sortable Resource Owner column (140px). Skills keep remaining width and wrap chips. Owner names from employee `resourceOwnerId` via full employee lookup.
+- Files: `data/availability.ts`, `api/liveViews.ts`, `screens/Availability.tsx`, `docs/prompt-log.md`.
+
+---
+
+### 2026-08-21 09:58 IST
+
+**Prompt:**  
+> Avg Free Hrs / Person subtitle "for selected week" should switch to this week or next week based on the capacity card clicked.
+
+**Output:**  
+- Subtitle is now the same this-week / next-week chip as the selected Total Free Capacity card.
+- Files: `screens/Availability.tsx`, `docs/prompt-log.md`.
+
+---
+
+### 2026-08-21 09:55 IST
+
+**Prompt:**  
+> Avg Free Hrs / Person: compare vs prior week (not 2 weeks ago). Value follows the this-week or next-week Total Free Capacity card.
+
+**Output:**  
+- Average uses the same roster as the selected capacity card (this week vs next week). Delta is vs the immediately prior week.
+- Files: `data/availability.ts`, `screens/Availability.tsx`, `tests/unit/availRollingOffSoon.test.ts`, `docs/prompt-log.md`.
+
+---
+
+### 2026-08-21 09:42 IST
+
+**Prompt:**  
+> Highlight "this week" and "next week" KPI captions so they are visually distinct from the muted of-hours line. Follow the design system.
+
+**Output:**  
+- Captions are chips (same pattern as status pills): this week = success-soft; next week = accent-soft. Other KPI subtitles stay muted.
+- Files: `screens/Availability.tsx`, `docs/prompt-log.md`.
+
+---
+
+### 2026-08-21 09:40 IST
+
+**Prompt:**  
+> Replace Fully Available with the same Total Free Capacity card concept for next week. Caption "next week". Clicking it updates the grid to that week.
+
+**Output:**  
+- Second KPI is now Total Free Capacity for next week (`Xh of Yh (Z%)`, subtitle `next week`). Click selects that roster and the week picker.
+- This-week card unchanged and still the default. Available now remains a table tab.
+- Files: `screens/Availability.tsx`, `docs/prompt-log.md`.
+
+---
+
 ### 2026-08-21 09:28 IST
 
 **Prompt:**  
