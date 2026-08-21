@@ -28,6 +28,7 @@ import { RequirePermissions } from "../auth/guards";
 import { EmitDataChange } from "../realtime/emit-data-change.decorator";
 import {
   CYCLE_MONTHS,
+  isAllCyclesFilter,
   isCycleExpired,
   isPeriodExpired,
   monthsLabel,
@@ -754,8 +755,15 @@ export class KpiController {
   ) {
     const actor = await this.actorEmployee(req.user);
     const year = calendarYear ? Number(calendarYear) : new Date().getUTCFullYear();
-    const cycle = parseCycle(assessmentCycle) ?? "Q1";
-    await this.syncExpiredDrafts({ calendarYear: year, assessmentCycle: cycle });
+    const allCycles = isAllCyclesFilter(assessmentCycle);
+    const cycle = allCycles ? null : parseCycle(assessmentCycle);
+    if (!allCycles && !cycle) {
+      throw new BadRequestException("assessmentCycle must be Q1–Q4 or All");
+    }
+    await this.syncExpiredDrafts({
+      calendarYear: year,
+      ...(cycle ? { assessmentCycle: cycle } : {}),
+    });
 
     let scopeIds: bigint[] | null = null;
     if (!req.user.isSuperAdmin) {
@@ -783,7 +791,7 @@ export class KpiController {
     const whereBase = {
       isDeleted: false,
       calendarYear: year,
-      assessmentCycle: cycle,
+      ...(cycle ? { assessmentCycle: cycle } : {}),
       ...(employeeId ? { employeeId } : scopeIds ? { employeeId: { in: scopeIds } } : {}),
       employee: {
         isDeleted: false,
@@ -801,11 +809,16 @@ export class KpiController {
         measurementMethod: { select: { id: true, name: true } },
         unit: { select: { id: true, name: true } },
       },
-      orderBy: [{ employee: { name: "asc" } }, { id: "asc" }],
+      orderBy: [
+        { assessmentCycle: "asc" },
+        { employee: { name: "asc" } },
+        { id: "asc" },
+      ],
     });
 
     const allItems = rows.map((r) => this.mapItem(r));
-    const summary = buildSummary(allItems, Boolean(employeeId));
+    // Final achievement is per-cycle (weights sum to 100%); skip when viewing All.
+    const summary = buildSummary(allItems, Boolean(employeeId) && Boolean(cycle));
 
     // "Pending" tab = not completed (draft + pending_result), matching summary.pending.
     const items =

@@ -77,3 +77,10 @@ export function parseCycle(v: string | undefined): AssessmentCycle | null {
   if (v === "Q1" || v === "Q2" || v === "Q3" || v === "Q4") return v;
   return null;
 }
+
+/** True when results should include every quarter for the calendar year. */
+export function isAllCyclesFilter(v: string | undefined | null): boolean {
+  if (v == null) return true;
+  const t = v.trim().toLowerCase();
+  return t === "" || t === "all";
+}

@@ -15,6 +15,12 @@ export const KPI_CYCLE_OPTIONS: { value: AssessmentCycle; label: string }[] = [
   { value: "Q4", label: "Quarter 4" },
 ];
 
+/** KPI Results cycle filter: All = full calendar year (no quarter filter). */
+export const KPI_RESULTS_CYCLE_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "All" },
+  ...KPI_CYCLE_OPTIONS,
+];
+
 /** Assessment cycle for a 1-based calendar month (Q3 through September). */
 export function assessmentCycleForMonth(month1to12: number): AssessmentCycle {
   if (month1to12 <= 3) return "Q1";

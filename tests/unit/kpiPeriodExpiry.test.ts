@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { isAllCyclesFilter } from "../../apps/oneview-api/src/api/kpi/kpi.util";
 
 /** Mirrors apps/oneview-api/src/api/kpi/kpi.util.ts monthEndUtc / isPeriodExpired / isCycleExpired. */
 function monthEndUtc(year: number, month1to12: number): Date {
@@ -28,5 +29,16 @@ describe("KPI period vs cycle expiry", () => {
   it("does not treat Q3 2026 as ended in mid-August", () => {
     expect(isCycleExpired(2026, "Q3", midAugust)).toBe(false);
     expect(isCycleExpired(2026, "Q2", midAugust)).toBe(true);
+  });
+});
+
+describe("isAllCyclesFilter", () => {
+  it("treats missing, empty, and all as full-year", () => {
+    expect(isAllCyclesFilter(undefined)).toBe(true);
+    expect(isAllCyclesFilter(null)).toBe(true);
+    expect(isAllCyclesFilter("")).toBe(true);
+    expect(isAllCyclesFilter("all")).toBe(true);
+    expect(isAllCyclesFilter("All")).toBe(true);
+    expect(isAllCyclesFilter("Q3")).toBe(false);
   });
 });

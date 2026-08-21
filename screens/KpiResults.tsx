@@ -21,11 +21,10 @@ import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import { useAppDateFormat } from "../hooks/useAppDateFormat";
 import { useSharedDataSync, usePauseSharedDataSync, MASTER_TXN_SYNC_INTERVAL_MS } from "../hooks/useSharedDataSync";
 import {
-  defaultAssessmentCycle,
   defaultKpiCalendarYear,
   isKpiDirectReport,
   KPI_CALENDAR_YEARS,
-  KPI_CYCLE_OPTIONS,
+  KPI_RESULTS_CYCLE_OPTIONS,
   scopeKpiResourceEmployees,
 } from "../utils/kpiFilters";
 
@@ -37,6 +36,7 @@ const KPI_RO_REMARKS_MAX = 200;
 type KpiResultsSortKey =
   | "resource"
   | "kpi"
+  | "cycle"
   | "period"
   | "target"
   | "weight"
@@ -60,7 +60,8 @@ export function KpiResults() {
   const { employees } = useEmployees();
   const { departments } = useMasters();
   const [year, setYear] = useState(() => defaultKpiCalendarYear());
-  const [cycle, setCycle] = useState<AssessmentCycle>(() => defaultAssessmentCycle());
+  /** Empty string = All cycles for the selected calendar year. */
+  const [cycle, setCycle] = useState<AssessmentCycle | "">("");
   const [deptId, setDeptId] = useState("");
   const [resourceId, setResourceId] = useState("");
   const [statusTab, setStatusTab] = useState<"all" | "pending_result" | "completed">("all");
@@ -111,7 +112,7 @@ export function KpiResults() {
       // Always load unfiltered scope so summary / tab counts stay stable.
       const res = await fetchKpiResults({
         calendarYear: year,
-        assessmentCycle: cycle,
+        assessmentCycle: cycle === "" ? "all" : cycle,
         employeeHrmsId: resourceId || undefined,
         departmentId: deptId || undefined,
         status: "all",
@@ -159,6 +160,9 @@ export function KpiResults() {
         case "kpi":
           cmp = a.kpiName.localeCompare(b.kpiName);
           break;
+        case "cycle":
+          cmp = a.assessmentCycle.localeCompare(b.assessmentCycle);
+          break;
         case "period":
           cmp = a.periodLabel.localeCompare(b.periodLabel);
           break;
@@ -196,27 +200,27 @@ export function KpiResults() {
 
         <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
           <SummaryCard
-            label="Total KPIs"
+            label="TOTAL KPIs"
             value={String(summary.total)}
             active={statusTab === "all"}
             onClick={() => setStatusTab("all")}
           />
           <SummaryCard
-            label="Pending"
+            label="PENDING"
             value={String(pendingCount)}
             valueClass="text-warning"
             active={statusTab === "pending_result"}
             onClick={() => setStatusTab("pending_result")}
           />
           <SummaryCard
-            label="Completed"
+            label="COMPLETED"
             value={String(completedCount)}
             valueClass="text-success"
             active={statusTab === "completed"}
             onClick={() => setStatusTab("completed")}
           />
           <SummaryCard
-            label="Final Achievement"
+            label="FINAL ACHIEVEMENT"
             value={
               summary.finalAchievement != null ? `${summary.finalAchievement}` : "—"
             }
@@ -239,8 +243,8 @@ export function KpiResults() {
               <FilterSelect
                 aria-label="Cycle"
                 value={cycle}
-                onChange={(v) => setCycle(v as AssessmentCycle)}
-                options={KPI_CYCLE_OPTIONS}
+                onChange={(v) => setCycle(v as AssessmentCycle | "")}
+                options={KPI_RESULTS_CYCLE_OPTIONS}
                 className="min-w-[120px]"
               />
             </Filter>
@@ -317,6 +321,15 @@ export function KpiResults() {
                     </th>
                     <th className="px-3 py-2.5 font-medium">
                       <SortColHeader
+                        label="Cycle"
+                        col="cycle"
+                        sortKey={sortKey}
+                        sortDir={sortDir}
+                        onSort={handleSort}
+                      />
+                    </th>
+                    <th className="px-3 py-2.5 font-medium">
+                      <SortColHeader
                         label="KPI Period"
                         col="period"
                         sortKey={sortKey}
@@ -371,6 +384,15 @@ export function KpiResults() {
                     >
                       <td className="px-3 py-2.5 text-foreground">{row.employeeName}</td>
                       <td className="px-3 py-2.5 text-foreground">{row.kpiName}</td>
+                      <td className="px-3 py-2.5 text-muted-foreground">
+                        {row.assessmentCycle === "Q1"
+                          ? "Quarter 1"
+                          : row.assessmentCycle === "Q2"
+                            ? "Quarter 2"
+                            : row.assessmentCycle === "Q3"
+                              ? "Quarter 3"
+                              : "Quarter 4"}
+                      </td>
                       <td className="px-3 py-2.5 text-muted-foreground">{row.periodLabel}</td>
                       <td className="px-3 py-2.5">
                         {row.target} {row.unitName}
@@ -739,7 +761,7 @@ function SummaryCard({
   if (interactive) {
     return (
       <button type="button" onClick={onClick} className={className}>
-        <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
+        <div className="text-[10px] font-semibold tracking-wide text-muted-foreground">{label}</div>
         <div className={`mt-1 text-[22px] font-semibold tracking-tight ${valueClass ?? "text-foreground"}`}>
           {value}
         </div>
@@ -750,7 +772,7 @@ function SummaryCard({
 
   return (
     <div className={className}>
-      <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="text-[10px] font-semibold tracking-wide text-muted-foreground">{label}</div>
       <div className={`mt-1 text-[22px] font-semibold tracking-tight ${valueClass ?? "text-foreground"}`}>
         {value}
       </div>

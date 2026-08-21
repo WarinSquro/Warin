@@ -6,6 +6,7 @@ import {
   defaultKpiCalendarYear,
   isKpiDirectReport,
   KPI_CALENDAR_YEARS,
+  KPI_RESULTS_CYCLE_OPTIONS,
   scopeKpiResourceEmployees,
 } from "../../utils/kpiFilters";
 
@@ -65,6 +66,11 @@ describe("kpiFilters calendar / cycle", () => {
     expect(assessmentCycleForMonth(9)).toBe("Q3");
     expect(assessmentCycleForMonth(10)).toBe("Q4");
     expect(defaultAssessmentCycle(new Date("2026-08-21T12:00:00"))).toBe("Q3");
+  });
+
+  it("KPI Results cycle options include All for full-year view", () => {
+    expect(KPI_RESULTS_CYCLE_OPTIONS[0]).toEqual({ value: "", label: "All" });
+    expect(KPI_RESULTS_CYCLE_OPTIONS.map((o) => o.value)).toEqual(["", "Q1", "Q2", "Q3", "Q4"]);
   });
 });
 

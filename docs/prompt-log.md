@@ -32,6 +32,58 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-21 12:18 IST
+
+**Prompt:**  
+> No data for Cycle=All (All department, All resources) but Quarter 3 shows data. Fix.
+
+**Output:**  
+- Root cause: Docker API still treated missing/`all` as Q1, so year-wide returned empty when only Q3 had rows.
+- Client fix: `fetchKpiResults` for All loads Q1–Q4 in parallel and merges (works against current Docker API without rebuild).
+- Server still supports year-wide `assessmentCycle=all` after API rebuild/deploy.
+- Files: `api/domain.ts`, `docs/prompt-log.md`.
+
+### 2026-08-21 12:10 IST
+
+**Prompt:**  
+> With Cycle = All, also show all quarter data for the selected year in the KPI Results grid.
+
+**Output:**  
+- Client sends `assessmentCycle=all` for All; API treats missing/`all`/empty as year-wide (Q1–Q4), never defaults to Q1.
+- Results ordered by cycle then resource; grid adds a **Cycle** column so quarters are visible.
+- Final Achievement only when a single quarter is selected (weights are per-cycle).
+- Restart Nest API if local UI still shows empty under All (old handler defaulted missing cycle to Q1).
+- Files: `apps/oneview-api/src/api/kpi/kpi.util.ts`, `kpi.controller.ts`, `api/domain.ts`, `screens/KpiResults.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-21 12:06 IST
+
+**Prompt:**  
+> KPI Results Cycle: add All option; on load show full calendar year KPIs in the grid.
+
+**Output:**  
+- Cycle defaults to **All**; options All | Q1–Q4. All omits `assessmentCycle` so API returns all quarters for the selected year.
+- API `GET /kpi/results` treats missing cycle as year-wide; syncs expired drafts for the whole year.
+- Files: `utils/kpiFilters.ts`, `api/domain.ts`, `screens/KpiResults.tsx`, `apps/oneview-api/src/api/kpi/kpi.controller.ts`, `tests/unit/kpiFilters.test.ts`, `docs/prompt-log.md`.
+
+### 2026-08-21 12:03 IST
+
+**Prompt:**  
+> Rename KPI Results summary card label from TOTAL KPIS to TOTAL KPIs.
+
+**Output:**  
+- Removed CSS `uppercase` on SummaryCard labels (it forced KPIs → KPIS). Labels set explicitly: TOTAL KPIs, PENDING, COMPLETED, FINAL ACHIEVEMENT.
+- Files: `screens/KpiResults.tsx`, `docs/prompt-log.md`.
+
+### 2026-08-21 12:00 IST
+
+**Prompt:**  
+> KPI Framework table dropdowns open but show no options — fix so data appears when clicked.
+
+**Output:**  
+- Root cause: `FilterSelect` menus were `absolute` inside `overflow-hidden` / `overflow-x-auto`, so lists were clipped.
+- Menu now portals to `document.body` with fixed positioning (same pattern as `FilterMultiSelect`).
+- Files: `components/FilterSelect.tsx`, `docs/prompt-log.md`.
+
 ### 2026-08-21 11:55 IST
 
 **Prompt:**  

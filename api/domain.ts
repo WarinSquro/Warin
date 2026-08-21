@@ -1275,6 +1275,50 @@ export async function copyKpiFramework(body: {
 
 export async function fetchKpiResults(params: {
   calendarYear: number;
+  /** Omit, empty, or `"all"` = every quarter for the calendar year. */
+  assessmentCycle?: AssessmentCycle | "" | "all";
+  employeeHrmsId?: string;
+  departmentId?: string;
+  status?: KpiRowStatus | "all";
+}): Promise<{ items: ApiKpiItem[]; summary: ApiKpiResultsSummary }> {
+  const cycle = params.assessmentCycle;
+  const allYear =
+    cycle == null || cycle === "" || String(cycle).toLowerCase() === "all";
+
+  if (allYear) {
+    const quarters: AssessmentCycle[] = ["Q1", "Q2", "Q3", "Q4"];
+    const parts = await Promise.all(
+      quarters.map((assessmentCycle) =>
+        fetchKpiResultsOneCycle({ ...params, assessmentCycle })
+      )
+    );
+    const byId = new Map<string, ApiKpiItem>();
+    for (const part of parts) {
+      for (const item of part.items) byId.set(item.id, item);
+    }
+    const items = [...byId.values()].sort((a, b) => {
+      const c = a.assessmentCycle.localeCompare(b.assessmentCycle);
+      if (c !== 0) return c;
+      return (a.employeeName ?? "").localeCompare(b.employeeName ?? "") || a.id.localeCompare(b.id);
+    });
+    const total = items.length;
+    const pending = items.filter((i) => i.status === "pending_result" || i.status === "draft").length;
+    const completed = items.filter((i) => i.status === "completed").length;
+    // Final achievement is per-cycle only (weights sum to 100% within a quarter).
+    return {
+      items,
+      summary: { total, pending, completed, finalAchievement: null },
+    };
+  }
+
+  return fetchKpiResultsOneCycle({
+    ...params,
+    assessmentCycle: cycle as AssessmentCycle,
+  });
+}
+
+async function fetchKpiResultsOneCycle(params: {
+  calendarYear: number;
   assessmentCycle: AssessmentCycle;
   employeeHrmsId?: string;
   departmentId?: string;
