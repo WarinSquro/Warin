@@ -32,6 +32,17 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-21 23:05 IST
+
+**Prompt:**  
+> Fix Confirmation productivity wipe on hard refresh (Hiren focus data restored then deleted again).
+
+**Output:**  
+- **Root cause:** `liveWorkHours` effect called `PUT /me/productivity` before GET hydrate, with empty `focusByAllocation`; API `deleteMany` wiped laps.
+- **Client:** `productivityHydrated` gate in `screens/WorkConfirmation.tsx` — no work-hours API sync until productivity fetch finishes.
+- **API:** `confirmations.controller.ts` — empty focus payload preserves existing laps/sessions; null workday stamps on update no longer clear Day Start/Log Out; hours-only sync does not clear `activeAllocationKey`.
+- **Utils/tests:** `isEmptyFocusByAllocation` / `hasWorkdayStampEvidence` + unit tests.
+
 ### 2026-08-21 19:38 IST
 
 **Prompt:**  

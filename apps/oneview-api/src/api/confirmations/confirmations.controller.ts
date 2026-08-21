@@ -267,6 +267,32 @@ function parseOptionalDateTime(iso?: string | null): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+/** True when PUT body has no lap/open-session evidence (hours-only / empty client race). */
+function isEmptyFocusPayload(
+  focusByAllocation: Record<string, ProductivityFocusBody | undefined> | undefined
+): boolean {
+  if (!focusByAllocation) return true;
+  const entries = Object.values(focusByAllocation).filter(Boolean) as ProductivityFocusBody[];
+  if (entries.length === 0) return true;
+  return entries.every((st) => {
+    const laps = Array.isArray(st.laps) ? st.laps : [];
+    return (
+      laps.length === 0 &&
+      Math.max(0, Math.floor(Number(st.sessionAccumMs) || 0)) === 0 &&
+      !st.segmentStartedAt
+    );
+  });
+}
+
+/**
+ * On update, omit stamp fields when the client sends null/empty so we do not clear
+ * Day Start / Log Out during a hours-only sync.
+ */
+function stampUpdateValue(iso?: string | null): Date | undefined {
+  const d = parseOptionalDateTime(iso);
+  return d ?? undefined;
+}
+
 @ApiTags("confirmations")
 @ApiBearerAuth()
 @Controller("confirmations")
@@ -500,7 +526,24 @@ export class ConfirmationsController {
     const resolveAllocId = (key: string): bigint | null =>
       /^\d+$/.test(key) && validAllocIds.has(key) ? BigInt(key) : null;
 
+    const incomingFocusEmpty = isEmptyFocusPayload(focusByAllocation);
+
     const saved = await this.prisma.$transaction(async (tx) => {
+      const existingDay = await tx.confirmationProductivityDay.findUnique({
+        where: { employeeId_workDate: { employeeId: emp.id, workDate } },
+        select: { id: true },
+      });
+      let preserveFocus = false;
+      if (existingDay && incomingFocusEmpty) {
+        const existingLapCount = await tx.confirmationFocusLap.count({
+          where: { dayId: existingDay.id },
+        });
+        const existingSessionCount = await tx.confirmationFocusSession.count({
+          where: { dayId: existingDay.id },
+        });
+        preserveFocus = existingLapCount > 0 || existingSessionCount > 0;
+      }
+
       const day = await tx.confirmationProductivityDay.upsert({
         where: {
           employeeId_workDate: { employeeId: emp.id, workDate },
@@ -521,15 +564,20 @@ export class ConfirmationsController {
           modifiedBy: emp.id,
         },
         update: {
-          dayStartAt: parseOptionalDateTime(workday.dayStart),
-          lunchOutAt: parseOptionalDateTime(workday.lunchOut),
-          lunchInAt: parseOptionalDateTime(workday.lunchIn),
-          dayEndAt: parseOptionalDateTime(workday.dayEnd),
+          dayStartAt: stampUpdateValue(workday.dayStart),
+          lunchOutAt: stampUpdateValue(workday.lunchOut),
+          lunchInAt: stampUpdateValue(workday.lunchIn),
+          dayEndAt: stampUpdateValue(workday.dayEnd),
           workHoursSnapshot:
             body.workHours == null || Number.isNaN(Number(body.workHours))
-              ? null
+              ? undefined
               : Number(body.workHours),
-          activeAllocationKey: body.activeTimerId ?? null,
+          // Hours-only empty focus sync must not clear the active timer key.
+          activeAllocationKey: preserveFocus
+            ? undefined
+            : body.activeTimerId === undefined
+              ? undefined
+              : body.activeTimerId ?? null,
           isDeleted: false,
           deletedAt: null,
           modifiedBy: emp.id,
@@ -537,36 +585,38 @@ export class ConfirmationsController {
         },
       });
 
-      await tx.confirmationFocusLap.deleteMany({ where: { dayId: day.id } });
-      await tx.confirmationFocusSession.deleteMany({ where: { dayId: day.id } });
+      if (!preserveFocus) {
+        await tx.confirmationFocusLap.deleteMany({ where: { dayId: day.id } });
+        await tx.confirmationFocusSession.deleteMany({ where: { dayId: day.id } });
 
-      for (const key of allocationKeys) {
-        const st = focusByAllocation[key] ?? {};
-        const allocId = resolveAllocId(key);
-        await tx.confirmationFocusSession.create({
-          data: {
-            dayId: day.id,
-            allocationId: allocId,
-            allocationKey: key,
-            sessionAccumMs: Math.max(0, Math.floor(Number(st.sessionAccumMs) || 0)),
-            segmentStartedAt: parseOptionalDateTime(st.segmentStartedAt),
-          },
-        });
-        const laps = Array.isArray(st.laps) ? st.laps : [];
-        for (const lap of laps) {
-          const startedAt = parseOptionalDateTime(lap.startedAt);
-          const endedAt = parseOptionalDateTime(lap.endedAt);
-          if (!startedAt || !endedAt) continue;
-          await tx.confirmationFocusLap.create({
+        for (const key of allocationKeys) {
+          const st = focusByAllocation[key] ?? {};
+          const allocId = resolveAllocId(key);
+          await tx.confirmationFocusSession.create({
             data: {
               dayId: day.id,
               allocationId: allocId,
               allocationKey: key,
-              startedAt,
-              endedAt,
-              durationMs: Math.max(0, Math.floor(Number(lap.durationMs) || 0)),
+              sessionAccumMs: Math.max(0, Math.floor(Number(st.sessionAccumMs) || 0)),
+              segmentStartedAt: parseOptionalDateTime(st.segmentStartedAt),
             },
           });
+          const laps = Array.isArray(st.laps) ? st.laps : [];
+          for (const lap of laps) {
+            const startedAt = parseOptionalDateTime(lap.startedAt);
+            const endedAt = parseOptionalDateTime(lap.endedAt);
+            if (!startedAt || !endedAt) continue;
+            await tx.confirmationFocusLap.create({
+              data: {
+                dayId: day.id,
+                allocationId: allocId,
+                allocationKey: key,
+                startedAt,
+                endedAt,
+                durationMs: Math.max(0, Math.floor(Number(lap.durationMs) || 0)),
+              },
+            });
+          }
         }
       }
 

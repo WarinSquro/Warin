@@ -14,7 +14,43 @@ import {
   workdayDurationMs,
   isConfirmAllAsPlannedBlockedByProductiveWindow,
   CONFIRM_AS_PLANNED_PRODUCTIVE_WINDOW_MESSAGE,
+  isEmptyFocusByAllocation,
+  hasWorkdayStampEvidence,
 } from "../../utils/confirmationProductivity";
+
+describe("empty focus payload guards", () => {
+  it("treats missing or blank focus maps as empty", () => {
+    expect(isEmptyFocusByAllocation(undefined)).toBe(true);
+    expect(isEmptyFocusByAllocation({})).toBe(true);
+    expect(
+      isEmptyFocusByAllocation({
+        a1: { laps: [], sessionAccumMs: 0, segmentStartedAt: null },
+      })
+    ).toBe(true);
+  });
+
+  it("detects laps or open sessions as non-empty", () => {
+    expect(
+      isEmptyFocusByAllocation({
+        a1: {
+          laps: [{ id: "1", startedAt: "t0", endedAt: "t1", durationMs: 1000 }],
+          sessionAccumMs: 0,
+          segmentStartedAt: null,
+        },
+      })
+    ).toBe(false);
+    expect(
+      isEmptyFocusByAllocation({
+        a1: { laps: [], sessionAccumMs: 500, segmentStartedAt: null },
+      })
+    ).toBe(false);
+  });
+
+  it("detects workday stamp evidence", () => {
+    expect(hasWorkdayStampEvidence({})).toBe(false);
+    expect(hasWorkdayStampEvidence({ dayStart: "2026-08-21T04:12:00.000Z" })).toBe(true);
+  });
+});
 
 describe("confirm all as planned vs productive window", () => {
   it("blocks when productive window is less than planned hours", () => {

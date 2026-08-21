@@ -215,6 +215,26 @@ export function hasAnyUnstoppedFocusSession(
   return Object.values(focusByAllocation).some(hasUnstoppedFocusSession);
 }
 
+/** True when the payload has no laps and no open/paused session evidence. */
+export function isEmptyFocusByAllocation(
+  focusByAllocation: Record<string, FocusAllocationState | undefined> | undefined
+): boolean {
+  if (!focusByAllocation) return true;
+  const entries = Object.values(focusByAllocation).filter(Boolean) as FocusAllocationState[];
+  if (entries.length === 0) return true;
+  return entries.every(
+    (st) =>
+      (st.laps?.length ?? 0) === 0 &&
+      Math.max(0, Number(st.sessionAccumMs) || 0) === 0 &&
+      !st.segmentStartedAt
+  );
+}
+
+export function hasWorkdayStampEvidence(workday: WorkdayMarks | undefined): boolean {
+  if (!workday) return false;
+  return Boolean(workday.dayStart || workday.lunchOut || workday.lunchIn || workday.dayEnd);
+}
+
 function storageKey(hrmsId: string) {
   return `${STORAGE_PREFIX}${hrmsId}`;
 }

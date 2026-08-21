@@ -219,6 +219,8 @@ function EmployeeConfirm() {
   const isTodayWorkDate = workDate === today;
 
   const [prodStore, setProdStore] = useState<ProductivityStore>({ days: {} });
+  /** Blocks work-hours→API sync until GET productivity finishes (avoids empty PUT wiping focus). */
+  const [productivityHydrated, setProductivityHydrated] = useState(false);
   const [calendarDate, setCalendarDate] = useState(today);
   const [tick, setTick] = useState(0);
 
@@ -245,6 +247,7 @@ function EmployeeConfirm() {
 
   useEffect(() => {
     if (!hrmsId) return;
+    setProductivityHydrated(false);
     const local = loadProductivityStore(hrmsId);
     setProdStore(local);
     let cancelled = false;
@@ -267,6 +270,8 @@ function EmployeeConfirm() {
         saveProductivityStore(hrmsId, merged);
       } catch {
         /* keep local cache if API unavailable */
+      } finally {
+        if (!cancelled) setProductivityHydrated(true);
       }
     })();
     return () => {
@@ -463,9 +468,10 @@ function EmployeeConfirm() {
     [activeLines, states, unplanned]
   );
 
-  // Keep calendar "Total (Planned/Unplan.) Work Hours" in sync as plan/deviation/unplanned change
+  // Keep calendar "Total (Planned/Unplan.) Work Hours" in sync as plan/deviation/unplanned change.
+  // Wait for productivity hydrate so we never PUT an empty focus day before GET returns (wipes EC2 laps).
   useEffect(() => {
-    if (!hrmsId) return;
+    if (!hrmsId || !productivityHydrated) return;
     setProdStore((prev) => {
       const current = getDayProductivity(prev, workDate);
       if (current.workHours === liveWorkHours) return prev;
@@ -475,7 +481,7 @@ function EmployeeConfirm() {
       syncProductivityToApi(workDate, day);
       return next;
     });
-  }, [liveWorkHours, workDate, hrmsId]);
+  }, [liveWorkHours, workDate, hrmsId, productivityHydrated]);
 
   const liveFocusMs = useMemo(() => {
     void tick;
