@@ -32,6 +32,29 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-21 09:28 IST
+
+**Prompt:**  
+> By default on page load the Total Free Capacity card shall be selected and the grid shall show that card’s people.
+
+**Output:**  
+- Default segment is this-week free-capacity roster (`summaryFilteredRows`), not All (Available now ∪ Rolling off).
+- Card is clickable/highlighted like Utilization. Fully Available and Rolling Off Soon also filter the grid. Week picker leaving this week drops back to All.
+- Files: `screens/Availability.tsx`, `docs/prompt-log.md`.
+
+---
+
+### 2026-08-21 09:25 IST
+
+**Prompt:**  
+> Total Free Capacity figures should match "this week" — always show this week data, not 2-week totals.
+
+**Output:**  
+- Card now sums free hours and capacity for **this week only** (forward-supply week 1), same filters as before. Week-2 row build removed.
+- Files: `screens/Availability.tsx`, `docs/prompt-log.md`.
+
+---
+
 ### 2026-08-21 09:20 IST
 
 **Prompt:**  

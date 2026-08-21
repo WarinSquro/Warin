@@ -31,7 +31,7 @@ import { createAllocation, fetchAllocations, type ApiAllocation } from "../api/d
 import { formatHoursDecimalLabel, roundHoursToTenth } from "../utils/formatHours";
 import { formatWeekLabel, type ReviewWeekOption } from "../data/weeklyCheckIn";
 
-type Segment = "all" | "now" | "rolling";
+type Segment = "capacity" | "all" | "now" | "rolling";
 type AvailSortKey = "name" | "freeHours" | "availableFrom" | "skills";
 
 /** Current week + next week for the Availability week picker. */
@@ -83,6 +83,8 @@ function Kpi({
   deltaClass,
   accent,
   valueClass,
+  onClick,
+  active,
 }: {
   label: string;
   value: string | number;
@@ -91,13 +93,18 @@ function Kpi({
   deltaClass?: string;
   accent?: string;
   valueClass?: string;
+  onClick?: () => void;
+  active?: boolean;
 }) {
-  return (
-    <div
-      className={`rounded-lg border border-border bg-surface px-3.5 py-3.5 ${
-        accent ? `border-l-[3px] ${accent}` : ""
-      }`}
-    >
+  const className = [
+    "rounded-lg border border-border bg-surface px-3.5 py-3.5 text-left",
+    accent ? `border-l-[3px] ${accent}` : "",
+    onClick ? "cursor-pointer hover:bg-surface-alt" : "",
+    active ? "border-primary/40 bg-highlight ring-2 ring-primary/20" : "",
+  ].join(" ");
+
+  const body = (
+    <>
       <div className="mb-1.5 text-[11px] text-muted">{label}</div>
       <div className="flex flex-wrap items-baseline gap-1.5">
         <div className={`text-[23px] font-semibold ${valueClass ?? "text-foreground"}`}>
@@ -108,8 +115,18 @@ function Kpi({
         )}
       </div>
       {sub && <div className="mt-0.5 text-[11px] text-muted-foreground">{sub}</div>}
-    </div>
+    </>
   );
+
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={className}>
+        {body}
+      </button>
+    );
+  }
+
+  return <div className={className}>{body}</div>;
 }
 
 function Tab({
@@ -466,20 +483,6 @@ export function Availability() {
     [employees, summaryWeekCapacity, allocations, offDayIsos, supplyFrom, settings.workingDays]
   );
 
-  /** Week-2 summary rows — combined with week 1 for the Total Free Capacity KPI. */
-  const summaryRowsWeek2 = useMemo(() => {
-    const week2Start = addDaysISO(supplyFrom, 7);
-    const cap = weekCapacityHours(week2Start, calendarOpts) || fallbackWeekCapacity;
-    return buildAvailRowsFromEmployees(
-      employees,
-      cap,
-      allocations,
-      offDayIsos,
-      week2Start,
-      settings.workingDays
-    );
-  }, [employees, allocations, offDayIsos, supplyFrom, settings.workingDays, calendarOpts, fallbackWeekCapacity]);
-
   /** Same people/filters as the KPI, for the two weeks before the forward-supply window. */
   const priorSummaryRows = useMemo(() => {
     const weeks = [addDaysISO(supplyFrom, -14), addDaysISO(supplyFrom, -7)];
@@ -535,7 +538,7 @@ export function Availability() {
     [skillRows]
   );
 
-  const [seg, setSeg] = useState<Segment>("all");
+  const [seg, setSeg] = useState<Segment>("capacity");
   const [rollingOffExpanded, setRollingOffExpanded] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [prefill, setPrefill] = useState<AllocationPrefill | null>(null);
@@ -647,30 +650,23 @@ export function Availability() {
 
   const filteredRows = useMemo(() => applyListFilters(availRows), [applyListFilters, availRows]);
 
-  /** Header KPI cards — same skill/dept/min filters, but week locked to forward-supply range. */
+  /** Header KPI cards — same skill/dept/min filters, locked to this week (forward-supply week 1). */
   const summaryFilteredRows = useMemo(
     () => applyListFilters(summaryRows),
     [applyListFilters, summaryRows]
   );
 
-  const summaryFilteredRowsWeek2 = useMemo(
-    () => applyListFilters(summaryRowsWeek2),
-    [applyListFilters, summaryRowsWeek2]
+  /** Total Free Capacity for this week only. */
+  const totalFreeHrsThisWeek = useMemo(
+    () => roundHoursToTenth(summaryFilteredRows.reduce((s, r) => s + r.freeHours, 0)),
+    [summaryFilteredRows]
   );
 
-  /** Total Free Capacity across both weeks of the 2-week forward supply window. */
-  const totalFreeHrs2Weeks = useMemo(() => {
-    const w1 = summaryFilteredRows.reduce((s, r) => s + r.freeHours, 0);
-    const w2 = summaryFilteredRowsWeek2.reduce((s, r) => s + r.freeHours, 0);
-    return roundHoursToTenth(w1 + w2);
-  }, [summaryFilteredRows, summaryFilteredRowsWeek2]);
-
-  /** Matching team capacity for the same 2-week window and filters. */
-  const totalCapacity2Weeks = useMemo(() => {
-    const w1 = summaryFilteredRows.reduce((s, r) => s + r.capacity, 0);
-    const w2 = summaryFilteredRowsWeek2.reduce((s, r) => s + r.capacity, 0);
-    return roundHoursToTenth(w1 + w2);
-  }, [summaryFilteredRows, summaryFilteredRowsWeek2]);
+  /** Matching team capacity for the same week and filters. */
+  const totalCapacityThisWeek = useMemo(
+    () => roundHoursToTenth(summaryFilteredRows.reduce((s, r) => s + r.capacity, 0)),
+    [summaryFilteredRows]
+  );
 
   const priorFilteredRows = useMemo(
     () => applyListFilters(priorSummaryRows),
@@ -741,11 +737,13 @@ export function Availability() {
 
   const rows = useMemo(() => {
     const filtered =
-      seg === "now"
-        ? filteredRows.filter((r) => r.availableFrom === "Now")
-        : seg === "rolling"
-          ? rollingOffRows
-          : allSegmentRows;
+      seg === "capacity"
+        ? summaryFilteredRows
+        : seg === "now"
+          ? filteredRows.filter((r) => r.availableFrom === "Now")
+          : seg === "rolling"
+            ? rollingOffRows
+            : allSegmentRows;
 
     return [...filtered].sort((a, b) => {
       const mul = sortDir === "asc" ? 1 : -1;
@@ -761,7 +759,7 @@ export function Availability() {
       }
       return mul * a.skills.join(", ").localeCompare(b.skills.join(", "));
     });
-  }, [allSegmentRows, filteredRows, rollingOffRows, seg, sortKey, sortDir]);
+  }, [allSegmentRows, filteredRows, rollingOffRows, seg, sortKey, sortDir, summaryFilteredRows]);
 
   const nowCount = filteredRows.filter((r) => r.availableFrom === "Now").length;
   const rollingCount = rollingOffRows.length;
@@ -819,16 +817,21 @@ export function Availability() {
         <div className="grid flex-shrink-0 grid-cols-4 gap-3">
           <Kpi
             label="Total Free Capacity"
-            value={formatHoursDecimalLabel(totalFreeHrs2Weeks)}
+            value={formatHoursDecimalLabel(totalFreeHrsThisWeek)}
             delta={
-              totalCapacity2Weeks > 0
-                ? availFreeOfCapacityLabel(totalFreeHrs2Weeks, totalCapacity2Weeks)
+              totalCapacityThisWeek > 0
+                ? availFreeOfCapacityLabel(totalFreeHrsThisWeek, totalCapacityThisWeek)
                 : undefined
             }
             deltaClass="text-muted-foreground"
             sub="this week"
             accent="border-l-success"
             valueClass="text-success"
+            active={seg === "capacity"}
+            onClick={() => {
+              setSeg("capacity");
+              setWeekStart(supplyFrom);
+            }}
           />
           <Kpi
             label="Fully Available"
@@ -836,6 +839,8 @@ export function Availability() {
             sub="0% booked · ready now"
             accent="border-l-success"
             valueClass="text-success"
+            active={seg === "now"}
+            onClick={() => setSeg("now")}
           />
           <Kpi
             label="Rolling Off Soon"
@@ -843,6 +848,8 @@ export function Availability() {
             sub="within 2 weeks"
             accent="border-l-warning"
             valueClass="text-warning"
+            active={seg === "rolling"}
+            onClick={() => setSeg("rolling")}
           />
           <Kpi
             label="Avg Free Hrs / Person"
@@ -925,7 +932,10 @@ export function Availability() {
             </div>
             <WeeklyCheckInWeekPicker
               weekStart={weekStart}
-              onChange={setWeekStart}
+              onChange={(ws) => {
+                setWeekStart(ws);
+                if (seg === "capacity" && ws !== supplyFrom) setSeg("all");
+              }}
               weeks={availabilityWeeks}
             />
           </div>
