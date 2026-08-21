@@ -5,6 +5,7 @@ import {
   MIN_FREE_HOUR_OPTIONS,
   availAvgDeltaDisplay,
   avgFreeHoursPerPerson,
+  availFreeOfCapacityLabel,
   computeAvailKpis,
   filterAvailRowsAllSegments,
   filterAvailRowsRollingOffSoon,
@@ -98,7 +99,7 @@ function Kpi({
       }`}
     >
       <div className="mb-1.5 text-[11px] text-muted">{label}</div>
-      <div className="flex items-baseline gap-1.5">
+      <div className="flex flex-wrap items-baseline gap-1.5">
         <div className={`text-[23px] font-semibold ${valueClass ?? "text-foreground"}`}>
           {value}
         </div>
@@ -661,7 +662,14 @@ export function Availability() {
   const totalFreeHrs2Weeks = useMemo(() => {
     const w1 = summaryFilteredRows.reduce((s, r) => s + r.freeHours, 0);
     const w2 = summaryFilteredRowsWeek2.reduce((s, r) => s + r.freeHours, 0);
-    return Math.round((w1 + w2) * 10) / 10;
+    return roundHoursToTenth(w1 + w2);
+  }, [summaryFilteredRows, summaryFilteredRowsWeek2]);
+
+  /** Matching team capacity for the same 2-week window and filters. */
+  const totalCapacity2Weeks = useMemo(() => {
+    const w1 = summaryFilteredRows.reduce((s, r) => s + r.capacity, 0);
+    const w2 = summaryFilteredRowsWeek2.reduce((s, r) => s + r.capacity, 0);
+    return roundHoursToTenth(w1 + w2);
   }, [summaryFilteredRows, summaryFilteredRowsWeek2]);
 
   const priorFilteredRows = useMemo(
@@ -812,7 +820,13 @@ export function Availability() {
           <Kpi
             label="Total Free Capacity"
             value={formatHoursDecimalLabel(totalFreeHrs2Weeks)}
-            sub="across team within 2 weeks"
+            delta={
+              totalCapacity2Weeks > 0
+                ? availFreeOfCapacityLabel(totalFreeHrs2Weeks, totalCapacity2Weeks)
+                : undefined
+            }
+            deltaClass="text-muted-foreground"
+            sub="this week"
             accent="border-l-success"
             valueClass="text-success"
           />

@@ -32,6 +32,29 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-21 09:20 IST
+
+**Prompt:**  
+> Total Free Capacity KPI subtitle: change "across team within 2 weeks" to "this week".
+
+**Output:**  
+- Subtitle is now `this week`. Hours/capacity on the card are still the 2-week forward-supply totals.
+- Files: `screens/Availability.tsx`, `docs/prompt-log.md`.
+
+---
+
+### 2026-08-21 09:15 IST
+
+**Prompt:**  
+> Total Free Capacity card: also show total capacity for the same 2-week period as a small suffix, e.g. 170h of 250h (68%).
+
+**Output:**  
+- Same 2-week filtered rows as free hours: sum `capacity` week 1 + week 2. Percent = free / capacity.
+- UI: big green free hours; muted `of 250.0h (68%)` beside it (`Kpi` delta, 11px). Subtitle unchanged.
+- Files: `data/availability.ts` (`availFreeOfCapacityLabel`), `screens/Availability.tsx`, `tests/unit/availRollingOffSoon.test.ts`.
+
+---
+
 ### 2026-08-21 09:05 IST
 
 **Prompt:**  
