@@ -32,6 +32,15 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-21 11:22 IST
+
+**Prompt:**  
+> Remove the week picker control from the Availability table toolbar.
+
+**Output:**  
+- Removed `WeeklyCheckInWeekPicker`. This week / Next week still come from the tabs and capacity KPI cards.
+- Files: `screens/Availability.tsx`, `docs/prompt-log.md`.
+
 ### 2026-08-21 11:18 IST
 
 **Prompt:**  

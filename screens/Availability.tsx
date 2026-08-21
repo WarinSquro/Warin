@@ -33,19 +33,6 @@ import { formatHoursDecimalLabel, formatHoursLabel, roundHoursToTenth } from "..
 type Segment = "all" | "now" | "next" | "rolling";
 type AvailSortKey = "name" | "freeHours" | "availableFrom" | "resourceOwner" | "skills";
 
-/** Current week + next week for the Availability week picker. */
-function getAvailabilityWeeks(workingDays?: string[]): ReviewWeekOption[] {
-  const current = mondayISO();
-  return [0, 1].map((offset) => {
-    const weekStart = addDaysISO(current, offset * 7);
-    return {
-      weekStart,
-      label: formatWeekLabel(weekStart, workingDays),
-      isCurrent: offset === 0,
-    };
-  });
-}
-
 /** Current-week Monday → Sunday of the 2nd week (14 calendar days). */
 function forwardSupplyBounds(from = new Date()) {
   const start = mondayISO(from);
@@ -487,16 +474,7 @@ export function Availability() {
     () => formatForwardSupplyRange(supplyFrom, supplyTo),
     [supplyFrom, supplyTo]
   );
-  const availabilityWeeks = useMemo(
-    () => getAvailabilityWeeks(settings.workingDays),
-    [settings.workingDays]
-  );
   const [weekStart, setWeekStart] = useState(() => mondayISO());
-  useEffect(() => {
-    if (!availabilityWeeks.some((w) => w.weekStart === weekStart)) {
-      setWeekStart(availabilityWeeks[0]?.weekStart ?? mondayISO());
-    }
-  }, [availabilityWeeks, weekStart]);
 
   const offDayIsos = useMemo(
     () => settings.companyOffDays.map((d) => d.date.slice(0, 10)),
@@ -1015,7 +993,7 @@ export function Availability() {
         {/* Supply table */}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-surface">
           {/* Table toolbar */}
-          <div className="flex flex-shrink-0 items-center justify-between border-b border-border-soft px-4 py-2.5">
+          <div className="flex flex-shrink-0 items-center border-b border-border-soft px-4 py-2.5">
             <div className="flex gap-1">
               <Tab active={seg === "all"} onClick={() => setSeg("all")}>
                 All {twoWeekFilteredRows.length}
@@ -1048,15 +1026,6 @@ export function Availability() {
                 Rolling off soon
               </Tab>
             </div>
-            <WeeklyCheckInWeekPicker
-              weekStart={weekStart}
-              onChange={(ws) => {
-                setWeekStart(ws);
-                if (ws === supplyFrom) setSeg("now");
-                else if (ws === nextWeekStart) setSeg("next");
-              }}
-              weeks={availabilityWeeks}
-            />
           </div>
 
           {/* Single scrollport: sticky header + rows share width (scrollbar no longer shifts columns). */}
