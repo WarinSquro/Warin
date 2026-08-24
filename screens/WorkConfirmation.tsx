@@ -1452,9 +1452,9 @@ function ManagerCompliance() {
   const loadTeam = useCallback(async () => {
     try {
       const res = await fetchTeamCompliance({ asOf: today });
-      const viewerHrmsId = currentEmployee?.id?.trim();
       const visible = res.rows.filter((r) => {
-        if (viewerHrmsId && r.id === viewerHrmsId) return false;
+        const n = r.name?.trim().toLowerCase() ?? "";
+        if (n === "administrator" || r.id === "EMP-0001") return false;
         return true;
       });
       const todayStatuses = visible.map((r) => r.todayStatus);

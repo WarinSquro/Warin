@@ -16,6 +16,7 @@ import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { RequirePermissions } from "../auth/guards";
 import type { JwtPayload } from "../auth/jwt.strategy";
 import { assertCanPlanForEmployee, assertNotSelfAllocation } from "../auth/resource-scope";
+import { assertNoActiveLeaveInRange } from "../resource-leaves/resource-leave-scope";
 import { EmitDataChange } from "../realtime/emit-data-change.decorator";
 
 function ser<T>(v: T): T {
@@ -262,6 +263,12 @@ export class AllocationsController {
     const refs = await this.resolveRefs(body);
     await assertCanPlanForEmployee(this.prisma, req.user, refs.employee);
     assertNotSelfAllocation(req.user, refs.employee);
+    await assertNoActiveLeaveInRange(
+      this.prisma,
+      refs.employee.id,
+      refs.startDate,
+      refs.endDate
+    );
     const created = await this.prisma.allocation.create({
       data: {
         employeeId: refs.employee.id,
@@ -301,6 +308,12 @@ export class AllocationsController {
     const refs = await this.resolveRefs(body, { requireMapping: !samePair });
     await assertCanPlanForEmployee(this.prisma, req.user, refs.employee);
     assertNotSelfAllocation(req.user, refs.employee);
+    await assertNoActiveLeaveInRange(
+      this.prisma,
+      refs.employee.id,
+      refs.startDate,
+      refs.endDate
+    );
     const updated = await this.prisma.allocation.update({
       where: { id: existing.id },
       data: {

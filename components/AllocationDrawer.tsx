@@ -137,6 +137,7 @@ export function AllocationDrawer({ open, onClose, prefill, people, allocations =
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [mappedProjectCodes, setMappedProjectCodes] = useState<string[] | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const focusRef = useFocusFirstField<HTMLDivElement>(open);
   const today = todayISO();
   /** End date cannot be before start (and in create mode, not before today). */
@@ -179,6 +180,7 @@ export function AllocationDrawer({ open, onClose, prefill, people, allocations =
         : [];
       setConfirmDeleteOpen(false);
       setDeleting(false);
+      setActionError(null);
       setForm({
         ...defaults,
         personId: person?.id ?? "",
@@ -342,6 +344,7 @@ export function AllocationDrawer({ open, onClose, prefill, people, allocations =
   const handleSave = async () => {
     if (!canSave) return;
     if (!canManageSelected) return;
+    setActionError(null);
     try {
       await onSave?.({
         personId: form.personId,
@@ -357,8 +360,8 @@ export function AllocationDrawer({ open, onClose, prefill, people, allocations =
         createRef: prefill?.createRef,
       });
       onClose();
-    } catch {
-      /* keep drawer open — parent surfaces error */
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "Failed to save allocation");
     }
   };
 
@@ -373,12 +376,13 @@ export function AllocationDrawer({ open, onClose, prefill, people, allocations =
   const handleDelete = async () => {
     if (!canDelete || !prefill?.editRef) return;
     setDeleting(true);
+    setActionError(null);
     try {
       await onDelete?.(prefill.editRef);
       setConfirmDeleteOpen(false);
       onClose();
-    } catch {
-      /* keep drawer open — parent surfaces error */
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "Failed to delete allocation");
     } finally {
       setDeleting(false);
     }
@@ -644,6 +648,12 @@ export function AllocationDrawer({ open, onClose, prefill, people, allocations =
                 Past and current allocations cannot be deleted — adjust hours instead.
               </div>
             )}
+          </div>
+        )}
+
+        {actionError && (
+          <div className="flex-shrink-0 border-t border-danger-border bg-danger-soft px-[18px] py-2.5 text-[11px] leading-relaxed text-danger">
+            {actionError}
           </div>
         )}
 

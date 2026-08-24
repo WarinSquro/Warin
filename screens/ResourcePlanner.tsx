@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { CalendarOff, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import {
   WEEKS,
   CURRENT_WEEK_INDEX,
@@ -25,6 +25,7 @@ import {
 import { workingWeekEnd } from "../utils/workingWeek";
 import type { Chip, ChipKind, Demand, Candidate, PlannerRow, AllocationSlice } from "../data/planner";
 import { AllocationDrawer } from "../components/AllocationDrawer";
+import { ResourceLeavesModal } from "../components/ResourceLeavesModal";
 import type { AllocationPrefill, AllocationSavePayload, AllocationEditRef } from "../components/AllocationDrawer";
 import { FindMatchesPanel } from "../components/FindMatchesPanel";
 import { OpenDemandPanel } from "../components/OpenDemandPanel";
@@ -45,6 +46,7 @@ import {
 import {
   createAllocation,
   deleteAllocation,
+  fetchActiveLeaveDatesByEmployee,
   fetchAllocations,
   updateAllocation,
   type ApiAllocation,
@@ -198,6 +200,7 @@ function chipClass(kind: ChipKind) {
     case "over": return "bg-danger-soft text-danger-fg";
     case "internal": return "bg-surface-alt text-muted";
     case "free": return "border border-dashed border-border text-muted-foreground";
+    case "leave": return "border border-danger bg-danger-soft font-medium text-danger";
   }
 }
 
@@ -237,6 +240,8 @@ export function ResourcePlanner() {
   const [prefill, setPrefill] = useState<AllocationPrefill | null>(null);
   const [matchesDemand, setMatchesDemand] = useState<Demand | null>(null);
   const [openDemandPanel, setOpenDemandPanel] = useState(false);
+  const [leavesModalOpen, setLeavesModalOpen] = useState(false);
+  const [leaveDatesByEmployee, setLeaveDatesByEmployee] = useState<Record<string, string[]>>({});
   const [highlightRowId, setHighlightRowId] = useState<string | null>(null);
   /** After the user closes Open Demand, ignore ?panel=demand until the query changes. */
   const demandPanelDismissedRef = useRef(false);
@@ -310,13 +315,26 @@ export function ResourcePlanner() {
     }
   }, [rangeFrom, rangeTo]);
 
+  const reloadLeaveDates = useCallback(async () => {
+    try {
+      const byEmployee = await fetchActiveLeaveDatesByEmployee();
+      setLeaveDatesByEmployee(byEmployee);
+    } catch {
+      setLeaveDatesByEmployee({});
+    }
+  }, []);
+
+  const reloadPlannerData = useCallback(async () => {
+    await Promise.all([reloadAllocations(), reloadLeaveDates()]);
+  }, [reloadAllocations, reloadLeaveDates]);
+
   useEffect(() => {
-    void reloadAllocations();
-  }, [reloadAllocations]);
+    void reloadPlannerData();
+  }, [reloadPlannerData]);
 
   // Live cross-user refresh while Planner is open: SSE `allocations` + short poll fallback.
   // Paused while the allocation drawer is open so in-progress edits are not overwritten.
-  useSharedDataSync(!drawerOpen, reloadAllocations, {
+  useSharedDataSync(!drawerOpen, reloadPlannerData, {
     resources: ["allocations"],
     intervalMs: MASTER_TXN_SYNC_INTERVAL_MS,
   });
@@ -327,10 +345,11 @@ export function ResourcePlanner() {
       clonePlannerRows(
         buildPlannerRowsFromEmployees(employees, weekCapacity, allocations, calendarOpts, {
           dayStartIso,
+          leaveDatesByEmployee,
         })
       )
     );
-  }, [employees, weekCapacity, allocations, calendarOpts, dayStartIso]);
+  }, [employees, weekCapacity, allocations, calendarOpts, dayStartIso, leaveDatesByEmployee]);
 
   useEffect(() => {
     if (departments.length === 0) return;
@@ -417,6 +436,10 @@ export function ResourcePlanner() {
   };
 
   const handleCellClick = (row: PlannerRow, cellIndex: number, cell: Chip[]) => {
+    if (cell.some((c) => c.kind === "leave")) {
+      toast.warning("Resource is on leave — allocation is not allowed on this date.");
+      return;
+    }
     const blocked = allocationBlockedMessage(selfHrmsId, row.id, allEmployees, allocPermOpts);
     if (blocked) {
       toast.warning(blocked);
@@ -442,7 +465,7 @@ export function ResourcePlanner() {
       toast.warning(blocked);
       return;
     }
-    if (chip.kind === "free") return;
+    if (chip.kind === "free" || chip.kind === "leave") return;
     if (view === "day" && !dayAllocateAllowed) return;
     const editPrefill = buildEditPrefill(
       row,
@@ -466,8 +489,6 @@ export function ResourcePlanner() {
       allocPermOpts
     );
     if (blocked) {
-      setSaveError(blocked);
-      toast.warning(blocked);
       throw new Error(blocked);
     }
     const project = projects.find((p) => p.id === payload.projectId);
@@ -490,7 +511,6 @@ export function ResourcePlanner() {
     };
 
     try {
-      setSaveError(null);
       const editId = payload.editRef?.allocationId;
       if (editId) {
         const existing = allocations.find((a) => a.id === editId);
@@ -535,9 +555,7 @@ export function ResourcePlanner() {
         toast.created();
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Failed to save allocation";
-      setSaveError(msg);
-      throw e;
+      throw e instanceof Error ? e : new Error("Failed to save allocation");
     }
   };
 
@@ -549,12 +567,9 @@ export function ResourcePlanner() {
       allocPermOpts
     );
     if (blocked) {
-      setSaveError(blocked);
-      toast.warning(blocked);
       throw new Error(blocked);
     }
     try {
-      setSaveError(null);
       if (!editRef.allocationId) {
         throw new Error("Cannot delete — allocation is not persisted yet");
       }
@@ -562,9 +577,7 @@ export function ResourcePlanner() {
       await reloadAllocations();
       toast.deleted();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Failed to delete allocation";
-      setSaveError(msg);
-      throw e;
+      throw e instanceof Error ? e : new Error("Failed to delete allocation");
     }
   };
 
@@ -645,8 +658,16 @@ export function ResourcePlanner() {
             align="end"
           />
           <button
+            type="button"
+            onClick={() => setLeavesModalOpen(true)}
+            className="flex cursor-pointer items-center gap-1 rounded-md border border-border bg-surface px-3.5 py-1.5 text-[12px] font-medium text-foreground hover:bg-surface-alt"
+          >
+            <CalendarOff className="h-3.5 w-3.5" /> Leaves
+          </button>
+          <button
+            type="button"
             onClick={() => openAllocate()}
-            className="flex items-center gap-1 rounded-md bg-primary px-3.5 py-1.5 text-[12px] font-medium text-primary-foreground"
+            className="flex cursor-pointer items-center gap-1 rounded-md bg-primary px-3.5 py-1.5 text-[12px] font-medium text-primary-foreground"
           >
             <Plus className="h-3.5 w-3.5" /> Allocate
           </button>
@@ -805,6 +826,13 @@ export function ResourcePlanner() {
         onClose={() => setMatchesDemand(null)}
         onAllocate={onCandidateAllocate}
       />
+      {leavesModalOpen && (
+        <ResourceLeavesModal
+          allEmployees={allEmployees}
+          onClose={() => setLeavesModalOpen(false)}
+          onChanged={() => void reloadPlannerData()}
+        />
+      )}
     </>
   );
 }
@@ -869,10 +897,11 @@ function PlannerGridRow({
       {/* Week or day cells */}
       {cells.map((cell, i) => {
         const hasOver = cell.some((c) => c.kind === "over");
+        const onLeave = cell.some((c) => c.kind === "leave");
         const dayIso = view === "day" ? dayStartIso[i] : undefined;
         const holiday = view === "day" && dayIso ? !isPlannerWorkingDay(dayIso, calendarOpts) : false;
-        const isCurrent = i === currentIndex && !holiday;
-        const readOnly = !allocateAllowed || holiday;
+        const isCurrent = i === currentIndex && !holiday && !onLeave;
+        const readOnly = !allocateAllowed || holiday || onLeave;
         return (
           <div
             key={i}
@@ -892,18 +921,22 @@ function PlannerGridRow({
             className={`flex flex-1 flex-col justify-center gap-1 border-r border-border-soft p-1.5 ${
               holiday
                 ? "cursor-not-allowed bg-surface-alt"
-                : !allocateAllowed
-                  ? "cursor-default bg-surface-alt/30"
-                  : `cursor-pointer hover:bg-surface-alt/40 ${
-                      hasOver ? "bg-danger-soft/50" : isCurrent ? "bg-highlight" : ""
-                    }`
+                : onLeave
+                  ? "cursor-default bg-danger-soft/40"
+                  : !allocateAllowed
+                    ? "cursor-default bg-surface-alt/30"
+                    : `cursor-pointer hover:bg-surface-alt/40 ${
+                        hasOver ? "bg-danger-soft/50" : isCurrent ? "bg-highlight" : ""
+                      }`
             }`}
             title={
               holiday
                 ? "Holiday — no allocation"
-                : !allocateAllowed
-                  ? blockedReason ?? "Allocation not allowed"
-                  : undefined
+                : onLeave
+                  ? "On leave — allocation not allowed"
+                  : !allocateAllowed
+                    ? blockedReason ?? "Allocation not allowed"
+                    : undefined
             }
           >
             {holiday ? (
@@ -912,7 +945,7 @@ function PlannerGridRow({
               </div>
             ) : (
               cell.map((c: Chip, j) =>
-                c.kind === "free" ? (
+                c.kind === "free" || c.kind === "leave" ? (
                   <div
                     key={j}
                     className={`pointer-events-none rounded-sm px-1.5 py-1 text-[10px] leading-tight ${chipClass(c.kind)}`}

@@ -119,6 +119,8 @@ model Employee {
   kpiFrameworkItems        KpiFrameworkItem[] @relation("KpiEmployee")
   kpiResultsUpdated        KpiFrameworkItem[] @relation("KpiResultUpdater")
   projectMaps              EmployeeProjectMap[]
+  resourceLeaves           ResourceLeave[] @relation("LeaveEmployee")
+  resourceLeavesEntered    ResourceLeave[] @relation("LeaveEnteredBy")
 
   @@index([departmentId])
   @@index([resourceOwnerId])
@@ -216,6 +218,54 @@ model EmployeeProjectMap {
   @@id([employeeId, projectId])
   @@index([projectId])
   @@map("employee_project_maps")
+}
+
+enum ResourceLeaveType {
+  planned
+  unplanned
+}
+
+enum ResourceLeaveClassification {
+  negative
+  zero
+}
+
+enum ResourceLeaveStatus {
+  active
+  cancelled
+}
+
+/// Resource Planner leave utility (not HRMS leave management).
+model ResourceLeave {
+  id                   BigInt                      @id @default(autoincrement())
+  employeeId           BigInt                      @map("employee_id")
+  leaveDate            DateTime                    @map("leave_date") @db.Date
+  leaveType            ResourceLeaveType           @map("leave_type")
+  classification       ResourceLeaveClassification
+  reason               String                      @db.VarChar(30)
+  impactedPlannedHours Float                       @default(0) @map("impacted_planned_hours")
+  status               ResourceLeaveStatus         @default(active)
+  enteredByEmployeeId  BigInt                      @map("entered_by_employee_id")
+  enteredAt            DateTime                    @default(now()) @map("entered_at")
+  cancelledAt          DateTime?                   @map("cancelled_at")
+  cancelledBy          BigInt?                     @map("cancelled_by")
+  isActive             Boolean                     @default(true) @map("is_active")
+  isDeleted            Boolean                     @default(false) @map("is_deleted")
+  deletedAt            DateTime?                   @map("deleted_at")
+  createdAt            DateTime                    @default(now()) @map("created_at")
+  modifiedAt           DateTime                    @updatedAt @map("modified_at")
+  createdBy            BigInt?                     @map("created_by")
+  modifiedBy           BigInt?                     @map("modified_by")
+  version              Int                         @default(1)
+
+  employee    Employee @relation("LeaveEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  enteredBy   Employee @relation("LeaveEnteredBy", fields: [enteredByEmployeeId], references: [id], onDelete: Restrict)
+
+  @@index([employeeId, leaveDate])
+  @@index([leaveDate])
+  @@index([status])
+  @@index([isDeleted, isActive])
+  @@map("resource_leaves")
 }
 
 model EmployeePermission {

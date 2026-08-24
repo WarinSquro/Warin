@@ -32,6 +32,85 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-24 13:15 IST
+
+**Prompt:**  
+> Show logged-in user in compliance list, except Administrator.
+
+**Output:**  
+- `apps/oneview-api/src/api/confirmations/confirmations.controller.ts` — `GET /team` now adds the viewer to the `allowed` set (was descendants-only); excludes employees named "Administrator".
+- `screens/WorkConfirmation.tsx` — client filter already updated (previous turn) to exclude Administrator, include self.
+- API rebuild: `docker compose up -d --build api`.
+
+### 2026-08-24 13:12 IST
+
+**Prompt:**  
+> Work Confirmation Manager Compliance: self should be shown; Administrator should not be shown.
+
+**Output:**  
+- `screens/WorkConfirmation.tsx` `ManagerCompliance` — removed self-exclusion filter; added Administrator exclusion (by name + `EMP-0001`).
+
+### 2026-08-24 13:05 IST
+
+**Prompt:**  
+> On Create Leave, 44/40h should update — if 8h allocated on a leave day, show 24/32h not 32/40h.
+
+**Output:**  
+- **Root cause:** `buildPlannerRowsFromEmployees` used a shared capacity for all employees; leave days were not subtracted from the denominator.
+- `data/planner.ts` — per-employee capacity now subtracts `leaveDays × hpd` from both week and day capacity.
+- Test: `tests/unit/plannerLeaveMarkers.test.ts` — new "reduces capacity by leave days" case (4/4 passed).
+
+### 2026-08-24 12:58 IST
+
+**Prompt:**  
+> In the Leaves modal, when classification is "Negative", show it in the same red style as "Leave".
+
+**Output:**  
+- `components/ResourceLeavesModal.tsx` — classification cell now renders a red bordered pill for `Negative` (and a neutral pill for `Zero`).
+- Tests: `vitest tests/unit/resourceLeaveScope.test.ts tests/unit/plannerLeaveMarkers.test.ts` (pass).
+
+### 2026-08-24 12:34 IST
+
+**Prompt:**  
+> Leave-block allocation error from the drawer was showing in the planner header — show it in the drawer only.
+
+**Output:**  
+- `components/AllocationDrawer.tsx` — save/delete API errors (including leave block) render inside the drawer above Cancel/Save.
+- `screens/ResourcePlanner.tsx` — header `saveError` is no longer set from allocation save/delete (still used for allocation load failures).
+
+### 2026-08-24 12:26 IST
+
+**Prompt:**  
+> Leave chip on planner must show red font and red border as per standard.
+
+**Output:**  
+- `screens/ResourcePlanner.tsx` — `chipClass("leave")` uses `border-danger` + `text-danger` + `bg-danger-soft` (same danger tokens as overallocation). Leave cells use default cursor (not pointer).
+
+### 2026-08-24 12:10 IST
+
+**Prompt:**  
+> Leaves modal error: Cannot GET /api/v1/resource-leaves — check and fix.
+
+**Output:**  
+- **Root cause:** Vite (`:5173`) calls API via nginx (`:8080`). Docker `oneview-api` image was 3 days old — `ResourceLeavesModule` existed in source but was not in the running container → Nest 404.
+- **Also fixed:** Prisma P3009 — `employee_project_maps` migration failed (table already existed); marked applied with `prisma migrate resolve --applied`, then deployed `20260824100000_resource_leaves`.
+- **Commands:** `docker compose up -d --build api` — API now returns 401 (auth required) on `/resource-leaves` instead of 404.
+- **User action:** Hard-refresh planner and reopen Leaves modal.
+
+### 2026-08-24 12:00 IST
+
+**Prompt:**  
+> Read phase1-leaves-frd.pdf; implement all Leaves FRD requirements. On Create Leave, if work is allotted, delete all allotted work (same as DELETE ALLOCATION) and update 44/40h for that week.
+
+**Output:**  
+- **FRD scope:** Resource Planner **Leaves** utility (not HRMS leave) — modal before **+ Allocate**; view self+reportees; mutate reportees only; full-day leave; Planned/Unplanned; reason ≤30; Negative/Zero classification; block if Day Start today; block allocation on leave dates; Leave marker in planner; edit reason + cancel (soft).
+- **DB:** `resource_leaves` + enums in `prisma/schema.prisma`, migration `20260824100000_resource_leaves`.
+- **API:** `apps/oneview-api/src/api/resource-leaves/*` — list, active-dates, create (soft-deletes overlapping allocations, snapshots `impactedPlannedHours`), patch reason, cancel, check; allocation create/update blocked via `assertNoActiveLeaveInRange`.
+- **UI:** `components/ResourceLeavesModal.tsx`; `screens/ResourcePlanner.tsx` — Leaves button, modal, leave chips, block allocate on leave cells, reload allocations+leave dates after changes.
+- **Client:** `api/domain.ts`, `utils/resourceLeaveScope.ts`, `data/planner.ts` leave chip kind.
+- **Tests:** `tests/unit/resourceLeaveScope.test.ts`, `tests/unit/plannerLeaveMarkers.test.ts` — 10/10 passed.
+- **Blockers:** `npx prisma migrate deploy` failed — prior failed migration `20260821170000_employee_project_maps` (P3009); resolve before applying `resource_leaves`. `docs/OneView_Table_Structure.xlsx` not updated this turn.
+
 ### 2026-08-24 10:50 IST
 
 **Prompt:**  

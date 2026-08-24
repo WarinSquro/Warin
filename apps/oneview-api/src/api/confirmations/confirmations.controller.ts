@@ -955,7 +955,11 @@ export class ConfirmationsController {
               }))
             )
           );
-          return active.filter((e) => allowed.has(e.id.toString()));
+          allowed.add(viewer.id.toString());
+          return active.filter((e) =>
+            allowed.has(e.id.toString()) &&
+            e.name.trim().toLowerCase() !== "administrator"
+          );
         })();
 
     const rosterIds = roster.map((e) => e.id);

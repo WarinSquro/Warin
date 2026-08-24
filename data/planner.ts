@@ -11,7 +11,7 @@ import { normalizedWorkingDays, workingDayStatus } from "../utils/workingCalenda
 import type { ProjectHealth } from "./executionReport";
 
 export type Priority = "critical" | "high" | "medium";
-export type ChipKind = "normal" | "over" | "free" | "internal";
+export type ChipKind = "normal" | "over" | "free" | "internal" | "leave";
 
 /** Project health → Open Demand rank (Settings → Demand priority order). */
 export function demandPriorityFromHealth(health?: ProjectHealth): Priority {
@@ -603,13 +603,25 @@ export function buildPlannerRowsFromEmployees(
   capacity = 40,
   allocations: AllocationSlice[] = [],
   calendar: PlannerCalendarOpts = {},
-  opts?: { dayStartIso?: string[]; weekStartIso?: string[] }
+  opts?: {
+    dayStartIso?: string[];
+    weekStartIso?: string[];
+    /** Active leave dates per employee HRMS id (YYYY-MM-DD). */
+    leaveDatesByEmployee?: Record<string, string[]>;
+  }
 ): PlannerRow[] {
   const byEmp = new Map<string, AllocationSlice[]>();
   for (const a of allocations) {
     const list = byEmp.get(a.employeeHrmsId) ?? [];
     list.push(a);
     byEmp.set(a.employeeHrmsId, list);
+  }
+
+  const leaveSets = new Map<string, Set<string>>();
+  if (opts?.leaveDatesByEmployee) {
+    for (const [hrmsId, dates] of Object.entries(opts.leaveDatesByEmployee)) {
+      leaveSets.set(hrmsId, new Set(dates.map((d) => d.slice(0, 10))));
+    }
   }
 
   const daysPerWeek = normalizedWorkingDays(calendar.workingDays).length || 5;
@@ -634,22 +646,61 @@ export function buildPlannerRowsFromEmployees(
     weekStarts.reduce((sum, start) => sum + weekCapacityHours(start, cal), 0) * 10
   ) / 10;
 
+  const leaveChip = (): Chip[] => [{ label: "Leave", kind: "leave" }];
+
   return employees
     .filter((e) => e.status === "active")
     .map((e) => {
       const allocs = byEmp.get(e.id) ?? [];
+      const leaveDates = leaveSets.get(e.id);
       const weeks = weekStarts.map((start) => {
         const end = toISODate(addDays(parseISO(start), 6));
+        if (leaveDates) {
+          const workingInWeek: string[] = [];
+          for (let d = parseISO(start); d <= parseISO(end); d = addDays(d, 1)) {
+            const iso = toISODate(d);
+            if (isPlannerWorkingDay(iso, cal)) workingInWeek.push(iso);
+          }
+          if (
+            workingInWeek.length > 0 &&
+            workingInWeek.every((iso) => leaveDates.has(iso))
+          ) {
+            return leaveChip();
+          }
+        }
         const weekCap = weekCapacityHours(start, cal);
         return buildCellFromAllocations(allocs, "week", start, end, weekCap, cal);
       });
       const days = dayStarts.map((start) => {
+        if (leaveDates?.has(start.slice(0, 10))) {
+          return leaveChip();
+        }
         const dayCap = dayCapacityHours(start, cal);
         return buildCellFromAllocations(allocs, "day", start, start, dayCap, cal);
       });
-      // Total from live allocations over the visible header range (not chip parse / not only current column)
       const dayBookedHours = allocatedHoursInRange(allocs, dayRangeStart, dayRangeEnd, cal);
       const weekBookedHours = allocatedHoursInRange(allocs, weekRangeStart, weekRangeEnd, cal);
+
+      let empWeekCapacity = weekWindowCapacity > 0 ? weekWindowCapacity : capacity;
+      let empDayCapacity = dayStripCapacity > 0 ? dayStripCapacity : Math.round(hpd * dayStarts.length * 10) / 10;
+      if (leaveDates && leaveDates.size > 0) {
+        let weekLeaveDays = 0;
+        for (const ws of weekStarts) {
+          const we = toISODate(addDays(parseISO(ws), 6));
+          for (let d = parseISO(ws); d <= parseISO(we); d = addDays(d, 1)) {
+            const iso = toISODate(d);
+            if (isPlannerWorkingDay(iso, cal) && leaveDates.has(iso)) weekLeaveDays++;
+          }
+        }
+        empWeekCapacity = Math.max(0, Math.round((empWeekCapacity - weekLeaveDays * hpd) * 10) / 10);
+
+        let dayLeaveDays = 0;
+        for (const ds of dayStarts) {
+          if (isPlannerWorkingDay(ds, cal) && leaveDates.has(ds.slice(0, 10))) dayLeaveDays++;
+        }
+        empDayCapacity = Math.max(0, Math.round((empDayCapacity - dayLeaveDays * hpd) * 10) / 10);
+      }
+
       return {
         id: e.id,
         name: e.name,
@@ -658,8 +709,8 @@ export function buildPlannerRowsFromEmployees(
         role: e.skills[0] ?? "—",
         bookedHours: weekBookedHours,
         dayBookedHours,
-        capacity: weekWindowCapacity > 0 ? weekWindowCapacity : capacity,
-        dayCapacity: dayStripCapacity > 0 ? dayStripCapacity : Math.round(hpd * dayStarts.length * 10) / 10,
+        capacity: empWeekCapacity,
+        dayCapacity: empDayCapacity,
         weeks,
         days,
       };

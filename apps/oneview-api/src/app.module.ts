@@ -21,6 +21,7 @@ import { KpiModule } from "./api/kpi/kpi.module";
 import { RealtimeModule } from "./api/realtime/realtime.module";
 import { HardDeleteModule } from "./api/hard-delete/hard-delete.module";
 import { EmployeeProjectMapsModule } from "./api/employee-project-maps/employee-project-maps.module";
+import { ResourceLeavesModule } from "./api/resource-leaves/resource-leaves.module";
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { EmployeeProjectMapsModule } from "./api/employee-project-maps/employee-
     EmployeesModule,
     ProjectsModule,
     EmployeeProjectMapsModule,
+    ResourceLeavesModule,
     SettingsModule,
     AccessRightsModule,
     CockpitModule,

@@ -602,6 +602,83 @@ export async function unmapEmployeeFromProject(body: {
   });
 }
 
+export type ResourceLeaveRow = {
+  id: string;
+  leaveDate: string;
+  employeeHrmsId: string;
+  employeeName: string;
+  department: string;
+  leaveType: "Planned" | "Unplanned";
+  classification: "Negative" | "Zero";
+  reason: string;
+  enteredBy: string;
+  enteredAt: string;
+  impactedPlannedHours: number;
+  status: "Active" | "Cancelled";
+  canMutate: boolean;
+};
+
+export async function fetchResourceLeaves(opts?: {
+  from?: string;
+  to?: string;
+}): Promise<ResourceLeaveRow[]> {
+  const q = new URLSearchParams();
+  if (opts?.from) q.set("from", opts.from);
+  if (opts?.to) q.set("to", opts.to);
+  const qs = q.toString();
+  const res = await apiFetch<{ leaves: ResourceLeaveRow[] }>(
+    `/resource-leaves${qs ? `?${qs}` : ""}`
+  );
+  return res.leaves ?? [];
+}
+
+export async function fetchActiveLeaveDatesByEmployee(): Promise<Record<string, string[]>> {
+  const res = await apiFetch<{ byEmployee: Record<string, string[]> }>(
+    "/resource-leaves/active-dates"
+  );
+  return res.byEmployee ?? {};
+}
+
+export async function createResourceLeave(body: {
+  employeeHrmsId: string;
+  leaveDate: string;
+  leaveType: "planned" | "unplanned";
+  reason: string;
+}): Promise<ResourceLeaveRow> {
+  const res = await apiFetch<{ leave: ResourceLeaveRow }>("/resource-leaves", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  return res.leave;
+}
+
+export async function updateResourceLeaveReason(
+  id: string,
+  reason: string
+): Promise<ResourceLeaveRow> {
+  const res = await apiFetch<{ leave: ResourceLeaveRow }>(
+    `/resource-leaves/${encodeURIComponent(id)}/reason`,
+    { method: "PATCH", body: JSON.stringify({ reason }) }
+  );
+  return res.leave;
+}
+
+export async function cancelResourceLeave(id: string): Promise<ResourceLeaveRow> {
+  const res = await apiFetch<{ leave: ResourceLeaveRow }>(
+    `/resource-leaves/${encodeURIComponent(id)}/cancel`,
+    { method: "POST", body: JSON.stringify({}) }
+  );
+  return res.leave;
+}
+
+export async function checkResourceLeaveBlock(
+  employeeHrmsId: string,
+  date: string
+): Promise<{ blocked: boolean; message?: string }> {
+  const q = new URLSearchParams({ employeeHrmsId, date });
+  return apiFetch(`/resource-leaves/check?${q.toString()}`);
+}
+
 export async function fetchSettings(): Promise<SettingsState> {
   const res = await apiFetch<ApiSettingsResponse>("/settings");
   return mapApiSettings(res);
