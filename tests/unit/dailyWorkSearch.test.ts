@@ -13,7 +13,7 @@ function row(partial: Partial<DailyWorkRow> & Pick<DailyWorkRow, "id" | "employe
     activityName: "Testing",
     tasks: ["Login"],
     confirmation: "Pending",
-    planKind: "Plan",
+    planKind: "Planned",
     ...partial,
   };
 }

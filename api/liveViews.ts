@@ -1160,7 +1160,7 @@ export function buildDailyWorkRows(
         deviationReason:
           l.kind === "deviation" || l.kind === "unplanned" ? l.reason : undefined,
         actualHours: l.actualHours,
-        planKind: l.kind === "unplanned" ? "Unplanned" : "Plan",
+        planKind: l.kind === "unplanned" ? "Unplanned" : "Planned",
         allocatedOn: allocationCreatedOn(alloc),
       });
     }
@@ -1206,7 +1206,7 @@ export function buildDailyWorkRows(
         tasks: a.tasks,
         plannedHours: a.hoursPerDay,
         confirmation: "Pending",
-        planKind: "Plan",
+        planKind: "Planned",
         allocatedOn: allocationCreatedOn(a),
       });
     }

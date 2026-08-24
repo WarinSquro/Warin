@@ -29,7 +29,7 @@ describe("dailyWorkProjects", () => {
         id: "1",
         employeeName: "A",
         projectName: "SCIP SA-TA",
-        planKind: "Plan",
+        planKind: "Planned",
       }),
       row({
         id: "2",
@@ -41,7 +41,7 @@ describe("dailyWorkProjects", () => {
         id: "3",
         employeeName: "C",
         projectName: "IncentivePro-v1",
-        planKind: "Plan",
+        planKind: "Planned",
       }),
       row({
         id: "4",
@@ -61,7 +61,7 @@ describe("dailyWorkProjects", () => {
         id: "1",
         employeeName: "A",
         projectName: "SCIP SA-TA",
-        planKind: "Plan",
+        planKind: "Planned",
       }),
       row({
         id: "2",
@@ -81,14 +81,14 @@ describe("Daily Work project filter vs unplanned", () => {
         id: "plan",
         employeeName: "A",
         projectName: "SCIP SA-TA",
-        planKind: "Plan",
+        planKind: "Planned",
       }),
       row({
         id: "other",
         employeeName: "B",
         employeeId: "E2",
         projectName: "IncentivePro-v1",
-        planKind: "Plan",
+        planKind: "Planned",
       }),
       row({
         id: "unplanned",
@@ -114,20 +114,20 @@ describe("Daily Work project filter vs unplanned", () => {
     expect(filtered.map((r) => r.id).sort()).toEqual(["other", "plan", "unplanned"]);
   });
 
-  it("still filters Plan rows by selected project", () => {
+  it("still filters Planned rows by selected project", () => {
     const rows = [
       row({
         id: "plan",
         employeeName: "A",
         projectName: "SCIP SA-TA",
-        planKind: "Plan",
+        planKind: "Planned",
       }),
       row({
         id: "other",
         employeeName: "B",
         employeeId: "E2",
         projectName: "IncentivePro-v1",
-        planKind: "Plan",
+        planKind: "Planned",
       }),
     ];
     const visible = new Set(["E1", "E2"]);

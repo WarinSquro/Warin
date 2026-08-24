@@ -331,7 +331,7 @@ export function DailyWorkReport() {
       return next;
     });
     setPlanKinds((prev) => {
-      const all = ["Plan", "Unplanned"];
+      const all = ["Planned", "Unplanned"];
       const next = reconcileMultiSelect(prev, all, prevPlanRef.current) as PlanKind[];
       prevPlanRef.current = all;
       return next;
@@ -370,7 +370,7 @@ export function DailyWorkReport() {
   }, [scopedRows]);
 
   const planKindCounts = useMemo(() => {
-    const counts: Record<string, number> = { Plan: 0, Unplanned: 0 };
+    const counts: Record<string, number> = { Planned: 0, Unplanned: 0 };
     for (const r of scopedRows) counts[r.planKind]++;
     return counts;
   }, [scopedRows]);
@@ -469,8 +469,8 @@ export function DailyWorkReport() {
       summarizeFilter("Confirmations", confirmations, CONFIRMATION_CODES, {
         allLabel: "All statuses",
       }),
-      summarizeFilter("Plan types", planKinds, ["Plan", "Unplanned"], {
-        allLabel: "Plan + Unplanned",
+      summarizeFilter("Plan types", planKinds, ["Planned", "Unplanned"], {
+        allLabel: "Planned + Unplanned",
       }),
       `Work Date: ${workDateDayFilterLabel(workDay)}`,
       `Rows: ${sorted.length}`,
@@ -580,11 +580,11 @@ export function DailyWorkReport() {
               pluralLabel="statuses"
             />
             <FilterMultiSelect
-              items={["Plan", "Unplanned"]}
+              items={["Planned", "Unplanned"]}
               selected={planKinds}
               onChange={(v) => setPlanKinds(v as PlanKind[])}
               counts={planKindCounts}
-              allLabel="Plan + Unplanned"
+              allLabel="Planned + Unplanned"
               pluralLabel="types"
             />
             <WorkDateDaySelect value={workDay} onChange={setWorkDay} />

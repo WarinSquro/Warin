@@ -12,7 +12,7 @@ import { workDateMatchesDay } from "../utils/workDateDayFilter";
 export type DailyWorkPeriodId = "week" | "today" | "month" | "last_month" | "last_3_months";
 
 export type ConfirmationCode = "C" | "CD" | "D" | "DD" | "Pending" | "Leave";
-export type PlanKind = "Plan" | "Unplanned";
+export type PlanKind = "Planned" | "Unplanned";
 
 export type DailyWorkSortKey =
   | "employeeName"
@@ -62,7 +62,7 @@ export const DAILY_WORK_COLUMNS: DailyWorkColumnDef[] = [
   { id: "delayReason", label: "DELAY REASON", defaultVisible: false, width: "7.5rem" },
   { id: "deviationReason", label: "DEVIATION REASON", defaultVisible: false, width: "9.5rem" },
   { id: "actualHrs", label: "ACTUAL HRS", stackedHeader: ["ACTUAL", "HRS"], defaultVisible: true, width: "4.5rem" },
-  { id: "planUnplanned", label: "PLAN/UNPLANNED", stackedHeader: ["PLAN/", "UNPLANNED"], defaultVisible: false, width: "5.5rem" },
+  { id: "planUnplanned", label: "PLANNED/UNPLANNED", stackedHeader: ["PLANNED/", "UNPLANNED"], defaultVisible: false, width: "6.25rem" },
 ];
 
 export const DAILY_WORK_COLUMN_STORAGE_KEY = "oneview_daily_work_columns_v6";
@@ -229,7 +229,7 @@ function plannedLine(input: LineInput, seq: number): DailyWorkRow {
     delayReason: delay,
     deviationReason: deviation,
     actualHours: actual,
-    planKind: "Plan",
+    planKind: "Planned",
     allocatedOn: input.workDate,
   };
 }
