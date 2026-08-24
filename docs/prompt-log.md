@@ -38,10 +38,11 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 > Live screens show no changes. Treat EC2 as source of truth; deploy and verify on live. Do not mark complete from local-only work.
 
 **Output:**  
-- Live check: `https://seworkspace.com/version.json` = `36b4837` (Execution Report Support-badge only). API health ok.
-- Live KPI Cycle still lists Q1–Q4 (expired Q1/Q2 should be hidden) — KPI/Access Rights files were never committed.
-- Third screenshot is `127.0.0.1:5173` (local Vite), not EC2.
-- Committed remaining KPI/Access/FilterSelect/Leaves-UI + KPI API; pushed; EC2 `ec2-deploy.sh --with-api`.
+- **Live before ship:** `version.json` = `36b4837` (Execution Support fix only). Live JS lacked KPI rules (`New KPI (… Chars)`). KPI Cycle still showed Q1–Q4 on live screenshot. Access Rights search chrome polish + FilterSelect/KPI API still uncommitted.
+- **Screenshot note:** Leaves modal image is `127.0.0.1:5173` (local Vite), not EC2.
+- **Ship:** commit `5036d86` → `git push origin main` → SSH `bash scripts/ec2-deploy.sh --with-api` (SPA_PUBLISH_OK, API_HEALTH_OK, LIVE_COMMIT=5036d86).
+- **Live after:** `https://seworkspace.com/version.json` = `5036d86…`; API health ok; EC2 `git rev-parse HEAD` = `5036d86…`; new bundle `/assets/index-CdYvkQ1C.js` contains `New KPI (${…} Chars)`, `Used in KPI framework`, `focus:border-primary`.
+- **Hard-refresh required:** Ctrl+Shift+R on https://seworkspace.com/ — Cycle for 2026 should omit past Q1/Q2.
 
 ### 2026-08-24 16:56 IST
 
