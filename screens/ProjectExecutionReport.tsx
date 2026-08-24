@@ -808,7 +808,7 @@ function ExecutionReportRow({
           <ProjectTypeBadge type={row.projectType} />
           <span className="text-[10px] text-muted-foreground">·</span>
           <span className="truncate text-[10px] text-muted-foreground">
-            {EXECUTION_STATUS_LABELS[row.executionStatus]}
+            {EXECUTION_STATUS_LABELS[row.executionStatus] ?? row.executionStatus ?? "—"}
           </span>
         </div>
       </div>

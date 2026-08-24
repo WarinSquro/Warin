@@ -5,6 +5,7 @@ const PROJECT_TYPE_LABEL: Record<Project["type"], string> = {
   paid: "PAID",
   poc: "POC",
   product: "PRODUCT",
+  support: "SUPPORT",
 };
 
 /** Display text for columns currently shown on the Projects grid (excludes Action). */

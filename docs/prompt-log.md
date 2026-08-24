@@ -32,6 +32,177 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-24 16:56 IST
+
+**Prompt:**  
+> Still same issue (live `/reports/execution` white screen).
+
+**Output:**  
+- Live `version.json` is still `c95837a` — Support badge fix was never pushed, so EC2 still crashes on Support projects.
+- `ProjectTypeBadge` — Support + unknown-type fallback (`projectTypeBadgeConfig`).
+- `ProjectHealthBadge` — unknown health falls back to green.
+- `RouteErrorBoundary` in `AppShell` so a screen throw keeps the nav instead of a full white page.
+- `ProjectExecutionReport` — status label fallback.
+- Test: `tests/unit/projectTypeBadge.test.ts`.
+
+### 2026-08-24 16:41 IST
+
+**Prompt:**  
+> `npm run api:build` failed: PrismaService has no `resourceLeave`; `@prisma/client` missing ResourceLeave enums.
+
+**Output:**  
+- **Root cause:** Prisma Client was stale (schema already had `ResourceLeave`; `node_modules/@prisma/client` did not).
+- Ran `npx prisma generate` — client regenerated; `npm run api:build` succeeded.
+- Also unblocked `npm run build`: unused `isSelfAllocation` import; KPI year `as KpiCalendarYear`; test mock `employeeName` + `reason`.
+- Files: `components/AllocationDrawer.tsx`, `screens/KpiFramework.tsx`, `screens/KpiResults.tsx`, `tests/unit/settingsImpact.test.ts`.
+
+### 2026-08-24 16:29 IST
+
+**Prompt:**  
+> On EC2 live, Project Execution Report shows white screen after adding some projects — check and fix.
+
+**Output:**  
+- **Root cause:** `ProjectType` includes `support`, but `ProjectTypeBadge` TYPE_CONFIG omitted it → `config.className` threw on Support projects and crashed the report.
+- `components/ProjectTypeBadge.tsx` — added Support styling + safe fallback.
+- `utils/projectVisibleSearch.ts` — added SUPPORT label (same Record hole).
+
+### 2026-08-24 16:24 IST
+
+**Prompt:**  
+> KPI Target max value = 4 chars / digits.
+
+**Output:**  
+- Target input accepts digits only, `maxLength={4}` (0–9999); blur clamps.
+- API create/update reject target outside 0–9999.
+
+### 2026-08-24 16:07 IST
+
+**Prompt:**  
+> Show "New KPI (200 Chars)" instead of "New KPI" as the KPI name placeholder.
+
+**Output:**  
+- `screens/KpiFramework.tsx` — placeholder is `New KPI (200 Chars)`; stored default name remains `New KPI`.
+
+### 2026-08-24 16:02 IST
+
+**Prompt:**  
+> KPI name field: max 200 characters.
+
+**Output:**  
+- `utils/kpiMasterLimits.ts` — `KPI_NAME_MAX = 200`.
+- `screens/KpiFramework.tsx` — KPI input `maxLength={200}`; blur slices to 200.
+- API create/update rejects names longer than 200.
+
+### 2026-08-24 15:45 IST
+
+**Prompt:**  
+> When a KPI Category / Measurement Method / Unit of Measurement is used in any framework entry, it cannot be disabled.
+
+**Output:**  
+- API already rejected disable-when-in-use; `GET masters` now includes `inUse` (count of non-deleted framework items).
+- `screens/KpiFramework.tsx` — Disable is inert when `inUse`; Enable still available for unused/inactive rows.
+
+### 2026-08-24 15:37 IST
+
+**Prompt:**  
+> KPI Framework Cycle dropdown: past quarters should not be selectable.
+
+**Output:**  
+- `utils/kpiFilters.ts` — `isKpiCycleExpired` + `selectableKpiCycleOptions` (aligned with API cycle end).
+- `screens/KpiFramework.tsx` — Cycle list only open quarters for the selected year; auto-snaps away from an expired cycle.
+- Tests: `kpiPeriodExpiry` / `kpiFilters` pass.
+
+### 2026-08-24 15:35 IST
+
+**Prompt:**  
+> During KPI Framework creation, inactive KPI Category / Measurement Method / Unit of Measurement should not appear in dropdowns.
+
+**Output:**  
+- `screens/KpiFramework.tsx` — Category, Method, and Unit options filter to `isActive` only; inactive masters already used on a row remain listed so existing values stay visible.
+
+### 2026-08-24 15:31 IST
+
+**Prompt:**  
+> KPI Framework Weight %: max 100% limit.
+
+**Output:**  
+- `screens/KpiFramework.tsx` — weight input `min={0}` `max={100}`; blur clamps to 0–100.
+- `apps/oneview-api/src/api/kpi/kpi.controller.ts` — create/update reject weightage outside 0–100.
+
+### 2026-08-24 15:20 IST
+
+**Prompt:**  
+> KPI name: placeholder text should not be selectable when the user enters text.
+
+**Output:**  
+- `screens/KpiFramework.tsx` — stored default "New KPI" is shown as HTML `placeholder`, not `value`, so it is not selected when typing.
+
+### 2026-08-24 15:14 IST
+
+**Prompt:**  
+> KPI Category, Measurement Method, and Unit of Measurement masters: Add button should stay disabled until a value is entered in the textbox.
+
+**Output:**  
+- `screens/KpiFramework.tsx` — master **+ Add** is `disabled` when `newMasterName` is empty/whitespace; not-allowed cursor + 50% opacity.
+
+### 2026-08-24 15:04 IST
+
+**Prompt:**  
+> Rename Add Leave to "+ Add Leave" (standard format).
+
+**Output:**  
+- `components/ResourceLeavesModal.tsx` — button uses Plus icon + **Add Leave**, same as Add employee / Add project.
+
+### 2026-08-24 15:01 IST
+
+**Prompt:**  
+> Rename the Leave button to "Add Leave".
+
+**Output:**  
+- `components/ResourceLeavesModal.tsx` — primary action label is now **Add Leave**.
+
+### 2026-08-24 15:00 IST
+
+**Prompt:**  
+> Leaves modal leave date cells: use standard date format from Settings.
+
+**Output:**  
+- `components/ResourceLeavesModal.tsx` — leave date column uses `formatAppDate(..., dateFmt)` (same as Entered On).
+
+### 2026-08-24 14:57 IST
+
+**Prompt:**  
+> Leaves modal table headers are not standard — keep all capital text.
+
+**Output:**  
+- `components/ResourceLeavesModal.tsx` — column labels now ALL CAPS (LEAVE DATE, RESOURCE, …) matching other grids (`TEAM MEMBER`, `RESOURCE`, etc.).
+
+### 2026-08-24 14:56 IST
+
+**Prompt:**  
+> Rename the Create leave button to Leave.
+
+**Output:**  
+- `components/ResourceLeavesModal.tsx` — primary action label is now **Leave**.
+
+### 2026-08-24 14:48 IST
+
+**Prompt:**  
+> Access Rights employee search: use Employee Master's Search control but keep the same size.
+
+**Output:**  
+- `screens/AccessRights.tsx` — search now matches Employee Master (icon inside input, `focus:border-primary`); width stays full sidebar (`w-full`), height `py-1.5`.
+
+### 2026-08-24 14:38 IST
+
+**Prompt:**  
+> Resource vs Leave Type dropdowns differ. For the entire app, single-item dropdowns should use the Leave Type native `<select>` style and behavior.
+
+**Output:**  
+- `components/FilterSelect.tsx` — custom portaled `▾` menu replaced with native `<select>` (same chrome as Leave Type). Covers Leaves Resource, Map Employees project, KPI Framework/Results filters and grid cells.
+- `components/WorkDateDaySelect.tsx` — same native `<select>` (Daily Work / Workday Summary).
+- Multi-selects (`FilterMultiSelect` / Department) unchanged.
+
 ### 2026-08-24 13:15 IST
 
 **Prompt:**  

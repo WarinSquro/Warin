@@ -27,6 +27,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { ProductLogo } from "./ProductLogo";
+import { RouteErrorBoundary } from "./RouteErrorBoundary";
 import { useAuth } from "../context/AuthContext";
 import { getMenuNavItems } from "../data/navConfig";
 
@@ -127,7 +128,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         <AccountFooter />
       </aside>
 
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">{children}</main>
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <RouteErrorBoundary>{children}</RouteErrorBoundary>
+      </main>
     </div>
   );
 }
