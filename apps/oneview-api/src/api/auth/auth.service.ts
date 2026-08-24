@@ -13,6 +13,7 @@ import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { SessionAuthCache } from "./session-auth.cache";
 import { isAllowedIpSatisfied } from "./client-ip";
 import type { SessionClientMeta } from "./session-client-meta";
+import { isRefreshSessionIdleExpired } from "./session-idle";
 
 const SESSION_CONFLICT_MESSAGE =
   "You are already logged in on another device or browser. Do you want to continue on this device? Continuing will log you out from all other active sessions.";
@@ -227,7 +228,7 @@ export class AuthService {
         orderBy: { lastSeenAt: "desc" },
       });
 
-      if (active) {
+      if (active && !isRefreshSessionIdleExpired(active.lastSeenAt)) {
         const continueToken = await this.issueContinueToken(employee.id);
         return {
           status: "session_conflict" as const,
@@ -237,7 +238,20 @@ export class AuthService {
         };
       }
 
-      // No active session — create inside the same locked transaction.
+      // Stale idle session (tab closed / no logout) — revoke before creating a new one.
+      if (active && isRefreshSessionIdleExpired(active.lastSeenAt)) {
+        const nowIdle = new Date();
+        await tx.refreshToken.updateMany({
+          where: { employeeId: employee.id, revokedAt: null },
+          data: { revokedAt: nowIdle },
+        });
+        await tx.employee.update({
+          where: { id: employee.id },
+          data: { activeSessionId: null },
+        });
+      }
+
+      // No active (or idle-expired) session — create inside the same locked transaction.
       const sessionId = randomUUID().replace(/-/g, "");
       const refreshRaw = randomBytes(48).toString("hex");
       const refreshDays = Number(process.env.JWT_REFRESH_DAYS ?? 7);
@@ -324,6 +338,29 @@ export class AuthService {
       if (emp?.activeSessionId && emp.activeSessionId !== row.sessionId) {
         throw this.sessionRevokedElsewhere();
       }
+      throw this.sessionExpired();
+    }
+
+    // Align with client 120‑minute idle logout when the tab was closed without logout.
+    if (isRefreshSessionIdleExpired(row.lastSeenAt)) {
+      const now = new Date();
+      await this.prisma.$transaction(async (tx) => {
+        await tx.refreshToken.update({
+          where: { id: row.id },
+          data: { revokedAt: now },
+        });
+        const emp = await tx.employee.findUnique({
+          where: { id: row.employeeId },
+          select: { activeSessionId: true },
+        });
+        if (emp?.activeSessionId === row.sessionId) {
+          await tx.employee.update({
+            where: { id: row.employeeId },
+            data: { activeSessionId: null },
+          });
+        }
+      });
+      this.sessionCache.invalidate(row.employeeId);
       throw this.sessionExpired();
     }
 

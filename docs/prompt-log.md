@@ -32,6 +32,35 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-24 10:50 IST
+
+**Prompt:**  
+> Atul login still shows "Already signed in elsewhere" after 3 days inactivity — idle 120 logout issue?
+
+**Output:**  
+- **Root cause:** Session conflict only checked refresh token not revoked + `expiresAt` (~7 days). Client idle logout needs an open tab; closing the browser left the token “active”, so conflict still fired days later (login/last activity both 21-Aug).
+- **Fix:** `apps/oneview-api/src/api/auth/session-idle.ts` — 120m idle aligned with client. Login treats idle-stale tokens as inactive (revoke, no conflict). Refresh also rejects idle-stale tokens.
+- Tests: `tests/unit/sessionIdle.test.ts`.
+
+### 2026-08-24 09:40 IST
+
+**Prompt:**  
+> Daily Work Report cell shows "Plan" — should be "Planned".
+
+**Output:**  
+- Renamed `PlanKind` value `Plan` → `Planned` in `data/dailyWorkReport.ts`, `api/liveViews.ts`, `screens/DailyWorkReport.tsx` (filter + counts + cell), unit tests.
+- Column header `PLAN/UNPLANNED` → `PLANNED/UNPLANNED`.
+- Tests: dailyWorkSearch / projectsFilter / columns — passed.
+
+### 2026-08-21 23:22 IST
+
+**Prompt:**  
+> Workday Timeline still wrong on live vs local after focus restore (Day Start 4:12 AM / Log Out 1:45 PM / lunch skipped).
+
+**Output:**  
+- **Root cause:** EC2 restore used `AT TIME ZONE 'Asia/Kolkata'` *display* values as if they were stored UTC (`2026-08-20 22:42…` / `08:15…`) and set lunch NULL. Real local column values are `2026-08-21 04:12:55`, `07:15:04`, `08:09:21`, `13:45:32` (→ 9:42 AM / 12:45 / 1:39 / 7:15 PM IST).
+- **Fix:** run UPDATE on live day `1759` with those four timestamps (ops SQL given to user). No code change required for this data correction.
+
 ### 2026-08-21 23:05 IST
 
 **Prompt:**  
