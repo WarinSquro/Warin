@@ -32,6 +32,26 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-24 19:23 IST
+
+**Prompt:**  
+> Resource and Copy from Resource dropdowns show “Select…” twice.
+
+**Output:**  
+- **Root cause:** `FilterSelect` always injects a placeholder `<option value="">`, and KPI Framework also prepended `{ value: "", label: "Select…" }`.
+- `components/FilterSelect.tsx` — one empty-value row; reuse caller’s empty label (`All` / `Select…`).
+- `screens/KpiFramework.tsx` — Resource / Copy-from lists are employees only (placeholder comes from FilterSelect).
+
+### 2026-08-24 18:52 IST
+
+**Prompt:**  
+> Download of all WARIN database tables (no data) in Excel with column details. Not the incomplete table-structure workbook.
+
+**Output:**  
+- Generated from local Docker Postgres (`oneview`, exclude `_prisma_migrations`): **35 tables, 461 columns, 17 enums**.
+- File: `WARIN_Database_Schema_NoData_2026-08-24.xlsx` (sheets: Index, Columns, PKs, FKs, Indexes, Enums).
+- Regenerator: `scripts/export-warin-schema-xlsx.ts`.
+
 ### 2026-08-24 17:27 IST
 
 **Prompt:**  

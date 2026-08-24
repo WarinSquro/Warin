@@ -6,6 +6,7 @@ export type FilterSelectOption = {
 
 /**
  * Native single-select — same chrome as Leave Type and other form `<select>`s.
+ * Always renders one empty-value row (placeholder or an option whose value is "").
  */
 export function FilterSelect({
   value,
@@ -25,7 +26,11 @@ export function FilterSelect({
   menuClassName?: string;
   "aria-label"?: string;
 }) {
-  const hasValue = options.some((o) => o.value === value);
+  const emptyFromOptions = options.find((o) => o.value === "");
+  const selectable = options.filter((o) => o.value !== "");
+  const emptyLabel =
+    emptyFromOptions?.label ?? (selectable.length === 0 ? "No options" : placeholder);
+  const hasValue = selectable.some((o) => o.value === value);
 
   return (
     <select
@@ -35,11 +40,11 @@ export function FilterSelect({
       onChange={(e) => onChange(e.target.value)}
       className={`w-full cursor-pointer rounded-md border border-border bg-surface px-2.5 py-1.5 text-[12px] text-foreground outline-none focus:border-accent-line disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
     >
-      <option value="" disabled>
-        {options.length === 0 ? "No options" : placeholder}
+      <option value="" disabled={emptyFromOptions ? Boolean(emptyFromOptions.disabled) : true}>
+        {emptyLabel}
       </option>
-      {options.map((option) => (
-        <option key={option.value || "__empty"} value={option.value} disabled={option.disabled}>
+      {selectable.map((option) => (
+        <option key={option.value} value={option.value} disabled={option.disabled}>
           {option.label}
         </option>
       ))}

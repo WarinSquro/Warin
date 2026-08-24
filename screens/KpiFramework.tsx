@@ -172,19 +172,14 @@ export function KpiFramework() {
     [activeDepts]
   );
   const resourceOptions = useMemo(
-    () => [
-      { value: "", label: "Select…" },
-      ...activeEmployees.map((e) => ({ value: e.id, label: e.name })),
-    ],
+    () => activeEmployees.map((e) => ({ value: e.id, label: e.name })),
     [activeEmployees]
   );
   const copyFromOptions = useMemo(
-    () => [
-      { value: "", label: "Select…" },
-      ...activeEmployees
+    () =>
+      activeEmployees
         .filter((e) => e.id !== resourceId)
         .map((e) => ({ value: e.id, label: e.name })),
-    ],
     [activeEmployees, resourceId]
   );
   const categoryOptions = useMemo(() => {
