@@ -1261,6 +1261,8 @@ export type ApiKpiMaster = {
   name: string;
   status: SetupStatus;
   isActive: boolean;
+  /** True when at least one KPI framework row uses this master. */
+  inUse?: boolean;
 };
 
 export type ApiKpiItem = {

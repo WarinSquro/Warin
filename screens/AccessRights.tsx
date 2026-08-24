@@ -219,14 +219,14 @@ export function AccessRights() {
       <div className="flex min-h-0 flex-1 overflow-hidden bg-background">
         <aside className="flex w-[300px] flex-shrink-0 flex-col border-r border-border bg-surface">
           <div className="flex-shrink-0 space-y-2 border-b border-border-soft p-3">
-            <div className="flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5">
-              <Search className="pointer-events-none h-3.5 w-3.5 text-muted-foreground" />
+            <div className="relative w-full">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <input
                 autoFocus
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search employee…"
-                className="w-full bg-transparent text-[12px] text-foreground outline-none placeholder:text-muted-foreground"
+                className="w-full rounded-md border border-border bg-surface py-1.5 pl-8 pr-2.5 text-[12px] text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
               />
             </div>
             <label className="flex cursor-pointer items-center gap-2 text-[11px] text-muted-foreground">

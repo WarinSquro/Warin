@@ -36,6 +36,8 @@ import {
   validatePeriodMonths,
   assertKpiMasterNameLength,
   KPI_RO_REMARKS_MAX,
+  KPI_NAME_MAX,
+  KPI_TARGET_MAX,
 } from "./kpi.util";
 
 const Decimal = PrismaNS.Decimal;
@@ -260,6 +262,7 @@ export class KpiController {
     name: string;
     status: "active" | "inactive";
     isActive: boolean;
+    _count?: { items: number };
   }) {
     return {
       id: row.id.toString(),
@@ -267,6 +270,7 @@ export class KpiController {
       name: row.name,
       status: row.status,
       isActive: row.isActive,
+      inUse: (row._count?.items ?? 0) > 0,
     };
   }
 
@@ -282,12 +286,13 @@ export class KpiController {
       ...(includeInactive === "true" ? {} : { isActive: true }),
     };
     const orderBy = { name: "asc" as const };
+    const include = { _count: { select: { items: { where: { isDeleted: false } } } } };
     const rows =
       k === "categories"
-        ? await this.prisma.kpiCategory.findMany({ where, orderBy })
+        ? await this.prisma.kpiCategory.findMany({ where, orderBy, include })
         : k === "methods"
-          ? await this.prisma.kpiMeasurementMethod.findMany({ where, orderBy })
-          : await this.prisma.kpiUnitOfMeasurement.findMany({ where, orderBy });
+          ? await this.prisma.kpiMeasurementMethod.findMany({ where, orderBy, include })
+          : await this.prisma.kpiUnitOfMeasurement.findMany({ where, orderBy, include });
     return rows.map((r) => this.mapMaster(r));
   }
 
@@ -529,14 +534,21 @@ export class KpiController {
 
     const kpiName = body.kpiName?.trim();
     if (!kpiName) throw new BadRequestException("kpiName is required");
+    if (kpiName.length > KPI_NAME_MAX) {
+      throw new BadRequestException(`KPI name cannot exceed ${KPI_NAME_MAX} characters`);
+    }
     if (!body.categoryId || !body.measurementMethodId || !body.unitId) {
       throw new BadRequestException("categoryId, measurementMethodId, unitId required");
     }
     const direction =
       body.targetDirection === "lower_is_better" ? "lower_is_better" : "higher_is_better";
+    const target = Number(body.target) || 0;
+    if (!Number.isFinite(target) || target < 0 || target > KPI_TARGET_MAX) {
+      throw new BadRequestException(`target must be between 0 and ${KPI_TARGET_MAX}`);
+    }
     const weightage = Number(body.weightage);
-    if (!Number.isFinite(weightage) || weightage < 0) {
-      throw new BadRequestException("weightage must be a non-negative number");
+    if (!Number.isFinite(weightage) || weightage < 0 || weightage > 100) {
+      throw new BadRequestException("weightage must be between 0 and 100");
     }
 
     const row = await this.prisma.kpiFrameworkItem.create({
@@ -548,7 +560,7 @@ export class KpiController {
         kpiName,
         measurementMethodId: BigInt(body.measurementMethodId),
         unitId: BigInt(body.unitId),
-        target: new Decimal(Number(body.target) || 0),
+        target: new Decimal(target),
         targetDirection: direction,
         periodStartMonth: Number(body.periodStartMonth),
         periodEndMonth: Number(body.periodEndMonth),
@@ -606,14 +618,32 @@ export class KpiController {
     if (body.measurementMethodId)
       data.measurementMethod = { connect: { id: BigInt(body.measurementMethodId) } };
     if (body.unitId) data.unit = { connect: { id: BigInt(body.unitId) } };
-    if (body.kpiName?.trim()) data.kpiName = body.kpiName.trim();
-    if (body.target !== undefined) data.target = new Decimal(Number(body.target));
+    if (body.kpiName?.trim()) {
+      const kpiName = body.kpiName.trim();
+      if (kpiName.length > KPI_NAME_MAX) {
+        throw new BadRequestException(`KPI name cannot exceed ${KPI_NAME_MAX} characters`);
+      }
+      data.kpiName = kpiName;
+    }
+    if (body.target !== undefined) {
+      const target = Number(body.target);
+      if (!Number.isFinite(target) || target < 0 || target > KPI_TARGET_MAX) {
+        throw new BadRequestException(`target must be between 0 and ${KPI_TARGET_MAX}`);
+      }
+      data.target = new Decimal(target);
+    }
     if (body.targetDirection === "higher_is_better" || body.targetDirection === "lower_is_better") {
       data.targetDirection = body.targetDirection;
     }
     if (body.periodStartMonth !== undefined) data.periodStartMonth = start;
     if (body.periodEndMonth !== undefined) data.periodEndMonth = end;
-    if (body.weightage !== undefined) data.weightage = new Decimal(Number(body.weightage));
+    if (body.weightage !== undefined) {
+      const weightage = Number(body.weightage);
+      if (!Number.isFinite(weightage) || weightage < 0 || weightage > 100) {
+        throw new BadRequestException("weightage must be between 0 and 100");
+      }
+      data.weightage = new Decimal(weightage);
+    }
 
     const row = await this.prisma.kpiFrameworkItem.update({
       where: { id: existing.id },

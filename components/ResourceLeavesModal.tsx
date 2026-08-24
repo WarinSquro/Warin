@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarOff, Pencil, Search, X } from "lucide-react";
+import { CalendarOff, Pencil, Plus, Search, X } from "lucide-react";
 import {
   cancelResourceLeave,
   createResourceLeave,
@@ -10,7 +10,7 @@ import {
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import type { Employee } from "../data/employees";
-import { formatAppDateTime } from "../utils/formatAppDate";
+import { formatAppDate, formatAppDateTime } from "../utils/formatAppDate";
 import { useSettings } from "../context/SettingsContext";
 import {
   isLeaveDateAllowed,
@@ -294,13 +294,13 @@ export function ResourceLeavesModal({
               type="button"
               disabled={busy || mutateOptions.length === 0}
               onClick={() => void handleCreate()}
-              className={`rounded-md bg-primary px-3.5 py-1.5 text-[12px] font-medium text-primary-foreground ${
+              className={`flex items-center gap-1 rounded-md bg-primary px-3.5 py-1.5 text-[12px] font-medium text-primary-foreground ${
                 busy || mutateOptions.length === 0
                   ? "cursor-not-allowed opacity-50"
                   : "cursor-pointer hover:opacity-95"
               }`}
             >
-              Create leave
+              <Plus className="h-3.5 w-3.5" /> Add Leave
             </button>
           </div>
           {mutateOptions.length === 0 && (
@@ -373,34 +373,34 @@ export function ResourceLeavesModal({
               <thead className="sticky top-0 z-[1] bg-surface-alt">
                 <tr className="border-b border-border-soft text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                   <th className="px-3 py-2.5">
-                    <SortColHeader label="Leave Date" col="leaveDate" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                    <SortColHeader label="LEAVE DATE" col="leaveDate" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                   </th>
                   <th className="px-3 py-2.5">
-                    <SortColHeader label="Resource" col="employeeName" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                    <SortColHeader label="RESOURCE" col="employeeName" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                   </th>
                   <th className="px-3 py-2.5">
-                    <SortColHeader label="Department" col="department" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                    <SortColHeader label="DEPARTMENT" col="department" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                   </th>
                   <th className="px-3 py-2.5">
-                    <SortColHeader label="Leave Type" col="leaveType" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                    <SortColHeader label="LEAVE TYPE" col="leaveType" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                   </th>
                   <th className="px-3 py-2.5">
-                    <SortColHeader label="Negative / Zero" col="classification" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                    <SortColHeader label="NEGATIVE / ZERO" col="classification" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                   </th>
-                  <th className="px-3 py-2.5">Reason</th>
-                  <th className="px-3 py-2.5">Entered By</th>
-                  <th className="px-3 py-2.5">Entered On</th>
-                  <th className="px-3 py-2.5">Impacted Hrs</th>
+                  <th className="px-3 py-2.5">REASON</th>
+                  <th className="px-3 py-2.5">ENTERED BY</th>
+                  <th className="px-3 py-2.5">ENTERED ON</th>
+                  <th className="px-3 py-2.5">IMPACTED HRS</th>
                   <th className="px-3 py-2.5">
-                    <SortColHeader label="Status" col="status" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                    <SortColHeader label="STATUS" col="status" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                   </th>
-                  <th className="px-3 py-2.5">Actions</th>
+                  <th className="px-3 py-2.5">ACTIONS</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((r) => (
                   <tr key={r.id} className="border-b border-border-soft hover:bg-surface-alt/60">
-                    <td className="px-3 py-2.5 whitespace-nowrap">{r.leaveDate}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">{formatAppDate(r.leaveDate, dateFmt)}</td>
                     <td className="max-w-[140px] px-3 py-2.5 font-medium">
                       <TruncateText>{r.employeeName}</TruncateText>
                     </td>

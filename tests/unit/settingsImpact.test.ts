@@ -73,6 +73,7 @@ describe("buildUtilizationPctsForBandImpact", () => {
       {
         id: "1",
         employeeHrmsId: "E1",
+        employeeName: "Alex",
         projectCode: "P1",
         projectName: "Alpha",
         milestoneId: "M1",
@@ -82,6 +83,7 @@ describe("buildUtilizationPctsForBandImpact", () => {
         startDate: "2026-08-04",
         endDate: "2026-08-08",
         hoursPerDay: 8,
+        reason: "",
       },
     ];
 

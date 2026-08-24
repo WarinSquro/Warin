@@ -25,6 +25,7 @@ import {
   isKpiDirectReport,
   KPI_CALENDAR_YEARS,
   KPI_RESULTS_CYCLE_OPTIONS,
+  type KpiCalendarYear,
   scopeKpiResourceEmployees,
 } from "../utils/kpiFilters";
 
@@ -234,7 +235,7 @@ export function KpiResults() {
               <FilterSelect
                 aria-label="Calendar Year"
                 value={String(year)}
-                onChange={(v) => setYear(Number(v))}
+                onChange={(v) => setYear(Number(v) as KpiCalendarYear)}
                 options={yearOptions}
                 className="min-w-[120px]"
               />

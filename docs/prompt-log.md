@@ -32,6 +32,17 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-24 17:27 IST
+
+**Prompt:**  
+> Live screens show no changes. Treat EC2 as source of truth; deploy and verify on live. Do not mark complete from local-only work.
+
+**Output:**  
+- Live check: `https://seworkspace.com/version.json` = `36b4837` (Execution Report Support-badge only). API health ok.
+- Live KPI Cycle still lists Q1–Q4 (expired Q1/Q2 should be hidden) — KPI/Access Rights files were never committed.
+- Third screenshot is `127.0.0.1:5173` (local Vite), not EC2.
+- Committed remaining KPI/Access/FilterSelect/Leaves-UI + KPI API; pushed; EC2 `ec2-deploy.sh --with-api`.
+
 ### 2026-08-24 16:56 IST
 
 **Prompt:**  

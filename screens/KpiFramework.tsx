@@ -23,13 +23,15 @@ import { useAuth } from "../context/AuthContext";
 import { useEmployees } from "../context/EmployeesContext";
 import { useMasters } from "../context/MastersContext";
 import { useToast } from "../context/ToastContext";
-import { clampKpiMasterName, KPI_MASTER_NAME_MAX } from "../utils/kpiMasterLimits";
+import { clampKpiMasterName, KPI_MASTER_NAME_MAX, KPI_NAME_MAX, KPI_TARGET_MAX, KPI_TARGET_MAX_DIGITS } from "../utils/kpiMasterLimits";
 import {
   defaultAssessmentCycle,
   defaultKpiCalendarYear,
+  isKpiCycleExpired,
   isKpiDirectReport,
   KPI_CALENDAR_YEARS,
-  KPI_CYCLE_OPTIONS,
+  type KpiCalendarYear,
+  selectableKpiCycleOptions,
   scopeKpiResourceEmployees,
 } from "../utils/kpiFilters";
 
@@ -80,7 +82,10 @@ function periodRangeOptions(months: number[]) {
 }
 
 const fieldClass =
-  "w-full rounded-md border border-border bg-surface px-2 py-1.5 text-[12px] text-foreground outline-none";
+  "w-full rounded-md border border-border bg-surface px-2 py-1.5 text-[12px] text-foreground outline-none placeholder:text-muted-foreground";
+
+const NEW_KPI_DEFAULT_NAME = "New KPI";
+const NEW_KPI_PLACEHOLDER = `New KPI (${KPI_NAME_MAX} Chars)`;
 
 export function KpiFramework() {
   const toast = useToast();
@@ -151,6 +156,14 @@ export function KpiFramework() {
     () => KPI_CALENDAR_YEARS.map((y) => ({ value: String(y), label: String(y) })),
     []
   );
+  const cycleOptions = useMemo(() => selectableKpiCycleOptions(year), [year]);
+
+  useEffect(() => {
+    if (!isKpiCycleExpired(year, cycle)) return;
+    const next = selectableKpiCycleOptions(year)[0]?.value;
+    if (next && next !== cycle) setCycle(next);
+  }, [year, cycle]);
+
   const deptOptions = useMemo(
     () => [
       { value: "", label: "All" },
@@ -174,18 +187,24 @@ export function KpiFramework() {
     ],
     [activeEmployees, resourceId]
   );
-  const categoryOptions = useMemo(
-    () => categories.map((c) => ({ value: c.id, label: c.name })),
-    [categories]
-  );
-  const methodOptions = useMemo(
-    () => methods.map((m) => ({ value: m.id, label: m.name })),
-    [methods]
-  );
-  const unitOptions = useMemo(
-    () => units.map((u) => ({ value: u.id, label: u.name })),
-    [units]
-  );
+  const categoryOptions = useMemo(() => {
+    const used = new Set(items.map((i) => i.categoryId));
+    return categories
+      .filter((c) => c.isActive || used.has(c.id))
+      .map((c) => ({ value: c.id, label: c.name }));
+  }, [categories, items]);
+  const methodOptions = useMemo(() => {
+    const used = new Set(items.map((i) => i.measurementMethodId));
+    return methods
+      .filter((m) => m.isActive || used.has(m.id))
+      .map((m) => ({ value: m.id, label: m.name }));
+  }, [methods, items]);
+  const unitOptions = useMemo(() => {
+    const used = new Set(items.map((i) => i.unitId));
+    return units
+      .filter((u) => u.isActive || used.has(u.id))
+      .map((u) => ({ value: u.id, label: u.name }));
+  }, [units, items]);
   const directionOptions = useMemo(
     () => [
       { value: "higher_is_better", label: "High" },
@@ -362,7 +381,7 @@ export function KpiFramework() {
         calendarYear: year,
         assessmentCycle: cycle,
         categoryId: cat.id,
-        kpiName: "New KPI",
+        kpiName: NEW_KPI_DEFAULT_NAME,
         measurementMethodId: meth.id,
         unitId: unit.id,
         target: 0,
@@ -490,8 +509,13 @@ export function KpiFramework() {
                 />
                 <button
                   type="button"
+                  disabled={!newMasterName.trim()}
                   onClick={() => void addMaster()}
-                  className="flex items-center gap-1 rounded-md bg-brand px-3 py-1.5 text-[12px] font-medium text-white"
+                  className={`flex items-center gap-1 rounded-md bg-brand px-3 py-1.5 text-[12px] font-medium text-white ${
+                    !newMasterName.trim()
+                      ? "cursor-not-allowed opacity-50"
+                      : "cursor-pointer hover:opacity-95"
+                  }`}
                 >
                   <Plus className="h-3.5 w-3.5" /> Add
                 </button>
@@ -533,13 +557,22 @@ export function KpiFramework() {
                       >
                         {row.status === "active" ? "Active" : "Inactive"}
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => void toggleMaster(row)}
-                        className="text-[12px] text-muted-foreground hover:text-foreground hover:underline"
-                      >
-                        {row.status === "active" ? "Disable" : "Enable"}
-                      </button>
+                      {row.status === "active" && row.inUse ? (
+                        <span
+                          className="cursor-not-allowed text-[12px] text-muted-foreground/50"
+                          title="Used in KPI framework — cannot disable"
+                        >
+                          Disable
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => void toggleMaster(row)}
+                          className="cursor-pointer text-[12px] text-muted-foreground hover:text-foreground hover:underline"
+                        >
+                          {row.status === "active" ? "Disable" : "Enable"}
+                        </button>
+                      )}
                     </div>
                   </div>
                   ))}
@@ -554,7 +587,7 @@ export function KpiFramework() {
                 <FilterSelect
                   aria-label="Calendar Year"
                   value={String(year)}
-                  onChange={(v) => setYear(Number(v))}
+                  onChange={(v) => setYear(Number(v) as KpiCalendarYear)}
                   options={yearOptions}
                   className="min-w-[120px]"
                 />
@@ -564,7 +597,7 @@ export function KpiFramework() {
                   aria-label="Cycle"
                   value={cycle}
                   onChange={(v) => setCycle(v as AssessmentCycle)}
-                  options={KPI_CYCLE_OPTIONS}
+                  options={cycleOptions}
                   className="min-w-[120px]"
                 />
               </Filter>
@@ -742,13 +775,16 @@ export function KpiFramework() {
                             </td>
                             <td className="px-3 py-2">
                               <input
+                                key={`${row.id}-${row.kpiName}`}
                                 disabled={locked}
-                                defaultValue={row.kpiName}
+                                maxLength={KPI_NAME_MAX}
+                                defaultValue={row.kpiName === NEW_KPI_DEFAULT_NAME ? "" : row.kpiName}
+                                placeholder={NEW_KPI_PLACEHOLDER}
                                 onBlur={(e) => {
-                                  const v = e.target.value.trim();
+                                  const v = e.target.value.trim().slice(0, KPI_NAME_MAX);
                                   if (v && v !== row.kpiName) void patchRow(row.id, { kpiName: v });
                                 }}
-                                className={fieldClass}
+                                className={`${fieldClass} disabled:cursor-not-allowed disabled:bg-surface-alt disabled:text-muted`}
                               />
                             </td>
                             <td className="px-3 py-2">
@@ -771,13 +807,19 @@ export function KpiFramework() {
                             </td>
                             <td className="w-16 px-3 py-2">
                               <input
-                                type="number"
+                                type="text"
+                                inputMode="numeric"
+                                maxLength={KPI_TARGET_MAX_DIGITS}
                                 disabled={locked}
-                                defaultValue={row.target}
+                                defaultValue={String(row.target)}
+                                onChange={(e) => {
+                                  e.target.value = e.target.value.replace(/\D/g, "").slice(0, KPI_TARGET_MAX_DIGITS);
+                                }}
                                 onBlur={(e) => {
-                                  const v = Number(e.target.value);
-                                  if (Number.isFinite(v) && v !== row.target)
-                                    void patchRow(row.id, { target: v });
+                                  const digits = e.target.value.replace(/\D/g, "").slice(0, KPI_TARGET_MAX_DIGITS);
+                                  const v = digits === "" ? 0 : Math.min(KPI_TARGET_MAX, Number(digits));
+                                  e.target.value = String(v);
+                                  if (v !== row.target) void patchRow(row.id, { target: v });
                                 }}
                                 className="w-14 rounded-md border border-border bg-surface px-1.5 py-1.5 text-[12px] text-foreground outline-none disabled:cursor-not-allowed disabled:bg-surface-alt disabled:text-muted"
                               />
@@ -814,12 +856,16 @@ export function KpiFramework() {
                             <td className="w-16 px-3 py-2">
                               <input
                                 type="number"
+                                min={0}
+                                max={100}
                                 disabled={locked}
                                 defaultValue={row.weightage}
                                 onBlur={(e) => {
-                                  const v = Number(e.target.value);
-                                  if (Number.isFinite(v) && v !== row.weightage)
-                                    void patchRow(row.id, { weightage: v });
+                                  const raw = Number(e.target.value);
+                                  if (!Number.isFinite(raw)) return;
+                                  const v = Math.min(100, Math.max(0, raw));
+                                  e.target.value = String(v);
+                                  if (v !== row.weightage) void patchRow(row.id, { weightage: v });
                                 }}
                                 className="w-14 rounded-md border border-border bg-surface px-1.5 py-1.5 text-[12px] text-foreground outline-none disabled:cursor-not-allowed disabled:bg-surface-alt disabled:text-muted"
                               />

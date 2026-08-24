@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clampKpiMasterName, KPI_MASTER_NAME_MAX } from "../../utils/kpiMasterLimits";
+import { clampKpiMasterName, KPI_MASTER_NAME_MAX, KPI_NAME_MAX } from "../../utils/kpiMasterLimits";
 
 describe("kpiMasterLimits", () => {
   it("caps category at 20, method at 200, unit at 10", () => {
@@ -9,5 +9,9 @@ describe("kpiMasterLimits", () => {
     expect(clampKpiMasterName("categories", "x".repeat(25))).toHaveLength(20);
     expect(clampKpiMasterName("methods", "m".repeat(201))).toHaveLength(200);
     expect(clampKpiMasterName("units", "Percentile")).toHaveLength(10);
+  });
+
+  it("caps KPI name at 200", () => {
+    expect(KPI_NAME_MAX).toBe(200);
   });
 });

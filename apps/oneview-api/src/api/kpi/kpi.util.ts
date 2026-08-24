@@ -52,6 +52,12 @@ export const KPI_MASTER_NAME_MAX = {
 
 export const KPI_RO_REMARKS_MAX = 200;
 
+/** KPI framework item name. */
+export const KPI_NAME_MAX = 200;
+
+/** Target value: max 4 digit characters (0–9999). */
+export const KPI_TARGET_MAX = 9999;
+
 export type KpiMasterKind = keyof typeof KPI_MASTER_NAME_MAX;
 
 export function assertKpiMasterNameLength(kind: KpiMasterKind, name: string): void {

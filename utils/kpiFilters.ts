@@ -15,6 +15,32 @@ export const KPI_CYCLE_OPTIONS: { value: AssessmentCycle; label: string }[] = [
   { value: "Q4", label: "Quarter 4" },
 ];
 
+const CYCLE_END_MONTH: Record<AssessmentCycle, number> = {
+  Q1: 3,
+  Q2: 6,
+  Q3: 9,
+  Q4: 12,
+};
+
+/** True after the last day of the cycle’s end month (UTC), matching API `isCycleExpired`. */
+export function isKpiCycleExpired(
+  year: number,
+  cycle: AssessmentCycle,
+  now = new Date()
+): boolean {
+  const endMonth = CYCLE_END_MONTH[cycle];
+  const end = new Date(Date.UTC(year, endMonth, 0, 23, 59, 59, 999));
+  return now.getTime() > end.getTime();
+}
+
+/** Quarters that are still open for the calendar year (past quarters excluded). */
+export function selectableKpiCycleOptions(
+  year: number,
+  now = new Date()
+): { value: AssessmentCycle; label: string }[] {
+  return KPI_CYCLE_OPTIONS.filter((o) => !isKpiCycleExpired(year, o.value, now));
+}
+
 /** KPI Results cycle filter: All = full calendar year (no quarter filter). */
 export const KPI_RESULTS_CYCLE_OPTIONS: { value: string; label: string }[] = [
   { value: "", label: "All" },

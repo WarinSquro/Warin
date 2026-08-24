@@ -10,7 +10,6 @@ import { activitiesForProjectMilestone } from "../data/setup";
 import type { Activity, ActivityMilestone } from "../data/setup";
 import { useFocusFirstField } from "../hooks/useFocusFirstField";
 import { formatHours } from "../utils/formatHours";
-import { isSelfAllocation } from "../utils/selfAllocation";
 import { canManageAllocation, DIRECT_RO_ALLOCATION_MESSAGE } from "../utils/allocationPermission";
 import { useAuth } from "../context/AuthContext";
 import { useEmployees } from "../context/EmployeesContext";
