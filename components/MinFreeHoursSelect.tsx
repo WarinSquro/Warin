@@ -37,11 +37,14 @@ export function MinFreeHoursSelect({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={`rounded-md border px-3 py-1.5 text-[12px] hover:bg-surface-alt ${
+        className={`inline-flex items-center justify-between gap-3 rounded-md border px-3 py-1.5 text-[12px] hover:bg-surface-alt ${
           value === 0 ? "border-border text-foreground" : "border-primary/40 text-foreground"
         }`}
       >
-        {triggerLabel} ▾
+        <span className="min-w-0 truncate text-left">{triggerLabel}</span>
+        <span className="shrink-0 leading-none" aria-hidden>
+          ▾
+        </span>
       </button>
       {open && (
         <div

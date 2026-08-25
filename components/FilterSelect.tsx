@@ -1,11 +1,9 @@
-export type FilterSelectOption = {
-  value: string;
-  label: string;
-  disabled?: boolean;
-};
+import { FilterSingleSelect, type FilterSingleSelectOption } from "./FilterSingleSelect";
+
+export type FilterSelectOption = FilterSingleSelectOption;
 
 /**
- * Native single-select — same chrome as Leave Type and other form `<select>`s.
+ * Single-select for forms and filters — same chrome as FilterMultiSelect / FilterSingleSelect.
  * Always renders one empty-value row (placeholder or an option whose value is "").
  */
 export function FilterSelect({
@@ -32,22 +30,25 @@ export function FilterSelect({
     emptyFromOptions?.label ?? (selectable.length === 0 ? "No options" : placeholder);
   const hasValue = selectable.some((o) => o.value === value);
 
+  const normalized: FilterSingleSelectOption[] = [
+    {
+      value: "",
+      label: emptyLabel,
+      disabled: emptyFromOptions ? Boolean(emptyFromOptions.disabled) : true,
+    },
+    ...selectable,
+  ];
+
   return (
-    <select
+    <FilterSingleSelect
       value={hasValue ? value : ""}
+      onChange={onChange}
+      options={normalized}
+      placeholder={emptyLabel}
       disabled={disabled}
+      fullWidth
       aria-label={ariaLabel}
-      onChange={(e) => onChange(e.target.value)}
-      className={`w-full cursor-pointer rounded-md border border-border bg-surface px-2.5 py-1.5 text-[12px] text-foreground outline-none focus:border-accent-line disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
-    >
-      <option value="" disabled={emptyFromOptions ? Boolean(emptyFromOptions.disabled) : true}>
-        {emptyLabel}
-      </option>
-      {selectable.map((option) => (
-        <option key={option.value} value={option.value} disabled={option.disabled}>
-          {option.label}
-        </option>
-      ))}
-    </select>
+      className={className}
+    />
   );
 }

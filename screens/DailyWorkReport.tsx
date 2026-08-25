@@ -3,6 +3,7 @@ import { FileSpreadsheet, FileText, Search } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import { FilterMultiSelect } from "../components/FilterMultiSelect";
+import { FilterSingleSelect } from "../components/FilterSingleSelect";
 import { ReportPagination } from "../components/ReportPagination";
 import { ReportColumnPicker } from "../components/ReportColumnPicker";
 import { WorkDateDaySelect } from "../components/WorkDateDaySelect";
@@ -515,17 +516,13 @@ export function DailyWorkReport() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <select
+          <FilterSingleSelect
             value={periodId}
-            onChange={(e) => setPeriodId(e.target.value as DailyWorkPeriodId)}
-            className="min-w-[12.5rem] rounded-md border border-border bg-surface px-2.5 py-1.5 text-[12px] text-foreground outline-none focus:border-primary"
-          >
-            {DAILY_WORK_PERIODS.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.label}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => setPeriodId(v as DailyWorkPeriodId)}
+            options={DAILY_WORK_PERIODS.map((p) => ({ value: p.id, label: p.label }))}
+            className="min-w-[12.5rem]"
+            aria-label="Period"
+          />
           <button
             type="button"
             onClick={() => handleExport("excel")}

@@ -20,6 +20,7 @@ import {
 } from "../utils/resourceLeaveScope";
 import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
 import { FilterSelect } from "./FilterSelect";
+import { FilterSingleSelect } from "./FilterSingleSelect";
 import { SortColHeader, useColumnSort } from "./SortColHeader";
 import { TruncateText } from "./TruncateText";
 
@@ -269,14 +270,16 @@ export function ResourceLeavesModal({
             </div>
             <div className="w-[130px]">
               <label className="mb-1 block text-[11px] font-medium text-muted-foreground">Leave type</label>
-              <select
+              <FilterSingleSelect
                 value={addType}
-                onChange={(e) => setAddType(e.target.value as "planned" | "unplanned")}
-                className="w-full rounded-md border border-border bg-surface px-2.5 py-1.5 text-[12px] text-foreground outline-none focus:border-accent-line"
-              >
-                <option value="planned">Planned</option>
-                <option value="unplanned">Unplanned</option>
-              </select>
+                onChange={(v) => setAddType(v as "planned" | "unplanned")}
+                options={[
+                  { value: "planned", label: "Planned" },
+                  { value: "unplanned", label: "Unplanned" },
+                ]}
+                fullWidth
+                aria-label="Leave type"
+              />
             </div>
             <div className="min-w-[180px] flex-[2]">
               <label className="mb-1 block text-[11px] font-medium text-muted-foreground">
@@ -312,55 +315,58 @@ export function ResourceLeavesModal({
           )}
         </div>
 
-        <div className="flex flex-shrink-0 flex-wrap gap-2 border-b border-border-soft px-5 py-2.5">
+        <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-b border-border-soft px-5 py-2.5">
           <input
             value={qDate}
             onChange={(e) => setQDate(e.target.value)}
             placeholder="Filter date…"
-            className="w-[120px] rounded-md border border-border bg-surface px-2 py-1 text-[11px] outline-none focus:border-accent-line"
+            className="h-8 w-[120px] rounded-md border border-border bg-surface px-2.5 text-[12px] outline-none focus:border-accent-line"
           />
           <input
             value={qDept}
             onChange={(e) => setQDept(e.target.value)}
             placeholder="Department…"
-            className="w-[120px] rounded-md border border-border bg-surface px-2 py-1 text-[11px] outline-none focus:border-accent-line"
+            className="h-8 w-[120px] rounded-md border border-border bg-surface px-2.5 text-[12px] outline-none focus:border-accent-line"
           />
           <div className="relative min-w-[140px] flex-1">
-            <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <input
               value={qResource}
               onChange={(e) => setQResource(e.target.value)}
               placeholder="Resource…"
-              className="w-full rounded-md border border-border bg-surface py-1 pl-7 pr-2 text-[11px] outline-none focus:border-accent-line"
+              className="h-8 w-full rounded-md border border-border bg-surface py-0 pl-8 pr-2.5 text-[12px] outline-none focus:border-accent-line"
             />
           </div>
-          <select
+          <FilterSingleSelect
             value={qLeaveType}
-            onChange={(e) => setQLeaveType(e.target.value)}
-            className="rounded-md border border-border bg-surface px-2 py-1 text-[11px] outline-none"
-          >
-            <option value="">All types</option>
-            <option value="Planned">Planned</option>
-            <option value="Unplanned">Unplanned</option>
-          </select>
-          <select
+            onChange={setQLeaveType}
+            options={[
+              { value: "", label: "All types" },
+              { value: "Planned", label: "Planned" },
+              { value: "Unplanned", label: "Unplanned" },
+            ]}
+            aria-label="Filter leave type"
+          />
+          <FilterSingleSelect
             value={qClass}
-            onChange={(e) => setQClass(e.target.value)}
-            className="rounded-md border border-border bg-surface px-2 py-1 text-[11px] outline-none"
-          >
-            <option value="">Neg / Zero</option>
-            <option value="Negative">Negative</option>
-            <option value="Zero">Zero</option>
-          </select>
-          <select
+            onChange={setQClass}
+            options={[
+              { value: "", label: "Neg / Zero" },
+              { value: "Negative", label: "Negative" },
+              { value: "Zero", label: "Zero" },
+            ]}
+            aria-label="Filter classification"
+          />
+          <FilterSingleSelect
             value={qStatus}
-            onChange={(e) => setQStatus(e.target.value)}
-            className="rounded-md border border-border bg-surface px-2 py-1 text-[11px] outline-none"
-          >
-            <option value="">All status</option>
-            <option value="Active">Active</option>
-            <option value="Cancelled">Cancelled</option>
-          </select>
+            onChange={setQStatus}
+            options={[
+              { value: "", label: "All status" },
+              { value: "Active", label: "Active" },
+              { value: "Cancelled", label: "Cancelled" },
+            ]}
+            aria-label="Filter status"
+          />
         </div>
 
         <div className="min-h-0 flex-1 overflow-auto">

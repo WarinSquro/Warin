@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Plus, Search, Trash2, X } from "lucide-react";
 import {
-  copyKpiFramework,
   createKpiFrameworkItem,
   createKpiMaster,
   deleteKpiFrameworkItem,
@@ -16,13 +15,18 @@ import {
   type KpiTargetDirection,
 } from "../api/domain";
 import { ConfirmDeleteDialog } from "../components/ConfirmDeleteDialog";
+import { FilterMultiSelect } from "../components/FilterMultiSelect";
 import { FilterSelect } from "../components/FilterSelect";
+import { FilterSingleSelect } from "../components/FilterSingleSelect";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
+import { TruncateText } from "../components/TruncateText";
 import { useSharedDataSync, usePauseSharedDataSync, MASTER_TXN_SYNC_INTERVAL_MS } from "../hooks/useSharedDataSync";
+import { useFocusFirstField } from "../hooks/useFocusFirstField";
 import { useAuth } from "../context/AuthContext";
 import { useEmployees } from "../context/EmployeesContext";
 import { useMasters } from "../context/MastersContext";
 import { useToast } from "../context/ToastContext";
+import { getImmediateReports, type Employee } from "../data/employees";
 import {
   clampKpiMasterName,
   KPI_MASTER_NAME_MAX,
@@ -42,10 +46,14 @@ import {
   selectableKpiCycleOptions,
   scopeKpiResourceEmployees,
 } from "../utils/kpiFilters";
+import { matchesSearchQuery } from "../utils/textSearch";
+import { reconcileMultiSelect } from "../utils/reportFilterPersistence";
 
-type PageSeg = "framework" | "masters";
+type PageSeg = "list" | "masters";
 type MasterTab = "categories" | "methods" | "units";
 type FrameworkSortKey =
+  | "resource"
+  | "department"
   | "category"
   | "kpi"
   | "method"
@@ -56,12 +64,39 @@ type FrameworkSortKey =
   | "weight"
   | "status";
 type MasterSortKey = "name" | "status";
+type DrawerMode = "create" | "edit" | "view";
 
 const FRAMEWORK_STATUS_ORDER: Record<string, number> = {
   draft: 0,
   pending_result: 1,
   completed: 2,
 };
+
+/** Pixel min-widths — table scrolls horizontally when card is narrower. */
+const KPI_LIST_COLUMNS: {
+  col: FrameworkSortKey;
+  label: string;
+  width: number;
+  compact?: boolean;
+}[] = [
+  { col: "resource", label: "Resource", width: 108 },
+  { col: "department", label: "Department", width: 96 },
+  { col: "category", label: "Category", width: 120 },
+  { col: "kpi", label: "KPI", width: 180 },
+  { col: "method", label: "Method", width: 120 },
+  { col: "unit", label: "Unit", width: 56, compact: true },
+  { col: "target", label: "Target", width: 64, compact: true },
+  { col: "direction", label: "Direction", width: 88, compact: true },
+  { col: "period", label: "Period", width: 104 },
+  { col: "weight", label: "Weight %", width: 72, compact: true },
+  { col: "status", label: "Status", width: 112 },
+];
+
+const KPI_LIST_TABLE_MIN_WIDTH = KPI_LIST_COLUMNS.reduce((sum, c) => sum + c.width, 0);
+
+function kpiListCellPad(compact?: boolean) {
+  return compact ? "px-2" : "px-3";
+}
 
 const CYCLE_MONTHS: Record<AssessmentCycle, number[]> = {
   Q1: [1, 2, 3],
@@ -70,6 +105,12 @@ const CYCLE_MONTHS: Record<AssessmentCycle, number[]> = {
   Q4: [10, 11, 12],
 };
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const CYCLE_LABEL: Record<AssessmentCycle, string> = {
+  Q1: "Quarter 1",
+  Q2: "Quarter 2",
+  Q3: "Quarter 3",
+  Q4: "Quarter 4",
+};
 
 /** All start–end month pairs within a cycle (start ≤ end). */
 function periodRangeOptions(months: number[]) {
@@ -90,29 +131,113 @@ function periodRangeOptions(months: number[]) {
 }
 
 const fieldClass =
-  "w-full rounded-md border border-border bg-surface px-2 py-1.5 text-[12px] text-foreground outline-none placeholder:text-muted-foreground";
+  "w-full rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none placeholder:text-muted-foreground focus:border-accent-line disabled:cursor-not-allowed disabled:bg-surface-alt disabled:text-muted";
 
-const NEW_KPI_DEFAULT_NAME = "New KPI";
 const NEW_KPI_PLACEHOLDER = `New KPI (${KPI_NAME_MAX} Chars)`;
+
+type FormState = {
+  employeeHrmsId: string;
+  calendarYear: KpiCalendarYear;
+  assessmentCycle: AssessmentCycle;
+  categoryId: string;
+  kpiName: string;
+  measurementMethodId: string;
+  unitId: string;
+  target: string;
+  targetDirection: KpiTargetDirection;
+  periodValue: string;
+  weightage: string;
+};
+
+function emptyForm(
+  year: KpiCalendarYear,
+  cycle: AssessmentCycle,
+  defaults?: Partial<FormState>
+): FormState {
+  const months = CYCLE_MONTHS[cycle];
+  const periodOpts = periodRangeOptions(months);
+  return {
+    employeeHrmsId: "",
+    calendarYear: year,
+    assessmentCycle: cycle,
+    categoryId: "",
+    kpiName: "",
+    measurementMethodId: "",
+    unitId: "",
+    target: "0",
+    targetDirection: "higher_is_better",
+    periodValue: periodOpts[0]?.value ?? "",
+    weightage: "0",
+    ...defaults,
+  };
+}
+
+function formFromItem(item: ApiKpiItem): FormState {
+  return {
+    employeeHrmsId: item.employeeHrmsId ?? "",
+    calendarYear: item.calendarYear as KpiCalendarYear,
+    assessmentCycle: item.assessmentCycle,
+    categoryId: item.categoryId,
+    kpiName: item.kpiName,
+    measurementMethodId: item.measurementMethodId,
+    unitId: item.unitId,
+    target: String(item.target),
+    targetDirection: item.targetDirection,
+    periodValue: `${item.periodStartMonth}-${item.periodEndMonth}`,
+    weightage: String(item.weightage),
+  };
+}
+
+function directionLabel(d: KpiTargetDirection) {
+  return d === "higher_is_better" ? "High" : "Low";
+}
+
+function isKpiDrawerFormValid(
+  form: FormState,
+  mode: DrawerMode,
+  copyFromId: string,
+  copyKpiId: string,
+  loadingCopy: boolean
+): boolean {
+  if (!form.categoryId || !form.measurementMethodId || !form.unitId) return false;
+  if (!form.kpiName.trim()) return false;
+  const [startStr, endStr] = form.periodValue.split("-");
+  if (!Number.isFinite(Number(startStr)) || !Number.isFinite(Number(endStr))) return false;
+  if (mode === "create") {
+    if (!form.employeeHrmsId) return false;
+    if (copyFromId && (!copyKpiId || loadingCopy)) return false;
+  }
+  return true;
+}
 
 export function KpiFramework() {
   const toast = useToast();
   const { currentEmployee, isSuperAdmin } = useAuth();
   const { employees } = useEmployees();
   const { departments } = useMasters();
-  const [seg, setSeg] = useState<PageSeg>("framework");
+  const [seg, setSeg] = useState<PageSeg>("list");
   const [masterTab, setMasterTab] = useState<MasterTab>("categories");
   const [year, setYear] = useState(() => defaultKpiCalendarYear());
   const [cycle, setCycle] = useState<AssessmentCycle>(() => defaultAssessmentCycle());
-  const [deptId, setDeptId] = useState("");
-  const [resourceId, setResourceId] = useState("");
-  const [copyFromId, setCopyFromId] = useState("");
+  const [search, setSearch] = useState("");
+  const [selectedDepts, setSelectedDepts] = useState<string[]>([]);
+  const [selectedResources, setSelectedResources] = useState<string[]>([]);
   const [items, setItems] = useState<ApiKpiItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const { sortKey, sortDir, handleSort } = useColumnSort<FrameworkSortKey>("category");
+  const [drawer, setDrawer] = useState<{
+    mode: DrawerMode;
+    item?: ApiKpiItem;
+    seed?: {
+      employeeHrmsId: string;
+      calendarYear: KpiCalendarYear;
+      assessmentCycle: AssessmentCycle;
+    };
+  } | null>(null);
+
+  const { sortKey, sortDir, handleSort } = useColumnSort<FrameworkSortKey>("resource");
   const {
     sortKey: masterSortKey,
     sortDir: masterSortDir,
@@ -132,33 +257,15 @@ export function KpiFramework() {
     () => scopeKpiResourceEmployees(employees, currentEmployee, isSuperAdmin),
     [employees, currentEmployee, isSuperAdmin]
   );
-  const activeEmployees = useMemo(() => {
-    let list = scopedResources;
-    if (deptId) {
-      const dept = activeDepts.find((d) => d.dbId === deptId || d.id === deptId);
-      const name = dept?.name;
-      if (name) list = list.filter((e) => e.department === name);
-    }
-    return list;
-  }, [scopedResources, deptId, activeDepts]);
+  const directResources = useMemo(() => {
+    if (isSuperAdmin) return scopedResources;
+    if (!currentEmployee?.id) return [];
+    return getImmediateReports(currentEmployee.id, employees, { activeOnly: true }).filter((e) =>
+      scopedResources.some((s) => s.id === e.id)
+    );
+  }, [isSuperAdmin, scopedResources, currentEmployee?.id, employees]);
 
-  useEffect(() => {
-    const ids = new Set(activeEmployees.map((e) => e.id));
-    if (resourceId && !ids.has(resourceId)) setResourceId("");
-    if (copyFromId && (!ids.has(copyFromId) || copyFromId === resourceId)) setCopyFromId("");
-  }, [activeEmployees, resourceId, copyFromId]);
-
-  const months = CYCLE_MONTHS[cycle];
-  const periodOptions = useMemo(() => periodRangeOptions(months), [months]);
-  const weightTotal = items.reduce((s, i) => s + Number(i.weightage || 0), 0);
-  const weightOk = Math.abs(weightTotal - 100) < 0.01;
-  const canEditResource =
-    isSuperAdmin || isKpiDirectReport(currentEmployee?.id, resourceId, employees);
-  const canEdit =
-    canEditResource &&
-    items.every((i) => i.status === "draft") &&
-    !items.some((i) => i.cycleExpired);
-  const canCopy = Boolean(resourceId) && canEditResource && items.length === 0;
+  const canOpenAdd = directResources.length > 0;
 
   const yearOptions = useMemo(
     () => KPI_CALENDAR_YEARS.map((y) => ({ value: String(y), label: String(y) })),
@@ -172,59 +279,123 @@ export function KpiFramework() {
     if (next && next !== cycle) setCycle(next);
   }, [year, cycle]);
 
-  const deptOptions = useMemo(
-    () => [
-      { value: "", label: "All" },
-      ...activeDepts.map((d) => ({ value: d.dbId ?? d.id, label: d.name })),
-    ],
-    [activeDepts]
+  const allDeptNames = useMemo(() => activeDepts.map((d) => d.name).sort(), [activeDepts]);
+  const resourceNames = useMemo(
+    () => [...scopedResources].sort((a, b) => a.name.localeCompare(b.name)).map((e) => e.name),
+    [scopedResources]
   );
-  const resourceOptions = useMemo(
-    () => activeEmployees.map((e) => ({ value: e.id, label: e.name })),
-    [activeEmployees]
-  );
-  const copyFromOptions = useMemo(
-    () =>
-      activeEmployees
-        .filter((e) => e.id !== resourceId)
-        .map((e) => ({ value: e.id, label: e.name })),
-    [activeEmployees, resourceId]
-  );
-  const categoryOptions = useMemo(() => {
-    const used = new Set(items.map((i) => i.categoryId));
-    return categories
-      .filter((c) => c.isActive || used.has(c.id))
-      .map((c) => ({ value: c.id, label: c.name }));
-  }, [categories, items]);
-  const methodOptions = useMemo(() => {
-    const used = new Set(items.map((i) => i.measurementMethodId));
-    return methods
-      .filter((m) => m.isActive || used.has(m.id))
-      .map((m) => ({ value: m.id, label: m.name }));
-  }, [methods, items]);
-  const unitOptions = useMemo(() => {
-    const used = new Set(items.map((i) => i.unitId));
-    return units
-      .filter((u) => u.isActive || used.has(u.id))
-      .map((u) => ({ value: u.id, label: u.name }));
-  }, [units, items]);
-  const directionOptions = useMemo(
-    () => [
-      { value: "higher_is_better", label: "High" },
-      { value: "lower_is_better", label: "Low" },
-    ],
-    []
-  );
-  const periodSelectOptions = useMemo(
-    () => periodOptions.map((opt) => ({ value: opt.value, label: opt.label })),
-    [periodOptions]
-  );
+
+  const prevDepts = useRef<string[]>([]);
+  const prevResources = useRef<string[]>([]);
+
+  useEffect(() => {
+    setSelectedDepts((prev) => {
+      const next = reconcileMultiSelect(prev, allDeptNames, prevDepts.current);
+      prevDepts.current = [...allDeptNames];
+      return next;
+    });
+    setSelectedResources((prev) => {
+      const next = reconcileMultiSelect(prev, resourceNames, prevResources.current);
+      prevResources.current = [...resourceNames];
+      return next;
+    });
+  }, [allDeptNames, resourceNames]);
+
+  const deptCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const name of allDeptNames) {
+      counts[name] = items.filter((i) => {
+        const emp = scopedResources.find((e) => e.id === i.employeeHrmsId);
+        return (emp?.department ?? "") === name;
+      }).length;
+    }
+    return counts;
+  }, [allDeptNames, items, scopedResources]);
+
+  const resourceCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const name of resourceNames) {
+      const emp = scopedResources.find((e) => e.name === name);
+      counts[name] = emp ? items.filter((i) => i.employeeHrmsId === emp.id).length : 0;
+    }
+    return counts;
+  }, [resourceNames, scopedResources, items]);
+
+  const filteredItems = useMemo(() => {
+    const deptSet =
+      selectedDepts.length === 0 || selectedDepts.length === allDeptNames.length
+        ? null
+        : new Set(selectedDepts);
+    const resourceIds =
+      selectedResources.length === 0 || selectedResources.length === resourceNames.length
+        ? null
+        : new Set(
+            scopedResources.filter((e) => selectedResources.includes(e.name)).map((e) => e.id)
+          );
+
+    return items.filter((row) => {
+      const emp = scopedResources.find((e) => e.id === row.employeeHrmsId);
+      const deptName = emp?.department ?? "";
+      if (deptSet && !deptSet.has(deptName)) return false;
+      if (resourceIds && (!row.employeeHrmsId || !resourceIds.has(row.employeeHrmsId))) return false;
+      if (
+        search.trim() &&
+        !matchesSearchQuery(
+          search,
+          row.employeeName,
+          emp?.name,
+          deptName,
+          row.categoryName,
+          row.kpiName,
+          row.measurementMethodName,
+          row.unitName,
+          row.periodLabel,
+          row.status
+        )
+      ) {
+        return false;
+      }
+      return true;
+    });
+  }, [
+    items,
+    selectedDepts,
+    selectedResources,
+    allDeptNames.length,
+    resourceNames.length,
+    scopedResources,
+    search,
+  ]);
+
+  const singleResourceFilterId = useMemo(() => {
+    if (selectedResources.length !== 1) return null;
+    const name = selectedResources[0]!;
+    return scopedResources.find((e) => e.name === name)?.id ?? null;
+  }, [selectedResources, scopedResources]);
+
+  const weightHint = useMemo(() => {
+    if (!singleResourceFilterId) return null;
+    const rows = items.filter((i) => i.employeeHrmsId === singleResourceFilterId);
+    const total = rows.reduce((s, i) => s + Number(i.weightage || 0), 0);
+    return { total, ok: Math.abs(total - 100) < 0.01 };
+  }, [singleResourceFilterId, items]);
 
   const sortedItems = useMemo(() => {
     const mul = sortDir === "asc" ? 1 : -1;
-    return [...items].sort((a, b) => {
+    return [...filteredItems].sort((a, b) => {
       let cmp = 0;
       switch (sortKey) {
+        case "resource":
+          cmp = (a.employeeName ?? "").localeCompare(b.employeeName ?? "");
+          break;
+        case "department": {
+          const da =
+            scopedResources.find((e) => e.id === a.employeeHrmsId)?.department ?? "";
+          const db =
+            scopedResources.find((e) => e.id === b.employeeHrmsId)?.department ?? "";
+          cmp = da.localeCompare(db);
+          break;
+        }
         case "category":
           cmp = (a.categoryName ?? "").localeCompare(b.categoryName ?? "");
           break;
@@ -259,7 +430,7 @@ export function KpiFramework() {
       if (cmp !== 0) return mul * cmp;
       return a.id.localeCompare(b.id);
     });
-  }, [items, sortKey, sortDir]);
+  }, [filteredItems, sortKey, sortDir, scopedResources]);
 
   const loadMasters = useCallback(async () => {
     const [c, m, u] = await Promise.all([
@@ -273,18 +444,12 @@ export function KpiFramework() {
   }, []);
 
   const loadFramework = useCallback(async () => {
-    if (!resourceId) {
-      setItems([]);
-      return;
-    }
     setLoading(true);
     setError("");
     try {
       const rows = await fetchKpiFramework({
         calendarYear: year,
         assessmentCycle: cycle,
-        employeeHrmsId: resourceId,
-        departmentId: deptId || undefined,
       });
       setItems(rows);
     } catch (e) {
@@ -293,7 +458,7 @@ export function KpiFramework() {
     } finally {
       setLoading(false);
     }
-  }, [year, cycle, resourceId, deptId]);
+  }, [year, cycle]);
 
   useEffect(() => {
     void loadMasters().catch((e) =>
@@ -302,31 +467,28 @@ export function KpiFramework() {
   }, [loadMasters]);
 
   useEffect(() => {
-    if (seg === "framework") void loadFramework();
+    if (seg === "list") void loadFramework();
   }, [seg, loadFramework]);
 
   const syncKpi = useCallback(async () => {
     await loadMasters();
-    if (seg !== "framework" || !resourceId) return;
+    if (seg !== "list") return;
     try {
       const rows = await fetchKpiFramework({
         calendarYear: year,
         assessmentCycle: cycle,
-        employeeHrmsId: resourceId,
-        departmentId: deptId || undefined,
       });
       setItems(rows);
     } catch {
       /* keep current rows; avoid spinner flash on background sync */
     }
-  }, [loadMasters, seg, resourceId, year, cycle, deptId]);
+  }, [loadMasters, seg, year, cycle]);
 
   useSharedDataSync(true, syncKpi, {
     resources: ["kpi"],
     intervalMs: MASTER_TXN_SYNC_INTERVAL_MS,
   });
-  /** Pause only while typing a new master name — allow live reload of the open framework/list. */
-  usePauseSharedDataSync(Boolean(newMasterName.trim()));
+  usePauseSharedDataSync(Boolean(newMasterName.trim()) || drawer != null);
 
   const masterList =
     masterTab === "categories" ? categories : masterTab === "methods" ? methods : units;
@@ -369,8 +531,11 @@ export function KpiFramework() {
     }
   };
 
-  const addKpi = async () => {
-    if (!resourceId) return;
+  const openCreate = () => {
+    if (!canOpenAdd) {
+      toast.warning("Add KPI is available for direct reportees only.");
+      return;
+    }
     const cat = categories.find((c) => c.isActive) ?? categories[0];
     const meth = methods.find((m) => m.isActive) ?? methods[0];
     const unit = units.find((u) => u.isActive) ?? units[0];
@@ -378,36 +543,15 @@ export function KpiFramework() {
       toast.warning("Add KPI masters first (Category, Method, Unit).");
       return;
     }
-    try {
-      await createKpiFrameworkItem({
-        employeeHrmsId: resourceId,
-        calendarYear: year,
-        assessmentCycle: cycle,
-        categoryId: cat.id,
-        kpiName: NEW_KPI_DEFAULT_NAME,
-        measurementMethodId: meth.id,
-        unitId: unit.id,
-        target: 0,
-        targetDirection: "higher_is_better",
-        periodStartMonth: months[0]!,
-        periodEndMonth: months[months.length - 1]!,
-        weightage: 0,
-      });
-      await loadFramework();
-      toast.created();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to add KPI");
-    }
+    setDrawer({ mode: "create" });
   };
 
-  const patchRow = async (id: string, patch: Parameters<typeof updateKpiFrameworkItem>[1]) => {
-    try {
-      await updateKpiFrameworkItem(id, patch);
-      await loadFramework();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to update KPI");
-      await loadFramework();
-    }
+  const openRow = (row: ApiKpiItem) => {
+    const canMutate =
+      (isSuperAdmin || isKpiDirectReport(currentEmployee?.id, row.employeeHrmsId, employees)) &&
+      row.status === "draft" &&
+      !row.cycleExpired;
+    setDrawer({ mode: canMutate ? "edit" : "view", item: row });
   };
 
   const confirmDelete = async () => {
@@ -416,6 +560,7 @@ export function KpiFramework() {
     try {
       await deleteKpiFrameworkItem(pendingDeleteId);
       setPendingDeleteId(null);
+      setDrawer(null);
       await loadFramework();
       toast.deleted();
     } catch (e) {
@@ -425,22 +570,8 @@ export function KpiFramework() {
     }
   };
 
-  const doCopy = async () => {
-    if (!resourceId || !copyFromId) return;
-    try {
-      await copyKpiFramework({
-        targetEmployeeHrmsId: resourceId,
-        sourceEmployeeHrmsId: copyFromId,
-        calendarYear: year,
-        assessmentCycle: cycle,
-      });
-      setCopyFromId("");
-      await loadFramework();
-      toast.created();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Copy failed");
-    }
-  };
+  const deptNameFor = (row: ApiKpiItem) =>
+    scopedResources.find((e) => e.id === row.employeeHrmsId)?.department ?? "—";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -450,27 +581,32 @@ export function KpiFramework() {
           <div className="text-[12px] text-muted-foreground">Setup · define KPIs by assessment cycle</div>
         </div>
         <div className="flex overflow-hidden rounded-md border border-border text-[12px]">
-          {(["framework", "masters"] as const).map((s) => (
+          {(
+            [
+              ["list", "List"],
+              ["masters", "Masters"],
+            ] as const
+          ).map(([id, label]) => (
             <button
-              key={s}
+              key={id}
               type="button"
-              onClick={() => setSeg(s)}
-              className={`px-3.5 py-1.5 capitalize ${
-                seg === s ? "bg-brand font-medium text-white" : "text-muted hover:bg-surface-alt"
+              onClick={() => setSeg(id)}
+              className={`cursor-pointer px-3.5 py-1.5 ${
+                seg === id ? "bg-brand font-medium text-white" : "text-muted hover:bg-surface-alt"
               }`}
             >
-              {s}
+              {label}
             </button>
           ))}
         </div>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-auto bg-background p-5">
-        {error && <div className="mb-3 text-[12px] text-danger">{error}</div>}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background p-5">
+        {error && <div className="mb-3 flex-shrink-0 text-[12px] text-danger">{error}</div>}
 
         {seg === "masters" ? (
-          <div className="rounded-lg border border-border bg-surface shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-soft px-4 py-3">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-surface">
+            <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border-soft px-4 py-2.5">
               <div className="flex overflow-hidden rounded-md border border-border text-[12px]">
                 {(
                   [
@@ -486,7 +622,7 @@ export function KpiFramework() {
                       setMasterTab(id);
                       setNewMasterName("");
                     }}
-                    className={`px-3 py-1.5 ${
+                    className={`cursor-pointer px-3 py-1.5 ${
                       masterTab === id ? "bg-brand font-medium text-white" : "text-muted hover:bg-surface-alt"
                     }`}
                   >
@@ -524,12 +660,12 @@ export function KpiFramework() {
                 </button>
               </div>
             </div>
-            <div>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
               {sortedMasters.length === 0 ? (
                 <div className="px-4 py-10 text-center text-[12px] text-muted-foreground">No items yet.</div>
               ) : (
                 <>
-                  <div className="flex items-center justify-between border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                     <SortColHeader
                       label="Name"
                       col="name"
@@ -547,368 +683,223 @@ export function KpiFramework() {
                     />
                   </div>
                   {sortedMasters.map((row) => (
-                  <div
-                    key={row.id}
-                    className="flex items-center justify-between border-b border-border-soft px-4 py-3 last:border-b-0"
-                  >
-                    <div className="text-[13px] text-foreground">{row.name}</div>
-                    <div className="flex items-center gap-3">
-                      <span
-                        className={`text-[12px] font-medium ${
-                          row.status === "active" ? "text-success" : "text-muted-foreground"
-                        }`}
-                      >
-                        {row.status === "active" ? "Active" : "Inactive"}
-                      </span>
-                      {row.status === "active" && row.inUse ? (
+                    <div
+                      key={row.id}
+                      className="flex items-center justify-between border-b border-border-soft px-4 py-3 last:border-b-0"
+                    >
+                      <div className="text-[13px] text-foreground">{row.name}</div>
+                      <div className="flex items-center gap-3">
                         <span
-                          className="cursor-not-allowed text-[12px] text-muted-foreground/50"
-                          title="Used in KPI framework — cannot disable"
+                          className={`text-[12px] font-medium ${
+                            row.status === "active" ? "text-success" : "text-muted-foreground"
+                          }`}
                         >
-                          Disable
+                          {row.status === "active" ? "Active" : "Inactive"}
                         </span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => void toggleMaster(row)}
-                          className="cursor-pointer text-[12px] text-muted-foreground hover:text-foreground hover:underline"
-                        >
-                          {row.status === "active" ? "Disable" : "Enable"}
-                        </button>
-                      )}
+                        {row.status === "active" && row.inUse ? (
+                          <span
+                            className="cursor-not-allowed text-[12px] text-muted-foreground/50"
+                            title="Used in KPI framework — cannot disable"
+                          >
+                            Disable
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => void toggleMaster(row)}
+                            className="cursor-pointer text-[12px] text-muted-foreground hover:text-foreground hover:underline"
+                          >
+                            {row.status === "active" ? "Disable" : "Enable"}
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
                   ))}
                 </>
               )}
             </div>
           </div>
         ) : (
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface px-4 py-3 shadow-sm">
-              <Filter label="Calendar Year">
-                <FilterSelect
-                  aria-label="Calendar Year"
-                  value={String(year)}
-                  onChange={(v) => setYear(Number(v) as KpiCalendarYear)}
-                  options={yearOptions}
-                  className="min-w-[120px]"
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-surface">
+            <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-b border-border-soft px-4 py-2.5">
+              <div className="relative min-w-[160px] flex-1 basis-[160px]">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search…"
+                  className="h-8 w-full rounded-md border border-border bg-surface py-1.5 pl-8 pr-2.5 text-[12px] text-foreground outline-none placeholder:text-muted-foreground"
                 />
-              </Filter>
-              <Filter label="Cycle">
-                <FilterSelect
-                  aria-label="Cycle"
-                  value={cycle}
-                  onChange={(v) => setCycle(v as AssessmentCycle)}
-                  options={cycleOptions}
-                  className="min-w-[120px]"
-                />
-              </Filter>
-              <Filter label="Department">
-                <FilterSelect
-                  aria-label="Department"
-                  value={deptId}
-                  onChange={setDeptId}
-                  options={deptOptions}
-                  className="min-w-[140px]"
-                />
-              </Filter>
-              <Filter label="Resource">
-                <FilterSelect
-                  aria-label="Resource"
-                  value={resourceId}
-                  onChange={setResourceId}
-                  options={resourceOptions}
-                  className="min-w-[160px]"
-                />
-              </Filter>
-              <Filter label="Copy from Resource">
-                <div className="flex gap-1.5">
-                  <FilterSelect
-                    aria-label="Copy from Resource"
-                    value={copyFromId}
-                    onChange={setCopyFromId}
-                    options={copyFromOptions}
-                    disabled={!canCopy}
-                    className="min-w-[160px]"
-                  />
-                  <button
-                    type="button"
-                    disabled={!canCopy || !copyFromId}
-                    onClick={() => void doCopy()}
-                    className="cursor-pointer rounded-md border border-border px-2.5 py-1.5 text-[12px] disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    Copy
-                  </button>
-                </div>
-              </Filter>
-              <div className="ml-auto flex items-center gap-3">
-                <span
-                  className={`text-[12px] font-medium ${weightOk ? "text-success" : "text-warning"}`}
-                >
-                  Weightage {weightTotal.toFixed(0)}% / 100%
-                </span>
-                {!canEditResource && resourceId ? (
-                  <span className="text-[11px] text-muted-foreground">View only (direct reports editable)</span>
-                ) : null}
-                <button
-                  type="button"
-                  disabled={!resourceId || !canEdit}
-                  onClick={() => void addKpi()}
-                  className="flex cursor-pointer items-center gap-1 rounded-md bg-brand px-3 py-1.5 text-[12px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  <Plus className="h-3.5 w-3.5" /> Add KPI
-                </button>
               </div>
+              <FilterSingleSelect
+                aria-label="Calendar Year"
+                value={String(year)}
+                onChange={(v) => setYear(Number(v) as KpiCalendarYear)}
+                options={yearOptions}
+                className="min-w-[100px]"
+              />
+              <FilterSingleSelect
+                aria-label="Quarter"
+                value={cycle}
+                onChange={(v) => setCycle(v as AssessmentCycle)}
+                options={cycleOptions}
+                className="min-w-[120px]"
+              />
+              <FilterMultiSelect
+                items={allDeptNames}
+                selected={selectedDepts}
+                onChange={setSelectedDepts}
+                counts={deptCounts}
+                allLabel="All departments"
+                pluralLabel="departments"
+                emptyNeutral
+              />
+              <FilterMultiSelect
+                items={resourceNames}
+                selected={selectedResources}
+                onChange={setSelectedResources}
+                counts={resourceCounts}
+                allLabel="All resources"
+                pluralLabel="resources"
+                emptyNeutral
+              />
+              {weightHint ? (
+                <span
+                  className={`text-[12px] font-medium ${
+                    weightHint.ok ? "text-success" : "text-warning"
+                  }`}
+                >
+                  Weightage {weightHint.total.toFixed(0)}% / 100%
+                </span>
+              ) : null}
+              <button
+                type="button"
+                disabled={!canOpenAdd}
+                onClick={openCreate}
+                className="ml-auto flex cursor-pointer items-center gap-1 rounded-md bg-brand px-3 py-1.5 text-[12px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Plus className="h-3.5 w-3.5" /> Add KPI
+              </button>
             </div>
 
-            <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
-              {!resourceId ? (
-                <div className="px-4 py-12 text-center text-[12px] text-muted-foreground">
-                  Select a resource to define KPIs.
-                </div>
-              ) : loading ? (
+            <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
+              {loading ? (
                 <div className="px-4 py-12 text-center text-[12px] text-muted-foreground">Loading…</div>
-              ) : items.length === 0 ? (
+              ) : sortedItems.length === 0 ? (
                 <div className="px-4 py-12 text-center text-[12px] text-muted-foreground">
-                  No KPIs yet. Add KPI or copy from another resource.
+                  No KPIs for this year and quarter.
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[1100px] text-left text-[12px]">
-                    <thead className="border-b border-border-soft bg-surface-alt text-[11px] uppercase tracking-wide text-muted-foreground">
+                  <table
+                    className="w-full table-fixed border-separate border-spacing-0 text-left text-[12px]"
+                    style={{ minWidth: KPI_LIST_TABLE_MIN_WIDTH }}
+                  >
+                    <colgroup>
+                      {KPI_LIST_COLUMNS.map(({ col, width }) => (
+                        <col key={col} style={{ width }} />
+                      ))}
+                    </colgroup>
+                    <thead className="bg-surface-alt text-[11px] uppercase tracking-wide text-muted-foreground">
                       <tr>
-                        <th className="px-3 py-2.5 font-medium">
-                          <SortColHeader
-                            label="Category"
-                            col="category"
-                            sortKey={sortKey}
-                            sortDir={sortDir}
-                            onSort={handleSort}
-                          />
-                        </th>
-                        <th className="px-3 py-2.5 font-medium">
-                          <SortColHeader
-                            label="KPI"
-                            col="kpi"
-                            sortKey={sortKey}
-                            sortDir={sortDir}
-                            onSort={handleSort}
-                          />
-                        </th>
-                        <th className="px-3 py-2.5 font-medium">
-                          <SortColHeader
-                            label="Method"
-                            col="method"
-                            sortKey={sortKey}
-                            sortDir={sortDir}
-                            onSort={handleSort}
-                          />
-                        </th>
-                        <th className="px-3 py-2.5 font-medium">
-                          <SortColHeader
-                            label="Unit"
-                            col="unit"
-                            sortKey={sortKey}
-                            sortDir={sortDir}
-                            onSort={handleSort}
-                          />
-                        </th>
-                        <th className="w-16 whitespace-nowrap px-3 py-2.5 font-medium">
-                          <SortColHeader
-                            label="Target"
-                            col="target"
-                            sortKey={sortKey}
-                            sortDir={sortDir}
-                            onSort={handleSort}
-                          />
-                        </th>
-                        <th className="px-3 py-2.5 font-medium">
-                          <SortColHeader
-                            label="Direction"
-                            col="direction"
-                            sortKey={sortKey}
-                            sortDir={sortDir}
-                            onSort={handleSort}
-                          />
-                        </th>
-                        <th className="px-3 py-2.5 font-medium">
-                          <SortColHeader
-                            label="Period"
-                            col="period"
-                            sortKey={sortKey}
-                            sortDir={sortDir}
-                            onSort={handleSort}
-                          />
-                        </th>
-                        <th className="w-16 whitespace-nowrap px-3 py-2.5 font-medium">
-                          <SortColHeader
-                            label="Weight %"
-                            col="weight"
-                            sortKey={sortKey}
-                            sortDir={sortDir}
-                            onSort={handleSort}
-                          />
-                        </th>
-                        <th className="px-3 py-2.5 font-medium">
-                          <SortColHeader
-                            label="Status"
-                            col="status"
-                            sortKey={sortKey}
-                            sortDir={sortDir}
-                            onSort={handleSort}
-                          />
-                        </th>
-                        <th className="px-3 py-2.5 font-medium" />
+                        {KPI_LIST_COLUMNS.map(({ col, label, compact }) => (
+                          <th
+                            key={col}
+                            className={`sticky top-0 z-10 overflow-hidden border-b border-border-soft bg-surface-alt ${kpiListCellPad(compact)} py-2.5 font-medium`}
+                          >
+                            <SortColHeader
+                              label={label}
+                              col={col}
+                              sortKey={sortKey}
+                              sortDir={sortDir}
+                              onSort={handleSort}
+                              fillCell
+                            />
+                          </th>
+                        ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {sortedItems.map((row) => {
-                        const locked = !canEditResource || row.status !== "draft" || row.cycleExpired;
-                        return (
-                          <tr key={row.id} className="border-b border-border-soft last:border-b-0">
-                            <td className="px-3 py-2">
-                              <FilterSelect
-                                aria-label="Category"
-                                disabled={locked}
-                                value={row.categoryId}
-                                onChange={(v) => void patchRow(row.id, { categoryId: v })}
-                                options={categoryOptions}
-                              />
-                            </td>
-                            <td className="px-3 py-2">
-                              <input
-                                key={`${row.id}-${row.kpiName}`}
-                                disabled={locked}
-                                maxLength={KPI_NAME_MAX}
-                                defaultValue={row.kpiName === NEW_KPI_DEFAULT_NAME ? "" : row.kpiName}
-                                placeholder={NEW_KPI_PLACEHOLDER}
-                                onBlur={(e) => {
-                                  const v = e.target.value.trim().slice(0, KPI_NAME_MAX);
-                                  if (v && v !== row.kpiName) void patchRow(row.id, { kpiName: v });
-                                }}
-                                className={`${fieldClass} disabled:cursor-not-allowed disabled:bg-surface-alt disabled:text-muted`}
-                              />
-                            </td>
-                            <td className="px-3 py-2">
-                              <FilterSelect
-                                aria-label="Method"
-                                disabled={locked}
-                                value={row.measurementMethodId}
-                                onChange={(v) => void patchRow(row.id, { measurementMethodId: v })}
-                                options={methodOptions}
-                              />
-                            </td>
-                            <td className="px-3 py-2">
-                              <FilterSelect
-                                aria-label="Unit"
-                                disabled={locked}
-                                value={row.unitId}
-                                onChange={(v) => void patchRow(row.id, { unitId: v })}
-                                options={unitOptions}
-                              />
-                            </td>
-                            <td className="w-16 px-3 py-2">
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                maxLength={KPI_TARGET_MAX_DIGITS}
-                                disabled={locked}
-                                defaultValue={String(row.target)}
-                                onChange={(e) => {
-                                  e.target.value = e.target.value.replace(/\D/g, "").slice(0, KPI_TARGET_MAX_DIGITS);
-                                }}
-                                onBlur={(e) => {
-                                  const digits = e.target.value.replace(/\D/g, "").slice(0, KPI_TARGET_MAX_DIGITS);
-                                  const v = digits === "" ? 0 : Math.min(KPI_TARGET_MAX, Number(digits));
-                                  e.target.value = String(v);
-                                  if (v !== row.target) void patchRow(row.id, { target: v });
-                                }}
-                                className="w-14 rounded-md border border-border bg-surface px-1.5 py-1.5 text-[12px] text-foreground outline-none disabled:cursor-not-allowed disabled:bg-surface-alt disabled:text-muted"
-                              />
-                            </td>
-                            <td className="px-3 py-2">
-                              <FilterSelect
-                                aria-label="Direction"
-                                disabled={locked}
-                                value={row.targetDirection}
-                                onChange={(v) =>
-                                  void patchRow(row.id, {
-                                    targetDirection: v as KpiTargetDirection,
-                                  })
-                                }
-                                options={directionOptions}
-                              />
-                            </td>
-                            <td className="px-3 py-2">
-                              <FilterSelect
-                                aria-label="Period"
-                                disabled={locked}
-                                value={`${row.periodStartMonth}-${row.periodEndMonth}`}
-                                onChange={(v) => {
-                                  const [start, end] = v.split("-").map(Number);
-                                  if (!Number.isFinite(start) || !Number.isFinite(end)) return;
-                                  void patchRow(row.id, {
-                                    periodStartMonth: start,
-                                    periodEndMonth: end,
-                                  });
-                                }}
-                                options={periodSelectOptions}
-                              />
-                            </td>
-                            <td className="w-16 px-3 py-2">
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                maxLength={KPI_WEIGHT_MAX_DIGITS}
-                                disabled={locked}
-                                defaultValue={String(row.weightage)}
-                                onChange={(e) => {
-                                  const digits = e.target.value.replace(/\D/g, "").slice(0, KPI_WEIGHT_MAX_DIGITS);
-                                  const n = digits === "" ? NaN : Number(digits);
-                                  e.target.value =
-                                    Number.isFinite(n) && n > KPI_WEIGHT_MAX
-                                      ? String(KPI_WEIGHT_MAX)
-                                      : digits;
-                                }}
-                                onBlur={(e) => {
-                                  const digits = e.target.value.replace(/\D/g, "").slice(0, KPI_WEIGHT_MAX_DIGITS);
-                                  const v =
-                                    digits === ""
-                                      ? 0
-                                      : Math.min(KPI_WEIGHT_MAX, Math.max(0, Number(digits)));
-                                  e.target.value = String(v);
-                                  if (v !== row.weightage) void patchRow(row.id, { weightage: v });
-                                }}
-                                className="w-14 rounded-md border border-border bg-surface px-1.5 py-1.5 text-[12px] text-foreground outline-none disabled:cursor-not-allowed disabled:bg-surface-alt disabled:text-muted"
-                              />
-                            </td>
-                            <td className="px-3 py-2">
-                              <StatusChip status={row.status} />
-                            </td>
-                            <td className="px-3 py-2">
-                              {!locked && (
-                                <button
-                                  type="button"
-                                  onClick={() => setPendingDeleteId(row.id)}
-                                  className="cursor-pointer rounded p-1 text-danger hover:bg-danger-soft"
-                                  aria-label="Delete KPI"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
+                      {sortedItems.map((row) => (
+                        <tr
+                          key={row.id}
+                          onClick={() => openRow(row)}
+                          className="cursor-pointer border-b border-border-soft last:border-b-0 hover:bg-surface-alt/60"
+                        >
+                          <td className={`min-w-0 border-b border-border-soft ${kpiListCellPad()} py-2.5 align-top`}>
+                            <TruncateText as="div" text={row.employeeName ?? "—"} />
+                          </td>
+                          <td className={`min-w-0 border-b border-border-soft ${kpiListCellPad()} py-2.5 align-top`}>
+                            <TruncateText as="div" text={deptNameFor(row)} />
+                          </td>
+                          <td className={`min-w-0 border-b border-border-soft ${kpiListCellPad()} py-2.5 align-top`}>
+                            <span className="block break-words leading-snug text-foreground">
+                              {row.categoryName ?? "—"}
+                            </span>
+                          </td>
+                          <td className={`min-w-0 border-b border-border-soft ${kpiListCellPad()} py-2.5 align-top`}>
+                            <span className="block break-words leading-snug text-foreground">
+                              {row.kpiName}
+                            </span>
+                          </td>
+                          <td className={`min-w-0 border-b border-border-soft ${kpiListCellPad()} py-2.5 align-top`}>
+                            <span className="block break-words leading-snug text-foreground">
+                              {row.measurementMethodName ?? "—"}
+                            </span>
+                          </td>
+                          <td className={`min-w-0 border-b border-border-soft ${kpiListCellPad(true)} py-2.5 align-top`}>
+                            <TruncateText as="div" text={row.unitName ?? "—"} />
+                          </td>
+                          <td className={`whitespace-nowrap border-b border-border-soft ${kpiListCellPad(true)} py-2.5 align-top`}>
+                            {row.target}
+                          </td>
+                          <td className={`whitespace-nowrap border-b border-border-soft ${kpiListCellPad(true)} py-2.5 align-top`}>
+                            {directionLabel(row.targetDirection)}
+                          </td>
+                          <td className={`whitespace-nowrap border-b border-border-soft ${kpiListCellPad()} py-2.5 align-top`}>
+                            {row.periodLabel}
+                          </td>
+                          <td className={`whitespace-nowrap border-b border-border-soft ${kpiListCellPad(true)} py-2.5 align-top`}>
+                            {row.weightage}%
+                          </td>
+                          <td className={`min-w-0 border-b border-border-soft ${kpiListCellPad()} py-2.5 align-top`}>
+                            <StatusChip status={row.status} />
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
-                </div>
               )}
             </div>
           </div>
         )}
       </div>
+
+      {drawer && (
+        <FrameworkDrawer
+          mode={drawer.mode}
+          item={drawer.item}
+          seed={drawer.seed}
+          listYear={year}
+          listCycle={cycle}
+          items={items}
+          categories={categories}
+          methods={methods}
+          units={units}
+          directResources={directResources}
+          employees={employees}
+          isSuperAdmin={isSuperAdmin}
+          currentEmployeeId={currentEmployee?.id}
+          onClose={() => setDrawer(null)}
+          onSaved={async (opts) => {
+            await loadFramework();
+            if (!opts?.keepOpen) setDrawer(null);
+          }}
+          onRequestDelete={(id) => setPendingDeleteId(id)}
+          onError={(msg) => toast.error(msg)}
+          onCreated={() => toast.created()}
+          onUpdated={() => toast.updated()}
+        />
+      )}
 
       <ConfirmDeleteDialog
         open={pendingDeleteId != null}
@@ -920,11 +911,618 @@ export function KpiFramework() {
   );
 }
 
-function Filter({ label, children }: { label: string; children: React.ReactNode }) {
+function FrameworkDrawer({
+  mode,
+  item,
+  seed,
+  listYear,
+  listCycle,
+  items,
+  categories,
+  methods,
+  units,
+  directResources,
+  employees,
+  isSuperAdmin,
+  currentEmployeeId,
+  onClose,
+  onSaved,
+  onRequestDelete,
+  onError,
+  onCreated,
+  onUpdated,
+}: {
+  mode: DrawerMode;
+  item?: ApiKpiItem;
+  seed?: {
+    employeeHrmsId: string;
+    calendarYear: KpiCalendarYear;
+    assessmentCycle: AssessmentCycle;
+  };
+  listYear: KpiCalendarYear;
+  listCycle: AssessmentCycle;
+  items: ApiKpiItem[];
+  categories: ApiKpiMaster[];
+  methods: ApiKpiMaster[];
+  units: ApiKpiMaster[];
+  directResources: { id: string; name: string }[];
+  employees: Employee[];
+  isSuperAdmin: boolean;
+  currentEmployeeId?: string;
+  onClose: () => void;
+  onSaved: (opts?: { keepOpen?: boolean }) => void | Promise<void>;
+  onRequestDelete: (id: string) => void;
+  onError: (msg: string) => void;
+  onCreated: () => void;
+  onUpdated: () => void;
+}) {
+  const focusRef = useFocusFirstField<HTMLDivElement>(mode !== "view");
+  const readOnly = mode === "view";
+
+  const activeCat = categories.filter((c) => c.isActive);
+  const activeMeth = methods.filter((m) => m.isActive);
+  const activeUnit = units.filter((u) => u.isActive);
+
+  const [form, setForm] = useState<FormState>(() => {
+    if (item && mode !== "create") return formFromItem(item);
+    const year = seed?.calendarYear ?? listYear;
+    const cycle = seed?.assessmentCycle ?? listCycle;
+    return emptyForm(year, cycle, {
+      employeeHrmsId: seed?.employeeHrmsId ?? directResources[0]?.id ?? "",
+      categoryId: activeCat[0]?.id ?? "",
+      measurementMethodId: activeMeth[0]?.id ?? "",
+      unitId: activeUnit[0]?.id ?? "",
+    });
+  });
+
+  const [copyFromId, setCopyFromId] = useState("");
+  const [copyKpiId, setCopyKpiId] = useState("");
+  const [copySourceItems, setCopySourceItems] = useState<ApiKpiItem[]>([]);
+  const [loadingCopy, setLoadingCopy] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [postSavePrompt, setPostSavePrompt] = useState(false);
+
+  const resetFormForAnother = useCallback(
+    (ctx: {
+      employeeHrmsId: string;
+      calendarYear: KpiCalendarYear;
+      assessmentCycle: AssessmentCycle;
+    }) => {
+      const periodOpts = periodRangeOptions(CYCLE_MONTHS[ctx.assessmentCycle]);
+      setForm(
+        emptyForm(ctx.calendarYear, ctx.assessmentCycle, {
+          employeeHrmsId: ctx.employeeHrmsId,
+          categoryId: activeCat[0]?.id ?? "",
+          measurementMethodId: activeMeth[0]?.id ?? "",
+          unitId: activeUnit[0]?.id ?? "",
+          kpiName: "",
+          target: "0",
+          weightage: "0",
+          periodValue: periodOpts[0]?.value ?? "",
+        })
+      );
+      // Keep Copy-from resource so user can pick another KPI from the same source.
+      setCopyKpiId("");
+    },
+    [activeCat, activeMeth, activeUnit]
+  );
+
+  const months = CYCLE_MONTHS[form.assessmentCycle];
+  const periodOpts = useMemo(() => periodRangeOptions(months), [months]);
+  const drawerCycleOptions = useMemo(
+    () => selectableKpiCycleOptions(form.calendarYear),
+    [form.calendarYear]
+  );
+
+  useEffect(() => {
+    if (mode !== "create") return;
+    if (!isKpiCycleExpired(form.calendarYear, form.assessmentCycle)) return;
+    const next = selectableKpiCycleOptions(form.calendarYear)[0]?.value;
+    if (next) setForm((f) => ({ ...f, assessmentCycle: next }));
+  }, [mode, form.calendarYear, form.assessmentCycle]);
+
+  useEffect(() => {
+    if (mode !== "create") return;
+    const opts = periodRangeOptions(CYCLE_MONTHS[form.assessmentCycle]);
+    if (!opts.some((o) => o.value === form.periodValue)) {
+      setForm((f) => ({ ...f, periodValue: opts[0]?.value ?? "" }));
+    }
+  }, [mode, form.assessmentCycle, form.periodValue]);
+
+  const copyFromOptions = useMemo(
+    () =>
+      directResources
+        .filter((e) => e.id !== form.employeeHrmsId)
+        .map((e) => ({ value: e.id, label: e.name })),
+    [directResources, form.employeeHrmsId]
+  );
+
+  useEffect(() => {
+    if (mode !== "create" || !copyFromId) {
+      setCopySourceItems([]);
+      setCopyKpiId("");
+      return;
+    }
+    let cancelled = false;
+    setLoadingCopy(true);
+    void fetchKpiFramework({
+      calendarYear: form.calendarYear,
+      assessmentCycle: form.assessmentCycle,
+      employeeHrmsId: copyFromId,
+    })
+      .then((rows) => {
+        if (cancelled) return;
+        setCopySourceItems(rows);
+        setCopyKpiId("");
+      })
+      .catch((e) => {
+        if (!cancelled) onError(e instanceof Error ? e.message : "Failed to load source KPIs");
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingCopy(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // onError is stable enough for toast; omit to avoid refetch loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, copyFromId, form.calendarYear, form.assessmentCycle]);
+
+  const applyCopyKpi = (kpiId: string) => {
+    setCopyKpiId(kpiId);
+    const src = copySourceItems.find((r) => r.id === kpiId);
+    if (!src) return;
+    setForm((f) => ({
+      ...f,
+      categoryId: src.categoryId,
+      kpiName: src.kpiName,
+      measurementMethodId: src.measurementMethodId,
+      unitId: src.unitId,
+      target: String(src.target),
+      targetDirection: src.targetDirection,
+      periodValue: `${src.periodStartMonth}-${src.periodEndMonth}`,
+      weightage: String(src.weightage),
+    }));
+  };
+
+  const othersWeight = useMemo(() => {
+    return items
+      .filter(
+        (i) =>
+          i.employeeHrmsId === form.employeeHrmsId &&
+          i.calendarYear === form.calendarYear &&
+          i.assessmentCycle === form.assessmentCycle &&
+          i.id !== item?.id
+      )
+      .reduce((s, i) => s + Number(i.weightage || 0), 0);
+  }, [items, form.employeeHrmsId, form.calendarYear, form.assessmentCycle, item?.id]);
+
+  const thisWeight = Number(form.weightage) || 0;
+  const totalWeight = othersWeight + thisWeight;
+  const weightOk = Math.abs(totalWeight - 100) < 0.01;
+
+  const resourceName =
+    item?.employeeName ??
+    directResources.find((e) => e.id === form.employeeHrmsId)?.name ??
+    employees.find((e) => e.id === form.employeeHrmsId)?.name ??
+    "—";
+
+  const title =
+    mode === "create" ? "Add KPI" : mode === "edit" ? "Edit KPI" : "View KPI";
+
+  const canDelete =
+    mode === "edit" &&
+    item &&
+    item.status === "draft" &&
+    !item.cycleExpired &&
+    (isSuperAdmin || isKpiDirectReport(currentEmployeeId, item.employeeHrmsId, employees));
+
+  const canSave =
+    !readOnly &&
+    !postSavePrompt &&
+    isKpiDrawerFormValid(form, mode, copyFromId, copyKpiId, loadingCopy);
+
+  const save = async () => {
+    if (readOnly || saving || !canSave) return;
+    const kpiName = form.kpiName.trim().slice(0, KPI_NAME_MAX);
+    if (!form.employeeHrmsId) {
+      onError("Select a resource");
+      return;
+    }
+    if (!kpiName) {
+      onError("KPI name is required");
+      return;
+    }
+    if (!form.categoryId || !form.measurementMethodId || !form.unitId) {
+      onError("Category, Method, and Unit are required");
+      return;
+    }
+    if (copyFromId && !copyKpiId) {
+      onError("Select a KPI to copy");
+      return;
+    }
+    const [startStr, endStr] = form.periodValue.split("-");
+    const periodStartMonth = Number(startStr);
+    const periodEndMonth = Number(endStr);
+    if (!Number.isFinite(periodStartMonth) || !Number.isFinite(periodEndMonth)) {
+      onError("Select a period");
+      return;
+    }
+    const targetDigits = form.target.replace(/\D/g, "").slice(0, KPI_TARGET_MAX_DIGITS);
+    const target = targetDigits === "" ? 0 : Math.min(KPI_TARGET_MAX, Number(targetDigits));
+    const weightDigits = form.weightage.replace(/\D/g, "").slice(0, KPI_WEIGHT_MAX_DIGITS);
+    const weightage =
+      weightDigits === "" ? 0 : Math.min(KPI_WEIGHT_MAX, Math.max(0, Number(weightDigits)));
+
+    setSaving(true);
+    try {
+      if (mode === "create") {
+        await createKpiFrameworkItem({
+          employeeHrmsId: form.employeeHrmsId,
+          calendarYear: form.calendarYear,
+          assessmentCycle: form.assessmentCycle,
+          categoryId: form.categoryId,
+          kpiName,
+          measurementMethodId: form.measurementMethodId,
+          unitId: form.unitId,
+          target,
+          targetDirection: form.targetDirection,
+          periodStartMonth,
+          periodEndMonth,
+          weightage,
+        });
+        onCreated();
+        const savedCtx = {
+          employeeHrmsId: form.employeeHrmsId,
+          calendarYear: form.calendarYear,
+          assessmentCycle: form.assessmentCycle,
+        };
+        await onSaved({ keepOpen: true });
+        resetFormForAnother(savedCtx);
+        setPostSavePrompt(true);
+      } else if (item) {
+        await updateKpiFrameworkItem(item.id, {
+          categoryId: form.categoryId,
+          kpiName,
+          measurementMethodId: form.measurementMethodId,
+          unitId: form.unitId,
+          target,
+          targetDirection: form.targetDirection,
+          periodStartMonth,
+          periodEndMonth,
+          weightage,
+        });
+        onUpdated();
+        await onSaved();
+      }
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const categoryOptions = useMemo(() => {
+    const used = new Set<string>();
+    if (form.categoryId) used.add(form.categoryId);
+    return categories
+      .filter((c) => c.isActive || used.has(c.id))
+      .map((c) => ({ value: c.id, label: c.name }));
+  }, [categories, form.categoryId]);
+  const methodOptions = useMemo(() => {
+    const used = new Set<string>();
+    if (form.measurementMethodId) used.add(form.measurementMethodId);
+    return methods
+      .filter((m) => m.isActive || used.has(m.id))
+      .map((m) => ({ value: m.id, label: m.name }));
+  }, [methods, form.measurementMethodId]);
+  const unitOptions = useMemo(() => {
+    const used = new Set<string>();
+    if (form.unitId) used.add(form.unitId);
+    return units
+      .filter((u) => u.isActive || used.has(u.id))
+      .map((u) => ({ value: u.id, label: u.name }));
+  }, [units, form.unitId]);
+
   return (
-    <label className="flex min-w-[120px] flex-col gap-1">
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-        {label}
+    <div className="fixed inset-0 z-40">
+      <div onClick={onClose} className="absolute inset-0 bg-brand/30" aria-hidden />
+      <div
+        ref={focusRef}
+        className="absolute right-0 top-0 flex h-full w-[440px] flex-col bg-surface shadow-2xl"
+      >
+        <div className="flex flex-shrink-0 items-center justify-between border-b border-border-soft px-5 py-4">
+          <div>
+            <div className="text-[15px] font-semibold text-foreground">{title}</div>
+            {mode !== "create" && (
+              <div className="mt-0.5 text-[12px] text-muted-foreground">
+                {resourceName} · {form.calendarYear} / {CYCLE_LABEL[form.assessmentCycle]}
+              </div>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="cursor-pointer text-muted-foreground hover:text-foreground"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-5 py-4">
+          {mode === "create" && (
+            <>
+              <Field label="For resource" required>
+                <FilterSelect
+                  aria-label="For resource"
+                  value={form.employeeHrmsId}
+                  onChange={(v) => {
+                    setForm((f) => ({ ...f, employeeHrmsId: v }));
+                    setCopyFromId("");
+                    setCopyKpiId("");
+                  }}
+                  options={directResources.map((e) => ({ value: e.id, label: e.name }))}
+                />
+              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Year" required>
+                  <FilterSingleSelect
+                    aria-label="Year"
+                    value={String(form.calendarYear)}
+                    onChange={(v) => {
+                      setForm((f) => ({ ...f, calendarYear: Number(v) as KpiCalendarYear }));
+                      setCopyFromId("");
+                      setCopyKpiId("");
+                    }}
+                    options={KPI_CALENDAR_YEARS.map((y) => ({ value: String(y), label: String(y) }))}
+                    fullWidth
+                  />
+                </Field>
+                <Field label="Quarter" required>
+                  <FilterSingleSelect
+                    aria-label="Quarter"
+                    value={form.assessmentCycle}
+                    onChange={(v) => {
+                      setForm((f) => ({ ...f, assessmentCycle: v as AssessmentCycle }));
+                      setCopyFromId("");
+                      setCopyKpiId("");
+                    }}
+                    options={drawerCycleOptions}
+                    fullWidth
+                  />
+                </Field>
+              </div>
+
+              <div className="rounded-md border border-border-soft bg-surface-alt/50 p-3">
+                <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Copy from (optional)
+                </div>
+                <div className="flex flex-col gap-2">
+                  <FilterSelect
+                    aria-label="Copy from resource"
+                    value={copyFromId}
+                    onChange={(v) => {
+                      setCopyFromId(v);
+                      setCopyKpiId("");
+                    }}
+                    options={copyFromOptions}
+                    placeholder="Select resource…"
+                  />
+                  <Field label="Select KPI to copy…" required={Boolean(copyFromId)}>
+                    <FilterSelect
+                      aria-label="Copy KPI"
+                      value={copyKpiId}
+                      onChange={applyCopyKpi}
+                      disabled={!copyFromId || loadingCopy}
+                      options={copySourceItems.map((r) => ({
+                        value: r.id,
+                        label: r.kpiName,
+                      }))}
+                      placeholder={loadingCopy ? "Loading…" : "Select KPI to copy…"}
+                    />
+                  </Field>
+                </div>
+              </div>
+            </>
+          )}
+
+          {readOnly && (
+            <div className="rounded-md border border-border bg-surface-alt px-3 py-2 text-[12px] text-muted-foreground">
+              View only — you can edit KPIs for direct reports only (draft, cycle open).
+            </div>
+          )}
+
+          <Field label="Category" required>
+            <FilterSelect
+              aria-label="Category"
+              disabled={readOnly}
+              value={form.categoryId}
+              onChange={(v) => setForm((f) => ({ ...f, categoryId: v }))}
+              options={categoryOptions}
+            />
+          </Field>
+          <Field label="KPI" required>
+            <input
+              disabled={readOnly}
+              maxLength={KPI_NAME_MAX}
+              value={form.kpiName}
+              onChange={(e) => setForm((f) => ({ ...f, kpiName: e.target.value.slice(0, KPI_NAME_MAX) }))}
+              placeholder={NEW_KPI_PLACEHOLDER}
+              className={fieldClass}
+            />
+          </Field>
+          <Field label="Method" required>
+            <FilterSelect
+              aria-label="Method"
+              disabled={readOnly}
+              value={form.measurementMethodId}
+              onChange={(v) => setForm((f) => ({ ...f, measurementMethodId: v }))}
+              options={methodOptions}
+            />
+          </Field>
+          <Field label="Unit" required>
+            <FilterSelect
+              aria-label="Unit"
+              disabled={readOnly}
+              value={form.unitId}
+              onChange={(v) => setForm((f) => ({ ...f, unitId: v }))}
+              options={unitOptions}
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Target" required>
+              <input
+                type="text"
+                inputMode="numeric"
+                disabled={readOnly}
+                maxLength={KPI_TARGET_MAX_DIGITS}
+                value={form.target}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    target: e.target.value.replace(/\D/g, "").slice(0, KPI_TARGET_MAX_DIGITS),
+                  }))
+                }
+                className={fieldClass}
+              />
+            </Field>
+            <Field label="Direction" required>
+              <FilterSingleSelect
+                aria-label="Direction"
+                disabled={readOnly}
+                value={form.targetDirection}
+                onChange={(v) =>
+                  setForm((f) => ({ ...f, targetDirection: v as KpiTargetDirection }))
+                }
+                options={[
+                  { value: "higher_is_better", label: "High" },
+                  { value: "lower_is_better", label: "Low" },
+                ]}
+                fullWidth
+              />
+            </Field>
+          </div>
+          <Field label="Period" required>
+            <FilterSelect
+              aria-label="Period"
+              disabled={readOnly}
+              value={form.periodValue}
+              onChange={(v) => setForm((f) => ({ ...f, periodValue: v }))}
+              options={periodOpts.map((o) => ({ value: o.value, label: o.label }))}
+            />
+          </Field>
+          <Field
+            label="Weight %"
+            required
+            hint={`Others ${othersWeight.toFixed(0)}% · Total ${totalWeight.toFixed(0)}%`}
+            hintClassName={weightOk ? "text-success" : "text-warning"}
+          >
+            <input
+              type="text"
+              inputMode="numeric"
+              disabled={readOnly}
+              maxLength={KPI_WEIGHT_MAX_DIGITS}
+              value={form.weightage}
+              onChange={(e) => {
+                const digits = e.target.value.replace(/\D/g, "").slice(0, KPI_WEIGHT_MAX_DIGITS);
+                const n = digits === "" ? NaN : Number(digits);
+                setForm((f) => ({
+                  ...f,
+                  weightage:
+                    Number.isFinite(n) && n > KPI_WEIGHT_MAX ? String(KPI_WEIGHT_MAX) : digits,
+                }));
+              }}
+              className={fieldClass}
+            />
+          </Field>
+        </div>
+
+        {canDelete && item ? (
+          <div className="flex-shrink-0 border-t border-border-soft px-5 py-3">
+            <div className="rounded-md border border-danger-border bg-danger-soft px-3 py-2.5">
+              <button
+                type="button"
+                onClick={() => onRequestDelete(item.id)}
+                className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-md border border-danger-border bg-surface px-3 py-2 text-[12px] font-medium text-danger transition-colors hover:bg-danger-soft"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete KPI
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {postSavePrompt ? (
+          <div className="flex-shrink-0 border-t border-border-soft bg-accent-soft/40 px-5 py-4">
+            <div className="text-[13px] font-semibold text-foreground">KPI saved.</div>
+            <div className="mt-1 text-[13px] text-muted-foreground">
+              Add another KPI from the same resource?
+            </div>
+            <div className="mt-3 flex gap-2.5">
+              <button
+                type="button"
+                onClick={() => setPostSavePrompt(false)}
+                className="flex-1 cursor-pointer rounded-md bg-brand py-2 text-[13px] font-medium text-white hover:opacity-95"
+              >
+                Yes
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 cursor-pointer rounded-md border border-border bg-surface py-2 text-[13px] font-medium text-foreground hover:bg-surface-alt"
+              >
+                No, close
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-shrink-0 gap-2.5 border-t border-border-soft px-5 py-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 cursor-pointer rounded-md border border-border py-2 text-[13px] font-medium text-foreground hover:bg-surface-alt"
+            >
+              {readOnly ? "Close" : "Cancel"}
+            </button>
+            {!readOnly && (
+              <button
+                type="button"
+                disabled={!canSave || saving}
+                onClick={() => void save()}
+                className="flex-1 cursor-pointer rounded-md bg-brand py-2 text-[13px] font-medium text-white transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {saving ? "Saving…" : "Save"}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  required,
+  hint,
+  hintClassName,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  hint?: string;
+  hintClassName?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="flex flex-col">
+      <span className="mb-1.5 flex items-baseline justify-between gap-2 text-[11px] text-muted">
+        <span>
+          {label}
+          {required ? <span className="text-danger"> *</span> : null}
+        </span>
+        {hint ? <span className={`text-[11px] ${hintClassName ?? "text-muted-foreground"}`}>{hint}</span> : null}
       </span>
       {children}
     </label>

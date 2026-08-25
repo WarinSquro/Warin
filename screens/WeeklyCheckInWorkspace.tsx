@@ -10,6 +10,7 @@ import {
   WeeklyRecognitionPicker,
 } from "../components/WeeklyCheckInStatusPicker";
 import { WeeklyCheckInWeekPicker } from "../components/WeeklyCheckInWeekPicker";
+import { FilterSingleSelect } from "../components/FilterSingleSelect";
 import { useEmployees } from "../context/EmployeesContext";
 import { useMasters } from "../context/MastersContext";
 import { useSettings } from "../context/SettingsContext";
@@ -467,18 +468,14 @@ export function WeeklyCheckInWorkspace() {
 
               <div>
                 <label className="mb-1 block text-[12px] font-semibold text-foreground">Action Type</label>
-                <select
+                <FilterSingleSelect
                   value={actionType}
                   disabled={viewOnly}
-                  onChange={(e) => setActionType(e.target.value)}
-                  className="w-full rounded-md border border-border bg-surface px-2.5 py-2 text-[12px] text-foreground outline-none focus:border-accent-line disabled:bg-surface-alt"
-                >
-                  {actionTypes.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setActionType}
+                  options={actionTypes.map((t) => ({ value: t, label: t }))}
+                  fullWidth
+                  aria-label="Action Type"
+                />
                 {actionType !== "None" && (
                   <div className="mt-3">
                     <label className="mb-1 block text-[11px] font-medium text-muted">

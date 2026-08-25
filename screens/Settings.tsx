@@ -24,6 +24,7 @@ import { computeSettingsBandImpact } from "../utils/settingsImpact";
 import { useFocusFirstField } from "../hooks/useFocusFirstField";
 import type { SettingsAuditEntry } from "../utils/settingsAudit";
 import { SmtpSettingsSection } from "../components/SmtpSettingsSection";
+import { FilterSingleSelect } from "../components/FilterSingleSelect";
 import { useToast } from "../context/ToastContext";
 import { ConfirmDeleteDialog } from "../components/ConfirmDeleteDialog";
 import { AppDateInput } from "../components/AppDateInput";
@@ -730,19 +731,16 @@ export function Settings() {
               <label className="mb-1.5 block text-[12px] font-medium text-foreground">
                 Display format <span className="text-danger">*</span>
               </label>
-              <select
+              <FilterSingleSelect
                 value={dateFormatValue}
-                onChange={(e) =>
-                  patchSettings({ dateFormat: e.target.value as DateFormatPattern })
-                }
-                className="w-full cursor-pointer rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line"
-              >
-                {DATE_FORMAT_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => patchSettings({ dateFormat: v as DateFormatPattern })}
+                options={DATE_FORMAT_OPTIONS.map((opt) => ({
+                  value: opt.value,
+                  label: opt.label,
+                }))}
+                fullWidth
+                aria-label="Display format"
+              />
               <div className="mt-2 text-[11px] text-muted-foreground">
                 Example: {formatAppDateTime(`${tomorrowISO()}T15:45:00`, dateFormatValue)}
               </div>

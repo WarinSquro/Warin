@@ -4,6 +4,7 @@ import { useProjects } from "../context/ProjectsContext";
 import { useMasters } from "../context/MastersContext";
 import { useSettings } from "../context/SettingsContext";
 import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
+import { FilterSelect } from "./FilterSelect";
 import { AppDateInput } from "./AppDateInput";
 import { milestoneKindLabel, type Project } from "../data/projects";
 import { activitiesForProjectMilestone } from "../data/setup";
@@ -457,11 +458,8 @@ export function AllocationDrawer({ open, onClose, prefill, people, allocations =
                 }));
               }}
               placeholder="Select person"
-            >
-              {assignableRoster.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </Select>
+              options={assignableRoster.map((p) => ({ value: p.id, label: p.name }))}
+            />
             {form.personId && !canManageSelected && (
               <div className="mt-1.5 text-[11px] text-danger">{DIRECT_RO_ALLOCATION_MESSAGE}</div>
             )}
@@ -485,13 +483,8 @@ export function AllocationDrawer({ open, onClose, prefill, people, allocations =
                       : "Select project"
               }
               disabled={!form.personId || mappedProjectCodes == null}
-            >
-              {selectableProjects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </Select>
+              options={selectableProjects.map((p) => ({ value: p.id, label: p.name }))}
+            />
             {form.personId && mappedProjectCodes && selectableProjects.length === 0 && (
               <div className="mt-1.5 text-[11px] text-muted-foreground">
                 Map this resource to a project under Projects → Map Employees.
@@ -505,14 +498,11 @@ export function AllocationDrawer({ open, onClose, prefill, people, allocations =
               onChange={(v) => setForm((f) => ({ ...f, milestoneId: v, activity: "" }))}
               placeholder="Select milestone"
               disabled={!project || noProjectMilestones}
-            >
-              {projectMilestones.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                  {m.kind ? ` · ${milestoneKindLabel(m.kind)}` : ""}
-                </option>
-              ))}
-            </Select>
+              options={projectMilestones.map((m) => ({
+                value: m.id,
+                label: m.kind ? `${m.name} · ${milestoneKindLabel(m.kind)}` : m.name,
+              }))}
+            />
           </Field>
 
           {project && noProjectMilestones && (
@@ -530,11 +520,8 @@ export function AllocationDrawer({ open, onClose, prefill, people, allocations =
               onChange={(v) => set("activity", v)}
               placeholder="Select activity"
               disabled={!form.milestoneId}
-            >
-              {availableActivities.map((a) => (
-                <option key={a.id} value={a.name}>{a.name}</option>
-              ))}
-            </Select>
+              options={availableActivities.map((a) => ({ value: a.name, label: a.name }))}
+            />
             {form.milestoneId && availableActivities.length === 0 && (
               <div className="mt-1.5 text-[11px] text-muted-foreground">
                 No activities mapped to this milestone yet — link them in Org → Activities.
@@ -694,16 +681,26 @@ function Field({ label, required, hint, children }: { label: string; required?: 
   );
 }
 
-function Select({ value, onChange, children, placeholder, disabled }: { value: string; onChange: (v: string) => void; children: React.ReactNode; placeholder: string; disabled?: boolean }) {
+function Select({
+  value,
+  onChange,
+  options,
+  placeholder,
+  disabled,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+  placeholder: string;
+  disabled?: boolean;
+}) {
   return (
-    <select
+    <FilterSelect
       value={value}
+      onChange={onChange}
+      options={options}
+      placeholder={placeholder}
       disabled={disabled}
-      onChange={(e) => onChange(e.target.value)}
-      className="w-full rounded-md border border-border bg-surface px-2.5 py-2 text-[13px] text-foreground outline-none focus:border-primary disabled:opacity-50"
-    >
-      <option value="" disabled>{placeholder}</option>
-      {children}
-    </select>
+    />
   );
 }

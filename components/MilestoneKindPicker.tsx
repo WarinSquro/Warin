@@ -1,5 +1,6 @@
 import { MILESTONE_KIND_OPTIONS } from "../data/projects";
 import type { MilestoneKind } from "../data/projects";
+import { FilterSelect } from "./FilterSelect";
 
 export function MilestoneKindPicker({
   value,
@@ -16,20 +17,15 @@ export function MilestoneKindPicker({
         <span className="text-[11px] font-medium text-foreground">Milestone Type</span>
         {required && <span className="text-[11px] text-danger">*</span>}
       </div>
-      <select
+      <FilterSelect
         value={value}
-        onChange={(e) => onChange(e.target.value as MilestoneKind)}
-        className={`w-full rounded-md border bg-surface px-3 py-1.5 text-[12px] outline-none focus:border-accent-line ${
-          value ? "border-border text-foreground" : "border-warning-border text-muted-foreground"
-        }`}
-      >
-        <option value="">Select milestone type…</option>
-        {MILESTONE_KIND_OPTIONS.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
+        onChange={(v) => {
+          if (v) onChange(v as MilestoneKind);
+        }}
+        options={MILESTONE_KIND_OPTIONS}
+        placeholder="Select milestone type…"
+        aria-label="Milestone Type"
+      />
     </div>
   );
 }

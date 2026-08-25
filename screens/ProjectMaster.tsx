@@ -4,6 +4,8 @@ import { Plus, Search, X, AlertTriangle, Calendar, Trash2, Upload, Users } from 
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import { MapEmployeesToProjectsModal } from "../components/MapEmployeesToProjectsModal";
 import { FilterMultiSelect } from "../components/FilterMultiSelect";
+import { FilterSelect } from "../components/FilterSelect";
+import { FilterSingleSelect } from "../components/FilterSingleSelect";
 import {
   ReportColumnPicker,
   type ReportColumnOption,
@@ -772,27 +774,25 @@ function ProjectDrawer({
             </Field>
 
             <Field label="Type" required>
-              <select
+              <FilterSingleSelect
                 value={projectType}
                 disabled={coreLocked}
-                onChange={(e) => {
-                  setProjectType(e.target.value as Project["type"]);
+                onChange={(v) => {
+                  setProjectType(v as Project["type"]);
                   // Catalog milestones differ by type — clear any already-added lines.
                   setMilestones([]);
                   setMsCatalogId("");
                   setMsDate("");
                 }}
-                className={`w-full rounded-md border border-border px-3 py-2 text-[13px] outline-none focus:border-accent-line ${
-                  coreLocked
-                    ? "cursor-not-allowed bg-surface-alt text-muted"
-                    : "cursor-pointer bg-surface text-foreground"
-                }`}
-              >
-                <option value="paid">Paid</option>
-                <option value="poc">POC</option>
-                <option value="product">Product</option>
-                <option value="support">Support</option>
-              </select>
+                options={[
+                  { value: "paid", label: "Paid" },
+                  { value: "poc", label: "POC" },
+                  { value: "product", label: "Product" },
+                  { value: "support", label: "Support" },
+                ]}
+                fullWidth
+                aria-label="Project type"
+              />
             </Field>
           </div>
 
@@ -810,28 +810,20 @@ function ProjectDrawer({
           </Field>
 
           <Field label="Customer" required>
-            <select
+            <FilterSingleSelect
               value={customer}
-              onChange={(e) => setCustomer(e.target.value)}
+              onChange={setCustomer}
               disabled={coreLocked || customersLoading || customerList.length === 0}
-              className={`w-full rounded-md border border-border px-3 py-2 text-[13px] outline-none focus:border-accent-line disabled:cursor-not-allowed disabled:opacity-60 ${
-                coreLocked
-                  ? "bg-surface-alt text-muted"
-                  : "cursor-pointer bg-surface text-foreground"
-              }`}
-            >
-              {customersLoading && customerList.length === 0 ? (
-                <option value="">Loading customers…</option>
-              ) : customerList.length === 0 ? (
-                <option value="">No customers available</option>
-              ) : (
-                customerList.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))
-              )}
-            </select>
+              options={
+                customersLoading && customerList.length === 0
+                  ? [{ value: "", label: "Loading customers…", disabled: true }]
+                  : customerList.length === 0
+                    ? [{ value: "", label: "No customers available", disabled: true }]
+                    : customerList.map((c) => ({ value: c, label: c }))
+              }
+              fullWidth
+              aria-label="Customer"
+            />
             {customersError && (
               <p className="mt-1 text-[11px] text-danger">{customersError}</p>
             )}
@@ -1055,18 +1047,16 @@ function ProjectDrawer({
                   No {projectTypeLabel(projectType)} milestones left — add them in Org → Activities.
                 </div>
               )}
-              <select
+              <FilterSelect
                 value={msCatalogId}
-                onChange={(e) => setMsCatalogId(e.target.value)}
-                className="w-full min-w-0 rounded-md border border-border bg-surface px-3 py-2 text-[12px] text-foreground outline-none focus:border-accent-line"
-              >
-                <option value="">Select milestone…</option>
-                {catalogMilestones.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name} · {milestoneKindLabel(m.kind)}
-                  </option>
-                ))}
-              </select>
+                onChange={setMsCatalogId}
+                options={catalogMilestones.map((m) => ({
+                  value: m.id,
+                  label: `${m.name} · ${milestoneKindLabel(m.kind)}`,
+                }))}
+                placeholder="Select milestone…"
+                aria-label="Select milestone"
+              />
               <div className="flex gap-2">
                 <AppDateInput
                   value={msDate}
@@ -1105,17 +1095,13 @@ function ProjectDrawer({
 
           <div className="grid grid-cols-2 gap-3">
             <Field label="Project health" required>
-              <select
+              <FilterSingleSelect
                 value={health}
-                onChange={(e) => setHealth(e.target.value as ProjectHealth)}
-                className="w-full cursor-pointer rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line"
-              >
-                {HEALTH_OPTIONS.map((h) => (
-                  <option key={h} value={h}>
-                    {HEALTH_LABELS[h]}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => setHealth(v as ProjectHealth)}
+                options={HEALTH_OPTIONS.map((h) => ({ value: h, label: HEALTH_LABELS[h] }))}
+                fullWidth
+                aria-label="Project health"
+              />
             </Field>
             <div />
           </div>

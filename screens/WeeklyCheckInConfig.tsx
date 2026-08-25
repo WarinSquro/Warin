@@ -16,6 +16,7 @@ import type { CompetencyKind, DepartmentConfigStatus } from "../data/weeklyCheck
 import { useMasters } from "../context/MastersContext";
 import { useToast } from "../context/ToastContext";
 import { ConfirmDeleteDialog } from "../components/ConfirmDeleteDialog";
+import { FilterSingleSelect } from "../components/FilterSingleSelect";
 import { fetchWeeklyCheckInConfig, putWeeklyCheckInConfig } from "../api/domain";
 import { useSharedDataSync, usePauseSharedDataSync, MASTER_TXN_SYNC_INTERVAL_MS } from "../hooks/useSharedDataSync";
 
@@ -475,20 +476,17 @@ export function WeeklyCheckInConfig() {
               <div className="flex flex-wrap items-center gap-2 rounded-md border border-border-soft bg-surface-alt/70 px-3 py-2">
                 <Copy className="h-3.5 w-3.5 text-muted-foreground" />
                 <span className="text-[12px] text-muted-foreground">Copy from department</span>
-                <select
+                <FilterSingleSelect
                   value={copyFromId}
-                  onChange={(e) => setCopyFromId(e.target.value)}
-                  className="rounded-md border border-border bg-surface px-2 py-1 text-[12px] outline-none focus:border-accent-line"
-                >
-                  <option value="">Select…</option>
-                  {activeDepts
-                    .filter((d) => deptKey(d) !== selectedDeptId)
-                    .map((d) => (
-                      <option key={deptKey(d)} value={deptKey(d)}>
-                        {d.name}
-                      </option>
-                    ))}
-                </select>
+                  onChange={setCopyFromId}
+                  options={[
+                    { value: "", label: "Select…" },
+                    ...activeDepts
+                      .filter((d) => deptKey(d) !== selectedDeptId)
+                      .map((d) => ({ value: deptKey(d), label: d.name })),
+                  ]}
+                  aria-label="Copy from department"
+                />
                 <button
                   type="button"
                   onClick={handleCopy}

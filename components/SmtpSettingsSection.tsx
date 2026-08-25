@@ -10,6 +10,7 @@ import {
   type SmtpSettingsPayload,
 } from "../api/domain";
 import { useToast } from "../context/ToastContext";
+import { FilterSingleSelect } from "./FilterSingleSelect";
 import { usePauseSharedDataSync } from "../hooks/useSharedDataSync";
 
 const SECURITY_OPTIONS: { value: SmtpSecurityType; label: string }[] = [
@@ -298,27 +299,25 @@ export function SmtpSettingsSection() {
           />
         </Field>
         <Field label="Security Type" required>
-          <select
+          <FilterSingleSelect
             value={form.securityType}
-            onChange={(e) => patch({ securityType: e.target.value as SmtpSecurityType })}
-            className={fieldClass}
-          >
-            {SECURITY_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => patch({ securityType: v as SmtpSecurityType })}
+            options={SECURITY_OPTIONS}
+            fullWidth
+            aria-label="Security Type"
+          />
         </Field>
         <Field label="Authentication Required" required>
-          <select
+          <FilterSingleSelect
             value={form.authRequired ? "yes" : "no"}
-            onChange={(e) => patch({ authRequired: e.target.value === "yes" })}
-            className={fieldClass}
-          >
-            <option value="yes">Yes</option>
-            <option value="no">No</option>
-          </select>
+            onChange={(v) => patch({ authRequired: v === "yes" })}
+            options={[
+              { value: "yes", label: "Yes" },
+              { value: "no", label: "No" },
+            ]}
+            fullWidth
+            aria-label="Authentication Required"
+          />
         </Field>
         <Field label="Sender Name" required>
           <input

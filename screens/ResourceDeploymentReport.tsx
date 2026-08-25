@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { FileSpreadsheet, FileText, Search } from "lucide-react";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import { FilterMultiSelect } from "../components/FilterMultiSelect";
+import { FilterSingleSelect } from "../components/FilterSingleSelect";
 import { MetricChip } from "../components/MetricChip";
 import {
   DEPLOYMENT_STATUSES,
@@ -373,17 +374,12 @@ export function ResourceDeploymentReport() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <select
+          <FilterSingleSelect
             value={periodId}
-            onChange={(e) => setPeriodId(e.target.value as ReportPeriodId)}
-            className="rounded-md border border-border bg-surface px-2.5 py-1.5 text-[12px] text-foreground outline-none focus:border-primary"
-          >
-            {REPORT_PERIODS.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.label}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => setPeriodId(v as ReportPeriodId)}
+            options={REPORT_PERIODS.map((p) => ({ value: p.id, label: p.label }))}
+            aria-label="Period"
+          />
           <button
             type="button"
             onClick={() => handleExport("excel")}
@@ -457,17 +453,12 @@ export function ResourceDeploymentReport() {
         />
         <div className="flex items-center gap-1.5">
           <span className="text-[11px] text-muted-foreground">Group by</span>
-          <select
+          <FilterSingleSelect
+            aria-label="Group by"
             value={groupBy}
-            onChange={(e) => setGroupBy(e.target.value as DeploymentGroupBy)}
-            className="rounded-md border border-border bg-surface px-2.5 py-1.5 text-[12px] text-foreground outline-none focus:border-primary"
-          >
-            {GROUP_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => setGroupBy(v as DeploymentGroupBy)}
+            options={GROUP_OPTIONS}
+          />
         </div>
       </div>
 

@@ -14,6 +14,7 @@ import type {
 } from "../data/setup";
 import type { ProjectType, MilestoneKind } from "../data/projects";
 import { MilestoneKindPicker } from "../components/MilestoneKindPicker";
+import { FilterSingleSelect } from "../components/FilterSingleSelect";
 import { useMasters } from "../context/MastersContext";
 import { useToast } from "../context/ToastContext";
 import { useAuth } from "../context/AuthContext";
@@ -246,22 +247,20 @@ function SkillDrawer({
             />
           </Field>
           <Field label="Category" required>
-            <select
+            <FilterSingleSelect
               value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
+              onChange={setCategoryId}
               disabled={saving || categoriesLoading || categoryList.length === 0}
-              className="w-full cursor-pointer rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line disabled:opacity-60"
-            >
-              {categoriesLoading && <option value="">Loading…</option>}
-              {!categoriesLoading && categoryList.length === 0 && (
-                <option value="">No categories</option>
-              )}
-              {categoryList.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+              options={
+                categoriesLoading
+                  ? [{ value: "", label: "Loading…", disabled: true }]
+                  : categoryList.length === 0
+                    ? [{ value: "", label: "No categories", disabled: true }]
+                    : categoryList.map((c) => ({ value: c.id, label: c.name }))
+              }
+              fullWidth
+              aria-label="Category"
+            />
             {addingCategory ? (
               <div className="mt-2 flex gap-2">
                 <input
@@ -515,18 +514,17 @@ function ActivityDrawer({
 
           <div className="border-t border-border-soft pt-4">
             <Field label="Milestone" required>
-              <select
+              <FilterSingleSelect
                 value={milestoneId}
-                onChange={(e) => setMilestoneId(e.target.value)}
+                onChange={setMilestoneId}
                 disabled={saving}
-                className="w-full cursor-pointer rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line disabled:opacity-60"
-              >
-                {milestones.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name} · {projectTypeLabel(m.projectType)} · {milestoneKindLabel(m.kind)}
-                  </option>
-                ))}
-              </select>
+                options={milestones.map((m) => ({
+                  value: m.id,
+                  label: `${m.name} · ${projectTypeLabel(m.projectType)} · ${milestoneKindLabel(m.kind)}`,
+                }))}
+                fullWidth
+                aria-label="Milestone"
+              />
               {addingMilestone ? (
                 <div className="mt-2 flex flex-col gap-2 rounded-md border border-border-soft bg-surface px-3 py-2.5">
                   <input
@@ -548,16 +546,18 @@ function ActivityDrawer({
                     required
                   />
                   <div className="text-[11px] font-medium text-foreground">Project type</div>
-                  <select
+                  <FilterSingleSelect
                     value={newMilestoneType}
-                    onChange={(e) => setNewMilestoneType(e.target.value as ProjectType)}
-                    className="w-full cursor-pointer rounded-md border border-border bg-surface px-3 py-1.5 text-[12px] text-foreground outline-none focus:border-accent-line"
-                  >
-                    <option value="paid">Paid</option>
-                    <option value="poc">POC</option>
-                    <option value="product">Product</option>
-                    <option value="support">Support</option>
-                  </select>
+                    onChange={(v) => setNewMilestoneType(v as ProjectType)}
+                    options={[
+                      { value: "paid", label: "Paid" },
+                      { value: "poc", label: "POC" },
+                      { value: "product", label: "Product" },
+                      { value: "support", label: "Support" },
+                    ]}
+                    fullWidth
+                    aria-label="Project type"
+                  />
                   <div className="flex gap-2">
                     <button
                       onClick={() => void addMilestone()}

@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { FileSpreadsheet, FileText, Search } from "lucide-react";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import { FilterMultiSelect } from "../components/FilterMultiSelect";
+import { FilterSingleSelect } from "../components/FilterSingleSelect";
 import { MetricChip } from "../components/MetricChip";
 import { MetricDelta } from "../components/MetricDelta";
 import { BillableSplitBar } from "../components/BillableSplitBar";
@@ -386,30 +387,19 @@ export function ResourcePerformanceReport() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <select
+          <FilterSingleSelect
             value={periodId}
-            onChange={(e) => setPeriodId(e.target.value as PerformancePeriodId)}
-            className="rounded-md border border-border bg-surface px-2.5 py-1.5 text-[12px] text-foreground outline-none focus:border-primary"
-          >
-            {PERFORMANCE_PERIODS.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.label}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => setPeriodId(v as PerformancePeriodId)}
+            options={PERFORMANCE_PERIODS.map((p) => ({ value: p.id, label: p.label }))}
+            aria-label="Period"
+          />
           {periodId === "custom" && (
-            <select
+            <FilterSingleSelect
               value={customMonthId}
-              onChange={(e) => setCustomMonthId(e.target.value as PerformanceCustomMonthId)}
-              className="rounded-md border border-border bg-surface px-2.5 py-1.5 text-[12px] text-foreground outline-none focus:border-primary"
+              onChange={(v) => setCustomMonthId(v as PerformanceCustomMonthId)}
+              options={PERFORMANCE_CUSTOM_MONTHS.map((m) => ({ value: m.id, label: m.label }))}
               aria-label="Select month"
-            >
-              {PERFORMANCE_CUSTOM_MONTHS.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
+            />
           )}
           <label className="flex cursor-pointer items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[12px] text-foreground">
             <input

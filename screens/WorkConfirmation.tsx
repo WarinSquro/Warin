@@ -5,6 +5,7 @@ import { formatAppDate, formatAppDateTime } from "../utils/formatAppDate";
 import { useAppDateFormat } from "../hooks/useAppDateFormat";
 import { useSharedDataSync, usePauseSharedDataSync, MASTER_TXN_SYNC_INTERVAL_MS } from "../hooks/useSharedDataSync";
 import { AppDateInput } from "../components/AppDateInput";
+import { FilterSelect } from "../components/FilterSelect";
 import {
   DEVIATION_REASONS,
   MISS_POSTING_REASONS,
@@ -940,25 +941,18 @@ function EmployeeConfirm() {
               <div className="flex gap-3">
                 <div className="w-1/2">
                   <div className="mb-1.5 text-[11px] font-medium text-muted">Reason for miss</div>
-                  <select
+                  <FilterSelect
                     value={missReason}
-                    onChange={(e) => {
-                      setMissReason(e.target.value);
+                    onChange={(v) => {
+                      setMissReason(v);
                       setMissDate("");
                       setFetchError("");
                       if (fetchedMissDate) void loadTodayPlanForEdit();
                     }}
-                    className={`w-full rounded-md border bg-surface px-2.5 py-2 text-[12px] outline-none focus:border-accent-line ${
-                      missReason ? "border-border text-foreground" : "border-warning-border text-muted-foreground"
-                    }`}
-                  >
-                    <option value="">Select a reason…</option>
-                    {MISS_POSTING_REASONS.map((r) => (
-                      <option key={r} value={r}>
-                        {r}
-                      </option>
-                    ))}
-                  </select>
+                    options={MISS_POSTING_REASONS.map((r) => ({ value: r, label: r }))}
+                    placeholder="Select a reason…"
+                    aria-label="Reason for miss"
+                  />
                 </div>
 
                 <div className="w-1/2">
@@ -1353,21 +1347,15 @@ function LineRow({
             />
             <span className="text-[11px] text-muted-foreground">h</span>
           </div>
-          <select
+          <FilterSelect
             value={st.reason}
             disabled={statusDisabled}
-            onChange={(e) => onChange({ reason: e.target.value })}
-            className={`flex-1 rounded-md border bg-surface px-2 py-1.5 text-[12px] outline-none focus:border-accent-line disabled:bg-surface-alt ${
-              st.reason ? "border-border text-foreground" : "border-warning-border text-muted-foreground"
-            }`}
-          >
-            <option value="">Reason for deviation…</option>
-            {DEVIATION_REASONS.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => onChange({ reason: v })}
+            options={DEVIATION_REASONS.map((r) => ({ value: r, label: r }))}
+            placeholder="Reason for deviation…"
+            aria-label="Reason for deviation"
+            className="flex-1"
+          />
         </div>
       )}
     </div>

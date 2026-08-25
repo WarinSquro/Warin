@@ -19,6 +19,7 @@ import { useSharedDataSync, usePauseSharedDataSync, MASTER_TXN_SYNC_INTERVAL_MS 
 import { formatDataReachSummary, getResourceOwnerDisplay } from "../utils/employeeHierarchy";
 import { matchesSearchQuery } from "../utils/textSearch";
 import { ThemeCheckbox } from "../components/ThemeCheckbox";
+import { FilterSingleSelect } from "../components/FilterSingleSelect";
 
 function setsEqual(a: Set<string>, b: Set<string>): boolean {
   if (a.size !== b.size) return false;
@@ -333,20 +334,17 @@ export function AccessRights() {
                 {!readOnly && copySources.length > 0 ? (
                   <div className="flex items-center gap-2">
                     <label className="text-[12px] text-muted-foreground">Copy access from</label>
-                    <select
+                    <FilterSingleSelect
                       value={copyFromId}
-                      onChange={(e) => {
-                        if (e.target.value) void handleCopyFrom(e.target.value);
+                      onChange={(v) => {
+                        if (v) void handleCopyFrom(v);
                       }}
-                      className="cursor-pointer rounded-md border border-border bg-surface px-2.5 py-1.5 text-[12px] text-foreground outline-none"
-                    >
-                      <option value="">Select employee…</option>
-                      {copySources.map((e) => (
-                        <option key={e.id} value={e.id}>
-                          {e.name}
-                        </option>
-                      ))}
-                    </select>
+                      options={[
+                        { value: "", label: "Select employee…" },
+                        ...copySources.map((e) => ({ value: e.id, label: e.name })),
+                      ]}
+                      aria-label="Copy access from"
+                    />
                   </div>
                 ) : (
                   <div />

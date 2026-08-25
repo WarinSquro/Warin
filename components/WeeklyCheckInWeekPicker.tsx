@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { getReviewWeeks, type ReviewWeekOption } from "../data/weeklyCheckIn";
 import { useSettings } from "../context/SettingsContext";
+import { FilterSingleSelect } from "./FilterSingleSelect";
 
 interface WeeklyCheckInWeekPickerProps {
   weekStart: string;
@@ -40,17 +41,16 @@ export function WeeklyCheckInWeekPicker({
       >
         <ChevronLeft className="h-4 w-4" />
       </button>
-      <select
+      <FilterSingleSelect
         value={weekStart}
-        onChange={(e) => onChange(e.target.value)}
-        className="min-w-[11rem] rounded-md border border-border bg-surface px-2.5 py-1.5 text-[12px] text-foreground outline-none focus:border-accent-line"
-      >
-        {weeks.map((w) => (
-          <option key={w.weekStart} value={w.weekStart}>
-            {w.isCurrent ? `This week · ${w.label}` : w.label}
-          </option>
-        ))}
-      </select>
+        onChange={onChange}
+        options={weeks.map((w) => ({
+          value: w.weekStart,
+          label: w.isCurrent ? `This week · ${w.label}` : w.label,
+        }))}
+        className="min-w-[11rem]"
+        aria-label="Review week"
+      />
       <button
         type="button"
         onClick={goNext}

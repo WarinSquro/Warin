@@ -15,6 +15,8 @@ import {
 import { TruncateText } from "../components/TruncateText";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import { FilterMultiSelect } from "../components/FilterMultiSelect";
+import { FilterSelect } from "../components/FilterSelect";
+import { FilterSingleSelect } from "../components/FilterSingleSelect";
 import { resourceOwnerName } from "../data/employees";
 import type { Employee } from "../data/employees";
 import { initEmptyEmployeeRights } from "../data/accessRights";
@@ -494,7 +496,7 @@ function EmployeeDrawer({
   const nameRef = useRef<HTMLInputElement>(null);
   const idRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
-  const deptRef = useRef<HTMLSelectElement>(null);
+  const deptRef = useRef<HTMLDivElement>(null);
 
   const resourceOwners = employees
     .filter((e) => e.id !== employee?.id)
@@ -533,7 +535,7 @@ function EmployeeDrawer({
     }
     if (!dept.trim()) {
       toast.error("Department is required.");
-      deptRef.current?.focus();
+      deptRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
       return;
     }
     onSave({
@@ -587,18 +589,19 @@ function EmployeeDrawer({
             />
           </Field>
           <Field label="Department" required>
-            <select
-              ref={deptRef}
-              value={dept}
-              onChange={(e) => setDept(e.target.value)}
-              className="w-full rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line"
-            >
-              {departmentNames.length === 0 ? (
-                <option value="">No departments available</option>
-              ) : (
-                departmentNames.map((d) => <option key={d}>{d}</option>)
-              )}
-            </select>
+            <div ref={deptRef}>
+              <FilterSingleSelect
+                value={dept}
+                onChange={setDept}
+                options={
+                  departmentNames.length === 0
+                    ? [{ value: "", label: "No departments available", disabled: true }]
+                    : departmentNames.map((d) => ({ value: d, label: d }))
+                }
+                fullWidth
+                aria-label="Department"
+              />
+            </div>
           </Field>
           <Field label="Skills" hint="From skills master · feeds Find Matches & Availability">
             <FilterMultiSelect
@@ -613,16 +616,13 @@ function EmployeeDrawer({
             />
           </Field>
           <Field label="Resource Owner">
-            <select
+            <FilterSelect
               value={resourceOwnerId}
-              onChange={(e) => setResourceOwnerId(e.target.value)}
-              className="w-full rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line"
-            >
-              <option value="">Select resource owner</option>
-              {resourceOwners.map((e) => (
-                <option key={e.id} value={e.id}>{e.name}</option>
-              ))}
-            </select>
+              onChange={setResourceOwnerId}
+              options={resourceOwners.map((e) => ({ value: e.id, label: e.name }))}
+              placeholder="Select resource owner"
+              aria-label="Resource Owner"
+            />
           </Field>
           <Field label="Allowed IP" hint="Optional · blank allows login from any IP">
             <input

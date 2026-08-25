@@ -32,6 +32,154 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-25 13:50 IST
+
+**Prompt:**  
+> KPI Framework list: header should stay stable; only data grid scrolls.
+
+**Output:**  
+- `screens/KpiFramework.tsx` — removed nested `overflow-x-auto` (broke sticky); single `overflow-auto` scrollport; `sticky top-0 bg-surface-alt` on each `<th>`.
+
+### 2026-08-25 13:42 IST
+
+**Prompt:**  
+> After Yes on “Add another KPI from the same resource”, keep Copy-from resource selected.
+
+**Output:**  
+- `screens/KpiFramework.tsx` — `resetFormForAnother` no longer clears `copyFromId` / source list; only clears `copyKpiId` so another KPI can be picked from the same source.
+
+### 2026-08-25 13:36 IST
+
+**Prompt:**  
+> Post-save “KPI saved” prompt: Yes / No, close buttons should match mockup (equal width, fill row).
+
+**Output:**  
+- `screens/KpiFramework.tsx` — both buttons `flex-1`, `gap-2.5`, font-medium on No close (matches Cancel/Save footer style).
+
+### 2026-08-25 13:30 IST
+
+**Prompt:**  
+> KPI list headers: sort arrows overlapping; set column widths properly (Unit/Target/Direction/Weight %).
+
+**Output:**  
+- `KPI_LIST_COLUMNS` → pixel min-widths (1120px total); compact `px-2` on narrow cols.
+- `SortColHeader` — optional `fillCell` (truncate label, icon stays in column).
+- List thead uses `fillCell` + `overflow-hidden` on `<th>`.
+
+### 2026-08-25 13:25 IST
+
+**Prompt:**  
+> When all grid data visible, All departments / All resources dropdowns should have all items checked by default.
+
+**Output:**  
+- `screens/KpiFramework.tsx` — `reconcileMultiSelect` on dept/resource option lists (same as reports); empty initial state expands to full selection so checkboxes match “show all” grid.
+
+### 2026-08-25 13:20 IST
+
+**Prompt:**  
+> KPI Framework List: match Employee Master — fixed filter bar, grid only scrolls; sticky column headers.
+
+**Output:**  
+- `screens/KpiFramework.tsx` — List + Masters use one card: `flex-shrink-0` filter/toolbar + `min-h-0 flex-1 overflow-y-auto` grid; sticky `thead`; page body `overflow-hidden`; tuned Period/Status column %.
+
+### 2026-08-25 13:15 IST
+
+**Prompt:**  
+> KPI Framework list table: columns proper width/spacing; use available width; wrap Category/KPI/Method.
+
+**Output:**  
+- `screens/KpiFramework.tsx` — removed fixed 1480px min-width; `table-fixed w-full` with percent `colgroup` (sums 100%); Method wraps like Category/KPI; slightly taller cell padding (`py-3`).
+
+### 2026-08-25 13:10 IST
+
+**Prompt:**  
+> Finalize KPI Framework drawer: Save disabled until mandatory fields; copy-from → KPI required; inline “KPI saved.” / Yes / No, close; Edit Delete like Allocation drawer.
+
+**Output:**  
+- `screens/KpiFramework.tsx` — `canSave` gating; copy KPI required when copy resource selected; post-save prompt inline in drawer (drawer stays open); Allocation-style Delete KPI block; removed `AddAnotherDialog` modal.
+
+### 2026-08-25 12:40 IST
+
+**Prompt:**  
+> KPI Framework list: columns need proper width / spacing; wrap Category and KPI data so text doesn’t overlap next columns.
+
+**Output:**  
+- `screens/KpiFramework.tsx` — `table-fixed` + `colgroup` widths; padding `px-4`; Category/KPI use `break-words` wrap; other text columns stay truncated with `min-w-0`.
+
+### 2026-08-25 12:15 IST
+
+**Prompt:**  
+> Implement KPI Framework List + drawer redesign; Year/Quarter stay single-select; no business logic, database, or API changes.
+
+**Output:**  
+- UI-only rewrite of `screens/KpiFramework.tsx`: header tabs **List | Masters**; List toolbar Search → Year → Quarter → Department/Resource multi → **+ Add KPI**; read-only grid; row opens drawer.
+- Add drawer: for-resource (directs), year/quarter, optional copy-one prefill (client fetch + form fill, not bulk copy API), Save → “Add another…?”; Edit/View by permission; Delete with confirm.
+- Weight hint on list only when exactly one resource filtered; drawer shows others % · total %.
+- Masters tab unchanged. No Prisma / Nest / `api/domain` contract changes. `tsc -b` clean for this screen.
+
+### 2026-08-25 11:35 IST
+
+**Prompt:**  
+> Leaves modal Resource… search input height should match Department… (32px).
+
+**Output:**  
+- Root cause: Resource input sat inside a wrapper so flex stretch didn’t apply to the `<input>` (26px vs 32px siblings).
+- Filter row inputs use fixed `h-8` + `text-[12px]` aligned with FilterSingleSelect; `items-center` on the row.
+
+### 2026-08-25 11:30 IST
+
+**Prompt:**  
+> Single-selection dropdown: put ▾ on the right of the box with same spacing as left text inset; update rule file.
+
+**Output:**  
+- Trigger layout (`inline-flex justify-between gap-3 px-3`): label left, caret right — `FilterSingleSelect`, `FilterMultiSelect`, `MinFreeHoursSelect`.
+- Rule `.cursor/rules/oneview-ui.mdc` updated for caret placement.
+
+### 2026-08-25 10:15 IST
+
+**Prompt:**  
+> Apply FilterSingleSelect style across the entire app for single-selection dropdowns; add to rule file for new screens.
+
+**Output:**  
+- `FilterSelect` now wraps `FilterSingleSelect` (KPI / leaves resource / map-employees get new chrome automatically).
+- Migrated remaining native `<select>` → `FilterSingleSelect` / `FilterSelect` across reports, masters, settings, drawers, pagination, WCI, Work Confirmation, SMTP (zero `<select>` left in screens/components except comments).
+- Rule: `.cursor/rules/oneview-ui.mdc` — prefer `FilterSingleSelect` / `FilterSelect`; ban new native `<select>` for UI.
+
+### 2026-08-25 10:09 IST
+
+**Prompt:**  
+> Migrate native HTML `<select>` elements to `FilterSingleSelect` / `FilterSelect` across listed report screens, shared components, and master/settings forms. Keep behavior identical; prefer FilterSelect for blank placeholders; do not change FilterMultiSelect / date inputs / already-migrated files.
+
+**Output:**  
+- Migrated native `<select>` → `FilterSingleSelect` or `FilterSelect` in:
+  - `screens/DailyWorkReport.tsx`, `ResourcePerformanceReport.tsx`, `ProjectExecutionReport.tsx`, `ResourceDeploymentReport.tsx`
+  - `components/ReportPagination.tsx`, `MilestoneKindPicker.tsx`, `WeeklyCheckInWeekPicker.tsx`, `ResourceLeavesModal.tsx`, `AllocationDrawer.tsx` (local `Select` helper → `FilterSelect` + options)
+  - `screens/EmployeeMaster.tsx`, `ProjectMaster.tsx`, `SetupMasters.tsx`, `Settings.tsx`, `AccessRights.tsx`, `WeeklyCheckInConfig.tsx`, `WeeklyCheckInWorkspace.tsx`, `WorkConfirmation.tsx`
+  - `components/SmtpSettingsSection.tsx`
+- `npx tsc --noEmit` passed
+- No call sites left unmigrated in the requested file list (screens folder has zero remaining `<select>`)
+- Unchanged by request: `FilterSingleSelect.tsx`, `FilterSelect.tsx`, `WorkDateDaySelect.tsx`, WorkdaySummaryReport Group by, FilterMultiSelect usages
+
+---
+
+### 2026-08-25 09:58 IST
+
+**Prompt:**  
+> FilterSingleSelect Work Date / Group by — radio button is not required.
+
+**Output:**  
+- Removed radio dots from `FilterSingleSelect` menu rows; selected option uses medium weight text only.
+
+### 2026-08-25 09:55 IST
+
+**Prompt:**  
+> Workday Summary: Work Date and Group by native `<select>`s — use same style dropdown as "All resources".
+
+**Output:**  
+- Added `components/FilterSingleSelect.tsx` — same button chrome as `FilterMultiSelect` (`border` + `▾` + panel).
+- `WorkDateDaySelect` now uses it (All dates / 1–31); also applies on Daily Work Report.
+- Workday Summary **Group by** uses `FilterSingleSelect` instead of native `<select>`.
+
 ### 2026-08-25 07:45 IST
 
 **Prompt:**  

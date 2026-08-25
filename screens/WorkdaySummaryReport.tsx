@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ChevronLeft, ChevronRight, FileSpreadsheet, FileText, Search } from "lucide-react";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import { FilterMultiSelect } from "../components/FilterMultiSelect";
+import { FilterSingleSelect } from "../components/FilterSingleSelect";
 import { ReportPagination } from "../components/ReportPagination";
 import { ReportColumnPicker } from "../components/ReportColumnPicker";
 import { WorkDateDaySelect } from "../components/WorkDateDaySelect";
@@ -522,17 +523,12 @@ export function WorkdaySummaryReport() {
         <WorkDateDaySelect value={workDay} onChange={setWorkDay} />
         <div className="flex items-center gap-1.5">
           <span className="text-[11px] text-muted-foreground">Group by</span>
-          <select
+          <FilterSingleSelect
+            aria-label="Group by"
             value={groupBy}
-            onChange={(e) => setGroupBy(e.target.value as WorkdaySummaryGroupBy)}
-            className="cursor-pointer rounded-md border border-border bg-surface px-2.5 py-1.5 text-[12px] text-foreground outline-none focus:border-primary"
-          >
-            {GROUP_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => setGroupBy(v as WorkdaySummaryGroupBy)}
+            options={GROUP_OPTIONS}
+          />
         </div>
         <label className="flex cursor-pointer items-center gap-1.5 text-[12px] text-foreground">
           <input

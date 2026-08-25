@@ -203,15 +203,18 @@ export function FilterMultiSelect({
         ref={triggerRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={`rounded-md border px-3 py-1.5 text-[12px] hover:bg-surface-alt ${
-          fullWidth ? "w-full text-left" : ""
+        className={`inline-flex items-center justify-between gap-3 rounded-md border px-3 py-1.5 text-[12px] hover:bg-surface-alt ${
+          fullWidth ? "w-full" : ""
         } ${
           noneSelected && !emptyNeutral
             ? "border-danger/40 text-danger"
             : "border-border text-foreground"
         }`}
       >
-        {triggerLabel} ▾
+        <span className="min-w-0 truncate text-left">{triggerLabel}</span>
+        <span className="shrink-0 leading-none" aria-hidden>
+          ▾
+        </span>
       </button>
       {menu}
     </div>

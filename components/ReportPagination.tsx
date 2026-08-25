@@ -1,4 +1,5 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { FilterSingleSelect } from "./FilterSingleSelect";
 
 interface ReportPaginationProps {
   page: number;
@@ -30,17 +31,12 @@ export function ReportPagination({
       <div className="flex items-center gap-3">
         <label className="flex items-center gap-2 text-[12px] text-foreground">
           Rows
-          <select
-            value={pageSize}
-            onChange={(e) => onPageSizeChange(Number(e.target.value))}
-            className="rounded-md border border-border bg-surface px-2 py-1 text-[12px] outline-none focus:border-primary"
-          >
-            {pageSizeOptions.map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
+          <FilterSingleSelect
+            value={String(pageSize)}
+            onChange={(v) => onPageSizeChange(Number(v))}
+            options={pageSizeOptions.map((n) => ({ value: String(n), label: String(n) }))}
+            aria-label="Rows per page"
+          />
         </label>
         <div className="flex items-center gap-1">
           <button
