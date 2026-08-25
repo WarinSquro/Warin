@@ -26,7 +26,13 @@ import { useToast } from "../context/ToastContext";
 import { useAuth } from "../context/AuthContext";
 import { allocationBlockedMessage } from "../utils/allocationPermission";
 import { buildAvailRowsFromEmployees, buildRollingOffFromLive, addDaysISO, mondayISO } from "../api/liveViews";
-import { createAllocation, fetchAllocations, type ApiAllocation } from "../api/domain";
+import {
+  createAllocation,
+  fetchAllocations,
+  fetchActiveLeaveDatesByEmployee,
+  fetchResourceLeaves,
+  type ApiAllocation,
+} from "../api/domain";
 import { TruncateText } from "../components/TruncateText";
 import { formatHoursDecimalLabel, formatHoursLabel, roundHoursToTenth } from "../utils/formatHours";
 
@@ -403,6 +409,9 @@ function AvailTableRow({
         <FreeCapacityBar freeHours={row.freeHours} capacity={row.capacity} />
         <div className="mt-0.5 text-[11px] text-muted-foreground">
           {row.bookedPct}% booked
+          {(row.leaveHours ?? 0) > 0
+            ? ` · ${formatHoursDecimalLabel(row.leaveHours!)} leave`
+            : ""}
         </div>
       </div>
 
@@ -501,20 +510,44 @@ export function Availability() {
   /** Capacity for the table — follows week picker. */
   const weekCapacity = weekCapacityHours(weekStart, calendarOpts) || fallbackWeekCapacity;
   const [allocations, setAllocations] = useState<ApiAllocation[]>([]);
+  const [leaveDatesByEmployee, setLeaveDatesByEmployee] = useState<Record<string, string[]>>({});
 
   const reloadAllocations = useCallback(async () => {
     const from = addDaysISO(supplyFrom, -30);
     const to = addDaysISO(supplyTo, 7);
     try {
-      setAllocations(await fetchAllocations({ from, to }));
+      const a = await fetchAllocations({ from, to });
+      setAllocations(a);
     } catch {
       setAllocations([]);
+    }
+    // Same source as Resource Planner so leave markers and free hrs stay in sync.
+    try {
+      setLeaveDatesByEmployee(await fetchActiveLeaveDatesByEmployee());
+    } catch {
+      try {
+        const rows = await fetchResourceLeaves({ from, to });
+        const leaves: Record<string, string[]> = {};
+        for (const row of rows) {
+          if (row.status !== "Active") continue;
+          const key = String(row.employeeHrmsId).trim();
+          const iso = row.leaveDate.slice(0, 10);
+          if (!leaves[key]) leaves[key] = [];
+          if (!leaves[key].includes(iso)) leaves[key].push(iso);
+        }
+        setLeaveDatesByEmployee(leaves);
+      } catch (err) {
+        console.warn("[Availability] leave dates unavailable", err);
+        setLeaveDatesByEmployee({});
+      }
     }
   }, [supplyFrom, supplyTo]);
 
   useEffect(() => {
     void reloadAllocations();
   }, [reloadAllocations]);
+
+  const hpd = settings.workingHoursPerDay;
 
   const summaryRows = useMemo(
     () =>
@@ -525,9 +558,21 @@ export function Availability() {
         offDayIsos,
         supplyFrom,
         settings.workingDays,
-        allEmployees
+        allEmployees,
+        leaveDatesByEmployee,
+        hpd
       ),
-    [employees, summaryWeekCapacity, allocations, offDayIsos, supplyFrom, settings.workingDays, allEmployees]
+    [
+      employees,
+      summaryWeekCapacity,
+      allocations,
+      offDayIsos,
+      supplyFrom,
+      settings.workingDays,
+      allEmployees,
+      leaveDatesByEmployee,
+      hpd,
+    ]
   );
 
   const summaryRowsWeek2 = useMemo(
@@ -539,9 +584,21 @@ export function Availability() {
         offDayIsos,
         nextWeekStart,
         settings.workingDays,
-        allEmployees
+        allEmployees,
+        leaveDatesByEmployee,
+        hpd
       ),
-    [employees, nextWeekCapacity, allocations, offDayIsos, nextWeekStart, settings.workingDays, allEmployees]
+    [
+      employees,
+      nextWeekCapacity,
+      allocations,
+      offDayIsos,
+      nextWeekStart,
+      settings.workingDays,
+      allEmployees,
+      leaveDatesByEmployee,
+      hpd,
+    ]
   );
 
   const summaryRowsLastWeek = useMemo(
@@ -553,9 +610,21 @@ export function Availability() {
         offDayIsos,
         lastWeekStart,
         settings.workingDays,
-        allEmployees
+        allEmployees,
+        leaveDatesByEmployee,
+        hpd
       ),
-    [employees, lastWeekCapacity, allocations, offDayIsos, lastWeekStart, settings.workingDays, allEmployees]
+    [
+      employees,
+      lastWeekCapacity,
+      allocations,
+      offDayIsos,
+      lastWeekStart,
+      settings.workingDays,
+      allEmployees,
+      leaveDatesByEmployee,
+      hpd,
+    ]
   );
 
   const availRows = useMemo(
@@ -567,9 +636,21 @@ export function Availability() {
         offDayIsos,
         weekStart,
         settings.workingDays,
-        allEmployees
+        allEmployees,
+        leaveDatesByEmployee,
+        hpd
       ),
-    [employees, weekCapacity, allocations, offDayIsos, weekStart, settings.workingDays, allEmployees]
+    [
+      employees,
+      weekCapacity,
+      allocations,
+      offDayIsos,
+      weekStart,
+      settings.workingDays,
+      allEmployees,
+      leaveDatesByEmployee,
+      hpd,
+    ]
   );
   const rollingOffAll = useMemo(
     () =>
@@ -597,7 +678,8 @@ export function Availability() {
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [selectedDepts, setSelectedDepts] = useState<string[]>([]);
   const [minFreeHours, setMinFreeHours] = useState(0);
-  const { sortKey, sortDir, handleSort } = useColumnSort<AvailSortKey>("freeHours", "desc");
+  /** Name sort keeps people findable when leave reduces free hrs (free-hrs desc buries them). */
+  const { sortKey, sortDir, handleSort } = useColumnSort<AvailSortKey>("name", "asc");
 
   useSharedDataSync(!drawerOpen, reloadAllocations, {
     resources: ["allocations"],
@@ -689,15 +771,22 @@ export function Availability() {
 
   const applyListFilters = useCallback(
     (rows: AvailRow[]) =>
-      rows.filter(
-        (r) =>
-          selectedDepts.includes(r.department) &&
-          (selectedSkills.length === 0
-            ? true
-            : r.skills.length === 0 || r.skills.some((s) => selectedSkills.includes(s))) &&
-          r.freeHours >= minFreeHours
-      ),
-    [selectedDepts, selectedSkills, minFreeHours]
+      rows.filter((r) => {
+        if (!selectedDepts.includes(r.department)) return false;
+        // "All skills" (every master selected, or none) — do not drop people with empty/orphan skills.
+        const skillsFilterOff =
+          selectedSkills.length === 0 || selectedSkills.length === availSkills.length;
+        if (
+          !skillsFilterOff &&
+          r.skills.length > 0 &&
+          !r.skills.some((s) => selectedSkills.includes(s))
+        ) {
+          return false;
+        }
+        // Leave-reduced or On leave (0h) must still appear — only Min free hours can hide low free.
+        return r.freeHours >= minFreeHours;
+      }),
+    [selectedDepts, selectedSkills, availSkills.length, minFreeHours]
   );
 
   /** Header KPI cards — same skill/dept/min filters, locked to this week (forward-supply week 1). */

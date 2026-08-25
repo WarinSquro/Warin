@@ -277,33 +277,76 @@ export function buildAvailRowsFromEmployees(
   companyOffDays?: string[],
   weekStart = mondayISO(),
   workingDays?: string[],
-  nameLookupEmployees?: Employee[]
+  nameLookupEmployees?: Employee[],
+  leaveDatesByEmployee?: Record<string, string[]>,
+  /** Prefer Settings hours/day when subtracting leave (avoids drift vs weekCapacity). */
+  workingHoursPerDay?: number
 ): AvailRow[] {
+  const weekEnd = addDaysISO(weekStart, 6);
   const booked = bookedHoursByEmployee(allocations, weekStart, companyOffDays, workingDays);
   const nameSource = nameLookupEmployees?.length ? nameLookupEmployees : employees;
   const nameById = new Map(nameSource.map((e) => [e.id, e.name]));
+  const workingDaysInWeek = weekdayCount(weekStart, weekEnd, workingDays, companyOffDays);
+  const daysPerWeek = normalizedWorkingDays(workingDays).length || 5;
+  const derivedHoursPerDay =
+    workingDaysInWeek > 0 ? weekCapacity / workingDaysInWeek : weekCapacity / daysPerWeek;
+  const hoursPerDay =
+    workingHoursPerDay != null && workingHoursPerDay > 0
+      ? workingHoursPerDay
+      : derivedHoursPerDay;
+
+  const leaveSets = new Map<string, Set<string>>();
+  if (leaveDatesByEmployee) {
+    for (const [hrmsId, dates] of Object.entries(leaveDatesByEmployee)) {
+      leaveSets.set(String(hrmsId).trim(), new Set(dates.map((d) => d.slice(0, 10))));
+    }
+  }
+
   return employees
     .filter((e) => e.status === "active")
-    .map((e) => {
+    .flatMap((e) => {
       const hours = booked.get(e.id)?.hours ?? 0;
-      const freeHours = Math.max(0, roundHoursToTenth(weekCapacity - hours));
-      return {
-        id: e.id,
-        name: e.name,
-        initials: initials(e.name),
-        role: e.skills[0] ?? "—",
-        department: e.department,
-        freeHours,
-        capacity: weekCapacity,
-        availableFrom:
-          freeHours >= weekCapacity ? "Now" : hours >= weekCapacity ? "Fully booked" : "Partial",
-        skills: e.skills,
-        bookedPct: weekCapacity > 0 ? Math.round((hours / weekCapacity) * 100) : 0,
-        resourceOwnerId: e.resourceOwnerId ?? "",
-        resourceOwnerName: e.resourceOwnerId
-          ? (nameById.get(e.resourceOwnerId) ?? "—")
-          : "—",
-      };
+      let leaveWorkingDays = 0;
+      const leaveDates = leaveSets.get(String(e.id).trim());
+      if (leaveDates && leaveDates.size > 0 && hoursPerDay > 0) {
+        for (const iso of leaveDates) {
+          if (iso < weekStart.slice(0, 10) || iso > weekEnd.slice(0, 10)) continue;
+          if (weekdayCount(iso, iso, workingDays, companyOffDays) === 1) leaveWorkingDays += 1;
+        }
+      }
+      const leaveHoursRaw =
+        leaveWorkingDays > 0 ? roundHoursToTenth(leaveWorkingDays * hoursPerDay) : 0;
+      // Cap leave subtraction at week capacity; never omit the row for leave.
+      const leaveHoursApplied = Math.min(leaveHoursRaw, weekCapacity);
+      const empCapacity = Math.max(0, roundHoursToTenth(weekCapacity - leaveHoursApplied));
+      const freeHours = Math.max(0, roundHoursToTenth(empCapacity - hours));
+      const availableFrom =
+        empCapacity <= 0
+          ? "On leave"
+          : freeHours >= empCapacity
+            ? "Now"
+            : hours >= empCapacity
+              ? "Fully booked"
+              : "Partial";
+      return [
+        {
+          id: e.id,
+          name: e.name,
+          initials: initials(e.name),
+          role: e.skills[0] ?? "—",
+          department: e.department,
+          freeHours,
+          capacity: empCapacity,
+          leaveHours: leaveHoursApplied,
+          availableFrom,
+          skills: e.skills,
+          bookedPct: empCapacity > 0 ? Math.round((hours / empCapacity) * 100) : hours > 0 ? 100 : 0,
+          resourceOwnerId: e.resourceOwnerId ?? "",
+          resourceOwnerName: e.resourceOwnerId
+            ? (nameById.get(e.resourceOwnerId) ?? "—")
+            : "—",
+        },
+      ];
     });
 }
 
@@ -689,17 +732,26 @@ export function buildPerformanceRowsFromEmployees(
   rangeTo = addDaysISO(mondayISO(), 6),
   workingDays?: string[],
   companyOffDays?: string[],
-  asOf?: string
+  asOf?: string,
+  leaveDatesByEmployee?: Record<string, string[]>
 ): PerformanceRow[] {
   const nameById = new Map(employees.map((e) => [e.id, e.name]));
   const booked = bookedHoursInRange(allocations, rangeFrom, rangeTo, companyOffDays, workingDays);
   const weekdays = weekdayCount(rangeFrom, rangeTo, workingDays, companyOffDays);
   const daysPerWeek = normalizedWorkingDays(workingDays).length || 5;
+  const hoursPerDay = weekCapacity / daysPerWeek;
   const confByEmp = new Map<string, ApiConfirmation[]>();
   for (const c of confirmations) {
     const list = confByEmp.get(c.employeeHrmsId) ?? [];
     list.push(c);
     confByEmp.set(c.employeeHrmsId, list);
+  }
+
+  const leaveSets = new Map<string, Set<string>>();
+  if (leaveDatesByEmployee) {
+    for (const [hrmsId, dates] of Object.entries(leaveDatesByEmployee)) {
+      leaveSets.set(hrmsId, new Set(dates.map((d) => d.slice(0, 10))));
+    }
   }
 
   return employees.map((e) => {
@@ -727,7 +779,16 @@ export function buildPerformanceRowsFromEmployees(
       planned > 0 ? Math.round((Math.min(actual, planned) / planned) * 100) : undefined;
 
     const capacityDays = weekdays || daysPerWeek;
-    const periodCapacity = (weekCapacity / daysPerWeek) * capacityDays;
+    let periodCapacity = (weekCapacity / daysPerWeek) * capacityDays;
+    const leaveDates = leaveSets.get(e.id);
+    if (leaveDates && leaveDates.size > 0) {
+      let leaveWorkingDays = 0;
+      for (const iso of leaveDates) {
+        if (iso < rangeFrom.slice(0, 10) || iso > rangeTo.slice(0, 10)) continue;
+        if (weekdayCount(iso, iso, workingDays, companyOffDays) === 1) leaveWorkingDays += 1;
+      }
+      periodCapacity = Math.max(0, periodCapacity - leaveWorkingDays * hoursPerDay);
+    }
     const utilPct = periodCapacity > 0 ? Math.round((hours / periodCapacity) * 100) : 0;
 
     return {
@@ -978,7 +1039,8 @@ export function buildPerformanceHistoryFromLive(
   monthCount = 6,
   anchorDate = new Date(),
   workingDays?: string[],
-  companyOffDays?: string[]
+  companyOffDays?: string[],
+  leaveDatesByEmployee?: Record<string, string[]>
 ): PerformanceHistory | null {
   if (!employees.some((e) => e.id === employeeId)) return null;
 
@@ -998,7 +1060,9 @@ export function buildPerformanceHistoryFromLive(
       from,
       to,
       workingDays,
-      companyOffDays
+      companyOffDays,
+      undefined,
+      leaveDatesByEmployee
     ).find((r) => r.employeeId === employeeId);
 
     months.push({

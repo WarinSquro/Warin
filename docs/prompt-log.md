@@ -32,6 +32,120 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-25 00:15 IST
+
+**Prompt:**  
+> Still Aditi Jha is not visible in Availability even after reducing hours (5th report). Fix permanently; verify she stays visible.
+
+**Output:**  
+- **Root cause (compound):** (1) Leave correctly reduces free hrs (e.g. 34→25.5) so she drops out of This-week top-3 KPI; (2) default table sort was **free hours desc**, which buries reduced-hour people below all 34h rows — looks like she “disappeared” while Next week (34h) still shows her on top; (3) earlier omit-on-full-week-leave is already removed.
+- **Permanent fix:** Never omit leave rows; leave only reduces capacity/free hrs (`On leave` at 0h). Default sort → **name asc**. Leave load aligned with Planner (`active-dates` first). Skills “all selected” no longer drops empty-skill rows incorrectly.
+- Files: `api/liveViews.ts`, `screens/Availability.tsx`, `tests/unit/availLeaveCapacity.test.ts`, `docs/prompt-log.md`.
+- Tests: Aditi Wed leave → still in This week at **25.5h free**; full-week leave stays visible at 0h.
+
+### 2026-08-24 23:58 IST
+
+**Prompt:**  
+> In resource planner, Aditi Jha data showing correct while in Availability screen name is disappear. Check and fix.
+
+**Output:**  
+- **Root cause:** Availability omitted people when leave days ≥ working days in the week (full-week hide). That wrongly dropped Aditi (partial leave Wed / 25.5h left in Planner) from **This week**.
+- **Fix:** Never hide for leave — always show the row; leave only reduces free/capacity hours. Full-week leave → `0h free`, Available From **On leave**.
+- Files: `api/liveViews.ts`, `tests/unit/availLeaveCapacity.test.ts`, `docs/prompt-log.md`.
+- Tests: `availLeaveCapacity.test.ts` 4/4 passed (partial leave stays visible; full-week stays at 0h).
+
+### 2026-08-24 23:45 IST
+
+**Prompt:**  
+> When employee is on Leave, reduce leave days hours from FREE CAPACITY (`34.0h free`) and show [reduced free / leave].
+
+**Output:**  
+- Free hrs already subtract leave working days × Settings h/day; full-week leave omits the row.
+- Availability now loads Active leaves via `fetchResourceLeaves` (modal source) with `active-dates` fallback.
+- Row shows `Xh leave` under booked when leave reduced capacity; `leaveHours` on `AvailRow` / two-week merge.
+- Example: 34h week − 1 leave day @ 8.5h → **25.5h free** · **8.5h leave**.
+- Note: Docker was stopped locally (API refused on :3001) — leave map stays empty until API is up; Aditi’s Aug 25 leave was previously **cancelled** in DB.
+
+### 2026-08-24 21:45 IST
+
+**Prompt:**  
+> When employee is on Leave, reduce leave days hours from FREE CAPACITY (`34.0h free`) and show reduced free hours.
+
+**Output:**  
+- Confirmed Aditi Jha’s Aug 25 leave is **cancelled** in DB — grid correctly keeps full week free hrs until leave is Active again.
+- Hardened Availability leave load: allocations vs leaves load separately; `active-dates` failure falls back to `fetchResourceLeaves` (Active only).
+- `buildAvailRowsFromEmployees` uses Settings `workingHoursPerDay` for leave subtraction; HRMS id keys trimmed for match.
+- Unit test: 34h week − 1 leave day @ 8.5h → **25.5h** free; omit full-week leave.
+- Rebuilding local `oneview-api` Docker image so `availability` permission is on leave endpoints.
+
+### 2026-08-24 21:21 IST
+
+**Prompt:**  
+> Availability FREE CAPACITY is weekly hours — decrease for leave days in the week; if leave covers the full week, hide the name from the grid.
+
+**Output:**  
+- Partial-week leave still reduces capacity/free hrs (hours/day × leave working days).
+- Full-week leave: employee omitted from `buildAvailRowsFromEmployees` (not listed).
+- Test updated: full-week leave → empty rows.
+
+### 2026-08-24 21:12 IST
+
+**Prompt:**  
+> Leave is not taking effect in Availability grid (free capacity).
+
+**Output:**  
+- `buildAvailRowsFromEmployees` reduces per-person capacity/free hrs for leave working days in the week; full-week leave → `On leave`.
+- `screens/Availability.tsx` loads active leave dates into all week builders.
+- Leave API `active-dates` / list also allow `availability`.
+- Test: `tests/unit/availLeaveCapacity.test.ts`.
+
+### 2026-08-24 21:00 IST
+
+**Prompt:**  
+> Leave is not taking effect in Resource Performance Report (AVAIL CAP).
+
+**Output:**  
+- `buildPerformanceRowsFromEmployees` subtracts leave working days × h/day from period capacity (AVAIL CAP / util %).
+- Performance report loads `fetchActiveLeaveDatesByEmployee` and passes into rows + history drawer.
+- API `active-dates` / list allow `reports.performance` (not only `planner`).
+- Test: `tests/unit/performanceLeaveCapacity.test.ts`.
+
+### 2026-08-24 20:58 IST
+
+**Prompt:**  
+> Leaves Reason field is mandatory.
+
+**Output:**  
+- `ResourceLeavesModal` — red `*` on Reason; **Add Leave** / Edit Save disabled until non-empty reason.
+- Create/edit already toasted “Reason is required”; API already required reason.
+
+### 2026-08-24 20:55 IST
+
+**Prompt:**  
+> KPI Result and RO KPI Score up/down arrows should change by 0.5, not 1.
+
+**Output:**  
+- `screens/KpiResults.tsx` — both inputs use `step={0.5}`.
+
+### 2026-08-24 20:53 IST
+
+**Prompt:**  
+> RO Remarks should be mandatory (KPI Results drawer).
+
+**Output:**  
+- `screens/KpiResults.tsx` — required `*` on label; Save blocked if remarks empty/whitespace.
+- API `PUT results/:id` — rejects missing remarks.
+
+### 2026-08-24 20:49 IST
+
+**Prompt:**  
+> KPI Weight % input: value should not be greater than 100.
+
+**Output:**  
+- Weight field is digits-only (`maxLength` 3); typing over 100 clamps to 100 immediately; blur stores 0–100.
+- `utils/kpiMasterLimits.ts` — `KPI_WEIGHT_MAX` / `KPI_WEIGHT_MAX_DIGITS`.
+- API already rejected weightage outside 0–100.
+
 ### 2026-08-24 19:23 IST
 
 **Prompt:**  
