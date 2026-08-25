@@ -23,7 +23,15 @@ import { useAuth } from "../context/AuthContext";
 import { useEmployees } from "../context/EmployeesContext";
 import { useMasters } from "../context/MastersContext";
 import { useToast } from "../context/ToastContext";
-import { clampKpiMasterName, KPI_MASTER_NAME_MAX, KPI_NAME_MAX, KPI_TARGET_MAX, KPI_TARGET_MAX_DIGITS } from "../utils/kpiMasterLimits";
+import {
+  clampKpiMasterName,
+  KPI_MASTER_NAME_MAX,
+  KPI_NAME_MAX,
+  KPI_TARGET_MAX,
+  KPI_TARGET_MAX_DIGITS,
+  KPI_WEIGHT_MAX,
+  KPI_WEIGHT_MAX_DIGITS,
+} from "../utils/kpiMasterLimits";
 import {
   defaultAssessmentCycle,
   defaultKpiCalendarYear,
@@ -850,15 +858,25 @@ export function KpiFramework() {
                             </td>
                             <td className="w-16 px-3 py-2">
                               <input
-                                type="number"
-                                min={0}
-                                max={100}
+                                type="text"
+                                inputMode="numeric"
+                                maxLength={KPI_WEIGHT_MAX_DIGITS}
                                 disabled={locked}
-                                defaultValue={row.weightage}
+                                defaultValue={String(row.weightage)}
+                                onChange={(e) => {
+                                  const digits = e.target.value.replace(/\D/g, "").slice(0, KPI_WEIGHT_MAX_DIGITS);
+                                  const n = digits === "" ? NaN : Number(digits);
+                                  e.target.value =
+                                    Number.isFinite(n) && n > KPI_WEIGHT_MAX
+                                      ? String(KPI_WEIGHT_MAX)
+                                      : digits;
+                                }}
                                 onBlur={(e) => {
-                                  const raw = Number(e.target.value);
-                                  if (!Number.isFinite(raw)) return;
-                                  const v = Math.min(100, Math.max(0, raw));
+                                  const digits = e.target.value.replace(/\D/g, "").slice(0, KPI_WEIGHT_MAX_DIGITS);
+                                  const v =
+                                    digits === ""
+                                      ? 0
+                                      : Math.min(KPI_WEIGHT_MAX, Math.max(0, Number(digits)));
                                   e.target.value = String(v);
                                   if (v !== row.weightage) void patchRow(row.id, { weightage: v });
                                 }}

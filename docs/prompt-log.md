@@ -32,6 +32,15 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-25 07:45 IST
+
+**Prompt:**  
+> Ship remaining local changes to live EC2 (Agent mode after pager exit).
+
+**Output:**  
+- Committed (no `warin-web.tgz`): KPI weight ≤100, RO remarks required + 0.5 score step, leave API perms for availability/performance, leaves modal reason, performance leave capacity, availability `leaveHours` merge, unit tests.
+- Pushed `origin/main`; EC2 `bash scripts/ec2-deploy.sh --with-api`; verify `version.json` SHA + health.
+
 ### 2026-08-25 00:15 IST
 
 **Prompt:**  

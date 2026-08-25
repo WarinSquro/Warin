@@ -532,6 +532,11 @@ function ResultDrawer({
       onError("RO KPI Score must be between 0 and 100");
       return;
     }
+    const remarksTrimmed = remarks.trim().slice(0, KPI_RO_REMARKS_MAX);
+    if (!remarksTrimmed) {
+      onError("Resource Owner Remarks is required");
+      return;
+    }
     setSaving(true);
     try {
       let attachment: { fileName: string; mimeType: string; base64: string } | undefined;
@@ -559,7 +564,7 @@ function ResultDrawer({
       await saveKpiResult(item.id, {
         kpiResult: resultNum,
         kpiScore: scoreNum,
-        remarks: remarks.trim().slice(0, KPI_RO_REMARKS_MAX) || undefined,
+        remarks: remarksTrimmed,
         attachment,
       });
       await onSaved();
@@ -618,7 +623,7 @@ function ResultDrawer({
             </span>
             <input
               type="number"
-              step="any"
+              step={0.5}
               disabled={locked || !canSave}
               value={kpiResult}
               onChange={(e) => setKpiResult(e.target.value)}
@@ -633,7 +638,7 @@ function ResultDrawer({
               type="number"
               min={0}
               max={100}
-              step="0.01"
+              step={0.5}
               disabled={locked || !canSave}
               value={kpiScore}
               onChange={(e) => setKpiScore(e.target.value)}
@@ -642,7 +647,9 @@ function ResultDrawer({
           </label>
           <label className="flex flex-col">
             <span className="mb-1.5 flex items-baseline justify-between gap-2 text-[11px] text-muted">
-              <span>Resource Owner Remarks</span>
+              <span>
+                Resource Owner Remarks <span className="text-danger">*</span>
+              </span>
               <span className="text-muted-foreground">
                 {remarks.length}/{KPI_RO_REMARKS_MAX} (Max {KPI_RO_REMARKS_MAX} char)
               </span>

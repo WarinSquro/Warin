@@ -22,7 +22,9 @@ export interface AvailRow {
   role: string;
   department: string;
   freeHours: number;   // hrs/wk currently free
-  capacity: number;    // total hrs/wk capacity
+  capacity: number;    // total hrs/wk capacity (after leave)
+  /** Hours removed from weekly capacity due to active leave in this week. */
+  leaveHours?: number;
   availableFrom: string; // "Now" or a date string
   skills: string[];
   bookedPct: number;   // 0–100
@@ -88,12 +90,13 @@ export function mergeAvailRowsTwoWeeks(week1: AvailRow[], week2: AvailRow[]): Av
     const base = a ?? b!;
     const freeHours = roundHoursToTenth((a?.freeHours ?? 0) + (b?.freeHours ?? 0));
     const capacity = roundHoursToTenth((a?.capacity ?? 0) + (b?.capacity ?? 0));
+    const leaveHours = roundHoursToTenth((a?.leaveHours ?? 0) + (b?.leaveHours ?? 0));
     const bookedHours =
       (a ? (a.bookedPct / 100) * a.capacity : 0) + (b ? (b.bookedPct / 100) * b.capacity : 0);
     const bookedPct = capacity > 0 ? Math.round((bookedHours / capacity) * 100) : 0;
     const availableFrom =
       capacity > 0 && freeHours >= capacity ? "Now" : freeHours <= 0 ? "Fully booked" : "Partial";
-    return { ...base, freeHours, capacity, bookedPct, availableFrom };
+    return { ...base, freeHours, capacity, leaveHours, bookedPct, availableFrom };
   });
 }
 

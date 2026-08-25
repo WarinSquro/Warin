@@ -38,7 +38,7 @@ import {
   reportRange,
   toLocalISO,
 } from "../api/liveViews";
-import { fetchAllocations, fetchConfirmations, type ApiAllocation, type ApiConfirmation } from "../api/domain";
+import { fetchAllocations, fetchConfirmations, fetchActiveLeaveDatesByEmployee, type ApiAllocation, type ApiConfirmation } from "../api/domain";
 import { useSharedDataSync } from "../hooks/useSharedDataSync";
 import { runReportExport, summarizeFilter } from "../utils/reportExport";
 import type { ReportExportInput } from "../utils/reportExport";
@@ -78,6 +78,7 @@ export function ResourcePerformanceReport() {
   const [drawerRow, setDrawerRow] = useState<PerformanceRow | null>(null);
   const [allocations, setAllocations] = useState<ApiAllocation[]>([]);
   const [confirmations, setConfirmations] = useState<ApiConfirmation[]>([]);
+  const [leaveDatesByEmployee, setLeaveDatesByEmployee] = useState<Record<string, string[]>>({});
 
   const PERFORMANCE_PERIODS = useMemo(
     () => performancePeriodOptions(new Date(), settings.workingDays),
@@ -107,15 +108,18 @@ export function ResourcePerformanceReport() {
 
   const load = useCallback(async () => {
     try {
-      const [a, c] = await Promise.all([
+      const [a, c, leaves] = await Promise.all([
         fetchAllocations({ from: fetchRange.from, to: fetchRange.to }),
         fetchConfirmations({ from: fetchRange.from, to: fetchRange.to }),
+        fetchActiveLeaveDatesByEmployee().catch(() => ({}) as Record<string, string[]>),
       ]);
       setAllocations(a);
       setConfirmations(c);
+      setLeaveDatesByEmployee(leaves);
     } catch {
       setAllocations([]);
       setConfirmations([]);
+      setLeaveDatesByEmployee({});
     } finally {
       markFiltersReady();
     }
@@ -137,9 +141,21 @@ export function ResourcePerformanceReport() {
         range.from,
         range.to,
         settings.workingDays,
-        settings.companyOffDays.map((d) => d.date)
+        settings.companyOffDays.map((d) => d.date),
+        undefined,
+        leaveDatesByEmployee
       ),
-    [scopedEmployees, weekCapacity, allocations, confirmations, range.from, range.to, settings.workingDays, settings.companyOffDays]
+    [
+      scopedEmployees,
+      weekCapacity,
+      allocations,
+      confirmations,
+      range.from,
+      range.to,
+      settings.workingDays,
+      settings.companyOffDays,
+      leaveDatesByEmployee,
+    ]
   );
   const priorRows = undefined;
 
@@ -271,7 +287,8 @@ export function ResourcePerformanceReport() {
       6,
       anchor,
       settings.workingDays,
-      settings.companyOffDays.map((d) => d.date)
+      settings.companyOffDays.map((d) => d.date),
+      leaveDatesByEmployee
     );
   }, [
     drawerRow,
@@ -282,6 +299,7 @@ export function ResourcePerformanceReport() {
     range.to,
     settings.workingDays,
     settings.companyOffDays,
+    leaveDatesByEmployee,
   ]);
 
   const showExportToast = (msg: string) => {

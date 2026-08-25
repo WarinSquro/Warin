@@ -985,7 +985,10 @@ export class KpiController {
     }
 
     const remarks = body.remarks?.trim() || null;
-    if (remarks && remarks.length > KPI_RO_REMARKS_MAX) {
+    if (!remarks) {
+      throw new BadRequestException("Resource Owner Remarks is required");
+    }
+    if (remarks.length > KPI_RO_REMARKS_MAX) {
       throw new BadRequestException(
         `Resource Owner Remarks cannot exceed ${KPI_RO_REMARKS_MAX} characters`
       );

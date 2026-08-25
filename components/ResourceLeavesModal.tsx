@@ -280,9 +280,11 @@ export function ResourceLeavesModal({
             </div>
             <div className="min-w-[180px] flex-[2]">
               <label className="mb-1 block text-[11px] font-medium text-muted-foreground">
-                Reason <span className="font-normal">(max 30)</span>
+                Reason <span className="text-danger">*</span>{" "}
+                <span className="font-normal">(max 30)</span>
               </label>
               <input
+                required
                 maxLength={30}
                 value={addReason}
                 onChange={(e) => setAddReason(e.target.value)}
@@ -292,10 +294,10 @@ export function ResourceLeavesModal({
             </div>
             <button
               type="button"
-              disabled={busy || mutateOptions.length === 0}
+              disabled={busy || mutateOptions.length === 0 || !addReason.trim()}
               onClick={() => void handleCreate()}
               className={`flex items-center gap-1 rounded-md bg-primary px-3.5 py-1.5 text-[12px] font-medium text-primary-foreground ${
-                busy || mutateOptions.length === 0
+                busy || mutateOptions.length === 0 || !addReason.trim()
                   ? "cursor-not-allowed opacity-50"
                   : "cursor-pointer hover:opacity-95"
               }`}
@@ -469,8 +471,11 @@ export function ResourceLeavesModal({
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-brand/40" onClick={() => setEditRow(null)} aria-hidden />
           <div className="relative z-10 w-full max-w-md rounded-lg border border-border bg-surface p-4 shadow-xl">
-            <div className="mb-3 text-[14px] font-semibold text-foreground">Edit reason</div>
+            <div className="mb-3 text-[14px] font-semibold text-foreground">
+              Edit reason <span className="text-danger">*</span>
+            </div>
             <input
+              required
               maxLength={30}
               value={editReason}
               onChange={(e) => setEditReason(e.target.value)}
@@ -486,9 +491,13 @@ export function ResourceLeavesModal({
               </button>
               <button
                 type="button"
-                disabled={busy}
+                disabled={busy || !editReason.trim()}
                 onClick={() => void saveEditReason()}
-                className="cursor-pointer rounded-md bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground"
+                className={`rounded-md bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground ${
+                  busy || !editReason.trim()
+                    ? "cursor-not-allowed opacity-50"
+                    : "cursor-pointer"
+                }`}
               >
                 Save
               </button>

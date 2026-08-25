@@ -84,7 +84,7 @@ export class ResourceLeavesController {
   }
 
   @Get()
-  @RequirePermissions("planner")
+  @RequirePermissions("planner", "reports.performance", "availability")
   async list(
     @Req() req: { user: JwtPayload },
     @Query("from") from?: string,
@@ -138,9 +138,9 @@ export class ResourceLeavesController {
     });
   }
 
-  /** Active leave dates for planner markers / allocation blocks. */
+  /** Active leave dates for planner markers / allocation blocks / performance capacity. */
   @Get("active-dates")
-  @RequirePermissions("planner")
+  @RequirePermissions("planner", "reports.performance", "availability")
   async activeDates(@Req() req: { user: JwtPayload }) {
     const viewScope = await viewableEmployeeIds(this.prisma, req.user);
     const whereEmp =

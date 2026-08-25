@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { clampKpiMasterName, KPI_MASTER_NAME_MAX, KPI_NAME_MAX } from "../../utils/kpiMasterLimits";
+import {
+  clampKpiMasterName,
+  KPI_MASTER_NAME_MAX,
+  KPI_NAME_MAX,
+  KPI_WEIGHT_MAX,
+  KPI_WEIGHT_MAX_DIGITS,
+} from "../../utils/kpiMasterLimits";
 
 describe("kpiMasterLimits", () => {
   it("caps category at 20, method at 200, unit at 10", () => {
@@ -13,5 +19,10 @@ describe("kpiMasterLimits", () => {
 
   it("caps KPI name at 200", () => {
     expect(KPI_NAME_MAX).toBe(200);
+  });
+
+  it("caps weight % at 100 with 3 digit max", () => {
+    expect(KPI_WEIGHT_MAX).toBe(100);
+    expect(KPI_WEIGHT_MAX_DIGITS).toBe(3);
   });
 });
