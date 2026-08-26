@@ -463,6 +463,10 @@ function ResultDrawer({
 
   const attachmentName = file?.name ?? (savedAttachment ? savedAttachmentName : null);
   const hasAttachment = Boolean(file) || savedAttachment;
+  const remarksTrimmed = remarks.trim().slice(0, KPI_RO_REMARKS_MAX);
+  const resultRaw = kpiResult.trim();
+  const scoreRaw = kpiScore.trim();
+  const fieldsReady = resultRaw !== "" && scoreRaw !== "" && remarksTrimmed !== "";
 
   const viewAttachment = async () => {
     try {
@@ -522,12 +526,22 @@ function ResultDrawer({
 
   const save = async () => {
     if (!canSave || saving) return;
-    const resultNum = Number(kpiResult);
-    const scoreNum = Number(kpiScore);
+    const resultRaw = kpiResult.trim();
+    if (!resultRaw) {
+      onError("KPI Result is required");
+      return;
+    }
+    const resultNum = Number(resultRaw);
     if (!Number.isFinite(resultNum)) {
       onError("KPI Result must be numeric");
       return;
     }
+    const scoreRaw = kpiScore.trim();
+    if (!scoreRaw) {
+      onError("RO KPI Score is required");
+      return;
+    }
+    const scoreNum = Number(scoreRaw);
     if (!Number.isFinite(scoreNum) || scoreNum < 0 || scoreNum > 100) {
       onError("RO KPI Score must be between 0 and 100");
       return;
@@ -624,6 +638,7 @@ function ResultDrawer({
             <input
               type="number"
               step={0.5}
+              required
               disabled={locked || !canSave}
               value={kpiResult}
               onChange={(e) => setKpiResult(e.target.value)}
@@ -639,6 +654,7 @@ function ResultDrawer({
               min={0}
               max={100}
               step={0.5}
+              required
               disabled={locked || !canSave}
               value={kpiScore}
               onChange={(e) => setKpiScore(e.target.value)}
@@ -655,6 +671,7 @@ function ResultDrawer({
               </span>
             </span>
             <textarea
+              required
               disabled={locked || !canSave}
               value={remarks}
               maxLength={KPI_RO_REMARKS_MAX}
@@ -715,7 +732,7 @@ function ResultDrawer({
           </button>
           <button
             type="button"
-            disabled={!canSave || saving}
+            disabled={!canSave || saving || !fieldsReady}
             onClick={() => void save()}
             className="flex-1 cursor-pointer rounded-md bg-primary py-2 text-[13px] font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-40"
           >

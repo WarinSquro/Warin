@@ -950,6 +950,13 @@ export class KpiController {
       });
     }
 
+    if (body.kpiResult === undefined || body.kpiResult === null || String(body.kpiResult).trim() === "") {
+      throw new BadRequestException("KPI Result is required");
+    }
+    if (body.kpiScore === undefined || body.kpiScore === null || String(body.kpiScore).trim() === "") {
+      throw new BadRequestException("RO KPI Score is required");
+    }
+
     const score = Number(body.kpiScore);
     if (!Number.isFinite(score) || score < 0 || score > 100) {
       throw new BadRequestException("kpiScore must be between 0.00 and 100.00");

@@ -32,6 +32,17 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-26 19:00 IST
+
+**Prompt:**  
+> Apply this. (KPI Result, RO KPI Score, Resource Owner Remarks must be mandatory — empty numeric fields must not save as 0)
+
+**Output:**  
+- **Root cause:** Asterisks were shown, but `Number("")` is `0`, so blank KPI Result / RO Score saved as 0. Remarks were already required.
+- `screens/KpiResults.tsx` — empty/whitespace Result, Score, Remarks blocked; Save disabled until all three filled; `0` still allowed if typed.
+- `apps/oneview-api/.../kpi.controller.ts` — same required checks on `PUT results/:id`.
+- Local/live API rebuild needed: `docker compose up -d --build api` / `ec2-deploy.sh --with-api`.
+
 ### 2026-08-26 18:35 IST
 
 **Prompt:**  
