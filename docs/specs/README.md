@@ -21,6 +21,7 @@ These files are the **product source of truth** when behavior is ambiguous (UI m
 | `phase1-weeklyci-ui.pdf` | Weekly Check-In UI | same |
 | `phase1-workdaysummary-frd.pdf` | Workday Summary Report | `/reports/workday-summary` |
 | `phase1-emp2prj-frd.pdf` | Map Employees to Projects utility | `/projects` (Map Employees modal); Work Allocation project filter |
+| `phase1-decisionpoint-frd.pdf` | Decision Points FRD (types master + operational flow) | Setup `/masters` → DP Types (Phase 1a); My Team Decision Points (next) |
 
 ## How agents should use FRD
 

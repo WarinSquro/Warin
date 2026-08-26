@@ -5,6 +5,7 @@
  */
 import { PrismaClient, type ProjectType, type MilestoneKind } from "@prisma/client";
 import * as argon2 from "argon2";
+import { seedDecisionPointTypes } from "./seed-decision-point-types";
 
 const prisma = new PrismaClient();
 const DEMO_PIN = "12345";
@@ -31,6 +32,7 @@ async function main() {
   await prisma.employee.deleteMany();
   await prisma.skill.deleteMany();
   await prisma.department.deleteMany();
+  await prisma.decisionPointType.deleteMany();
 
   const pinHash = await argon2.hash(DEMO_PIN, { type: argon2.argon2id });
 
@@ -343,7 +345,10 @@ async function main() {
     ],
   });
 
+  const dpTypeCount = await seedDecisionPointTypes(prisma);
+
   console.log(`Demo seed complete. Demo PIN for all users: ${DEMO_PIN}`);
+  console.log(`  Decision Point types: ${dpTypeCount}`);
 }
 
 main()

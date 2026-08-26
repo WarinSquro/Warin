@@ -122,6 +122,7 @@ export const PERMISSION_PAGES: PermissionPage[] = [
       { key: "masters.departments", label: "Organization", route: "/masters", segment: "departments" },
       { key: "masters.skills", label: "Skills", route: "/masters", segment: "skills" },
       { key: "masters.activities", label: "Activities", route: "/masters", segment: "activities" },
+      { key: "masters.dp_types", label: "DP Types", route: "/masters", segment: "dp_types" },
     ],
   },
   {

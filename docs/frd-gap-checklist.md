@@ -99,6 +99,17 @@ Use with [`docs/specs/HOW-TO-USE-FRD.md`](./specs/HOW-TO-USE-FRD.md). Re-score r
 
 ---
 
+## C2. Decision Points (`phase1-decisionpoint-frd.pdf`) — 2026-08-26
+
+| Area | Status | Notes |
+|------|--------|-------|
+| Point Types master (Setup → DP Types) | **Partial** | Full stack: CRUD + Active/Inactive + allocation Optional/Required; admins may add types (product override of FRD “fixed seven”); seed ships 7 FRD types |
+| Raise / My Points / RO queue / actions / trail | **Missing** | Deferred to next phase (My Team → Decision Points) |
+| Email notifications (§18) | **Missing** | Deferred follow-up slice |
+| Management analytics (§21–22) | **Missing** | Future |
+
+---
+
 ## D. Access Rights (`phase1-rights-ui.pdf`)
 
 | Requirement | Status | Notes |

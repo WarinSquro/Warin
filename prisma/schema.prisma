@@ -74,6 +74,12 @@ enum CompetencyKind {
   behavioural
 }
 
+/** Whether Raise Point must link a work allocation for this Decision Point type. */
+enum DecisionPointAllocationRequirement {
+  optional
+  required
+}
+
 model Employee {
   id              BigInt     @id @default(autoincrement()) @map("id")
   hrmsId          String     @unique @map("hrms_id")
@@ -345,6 +351,27 @@ model Customer {
 
   @@index([isDeleted, isActive])
   @@map("customers")
+}
+
+/** Org-wide Decision Point type master (Setup → DP Types). */
+model DecisionPointType {
+  id                     BigInt                                @id @default(autoincrement())
+  code                   String                                @unique
+  name                   String                                @unique
+  description            String?                               @db.Text
+  allocationRequirement  DecisionPointAllocationRequirement    @default(optional) @map("allocation_requirement")
+  status                 SetupStatus                           @default(active)
+  isActive               Boolean                               @default(true) @map("is_active")
+  isDeleted              Boolean                               @default(false) @map("is_deleted")
+  deletedAt              DateTime?                             @map("deleted_at")
+  createdAt              DateTime                              @default(now()) @map("created_at")
+  modifiedAt             DateTime                              @updatedAt @map("modified_at")
+  createdBy              BigInt?                               @map("created_by")
+  modifiedBy             BigInt?                               @map("modified_by")
+  version                Int                                   @default(1)
+
+  @@index([isDeleted, isActive])
+  @@map("decision_point_types")
 }
 
 model Project {

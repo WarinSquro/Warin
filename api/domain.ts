@@ -1,7 +1,15 @@
 import { apiFetch, apiFetchBlob } from "./client";
 import type { Employee } from "../data/employees";
 import type { Project, ProjectType, MilestoneKind } from "../data/projects";
-import type { Activity, ActivityMilestone, Department, Skill, SetupStatus } from "../data/setup";
+import type {
+  Activity,
+  ActivityMilestone,
+  DecisionPointAllocationRequirement,
+  DecisionPointType,
+  Department,
+  Skill,
+  SetupStatus,
+} from "../data/setup";
 import type { SettingsState } from "../data/settings";
 import { DEFAULT_SETTINGS, withoutLowDemandPriority } from "../data/settings";
 import { type SettingsAuditEntry } from "../utils/settingsAudit";
@@ -61,6 +69,15 @@ type ApiActivityMilestone = {
   name: string;
   projectType: ProjectType;
   kind: MilestoneKind;
+};
+
+type ApiDecisionPointType = {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  allocationRequirement: DecisionPointAllocationRequirement;
+  status: SetupStatus;
 };
 
 type ApiActivity = {
@@ -176,6 +193,17 @@ export function mapApiActivityMilestone(m: ApiActivityMilestone): ActivityMilest
     name: m.name,
     projectType: m.projectType,
     kind: m.kind,
+  };
+}
+
+export function mapApiDecisionPointType(row: ApiDecisionPointType): DecisionPointType {
+  return {
+    id: row.code,
+    dbId: row.id,
+    name: row.name,
+    description: row.description ?? "",
+    allocationRequirement: row.allocationRequirement === "required" ? "required" : "optional",
+    status: row.status,
   };
 }
 
@@ -475,6 +503,45 @@ export async function updateActivity(
     body: JSON.stringify(body),
   });
   return mapApiActivity(row);
+}
+
+export async function fetchDecisionPointTypes(includeInactive = true): Promise<DecisionPointType[]> {
+  const q = includeInactive ? "?includeInactive=true" : "";
+  const rows = await apiFetch<ApiDecisionPointType[]>(`/masters/decision-point-types${q}`);
+  return rows.map((r) => mapApiDecisionPointType(r));
+}
+
+export async function createDecisionPointType(body: {
+  name: string;
+  description?: string | null;
+  allocationRequirement?: DecisionPointAllocationRequirement;
+  code?: string;
+  status?: SetupStatus;
+}): Promise<DecisionPointType> {
+  const row = await apiFetch<ApiDecisionPointType>("/masters/decision-point-types", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  return mapApiDecisionPointType(row);
+}
+
+export async function updateDecisionPointType(
+  code: string,
+  body: {
+    name?: string;
+    description?: string | null;
+    allocationRequirement?: DecisionPointAllocationRequirement;
+    status?: SetupStatus;
+  }
+): Promise<DecisionPointType> {
+  const row = await apiFetch<ApiDecisionPointType>(
+    `/masters/decision-point-types/${encodeURIComponent(code)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }
+  );
+  return mapApiDecisionPointType(row);
 }
 
 export async function fetchActivityMilestones(): Promise<ActivityMilestone[]> {

@@ -8,6 +8,8 @@ export { milestoneKindLabel };
 
 export type SetupStatus = "active" | "inactive";
 
+export type DecisionPointAllocationRequirement = "optional" | "required";
+
 export interface Department {
   id: string;
   /** Database BIGINT primary key (string). Prefer for FK keys / WCI config maps. */
@@ -43,6 +45,15 @@ export interface Activity {
   status: SetupStatus;
   /** Non-deleted allocations on non-deleted projects (setup Disable guard). */
   projectCount?: number;
+}
+
+export interface DecisionPointType {
+  id: string;
+  dbId?: string;
+  name: string;
+  description: string;
+  allocationRequirement: DecisionPointAllocationRequirement;
+  status: SetupStatus;
 }
 
 export function projectTypeLabel(type: ProjectType) {

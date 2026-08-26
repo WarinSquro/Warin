@@ -10,7 +10,7 @@ import {
   Query,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
-import type { MilestoneKind, ProjectType, SetupStatus } from "@prisma/client";
+import type { DecisionPointAllocationRequirement, MilestoneKind, ProjectType, SetupStatus } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { RequirePermissions } from "../auth/guards";
@@ -703,5 +703,137 @@ export class MastersController {
       },
     });
     return ser(row);
+  }
+
+  // ─── decision point types ────────────────────────────────────────────────
+
+  @Get("decision-point-types")
+  @RequirePermissions("masters.dp_types", "masters")
+  async decisionPointTypes(@Query("includeInactive") includeInactive?: string) {
+    const rows = await this.prisma.decisionPointType.findMany({
+      where: {
+        isDeleted: false,
+        ...(includeInactive === "true" ? {} : { isActive: true }),
+      },
+      orderBy: { name: "asc" },
+    });
+    return ser(rows);
+  }
+
+  @Post("decision-point-types")
+  @RequirePermissions("masters.dp_types", "masters")
+  @EmitDataChange("masters", "create")
+  async createDecisionPointType(
+    @Body()
+    body: {
+      name?: string;
+      code?: string;
+      description?: string | null;
+      allocationRequirement?: DecisionPointAllocationRequirement;
+      status?: SetupStatus;
+    }
+  ) {
+    const name = body.name?.trim();
+    if (!name) throw new BadRequestException("name is required");
+
+    const allocationRequirement =
+      body.allocationRequirement === "required" ? "required" : "optional";
+    const description =
+      body.description !== undefined ? body.description?.trim() || null : null;
+
+    const existing = await this.prisma.decisionPointType.findFirst({
+      where: { name: { equals: name, mode: "insensitive" }, isDeleted: false },
+    });
+    if (existing) {
+      if (!existing.isActive) {
+        const revived = await this.prisma.decisionPointType.update({
+          where: { id: existing.id },
+          data: {
+            name,
+            description: description ?? existing.description,
+            allocationRequirement,
+            isActive: true,
+            status: "active",
+            deletedAt: null,
+            version: { increment: 1 },
+          },
+        });
+        return ser(revived);
+      }
+      throw new BadRequestException("Decision Point type already exists");
+    }
+
+    const code = body.code?.trim() || slugCode("dpt", name);
+    const status = asStatus(body.status, "active");
+    const row = await this.prisma.decisionPointType.create({
+      data: {
+        code,
+        name,
+        description,
+        allocationRequirement,
+        status,
+        isActive: status === "active",
+      },
+    });
+    return ser(row);
+  }
+
+  @Put("decision-point-types/:code")
+  @RequirePermissions("masters.dp_types", "masters")
+  @EmitDataChange("masters", "update")
+  async updateDecisionPointType(
+    @Param("code") code: string,
+    @Body()
+    body: {
+      name?: string;
+      description?: string | null;
+      allocationRequirement?: DecisionPointAllocationRequirement;
+      status?: SetupStatus;
+    }
+  ) {
+    const row = await this.prisma.decisionPointType.findFirst({
+      where: { code, isDeleted: false },
+    });
+    if (!row) throw new NotFoundException("Decision Point type not found");
+
+    const name = body.name?.trim();
+    if (name && name.toLowerCase() !== row.name.toLowerCase()) {
+      const clash = await this.prisma.decisionPointType.findFirst({
+        where: {
+          name: { equals: name, mode: "insensitive" },
+          isDeleted: false,
+          NOT: { id: row.id },
+        },
+      });
+      if (clash) throw new BadRequestException("Decision Point type name already exists");
+    }
+
+    const status = asStatus(body.status, row.status);
+    // Usage guard reserved for when Decision Points transactional table exists.
+    // Soft-disable remains allowed until points reference this type.
+
+    const allocationRequirement =
+      body.allocationRequirement === "required"
+        ? "required"
+        : body.allocationRequirement === "optional"
+          ? "optional"
+          : row.allocationRequirement;
+
+    const updated = await this.prisma.decisionPointType.update({
+      where: { id: row.id },
+      data: {
+        name: name || row.name,
+        description:
+          body.description !== undefined
+            ? body.description?.trim() || null
+            : row.description,
+        allocationRequirement,
+        status,
+        isActive: status === "active",
+        deletedAt: status === "active" ? null : row.deletedAt,
+        version: { increment: 1 },
+      },
+    });
+    return ser(updated);
   }
 }

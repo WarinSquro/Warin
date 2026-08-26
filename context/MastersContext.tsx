@@ -7,10 +7,17 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { Activity, ActivityMilestone, Department, Skill } from "../data/setup";
+import type {
+  Activity,
+  ActivityMilestone,
+  DecisionPointType,
+  Department,
+  Skill,
+} from "../data/setup";
 import {
   fetchActivities,
   fetchActivityMilestones,
+  fetchDecisionPointTypes,
   fetchDepartments,
   fetchSkills,
 } from "../api/domain";
@@ -26,6 +33,8 @@ interface MastersContextValue {
   setActivities: React.Dispatch<React.SetStateAction<Activity[]>>;
   activityMilestones: ActivityMilestone[];
   setActivityMilestones: React.Dispatch<React.SetStateAction<ActivityMilestone[]>>;
+  decisionPointTypes: DecisionPointType[];
+  setDecisionPointTypes: React.Dispatch<React.SetStateAction<DecisionPointType[]>>;
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
@@ -54,12 +63,18 @@ function canFetchActivities(keys: Set<string>, isSuperAdmin: boolean): boolean {
   return keys.has("masters.activities") || keys.has("planner") || keys.has("availability");
 }
 
+function canFetchDecisionPointTypes(keys: Set<string>, isSuperAdmin: boolean): boolean {
+  if (isSuperAdmin || keys.has("*") || keys.has("masters")) return true;
+  return keys.has("masters.dp_types");
+}
+
 export function MastersProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated, allowedKeys, isSuperAdmin } = useAuth();
   const [departments, setDepartments] = useState<Department[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [activityMilestones, setActivityMilestones] = useState<ActivityMilestone[]>([]);
+  const [decisionPointTypes, setDecisionPointTypes] = useState<DecisionPointType[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -68,6 +83,7 @@ export function MastersProvider({ children }: { children: ReactNode }) {
       departments: canFetchDepartments(allowedKeys, isSuperAdmin),
       skills: canFetchSkills(allowedKeys, isSuperAdmin),
       activities: canFetchActivities(allowedKeys, isSuperAdmin),
+      dpTypes: canFetchDecisionPointTypes(allowedKeys, isSuperAdmin),
     }),
     [allowedKeys, isSuperAdmin]
   );
@@ -80,13 +96,14 @@ export function MastersProvider({ children }: { children: ReactNode }) {
         const wantDept = fetchFlags.departments;
         const wantSkills = fetchFlags.skills;
         const wantActs = fetchFlags.activities;
+        const wantDp = fetchFlags.dpTypes;
 
-        // Settle independently — only call endpoints the user can access (avoids 403 churn).
-        const [d, s, a, m] = await Promise.allSettled([
+        const [d, s, a, m, dp] = await Promise.allSettled([
           wantDept ? fetchDepartments(true) : Promise.resolve([] as Department[]),
           wantSkills ? fetchSkills(true) : Promise.resolve([] as Skill[]),
           wantActs ? fetchActivities(true) : Promise.resolve([] as Activity[]),
           wantActs ? fetchActivityMilestones() : Promise.resolve([] as ActivityMilestone[]),
+          wantDp ? fetchDecisionPointTypes(true) : Promise.resolve([] as DecisionPointType[]),
         ]);
 
         if (wantDept) {
@@ -106,12 +123,18 @@ export function MastersProvider({ children }: { children: ReactNode }) {
           setActivities([]);
           setActivityMilestones([]);
         }
+        if (wantDp) {
+          if (dp.status === "fulfilled") setDecisionPointTypes(dp.value);
+        } else {
+          setDecisionPointTypes([]);
+        }
 
         const attempted = [
           wantDept ? d : null,
           wantSkills ? s : null,
           wantActs ? a : null,
           wantActs ? m : null,
+          wantDp ? dp : null,
         ].filter(Boolean) as PromiseSettledResult<unknown>[];
         if (
           attempted.length > 0 &&
@@ -135,7 +158,7 @@ export function MastersProvider({ children }: { children: ReactNode }) {
 
   const fetchKey = `${fetchFlags.departments ? "d" : ""}${fetchFlags.skills ? "s" : ""}${
     fetchFlags.activities ? "a" : ""
-  }`;
+  }${fetchFlags.dpTypes ? "p" : ""}`;
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -143,6 +166,7 @@ export function MastersProvider({ children }: { children: ReactNode }) {
       setSkills([]);
       setActivities([]);
       setActivityMilestones([]);
+      setDecisionPointTypes([]);
       return;
     }
     void load();
@@ -161,6 +185,8 @@ export function MastersProvider({ children }: { children: ReactNode }) {
         setActivities,
         activityMilestones,
         setActivityMilestones,
+        decisionPointTypes,
+        setDecisionPointTypes,
         loading,
         error,
         refresh,

@@ -10,6 +10,8 @@ import type {
   Skill,
   Activity,
   ActivityMilestone,
+  DecisionPointType,
+  DecisionPointAllocationRequirement,
   SetupStatus,
 } from "../data/setup";
 import type { ProjectType, MilestoneKind } from "../data/projects";
@@ -23,27 +25,30 @@ import { matchesSearchQuery } from "../utils/textSearch";
 import {
   createActivity,
   createActivityMilestone,
+  createDecisionPointType,
   createDepartment,
   createSkill,
   createSkillCategory,
   fetchSkillCategories,
   hardDeleteRecord,
   updateActivity,
+  updateDecisionPointType,
   updateDepartment,
   updateSkill,
 } from "../api/domain";
 import { HardDeleteButton, HardDeleteDialog } from "../components/HardDeleteDialog";
 import { ActivityBulkUploadModal } from "../components/ActivityBulkUploadModal";
 
-type Segment = "departments" | "skills" | "activities";
+type Segment = "departments" | "skills" | "activities" | "dp_types";
 
 const SEGMENT_PERMISSION: Record<Segment, string> = {
   departments: "masters.departments",
   skills: "masters.skills",
   activities: "masters.activities",
+  dp_types: "masters.dp_types",
 };
 
-const ALL_SEGMENTS: Segment[] = ["departments", "skills", "activities"];
+const ALL_SEGMENTS: Segment[] = ["departments", "skills", "activities", "dp_types"];
 
 function canAccessMastersSegment(
   seg: Segment,
@@ -383,6 +388,121 @@ function DeptDrawer({
             className="flex-1 cursor-pointer rounded-md bg-primary py-2 text-[13px] font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-40"
           >
             {saving ? "Saving…" : isEdit ? "Save changes" : "Create department"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DpTypeDrawer({
+  row,
+  saving,
+  onClose,
+  onSave,
+}: {
+  row: DecisionPointType | null;
+  saving?: boolean;
+  onClose: () => void;
+  onSave: (payload: {
+    name: string;
+    description: string;
+    allocationRequirement: DecisionPointAllocationRequirement;
+  }) => void;
+}) {
+  const isEdit = !!row;
+  const [name, setName] = useState(row?.name ?? "");
+  const [description, setDescription] = useState(row?.description ?? "");
+  const [allocationRequirement, setAllocationRequirement] =
+    useState<DecisionPointAllocationRequirement>(row?.allocationRequirement ?? "optional");
+
+  const canSave = name.trim().length > 0;
+
+  return (
+    <div className="fixed inset-0 z-40">
+      <div onClick={() => !saving && onClose()} className="absolute inset-0 bg-brand/30" />
+      <div className="absolute right-0 top-0 flex h-full w-[440px] flex-col bg-surface shadow-2xl">
+        <div className="flex flex-shrink-0 items-center justify-between border-b border-border-soft px-5 py-4">
+          <div className="text-[15px] font-semibold text-foreground">
+            {isEdit ? "Edit DP type" : "Add DP type"}
+          </div>
+          <button
+            onClick={onClose}
+            disabled={saving}
+            className="cursor-pointer text-muted-foreground hover:text-foreground disabled:opacity-40"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-5 py-4">
+          <Field label="Type name" required>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoFocus
+              disabled={saving}
+              maxLength={80}
+              className="w-full rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line disabled:opacity-60"
+              placeholder="e.g. Clarification"
+            />
+          </Field>
+          <Field label="Description" hint="optional">
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              disabled={saving}
+              rows={3}
+              maxLength={500}
+              className="w-full resize-y rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line disabled:opacity-60"
+              placeholder="Shown as helper text when raising a point"
+            />
+          </Field>
+          <Field label="Allocation" required hint="Required forces work allocation on Raise">
+            <div className="flex overflow-hidden rounded-md border border-border text-[12px]">
+              {(
+                [
+                  ["optional", "Optional"],
+                  ["required", "Required"],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  disabled={saving}
+                  onClick={() => setAllocationRequirement(id)}
+                  className={`flex-1 cursor-pointer px-3.5 py-1.5 disabled:cursor-not-allowed disabled:opacity-60 ${
+                    allocationRequirement === id
+                      ? "bg-brand font-medium text-white"
+                      : "text-muted hover:bg-surface-alt"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </Field>
+        </div>
+        <div className="flex flex-shrink-0 gap-2 border-t border-border-soft px-5 py-3.5">
+          <button
+            onClick={onClose}
+            disabled={saving}
+            className="flex-1 cursor-pointer rounded-md border border-border py-2 text-[13px] text-foreground hover:bg-surface-alt disabled:opacity-40"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => {
+              if (!canSave || saving) return;
+              onSave({
+                name: name.trim(),
+                description: description.trim(),
+                allocationRequirement,
+              });
+            }}
+            disabled={!canSave || saving}
+            className="flex-1 cursor-pointer rounded-md bg-primary py-2 text-[13px] font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {saving ? "Saving…" : isEdit ? "Save changes" : "Create DP type"}
           </button>
         </div>
       </div>
@@ -1039,6 +1159,127 @@ function ActivitiesList({
   );
 }
 
+function DpTypesList({
+  tab,
+  q,
+  rows,
+  onEdit,
+  onToggle,
+}: {
+  tab: Tab;
+  q: string;
+  rows: DecisionPointType[];
+  onEdit: (row: DecisionPointType) => void;
+  onToggle: (id: string) => void;
+}) {
+  const { sortKey, sortDir, handleSort } = useColumnSort<"type" | "allocation">("type");
+
+  const filtered = rows.filter(
+    (r) =>
+      r.status === tab &&
+      matchesSearchQuery(q, r.name, r.description, r.allocationRequirement)
+  );
+
+  const sorted = [...filtered].sort((a, b) => {
+    const mul = sortDir === "asc" ? 1 : -1;
+    if (sortKey === "allocation") {
+      return mul * a.allocationRequirement.localeCompare(b.allocationRequirement);
+    }
+    return mul * a.name.localeCompare(b.name);
+  });
+
+  const gridCols = "grid grid-cols-[minmax(0,1.1fr)_minmax(0,1.6fr)_110px_84px] items-center";
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div
+          className={`${gridCols} sticky top-0 z-10 border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold text-muted`}
+        >
+          <div className="min-w-0">
+            <SortColHeader
+              label="TYPE"
+              col="type"
+              sortKey={sortKey}
+              sortDir={sortDir}
+              onSort={handleSort}
+            />
+          </div>
+          <div className="min-w-0 text-[11px] font-semibold uppercase tracking-wide text-muted">
+            Description
+          </div>
+          <div className="min-w-0">
+            <SortColHeader
+              label="ALLOCATION"
+              col="allocation"
+              sortKey={sortKey}
+              sortDir={sortDir}
+              onSort={handleSort}
+            />
+          </div>
+          <div className="text-right text-[11px] font-semibold uppercase tracking-wide text-muted">
+            Actions
+          </div>
+        </div>
+        {sorted.map((r) => {
+          const inactive = r.status === "inactive";
+          return (
+            <div
+              key={r.id}
+              className={`${gridCols} cursor-pointer border-b border-border-soft px-4 py-2.5 hover:bg-surface-alt/60 ${
+                inactive ? "opacity-60" : ""
+              }`}
+              onClick={() => onEdit(r)}
+            >
+              <div className="min-w-0 truncate text-[13px] font-medium text-foreground" title={r.name}>
+                {r.name}
+              </div>
+              <div
+                className="min-w-0 truncate text-[12px] text-muted-foreground"
+                title={r.description || undefined}
+              >
+                {r.description || "—"}
+              </div>
+              <div>
+                <span
+                  className={`rounded-sm px-1.5 py-0.5 text-[10px] font-semibold ${
+                    r.allocationRequirement === "required"
+                      ? "bg-warning-soft text-warning"
+                      : "bg-surface-alt text-muted"
+                  }`}
+                >
+                  {r.allocationRequirement === "required" ? "Required" : "Optional"}
+                </span>
+              </div>
+              <div className="text-right">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggle(r.id);
+                  }}
+                  className={`cursor-pointer text-[11px] ${
+                    inactive
+                      ? "text-success hover:underline"
+                      : "text-muted-foreground hover:text-danger hover:underline"
+                  }`}
+                >
+                  {inactive ? "Reactivate" : "Disable"}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+        {filtered.length === 0 && (
+          <div className="px-4 py-10 text-center text-[12px] text-muted-foreground">
+            No DP types match.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── screen ─────────────────────────────────────────────────────────────────
 
 export function SetupMasters() {
@@ -1075,6 +1316,7 @@ export function SetupMasters() {
     activities,
     activityMilestones,
     setActivityMilestones,
+    decisionPointTypes,
     refresh,
   } = useMasters();
 
@@ -1086,11 +1328,20 @@ export function SetupMasters() {
     const empty =
       (segment === "departments" && depts.length === 0) ||
       (segment === "skills" && skills.length === 0) ||
-      (segment === "activities" && activities.length === 0);
+      (segment === "activities" && activities.length === 0) ||
+      (segment === "dp_types" && decisionPointTypes.length === 0);
     if (!empty) return;
     retriedEmptySeg.current[segment] = true;
     void refresh();
-  }, [segment, segmentAllowed, depts.length, skills.length, activities.length, refresh]);
+  }, [
+    segment,
+    segmentAllowed,
+    depts.length,
+    skills.length,
+    activities.length,
+    decisionPointTypes.length,
+    refresh,
+  ]);
 
   const [saving, setSaving] = useState(false);
   const [hardDelete, setHardDelete] = useState<{
@@ -1115,11 +1366,15 @@ export function SetupMasters() {
   const [activityDrawer, setActivityDrawer] = useState(false);
   const [activityUploadOpen, setActivityUploadOpen] = useState(false);
 
+  // DP types state
+  const [editingDpType, setEditingDpType] = useState<DecisionPointType | null>(null);
+  const [dpTypeDrawer, setDpTypeDrawer] = useState(false);
+
   usePauseSharedDataSync(
-    deptDrawer || skillDrawer || activityDrawer || activityUploadOpen || !!hardDelete
+    deptDrawer || skillDrawer || activityDrawer || activityUploadOpen || dpTypeDrawer || !!hardDelete
   );
   useSharedDataSync(
-    !(deptDrawer || skillDrawer || activityDrawer || activityUploadOpen || !!hardDelete),
+    !(deptDrawer || skillDrawer || activityDrawer || activityUploadOpen || dpTypeDrawer || !!hardDelete),
     () => refresh(),
     {
     resources: ["masters"],
@@ -1175,6 +1430,19 @@ export function SetupMasters() {
     }
   };
 
+  const toggleDpType = async (id: string) => {
+    const row = decisionPointTypes.find((r) => r.id === id);
+    if (!row) return;
+    const next: SetupStatus = row.status === "active" ? "inactive" : "active";
+    try {
+      await updateDecisionPointType(id, { status: next });
+      await refresh();
+      toast.updated();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update DP type");
+    }
+  };
+
   const openHardDelete = (
     kind: "departments" | "skills" | "activities",
     id: string,
@@ -1213,6 +1481,10 @@ export function SetupMasters() {
   const openNewActivity = () => {
     setEditingActivity(null);
     setActivityDrawer(true);
+  };
+  const openNewDpType = () => {
+    setEditingDpType(null);
+    setDpTypeDrawer(true);
   };
 
   const saveDept = async (name: string) => {
@@ -1304,35 +1576,65 @@ export function SetupMasters() {
     return created;
   };
 
+  const saveDpType = async (payload: {
+    name: string;
+    description: string;
+    allocationRequirement: DecisionPointAllocationRequirement;
+  }) => {
+    setSaving(true);
+    try {
+      if (editingDpType) {
+        await updateDecisionPointType(editingDpType.id, payload);
+        await refresh();
+        setDpTypeDrawer(false);
+        toast.updated();
+      } else {
+        await createDecisionPointType(payload);
+        await refresh();
+        setDpTypeDrawer(false);
+        toast.created();
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save DP type");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const segmentLabels: Record<Segment, string> = {
     departments: "Departments",
     skills: "Skills",
     activities: "Activities",
+    dp_types: "DP Types",
   };
 
   const activeCountFor = (seg: Segment) => {
     if (seg === "departments") return depts.filter((d) => d.status === "active").length;
     if (seg === "skills") return skills.filter((s) => s.status === "active").length;
-    return activities.filter((a) => a.status === "active").length;
+    if (seg === "activities") return activities.filter((a) => a.status === "active").length;
+    return decisionPointTypes.filter((r) => r.status === "active").length;
   };
   const inactiveCountFor = (seg: Segment) => {
     if (seg === "departments") return depts.filter((d) => d.status === "inactive").length;
     if (seg === "skills") return skills.filter((s) => s.status === "inactive").length;
-    return activities.filter((a) => a.status === "inactive").length;
+    if (seg === "activities") return activities.filter((a) => a.status === "inactive").length;
+    return decisionPointTypes.filter((r) => r.status === "inactive").length;
   };
 
   const handleAdd = () => {
     if (!segmentAllowed[segment]) return;
     if (segment === "departments") openNewDept();
     else if (segment === "skills") openNewSkill();
-    else openNewActivity();
+    else if (segment === "activities") openNewActivity();
+    else openNewDpType();
   };
 
-  const addLabel = {
+  const addLabel: Record<Segment, string> = {
     departments: "Add department",
     skills: "Add skill",
     activities: "Add activity",
-  }[segment];
+    dp_types: "Add DP type",
+  };
 
   const canAdd = segmentAllowed[segment];
 
@@ -1364,7 +1666,7 @@ export function SetupMasters() {
             disabled={!canAdd}
             className="flex cursor-pointer items-center gap-1.5 rounded-md bg-primary px-3.5 py-1.5 text-[12px] font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-40"
           >
-            <Plus className="h-3.5 w-3.5" /> {addLabel}
+            <Plus className="h-3.5 w-3.5" /> {addLabel[segment]}
           </button>
         </div>
       </header>
@@ -1391,7 +1693,7 @@ export function SetupMasters() {
                   setTab("active");
                   setQ("");
                 }}
-                className={`rounded-md px-4 py-1.5 text-[12px] font-medium capitalize ${
+                className={`rounded-md px-4 py-1.5 text-[12px] font-medium ${
                   !allowed
                     ? "cursor-not-allowed text-muted-foreground opacity-40"
                     : active
@@ -1471,6 +1773,18 @@ export function SetupMasters() {
               }
             />
           )}
+          {segmentAllowed[segment] && segment === "dp_types" && (
+            <DpTypesList
+              tab={tab}
+              q={q}
+              rows={decisionPointTypes}
+              onEdit={(r) => {
+                setEditingDpType(r);
+                setDpTypeDrawer(true);
+              }}
+              onToggle={toggleDpType}
+            />
+          )}
           {!segmentAllowed[segment] && (
             <div className="px-4 py-12 text-center text-[12px] text-muted-foreground">
               You do not have access to this section.
@@ -1513,6 +1827,14 @@ export function SetupMasters() {
           onClose={() => setActivityDrawer(false)}
           onSave={(payload) => void saveActivity(payload)}
           onCreateMilestone={handleCreateMilestone}
+        />
+      )}
+      {dpTypeDrawer && (
+        <DpTypeDrawer
+          row={editingDpType}
+          saving={saving}
+          onClose={() => setDpTypeDrawer(false)}
+          onSave={(payload) => void saveDpType(payload)}
         />
       )}
       {activityUploadOpen && (
