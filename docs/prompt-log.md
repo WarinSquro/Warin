@@ -32,6 +32,47 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-26 15:35 IST
+
+**Prompt:**  
+> apply deviation feed week + employee filter
+
+**Output:**  
+- **API** `confirmations.controller.ts` team endpoint: deviation feed is **whole working week** (not today-only), sorted newest first; each item includes `employeeHrmsId`.
+- **Types** `api/domain.ts`, `data/confirmation.ts`: optional `employeeHrmsId` on deviation entries.
+- **UI** `screens/WorkConfirmation.tsx` ManagerCompliance:
+  - Click team member name → filter right-hand Deviation feed to that employee; click again or **×** clears.
+  - Selected row: `bg-surface-alt` + light brand ring.
+  - Header: `Deviation feed · {Name}` when filtered; empty copy is week vs filtered employee.
+- Rebuilt local API: `docker compose up -d --build api`.
+- Deploy live needs `--with-api` (Nest change).
+
+### 2026-08-26 15:10 IST
+
+**Prompt:**  
+> Show date with time also (DeviationRow on Confirmations compliance feed)
+
+**Output:**  
+- API team deviations: `addedAt` now full `submittedAt.toISOString()` (was date-only).
+- Frontend: keep full `addedAt`; `DeviationRow` uses `formatDateTime` (Settings date format + 12h time).
+- Requires API rebuild for Docker local: `docker compose up -d --build api`.
+
+### 2026-08-26 14:42 IST
+
+**Prompt:**  
+> Raise Point: when entry once saved drawer should be closed and back to Decision Point Screen
+
+**Output:**  
+- `screens/DecisionPoints.tsx` — after successful raise, close Raise drawer and reload list on **Raised by me** tab; no longer auto-opens the detail drawer.
+
+### 2026-08-26 14:40 IST
+
+**Prompt:**  
+> Apply this. (Decision Point detail drawer closes after save/action)
+
+**Output:**  
+- `screens/DecisionPoints.tsx` — `PointDetailDrawer.runAction` calls `onClose()` after successful act + list reload, so Acknowledge/Approve/Reject/Escalate/Self-Resolve return to the Decision Points list.
+
 ### 2026-08-26 13:50 IST
 
 **Prompt:**  

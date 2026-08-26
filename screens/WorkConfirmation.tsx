@@ -1429,6 +1429,7 @@ function ManagerCompliance() {
   });
   const [rows, setRows] = useState<ComplianceRow[]>([]);
   const [deviations, setDeviations] = useState<DeviationEntry[]>([]);
+  const [deviationEmployeeId, setDeviationEmployeeId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [remindingId, setRemindingId] = useState<string | null>(null);
   const {
@@ -1473,18 +1474,25 @@ function ManagerCompliance() {
           todayLabel: r.todayLabel,
         }))
       );
+      const visibleIds = new Set(visible.map((r) => r.id));
       const visibleNames = new Set(visible.map((r) => r.name));
       setDeviations(
         res.deviations
-          .filter((d) => visibleNames.has(d.name))
+          .filter((d) =>
+            d.employeeHrmsId
+              ? visibleIds.has(d.employeeHrmsId)
+              : visibleNames.has(d.name)
+          )
           .map((d) => {
           const fallback = (res.asOf || today).slice(0, 10);
           const workRaw = String(d.workDate ?? "").trim();
           const addedRaw = String(d.addedAt ?? "").trim();
           const workDate = (workRaw.match(/^(\d{4}-\d{2}-\d{2})/)?.[1] || fallback) as string;
-          const addedAt = (addedRaw.match(/^(\d{4}-\d{2}-\d{2})/)?.[1] || workDate) as string;
+          // Keep full ISO datetime when present so DeviationRow can show date + time.
+          const addedAt = addedRaw || workDate;
           return {
             id: d.id,
+            employeeHrmsId: d.employeeHrmsId,
             name: d.name,
             initials: d.initials,
             line: d.line,
@@ -1530,6 +1538,16 @@ function ManagerCompliance() {
       return a.name.localeCompare(b.name);
     });
   }, [rows, complianceSortKey, complianceSortDir]);
+
+  const selectedDeviationEmployee = useMemo(
+    () => (deviationEmployeeId ? rows.find((r) => r.id === deviationEmployeeId) ?? null : null),
+    [deviationEmployeeId, rows]
+  );
+
+  const filteredDeviations = useMemo(() => {
+    if (!deviationEmployeeId) return deviations;
+    return deviations.filter((d) => d.employeeHrmsId === deviationEmployeeId || d.name === selectedDeviationEmployee?.name);
+  }, [deviations, deviationEmployeeId, selectedDeviationEmployee?.name]);
 
   const handleRemind = async (row: ComplianceRow) => {
     if (remindingId) return;
@@ -1604,7 +1622,11 @@ function ManagerCompliance() {
                 row={r}
                 todayIndex={todayIndex}
                 weekDayCount={days.length}
+                selected={deviationEmployeeId === r.id}
                 reminding={remindingId === r.id}
+                onSelectEmployee={() =>
+                  setDeviationEmployeeId((prev) => (prev === r.id ? null : r.id))
+                }
                 onRemind={() => void handleRemind(r)}
               />
             ))}
@@ -1617,16 +1639,39 @@ function ManagerCompliance() {
         </section>
 
         <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-surface">
-          <div className="flex flex-shrink-0 items-center justify-between border-b border-border-soft px-4 py-3">
-            <div className="text-[13px] font-semibold text-foreground">Deviation feed</div>
-            <span className="text-[11px] text-muted-foreground">auto-accepted</span>
+          <div className="flex flex-shrink-0 items-center justify-between gap-2 border-b border-border-soft px-4 py-3">
+            <div className="min-w-0 text-[13px] font-semibold text-foreground">
+              {selectedDeviationEmployee
+                ? `Deviation feed · ${selectedDeviationEmployee.name}`
+                : "Deviation feed"}
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <span className="text-[11px] text-muted-foreground">
+                {selectedDeviationEmployee ? "this week" : "this week · auto-accepted"}
+              </span>
+              {selectedDeviationEmployee && (
+                <button
+                  type="button"
+                  aria-label="Clear employee filter"
+                  title="Show all deviations this week"
+                  onClick={() => setDeviationEmployeeId(null)}
+                  className="inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-surface-alt hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-            {deviations.map((d) => (
+            {filteredDeviations.map((d) => (
               <DeviationRow key={d.id} d={d} />
             ))}
-            {deviations.length === 0 && (
-              <div className="px-4 py-8 text-center text-[12px] text-muted-foreground">No deviations today</div>
+            {filteredDeviations.length === 0 && (
+              <div className="px-4 py-8 text-center text-[12px] text-muted-foreground">
+                {selectedDeviationEmployee
+                  ? `No deviations for ${selectedDeviationEmployee.name} this week`
+                  : "No deviations this week"}
+              </div>
             )}
           </div>
           <button
@@ -1645,21 +1690,29 @@ function ComplianceRowView({
   row,
   todayIndex,
   weekDayCount,
+  selected,
   reminding,
+  onSelectEmployee,
   onRemind,
 }: {
   row: ComplianceRow;
   todayIndex: number;
   weekDayCount: number;
+  selected: boolean;
   reminding: boolean;
+  onSelectEmployee: () => void;
   onRemind: () => void;
 }) {
   const todayStatus = row.week[todayIndex] ?? "pending";
   const pending = todayStatus === "pending";
   const onLeave = todayStatus === "leave";
   return (
-    <div className="flex items-center border-b border-border-soft px-4 py-2.5 last:border-b-0">
-      <div className="flex flex-1 items-center gap-2.5">
+    <div
+      className={`flex items-center border-b border-border-soft px-4 py-2.5 last:border-b-0 ${
+        selected ? "bg-surface-alt ring-1 ring-inset ring-brand/20" : ""
+      }`}
+    >
+      <div className="flex min-w-0 flex-1 items-center gap-2.5">
         <div
           className={`flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-semibold ${
             onLeave ? "bg-surface-alt text-muted" : "bg-accent-soft text-accent-softfg"
@@ -1667,8 +1720,15 @@ function ComplianceRowView({
         >
           {row.initials}
         </div>
-        <div>
-          <div className="text-[12px] font-medium text-foreground">{row.name}</div>
+        <div className="min-w-0">
+          <button
+            type="button"
+            onClick={onSelectEmployee}
+            title={selected ? "Clear deviation filter" : `Show deviations for ${row.name}`}
+            className="cursor-pointer truncate text-left text-[12px] font-medium text-foreground hover:text-primary hover:underline"
+          >
+            {row.name}
+          </button>
           <div className={`text-[10px] ${todayLabelClass(todayStatus)}`}>{row.todayLabel}</div>
         </div>
       </div>
@@ -1700,9 +1760,9 @@ function ComplianceRowView({
 }
 
 function DeviationRow({ d }: { d: DeviationEntry }) {
-  const { formatDate } = useAppDateFormat();
+  const { formatDateTime } = useAppDateFormat();
   const dir = d.actual < d.planned;
-  const dateLabel = formatDate(d.addedAt || d.workDate);
+  const dateLabel = formatDateTime(d.addedAt || d.workDate);
   return (
     <div className="flex items-start gap-2.5 border-b border-border-soft px-4 py-3 last:border-b-0">
       <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-warning-soft text-[10px] font-semibold text-warning">

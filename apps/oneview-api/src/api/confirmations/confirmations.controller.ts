@@ -1067,13 +1067,15 @@ export class ConfirmationsController {
     const team = todayRows.length;
     const confirmedPct = team > 0 ? Math.round((confirmedToday / team) * 100) : 0;
 
+    // Whole working week (mon–fri scope already on `confirmations`), newest first.
     const deviationFeed = confirmations
-      .filter((c) => isoDate(c.workDate) === today && c.hasDeviation)
+      .filter((c) => c.hasDeviation)
       .flatMap((c) =>
         c.lines
           .filter((l) => l.kind === "deviation" || l.kind === "unplanned")
           .map((l) => ({
             id: l.id.toString(),
+            employeeHrmsId: c.employee.hrmsId,
             name: c.employee.name,
             initials: initials(c.employee.name),
             line: `${l.projectLabel}${l.milestoneLabel ? ` · ${l.activity}` : ` · ${l.activity}`}`,
@@ -1081,9 +1083,14 @@ export class ConfirmationsController {
             actual: l.actualHours,
             reason: l.reason || (l.kind === "unplanned" ? "Unplanned work" : "—"),
             workDate: isoDate(c.workDate),
-            addedAt: c.submittedAt ? isoDate(c.submittedAt) : isoDate(c.workDate),
+            addedAt: c.submittedAt ? c.submittedAt.toISOString() : isoDate(c.workDate),
           }))
-      );
+      )
+      .sort((a, b) => {
+        const ta = a.addedAt || a.workDate;
+        const tb = b.addedAt || b.workDate;
+        return tb.localeCompare(ta);
+      });
 
     return ser({
       weekStart: mon,

@@ -1037,6 +1037,7 @@ export type TeamComplianceResponse = {
   }[];
   deviations: {
     id: string;
+    employeeHrmsId?: string;
     name: string;
     initials: string;
     line: string;

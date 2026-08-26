@@ -186,6 +186,8 @@ export const COMPLIANCE_ROWS: ComplianceRow[] = [];
 
 export interface DeviationEntry {
   id: string;
+  /** HRMS id — used to filter the manager deviation feed by team member */
+  employeeHrmsId?: string;
   name: string;
   initials: string;
   line: string;
@@ -194,7 +196,7 @@ export interface DeviationEntry {
   reason: string;
   /** ISO YYYY-MM-DD — work date of the deviation */
   workDate: string;
-  /** ISO YYYY-MM-DD — when the deviation was submitted / added */
+  /** ISO datetime (or YYYY-MM-DD) — when the deviation was submitted / added */
   addedAt?: string;
 }
 
