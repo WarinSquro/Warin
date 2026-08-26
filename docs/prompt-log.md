@@ -32,6 +32,24 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-26 18:20 IST
+
+**Prompt:**  
+> Need Project Name change provision in EDIT mode (check all validations - duplicate name not allowed etc.)
+
+**Output:**  
+- **Root cause:** Edit project locked Project Name with other identity fields (`coreLocked`).
+- `screens/ProjectMaster.tsx` — Project Name is editable on edit. Validations unchanged: required, max 25 chars, case-insensitive duplicate vs other projects (excludes self). Duplicate blocks Save and shows “Already exists”; API `PUT /projects/:id` already unique-checks name excluding current row.
+- SPA-only (no API change).
+
+### 2026-08-26 18:15 IST
+
+**Prompt:**  
+> When user click on this area (team member cell: avatar + name + status) then show clicked employee’s data in Deviation feed
+
+**Output:**  
+- `screens/WorkConfirmation.tsx` `ComplianceRowView` — the whole member cell (initials, name, today label) is now a button that filters the Deviation feed; Remind and weekday dots stay separate. SPA-only.
+
 ### 2026-08-26 17:55 IST
 
 **Prompt:**  

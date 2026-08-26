@@ -421,7 +421,7 @@ function ProjectDrawer({
   onSave: (project: Project) => void;
 }) {
   const isEdit = !!project;
-  /** On edit, identity / commercial / timeline fields are locked. */
+  /** On edit, identity / commercial / timeline fields are locked — Project Name stays editable. */
   const coreLocked = isEdit;
   const coreInputClass = coreLocked
     ? "cursor-not-allowed bg-surface-alt text-muted"
@@ -796,13 +796,17 @@ function ProjectDrawer({
             </Field>
           </div>
 
-          <Field label="Project Name" required hint={duplicateName ? "Already exists" : undefined}>
+          <Field
+            label="Project Name"
+            required
+            hint={duplicateName ? "Already exists" : isEdit ? undefined : "Unique"}
+          >
             <input
               value={name}
-              disabled={coreLocked}
               maxLength={PROJECT_NAME_MAX}
+              aria-invalid={duplicateName}
               onChange={(e) => setName(e.target.value.slice(0, PROJECT_NAME_MAX))}
-              className={`w-full rounded-md border px-3 py-2 text-[13px] outline-none focus:border-accent-line ${coreInputClass} ${
+              className={`w-full rounded-md border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line ${
                 duplicateName ? "border-danger" : "border-border"
               }`}
               placeholder="e.g. Project Nova"
