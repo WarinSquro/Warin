@@ -57,7 +57,6 @@ type FrameworkSortKey =
   | "category"
   | "kpi"
   | "method"
-  | "unit"
   | "target"
   | "direction"
   | "period"
@@ -65,6 +64,7 @@ type FrameworkSortKey =
   | "status";
 type MasterSortKey = "name" | "status";
 type DrawerMode = "create" | "edit" | "view";
+type KpiGroupBy = "none" | "department" | "category";
 
 const FRAMEWORK_STATUS_ORDER: Record<string, number> = {
   draft: 0,
@@ -84,18 +84,27 @@ const KPI_LIST_COLUMNS: {
   { col: "category", label: "Category", width: 120 },
   { col: "kpi", label: "KPI", width: 180 },
   { col: "method", label: "Method", width: 120 },
-  { col: "unit", label: "Unit", width: 56, compact: true },
-  { col: "target", label: "Target", width: 64, compact: true },
+  { col: "target", label: "Target (U)", width: 100, compact: true },
   { col: "direction", label: "Direction", width: 88, compact: true },
   { col: "period", label: "Period", width: 104 },
   { col: "weight", label: "Weight %", width: 72, compact: true },
   { col: "status", label: "Status", width: 112 },
 ];
 
-const KPI_LIST_TABLE_MIN_WIDTH = KPI_LIST_COLUMNS.reduce((sum, c) => sum + c.width, 0);
+const KPI_GROUP_OPTIONS: { value: KpiGroupBy; label: string }[] = [
+  { value: "none", label: "None" },
+  { value: "department", label: "Department" },
+  { value: "category", label: "Category" },
+];
 
 function kpiListCellPad(compact?: boolean) {
   return compact ? "px-2" : "px-3";
+}
+
+/** Display Target (U): target value + single space + unit name. */
+function formatTargetWithUnit(row: Pick<ApiKpiItem, "target" | "unitName">): string {
+  const unit = (row.unitName ?? "").trim();
+  return unit ? `${row.target} ${unit}` : String(row.target);
 }
 
 const CYCLE_MONTHS: Record<AssessmentCycle, number[]> = {
@@ -220,6 +229,7 @@ export function KpiFramework() {
   const [year, setYear] = useState(() => defaultKpiCalendarYear());
   const [cycle, setCycle] = useState<AssessmentCycle>(() => defaultAssessmentCycle());
   const [search, setSearch] = useState("");
+  const [groupBy, setGroupBy] = useState<KpiGroupBy>("department");
   const [selectedDepts, setSelectedDepts] = useState<string[]>([]);
   const [selectedResources, setSelectedResources] = useState<string[]>([]);
   const [items, setItems] = useState<ApiKpiItem[]>([]);
@@ -380,6 +390,12 @@ export function KpiFramework() {
     return { total, ok: Math.abs(total - 100) < 0.01 };
   }, [singleResourceFilterId, items]);
 
+  const deptNameFor = useCallback(
+    (row: ApiKpiItem) =>
+      scopedResources.find((e) => e.id === row.employeeHrmsId)?.department ?? "—",
+    [scopedResources]
+  );
+
   const sortedItems = useMemo(() => {
     const mul = sortDir === "asc" ? 1 : -1;
     return [...filteredItems].sort((a, b) => {
@@ -405,9 +421,6 @@ export function KpiFramework() {
         case "method":
           cmp = (a.measurementMethodName ?? "").localeCompare(b.measurementMethodName ?? "");
           break;
-        case "unit":
-          cmp = (a.unitName ?? "").localeCompare(b.unitName ?? "");
-          break;
         case "target":
           cmp = a.target - b.target;
           break;
@@ -431,6 +444,40 @@ export function KpiFramework() {
       return a.id.localeCompare(b.id);
     });
   }, [filteredItems, sortKey, sortDir, scopedResources]);
+
+  const groupedItems = useMemo(() => {
+    if (groupBy === "none") {
+      return [{ key: "all", label: "", rows: sortedItems }];
+    }
+    const buckets = new Map<string, ApiKpiItem[]>();
+    for (const row of sortedItems) {
+      const key =
+        groupBy === "department"
+          ? deptNameFor(row)
+          : (row.categoryName ?? "").trim() || "—";
+      const list = buckets.get(key) ?? [];
+      list.push(row);
+      buckets.set(key, list);
+    }
+    return [...buckets.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, rows]) => ({ key, label: key, rows }));
+  }, [sortedItems, groupBy, deptNameFor]);
+
+  const visibleListColumns = useMemo(() => {
+    if (groupBy === "department") {
+      return KPI_LIST_COLUMNS.filter((c) => c.col !== "department");
+    }
+    if (groupBy === "category") {
+      return KPI_LIST_COLUMNS.filter((c) => c.col !== "category");
+    }
+    return KPI_LIST_COLUMNS;
+  }, [groupBy]);
+
+  const visibleTableMinWidth = useMemo(
+    () => visibleListColumns.reduce((sum, c) => sum + c.width, 0),
+    [visibleListColumns]
+  );
 
   const loadMasters = useCallback(async () => {
     const [c, m, u] = await Promise.all([
@@ -569,9 +616,6 @@ export function KpiFramework() {
       setDeleting(false);
     }
   };
-
-  const deptNameFor = (row: ApiKpiItem) =>
-    scopedResources.find((e) => e.id === row.employeeHrmsId)?.department ?? "—";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -763,6 +807,21 @@ export function KpiFramework() {
                 pluralLabel="resources"
                 emptyNeutral
               />
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] text-muted-foreground">Group by</span>
+                <select
+                  value={groupBy}
+                  onChange={(e) => setGroupBy(e.target.value as KpiGroupBy)}
+                  aria-label="Group by"
+                  className="cursor-pointer rounded-md border border-border bg-surface px-2.5 py-1.5 text-[12px] text-foreground outline-none focus:border-primary"
+                >
+                  {KPI_GROUP_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
               {weightHint ? (
                 <span
                   className={`text-[12px] font-medium ${
@@ -792,16 +851,16 @@ export function KpiFramework() {
               ) : (
                   <table
                     className="w-full table-fixed border-separate border-spacing-0 text-left text-[12px]"
-                    style={{ minWidth: KPI_LIST_TABLE_MIN_WIDTH }}
+                    style={{ minWidth: visibleTableMinWidth }}
                   >
                     <colgroup>
-                      {KPI_LIST_COLUMNS.map(({ col, width }) => (
+                      {visibleListColumns.map(({ col, width }) => (
                         <col key={col} style={{ width }} />
                       ))}
                     </colgroup>
                     <thead className="bg-surface-alt text-[11px] uppercase tracking-wide text-muted-foreground">
                       <tr>
-                        {KPI_LIST_COLUMNS.map(({ col, label, compact }) => (
+                        {visibleListColumns.map(({ col, label, compact }) => (
                           <th
                             key={col}
                             className={`sticky top-0 z-10 overflow-hidden border-b border-border-soft bg-surface-alt ${kpiListCellPad(compact)} py-2.5 font-medium`}
@@ -819,53 +878,140 @@ export function KpiFramework() {
                       </tr>
                     </thead>
                     <tbody>
-                      {sortedItems.map((row) => (
-                        <tr
-                          key={row.id}
-                          onClick={() => openRow(row)}
-                          className="cursor-pointer border-b border-border-soft last:border-b-0 hover:bg-surface-alt/60"
-                        >
-                          <td className={`min-w-0 border-b border-border-soft ${kpiListCellPad()} py-2.5 align-top`}>
-                            <TruncateText as="div" text={row.employeeName ?? "—"} />
-                          </td>
-                          <td className={`min-w-0 border-b border-border-soft ${kpiListCellPad()} py-2.5 align-top`}>
-                            <TruncateText as="div" text={deptNameFor(row)} />
-                          </td>
-                          <td className={`min-w-0 border-b border-border-soft ${kpiListCellPad()} py-2.5 align-top`}>
-                            <span className="block break-words leading-snug text-foreground">
-                              {row.categoryName ?? "—"}
-                            </span>
-                          </td>
-                          <td className={`min-w-0 border-b border-border-soft ${kpiListCellPad()} py-2.5 align-top`}>
-                            <span className="block break-words leading-snug text-foreground">
-                              {row.kpiName}
-                            </span>
-                          </td>
-                          <td className={`min-w-0 border-b border-border-soft ${kpiListCellPad()} py-2.5 align-top`}>
-                            <span className="block break-words leading-snug text-foreground">
-                              {row.measurementMethodName ?? "—"}
-                            </span>
-                          </td>
-                          <td className={`min-w-0 border-b border-border-soft ${kpiListCellPad(true)} py-2.5 align-top`}>
-                            <TruncateText as="div" text={row.unitName ?? "—"} />
-                          </td>
-                          <td className={`whitespace-nowrap border-b border-border-soft ${kpiListCellPad(true)} py-2.5 align-top`}>
-                            {row.target}
-                          </td>
-                          <td className={`whitespace-nowrap border-b border-border-soft ${kpiListCellPad(true)} py-2.5 align-top`}>
-                            {directionLabel(row.targetDirection)}
-                          </td>
-                          <td className={`whitespace-nowrap border-b border-border-soft ${kpiListCellPad()} py-2.5 align-top`}>
-                            {row.periodLabel}
-                          </td>
-                          <td className={`whitespace-nowrap border-b border-border-soft ${kpiListCellPad(true)} py-2.5 align-top`}>
-                            {row.weightage}%
-                          </td>
-                          <td className={`min-w-0 border-b border-border-soft ${kpiListCellPad()} py-2.5 align-top`}>
-                            <StatusChip status={row.status} />
-                          </td>
-                        </tr>
-                      ))}
+                      {groupedItems.flatMap((group) => {
+                        const head =
+                          groupBy !== "none" && group.label
+                            ? [
+                                <tr key={`g-${group.key}`}>
+                                  <td
+                                    colSpan={visibleListColumns.length}
+                                    className="border-b border-border-soft bg-accent-soft/40 p-0 text-[12px] font-semibold text-foreground"
+                                  >
+                                    <div className="sticky left-0 z-[5] w-max bg-accent-soft px-4 py-2">
+                                      {group.label}
+                                      <span className="ml-2 font-normal text-muted-foreground">
+                                        {group.rows.length} row
+                                        {group.rows.length !== 1 ? "s" : ""}
+                                      </span>
+                                    </div>
+                                  </td>
+                                </tr>,
+                              ]
+                            : [];
+                        const body = group.rows.map((row) => (
+                          <tr
+                            key={row.id}
+                            onClick={() => openRow(row)}
+                            className="cursor-pointer border-b border-border-soft last:border-b-0 hover:bg-surface-alt/60"
+                          >
+                            {visibleListColumns.map(({ col, compact }) => {
+                              const pad = kpiListCellPad(compact);
+                              switch (col) {
+                                case "resource":
+                                  return (
+                                    <td
+                                      key={col}
+                                      className={`min-w-0 border-b border-border-soft ${pad} py-2.5 align-top`}
+                                    >
+                                      <TruncateText as="div" text={row.employeeName ?? "—"} />
+                                    </td>
+                                  );
+                                case "department":
+                                  return (
+                                    <td
+                                      key={col}
+                                      className={`min-w-0 border-b border-border-soft ${pad} py-2.5 align-top`}
+                                    >
+                                      <TruncateText as="div" text={deptNameFor(row)} />
+                                    </td>
+                                  );
+                                case "category":
+                                  return (
+                                    <td
+                                      key={col}
+                                      className={`min-w-0 border-b border-border-soft ${pad} py-2.5 align-top`}
+                                    >
+                                      <span className="block break-words leading-snug text-foreground">
+                                        {row.categoryName ?? "—"}
+                                      </span>
+                                    </td>
+                                  );
+                                case "kpi":
+                                  return (
+                                    <td
+                                      key={col}
+                                      className={`min-w-0 border-b border-border-soft ${pad} py-2.5 align-top`}
+                                    >
+                                      <span className="block break-words leading-snug text-foreground">
+                                        {row.kpiName}
+                                      </span>
+                                    </td>
+                                  );
+                                case "method":
+                                  return (
+                                    <td
+                                      key={col}
+                                      className={`min-w-0 border-b border-border-soft ${pad} py-2.5 align-top`}
+                                    >
+                                      <span className="block break-words leading-snug text-foreground">
+                                        {row.measurementMethodName ?? "—"}
+                                      </span>
+                                    </td>
+                                  );
+                                case "target":
+                                  return (
+                                    <td
+                                      key={col}
+                                      className={`min-w-0 whitespace-nowrap border-b border-border-soft ${pad} py-2.5 align-top`}
+                                      title={formatTargetWithUnit(row)}
+                                    >
+                                      {formatTargetWithUnit(row)}
+                                    </td>
+                                  );
+                                case "direction":
+                                  return (
+                                    <td
+                                      key={col}
+                                      className={`whitespace-nowrap border-b border-border-soft ${pad} py-2.5 align-top`}
+                                    >
+                                      {directionLabel(row.targetDirection)}
+                                    </td>
+                                  );
+                                case "period":
+                                  return (
+                                    <td
+                                      key={col}
+                                      className={`whitespace-nowrap border-b border-border-soft ${pad} py-2.5 align-top`}
+                                    >
+                                      {row.periodLabel}
+                                    </td>
+                                  );
+                                case "weight":
+                                  return (
+                                    <td
+                                      key={col}
+                                      className={`whitespace-nowrap border-b border-border-soft ${pad} py-2.5 align-top`}
+                                    >
+                                      {row.weightage}%
+                                    </td>
+                                  );
+                                case "status":
+                                  return (
+                                    <td
+                                      key={col}
+                                      className={`min-w-0 border-b border-border-soft ${pad} py-2.5 align-top`}
+                                    >
+                                      <StatusChip status={row.status} />
+                                    </td>
+                                  );
+                                default:
+                                  return null;
+                              }
+                            })}
+                          </tr>
+                        ));
+                        return [...head, ...body];
+                      })}
                     </tbody>
                   </table>
               )}

@@ -285,10 +285,9 @@ export function DecisionPoints() {
       {raiseOpen && (
         <RaisePointDrawer
           onClose={() => setRaiseOpen(false)}
-          onCreated={async (id) => {
+          onCreated={async () => {
             setRaiseOpen(false);
             await reload();
-            setDetailId(id);
             setTab("mine");
           }}
         />
@@ -311,7 +310,7 @@ function RaisePointDrawer({
   onCreated,
 }: {
   onClose: () => void;
-  onCreated: (id: string) => Promise<void>;
+  onCreated: () => Promise<void>;
 }) {
   const toast = useToast();
   const [opts, setOpts] = useState<DecisionPointRaiseOptions | null>(null);
@@ -364,14 +363,14 @@ function RaisePointDrawer({
     if (!canSubmit || saving) return;
     setSaving(true);
     try {
-      const created = await raiseDecisionPoint({
+      await raiseDecisionPoint({
         typeId,
         subject: subject.trim(),
         remarks: remarks.trim(),
         allocationId: allocationId,
       });
       toast.created();
-      await onCreated(created.id);
+      await onCreated();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to raise Point");
     } finally {
@@ -570,11 +569,10 @@ function PointDetailDrawer({
     if (!remarks.trim() || saving) return;
     setSaving(true);
     try {
-      const next = await actOnDecisionPoint(id, { action, remarks: remarks.trim() });
-      setDetail(next);
-      setRemarks("");
+      await actOnDecisionPoint(id, { action, remarks: remarks.trim() });
       toast.updated();
       await onChanged();
+      onClose();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Action failed");
     } finally {
