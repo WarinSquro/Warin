@@ -32,6 +32,16 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-26 13:50 IST
+
+**Prompt:**  
+> Apply it (Workday Summary: Day Start alone must show even with no allocation/confirmation)
+
+**Output:**  
+- `api/workdaySummary.ts` — always use productivity when present (removed orphan-productivity gate that required allocation or confirmation).
+- `tests/unit/workdaySummary.test.ts` — assert Day Start-only days have `hasSignal` and `dayStart`.
+- Hard-refresh Workday Summary: Yogesh Jain / Jay Prajapati should appear for days with Day Start.
+
 ### 2026-08-26 12:30 IST
 
 **Prompt:**  

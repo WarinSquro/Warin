@@ -177,21 +177,28 @@ describe("workday summary", () => {
     expect(row?.focusPct).toBe(80);
   });
 
-  it("ignores orphan productivity when allocations and confirmations were cleared", () => {
+  it("keeps Day Start when there is no allocation or confirmation", () => {
+    const dayStartOnly: ApiTeamProductivityDay = {
+      employeeHrmsId: emp.id,
+      workDate: "2026-08-18",
+      workday: { dayStart: "2026-08-18T03:42:00.000Z" },
+      focusByAllocation: {},
+    };
     const rows = buildWorkdaySummaryRows(
       [emp],
       [],
       [],
-      [prod()],
+      [dayStartOnly],
       "2026-08-18",
       "2026-08-18",
       WEEKDAYS,
       "2026-08-18"
     );
     const row = rows.find((r) => r.workDate === "2026-08-18");
-    expect(row?.hasSignal).toBe(false);
-    expect(row?.dayStart).toBeUndefined();
-    expect(row?.focusHours).toBeUndefined();
+    expect(row?.hasSignal).toBe(true);
+    expect(row?.dayStart).toBe("2026-08-18T03:42:00.000Z");
+    expect(row?.allottedHours).toBeUndefined();
+    expect(row?.actualHours).toBeUndefined();
   });
 
   it("drops confirmations whose planned lines only reference deleted allocations", () => {

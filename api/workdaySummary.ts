@@ -93,9 +93,8 @@ export function buildWorkdaySummaryRows(
       const conf = confByEmpDay.get(key);
       const covering = mineAlloc.filter((a) => allocationCoversDay(a, d, workingDays));
       const allotted = covering.reduce((s, a) => s + a.hoursPerDay, 0);
-      // Orphan productivity after allocations/confirmations were cleared must not reappear.
-      const prodRaw = prodByEmpDay.get(key);
-      const prod = covering.length > 0 || conf ? prodRaw : undefined;
+      // Day Start (and other workday stamps) count even with no allocation or confirmation.
+      const prod = prodByEmpDay.get(key);
 
       const marks: WorkdayMarks = prod?.workday ?? {};
       const { officeMs, productiveMs } = workdayDurationMs(marks);
