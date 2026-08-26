@@ -26,6 +26,7 @@ import { WeeklyCheckInHistory } from "./screens/WeeklyCheckInHistory";
 import { WeeklyCheckInConfig } from "./screens/WeeklyCheckInConfig";
 import { KpiFramework } from "./screens/KpiFramework";
 import { KpiResults } from "./screens/KpiResults";
+import { DecisionPoints } from "./screens/DecisionPoints";
 import { ChangePinRequired } from "./screens/ChangePinRequired";
 import { AccessRights } from "./screens/AccessRights";
 import { AccessDenied } from "./screens/AccessDenied";
@@ -91,6 +92,7 @@ function AppShellRoutes() {
         <Route path="/my-team/weekly-check-in/:employeeId/history" element={<Guarded path="/my-team/weekly-check-in" permissionKey="my_team.weekly_check_in"><WeeklyCheckInHistory /></Guarded>} />
         <Route path="/my-team/weekly-check-in/:employeeId" element={<Guarded path="/my-team/weekly-check-in" permissionKey="my_team.weekly_check_in"><WeeklyCheckInWorkspace /></Guarded>} />
         <Route path="/my-team/kpi-results" element={<Guarded path="/my-team/kpi-results" permissionKey="my_team.kpi_results"><KpiResults /></Guarded>} />
+        <Route path="/my-team/decision-points" element={<Guarded path="/my-team/decision-points" permissionKey="my_team.decision_points"><DecisionPoints /></Guarded>} />
         <Route path="/projects" element={<Guarded path="/projects"><ProjectMaster /></Guarded>} />
         <Route path="/masters/weekly-check-in" element={<Guarded path="/masters/weekly-check-in" superAdminOnly><WeeklyCheckInConfig /></Guarded>} />
         <Route path="/masters/kpi-framework" element={<Guarded path="/masters/kpi-framework" permissionKey="masters.kpi_framework"><KpiFramework /></Guarded>} />

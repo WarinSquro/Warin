@@ -9,7 +9,8 @@ export type DataResource =
   | "confirmations"
   | "weekly-check-in"
   | "access-rights"
-  | "kpi";
+  | "kpi"
+  | "decision-points";
 
 export type DataChangeAction = "create" | "update" | "delete";
 

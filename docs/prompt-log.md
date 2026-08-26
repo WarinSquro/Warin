@@ -32,6 +32,31 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-26 12:30 IST
+
+**Prompt:**  
+> implement Decision Points under My Team
+
+**Output:**  
+- Full stack operational Decision Points: Prisma `decision_points`, `decision_point_actions`, `id_sequences` + migration `20260826123000_decision_points`.
+- Nest `DecisionPointsModule`: raise-options, mine, requiring-action, detail, raise, actions; summary counts; hierarchy routing via `resourceOwnerId`.
+- Nav/route: `my_team.decision_points` → `/my-team/decision-points` after KPI Results; AppShell icon.
+- UI `screens/DecisionPoints.tsx`: Requiring my action / Raised by me tabs, Raise drawer, detail + RO actions + Self-Resolve + trail.
+- Docs: table structure T33–35 script; FRD gap checklist updated (core Match; notifications still Missing).
+- Local: `prisma migrate deploy` applied. Rebuild Docker API required for containerized local (`docker compose up -d --build api`).
+
+### 2026-08-26 12:00 IST
+
+**Prompt:**  
+> fix (Cannot POST /api/v1/masters/decision-point-types; DP Types grid empty)
+
+**Output:**  
+- Root cause: Vite UI talked to Docker Compose API on `:8080`, but `oneview-api` image predated the new routes → Nest 404 “Cannot POST…”.
+- Seeded 7 types via `prisma/run-seed-dp-types.ts` (PowerShell-safe helper).
+- Rebuilt/restarted API: `docker compose up -d --build api`; nginx reload.
+- Verified: health ok; `GET …/decision-point-types` → **401** (route exists; auth required); DB has 7 active rows.
+- Hard-refresh UI → DP Types list should show 7; Add/POST should work when logged in.
+
 ### 2026-08-26 11:20 IST
 
 **Prompt:**  

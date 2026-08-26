@@ -104,7 +104,7 @@ Use with [`docs/specs/HOW-TO-USE-FRD.md`](./specs/HOW-TO-USE-FRD.md). Re-score r
 | Area | Status | Notes |
 |------|--------|-------|
 | Point Types master (Setup → DP Types) | **Partial** | Full stack: CRUD + Active/Inactive + allocation Optional/Required; admins may add types (product override of FRD “fixed seven”); seed ships 7 FRD types |
-| Raise / My Points / RO queue / actions / trail | **Missing** | Deferred to next phase (My Team → Decision Points) |
+| Raise / My Points / RO queue / actions / trail | **Match** | My Team → Decision Points (`my_team.decision_points`); lists + Raise drawer + detail/actions + immutable trail; no notifications |
 | Email notifications (§18) | **Missing** | Deferred follow-up slice |
 | Management analytics (§21–22) | **Missing** | Future |
 

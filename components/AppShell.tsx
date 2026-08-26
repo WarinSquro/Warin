@@ -44,6 +44,7 @@ const NAV_ICONS: Record<string, LucideIcon> = {
   "reports.workday_summary": CalendarDays,
   "my_team.weekly_check_in": UsersRound,
   "my_team.kpi_results": Target,
+  "my_team.decision_points": ClipboardCheck,
   "masters.weekly_check_in": SlidersHorizontal,
   "masters.kpi_framework": Crosshair,
   projects: FolderKanban,

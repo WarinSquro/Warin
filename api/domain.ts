@@ -1540,3 +1540,156 @@ export async function deleteKpiResultAttachment(id: string): Promise<{ ok: boole
   return apiFetch(`/kpi/results/${id}/attachment`, { method: "DELETE" });
 }
 
+// ─── Decision Points ─────────────────────────────────────────────────────────
+
+export type DecisionPointStatus =
+  | "pending_ro_action"
+  | "escalated_pending_next_ro"
+  | "acknowledged_closed"
+  | "approved_closed"
+  | "rejected_closed"
+  | "self_resolved_closed";
+
+export type DecisionPointActionType =
+  | "raised"
+  | "acknowledged_close"
+  | "approved_close"
+  | "rejected_close"
+  | "recommend_escalate"
+  | "self_resolved";
+
+export type DecisionPointListRow = {
+  id: string;
+  pointCode: string;
+  subject: string;
+  status: DecisionPointStatus;
+  typeName: string;
+  typeCode: string;
+  raisedAt: string;
+  raisedDate: string | null;
+  lastActionAt: string | null;
+  lastActionDate: string | null;
+  workReference: string | null;
+  projectName: string | null;
+  escalationLevel: number;
+  currentWithName: string | null;
+  finalDecisionByName: string | null;
+  raisedByName?: string;
+  previousOwnerName?: string | null;
+  pendingSince?: string | null;
+};
+
+export type DecisionPointDetail = {
+  id: string;
+  pointCode: string;
+  subject: string;
+  remarks: string;
+  status: DecisionPointStatus;
+  escalationLevel: number;
+  raisedAt: string;
+  raisedDate: string | null;
+  lastActionAt: string | null;
+  closedAt: string | null;
+  type: {
+    id: string;
+    code: string;
+    name: string;
+    description: string | null;
+    allocationRequirement: "optional" | "required";
+  };
+  raisedBy: { id: string; name: string; hrmsId: string };
+  currentOwner: { id: string; name: string; hrmsId: string } | null;
+  previousOwner: { id: string; name: string; hrmsId: string } | null;
+  finalActor: { id: string; name: string; hrmsId: string } | null;
+  workContext: {
+    allocationId: string;
+    projectName: string;
+    projectCode: string;
+    activityName: string;
+    plannedHours: number;
+    resourceName: string;
+    startDate: string | null;
+    endDate: string | null;
+  } | null;
+  trail: Array<{
+    id: string;
+    actionType: DecisionPointActionType;
+    remarks: string;
+    previousStatus: DecisionPointStatus;
+    newStatus: DecisionPointStatus;
+    createdAt: string;
+    performedByName: string;
+    previousOwnerName: string | null;
+    nextOwnerName: string | null;
+  }>;
+  permissions: {
+    canSelfResolve: boolean;
+    canActAsRo: boolean;
+    canEscalate?: boolean;
+    isRaiser: boolean;
+    isCurrentOwner: boolean;
+  };
+};
+
+export type DecisionPointRaiseOptions = {
+  types: Array<{
+    id: string;
+    code: string;
+    name: string;
+    description: string | null;
+    allocationRequirement: "optional" | "required";
+  }>;
+  allocations: Array<{
+    id: string;
+    label: string;
+    projectName: string;
+    activityName: string;
+    hoursPerDay: number;
+    startDate: string | null;
+    endDate: string | null;
+  }>;
+  hasResourceOwner: boolean;
+};
+
+export async function fetchDecisionPointSummary(): Promise<{ mine: number; requiring: number }> {
+  return apiFetch("/decision-points?summary=1");
+}
+
+export async function fetchDecisionPointsMine(): Promise<DecisionPointListRow[]> {
+  return apiFetch("/decision-points/mine");
+}
+
+export async function fetchDecisionPointsRequiringAction(): Promise<DecisionPointListRow[]> {
+  return apiFetch("/decision-points/requiring-action");
+}
+
+export async function fetchDecisionPointDetail(id: string): Promise<DecisionPointDetail> {
+  return apiFetch(`/decision-points/${encodeURIComponent(id)}`);
+}
+
+export async function fetchDecisionPointRaiseOptions(): Promise<DecisionPointRaiseOptions> {
+  return apiFetch("/decision-points/raise-options");
+}
+
+export async function raiseDecisionPoint(body: {
+  typeId: string;
+  subject: string;
+  remarks: string;
+  allocationId?: string | null;
+}): Promise<DecisionPointDetail> {
+  return apiFetch("/decision-points", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function actOnDecisionPoint(
+  id: string,
+  body: { action: DecisionPointActionType; remarks: string }
+): Promise<DecisionPointDetail> {
+  return apiFetch(`/decision-points/${encodeURIComponent(id)}/actions`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+

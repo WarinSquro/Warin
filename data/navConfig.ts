@@ -113,6 +113,13 @@ export const PERMISSION_PAGES: PermissionPage[] = [
     menuVisible: true,
   },
   {
+    key: "my_team.decision_points",
+    label: "Decision Points",
+    route: "/my-team/decision-points",
+    group: "My Team",
+    menuVisible: true,
+  },
+  {
     key: "masters",
     label: "Org · Skills · Activities",
     route: "/masters",

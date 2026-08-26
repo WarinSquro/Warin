@@ -708,7 +708,7 @@ export class MastersController {
   // ─── decision point types ────────────────────────────────────────────────
 
   @Get("decision-point-types")
-  @RequirePermissions("masters.dp_types", "masters")
+  @RequirePermissions("masters.dp_types", "masters", "my_team.decision_points")
   async decisionPointTypes(@Query("includeInactive") includeInactive?: string) {
     const rows = await this.prisma.decisionPointType.findMany({
       where: {
@@ -809,8 +809,16 @@ export class MastersController {
     }
 
     const status = asStatus(body.status, row.status);
-    // Usage guard reserved for when Decision Points transactional table exists.
-    // Soft-disable remains allowed until points reference this type.
+    if (status === "inactive" && row.status !== "inactive") {
+      const inUse = await this.prisma.decisionPoint.count({
+        where: { typeId: row.id, isDeleted: false },
+      });
+      if (inUse > 0) {
+        throw new BadRequestException(
+          "Decision Point type is used by one or more Points and cannot be disabled."
+        );
+      }
+    }
 
     const allocationRequirement =
       body.allocationRequirement === "required"
