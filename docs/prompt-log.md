@@ -32,6 +32,14 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-26 18:35 IST
+
+**Prompt:**  
+> KPI Framework Group by: use standard dropdown (FilterSingleSelect) instead of native select
+
+**Output:**  
+- `screens/KpiFramework.tsx` — Group by uses `FilterSingleSelect` (None / Department / Category), same as Calendar Year and Quarter on that screen. SPA-only.
+
 ### 2026-08-26 18:20 IST
 
 **Prompt:**  

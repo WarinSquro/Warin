@@ -809,18 +809,13 @@ export function KpiFramework() {
               />
               <div className="flex items-center gap-1.5">
                 <span className="text-[11px] text-muted-foreground">Group by</span>
-                <select
-                  value={groupBy}
-                  onChange={(e) => setGroupBy(e.target.value as KpiGroupBy)}
+                <FilterSingleSelect
                   aria-label="Group by"
-                  className="cursor-pointer rounded-md border border-border bg-surface px-2.5 py-1.5 text-[12px] text-foreground outline-none focus:border-primary"
-                >
-                  {KPI_GROUP_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
+                  value={groupBy}
+                  onChange={(v) => setGroupBy(v as KpiGroupBy)}
+                  options={KPI_GROUP_OPTIONS}
+                  className="min-w-[120px]"
+                />
               </div>
               {weightHint ? (
                 <span
