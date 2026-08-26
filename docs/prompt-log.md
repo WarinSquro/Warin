@@ -35,6 +35,14 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 ### 2026-08-26 18:20 IST
 
 **Prompt:**  
+> Decision Points: do not use same icon as Confirmations. Use different icon related to “Decision Points” name
+
+**Output:**  
+- `components/AppShell.tsx` — My Team → Decision Points nav icon is Lucide `Signpost` (direction/choice), not `ClipboardCheck` used by Confirmations. SPA-only.
+
+### 2026-08-26 18:20 IST
+
+**Prompt:**  
 > Need Project Name change provision in EDIT mode (check all validations - duplicate name not allowed etc.)
 
 **Output:**  
