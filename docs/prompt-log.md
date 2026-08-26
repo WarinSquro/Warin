@@ -32,6 +32,16 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-26 17:55 IST
+
+**Prompt:**  
+> Now want to live all on EC2
+
+**Output:**  
+- Pushed `1a09b64` (KPI Framework group-by / Target (U) / hide grouped column + Decision Points drawer UX).
+- EC2: `ec2-deploy.sh --with-api` → `LIVE_COMMIT=1a09b64`, SPA published, API rebuilt, migrations `decision_point_types` + `decision_points` applied, `API_HEALTH_OK`.
+- Hard-refresh https://seworkspace.com/
+
 ### 2026-08-26 17:35 IST
 
 **Prompt:**  
