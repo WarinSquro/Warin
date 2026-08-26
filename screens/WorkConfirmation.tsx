@@ -1711,26 +1711,24 @@ function ComplianceRowView({
         selected ? "bg-surface-alt ring-1 ring-inset ring-brand/20" : ""
       }`}
     >
-      <div className="flex min-w-0 flex-1 items-center gap-2.5">
+      <button
+        type="button"
+        onClick={onSelectEmployee}
+        title={selected ? "Clear deviation filter" : `Show deviations for ${row.name}`}
+        className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-md text-left hover:bg-surface-alt/80"
+      >
         <div
-          className={`flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-semibold ${
+          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold ${
             onLeave ? "bg-surface-alt text-muted" : "bg-accent-soft text-accent-softfg"
           }`}
         >
           {row.initials}
         </div>
         <div className="min-w-0">
-          <button
-            type="button"
-            onClick={onSelectEmployee}
-            title={selected ? "Clear deviation filter" : `Show deviations for ${row.name}`}
-            className="cursor-pointer truncate text-left text-[12px] font-medium text-foreground hover:text-primary hover:underline"
-          >
-            {row.name}
-          </button>
+          <div className="truncate text-[12px] font-medium text-foreground">{row.name}</div>
           <div className={`text-[10px] ${todayLabelClass(todayStatus)}`}>{row.todayLabel}</div>
         </div>
-      </div>
+      </button>
       <div className={complianceWeekGridClass(weekDayCount)}>
         {row.week.map((s, i) => (
           <span
