@@ -32,6 +32,14 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-26 17:35 IST
+
+**Prompt:**  
+> Show employee name in Deviation feed header like allocation task tags (accent-soft badge)
+
+**Output:**  
+- `screens/WorkConfirmation.tsx` — filtered header shows `Deviation feed` + name in `bg-accent-soft` / `text-accent-softfg` chip with inline × clear (SPA-only).
+
 ### 2026-08-26 15:35 IST
 
 **Prompt:**  

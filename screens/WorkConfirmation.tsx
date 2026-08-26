@@ -1640,27 +1640,26 @@ function ManagerCompliance() {
 
         <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-surface">
           <div className="flex flex-shrink-0 items-center justify-between gap-2 border-b border-border-soft px-4 py-3">
-            <div className="min-w-0 text-[13px] font-semibold text-foreground">
-              {selectedDeviationEmployee
-                ? `Deviation feed · ${selectedDeviationEmployee.name}`
-                : "Deviation feed"}
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <span className="text-[11px] text-muted-foreground">
-                {selectedDeviationEmployee ? "this week" : "this week · auto-accepted"}
-              </span>
+            <div className="flex min-w-0 flex-wrap items-center gap-2 text-[13px] font-semibold text-foreground">
+              <span>Deviation feed</span>
               {selectedDeviationEmployee && (
-                <button
-                  type="button"
-                  aria-label="Clear employee filter"
-                  title="Show all deviations this week"
-                  onClick={() => setDeviationEmployeeId(null)}
-                  className="inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-surface-alt hover:text-foreground"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
+                <span className="inline-flex max-w-full items-center gap-1 rounded-sm bg-accent-soft px-2 py-0.5 text-[11px] font-medium text-accent-softfg">
+                  <span className="truncate">{selectedDeviationEmployee.name}</span>
+                  <button
+                    type="button"
+                    aria-label="Clear employee filter"
+                    title="Show all deviations this week"
+                    onClick={() => setDeviationEmployeeId(null)}
+                    className="inline-flex h-3.5 w-3.5 shrink-0 cursor-pointer items-center justify-center rounded-sm text-accent-softfg hover:bg-accent-line/40"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
               )}
             </div>
+            <span className="shrink-0 text-[11px] text-muted-foreground">
+              {selectedDeviationEmployee ? "this week" : "this week · auto-accepted"}
+            </span>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
             {filteredDeviations.map((d) => (
