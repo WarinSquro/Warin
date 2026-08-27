@@ -32,6 +32,39 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-27 11:45 IST
+
+**Prompt:**  
+> Remind email: no URL; Warin → SE Workspace; subject “this week”; body lists this week’s pending dates except today.
+
+**Output:**  
+- `confirmations.controller.ts` `POST /confirmations/remind`: subject `Reminder: confirm your work for this week`; pending week dates via same `teamDayStatus` rules (exclude today); no confirm URL; sign-off **SE Workspace**.
+- Local/live need API rebuild: `docker compose up -d --build api` / `ec2-deploy.sh --with-api`.
+
+### 2026-08-27 11:35 IST
+
+**Prompt:**  
+> Work Confirmation plan table: ALLOCATION / TASKS / STATUS header not aligned with columns — correct it.
+
+**Output:**  
+- Header + `LineRow` now share `grid-cols-[minmax(0,1fr)_220px_200px] gap-3` so TASKS/STATUS align with task chips and status buttons.
+
+### 2026-08-27 11:20 IST
+
+**Prompt:**  
+> Project Execution drawer: keep space after project name; style timeline dates like the muted “· August 2026” period label.
+
+**Output:**  
+- `ProjectExecutionDrawer` title: name stays `text-[14px] font-semibold`; timeline in `ml-1.5 text-[11px] font-normal text-muted-foreground`.
+
+### 2026-08-27 11:15 IST
+
+**Prompt:**  
+> Project Execution drawer title: add project timeline in round brackets after a space.
+
+**Output:**  
+- `components/ProjectExecutionDrawer.tsx` header shows `ProjectName (start – end)` using Project Master dates + Settings date format; TruncateText for overflow tooltip.
+
 ### 2026-08-26 19:00 IST
 
 **Prompt:**  

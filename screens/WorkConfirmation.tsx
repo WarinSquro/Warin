@@ -1006,14 +1006,13 @@ function EmployeeConfirm() {
         )}
 
         <div className="overflow-hidden rounded-lg border border-border bg-surface">
-          <div className="flex flex-shrink-0 border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold text-muted">
+          <div className="grid flex-shrink-0 grid-cols-[minmax(0,1fr)_220px_200px] items-center gap-3 border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold text-muted">
             <SortColHeader
               label="ALLOCATION"
               col="allocation"
               sortKey={lineSortKey}
               sortDir={lineSortDir}
               onSort={handleLineSort}
-              className="flex-1"
             />
             <SortColHeader
               label="TASKS"
@@ -1021,7 +1020,6 @@ function EmployeeConfirm() {
               sortKey={lineSortKey}
               sortDir={lineSortDir}
               onSort={handleLineSort}
-              className="w-[220px]"
             />
             <SortColHeader
               label="STATUS"
@@ -1029,7 +1027,7 @@ function EmployeeConfirm() {
               sortKey={lineSortKey}
               sortDir={lineSortDir}
               onSort={handleLineSort}
-              className="w-[200px] flex-shrink-0 justify-end"
+              className="justify-end"
             />
           </div>
           {sortedLines.map((l, i) => (
@@ -1267,8 +1265,8 @@ function LineRow({
   const dev = st.mode === "deviation";
   return (
     <div className={`px-4 py-3 ${first ? "" : "border-t border-border-soft"} ${dev ? "bg-warning-soft/30" : ""}`}>
-      <div className="flex items-start gap-3">
-        <div className="min-w-0 flex-1">
+      <div className="grid grid-cols-[minmax(0,1fr)_220px_200px] items-start gap-3">
+        <div className="min-w-0">
           <div className="text-[13px] font-medium text-foreground">
             {line.project} · {line.milestone}
           </div>
@@ -1294,7 +1292,7 @@ function LineRow({
             />
           )}
         </div>
-        <div className="w-[220px] flex-shrink-0">
+        <div className="min-w-0">
           {line.tasks.length > 0 ? (
             <div className="flex flex-wrap gap-1">
               {line.tasks.map((task) => (
@@ -1307,7 +1305,7 @@ function LineRow({
             <span className="text-[11px] text-muted-foreground">—</span>
           )}
         </div>
-        <div className="flex w-[200px] flex-shrink-0 justify-end">
+        <div className="flex justify-end">
           <div className="inline-flex overflow-hidden rounded-md border border-border text-[11px]">
             <button
               type="button"
