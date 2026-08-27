@@ -15,6 +15,9 @@ import { MetricChip } from "./MetricChip";
 import { BillableSplitBar } from "./BillableSplitBar";
 import { ProjectHealthBadge } from "./ProjectHealthBadge";
 import { SortColHeader, useColumnSort } from "./SortColHeader";
+import { TruncateText } from "./TruncateText";
+import { useProjects } from "../context/ProjectsContext";
+import { useAppDateFormat } from "../hooks/useAppDateFormat";
 import {
   EXECUTION_STATUS_LABELS,
   type ExecutionHistory,
@@ -103,6 +106,8 @@ const TREND_METRICS: Record<
 export function ProjectExecutionDrawer({ open, onClose, row, history, roster, periodLabel }: Props) {
   const [trendMetric, setTrendMetric] = useState<TrendMetric>("confirmationDiscipline");
   const { sortKey, sortDir, handleSort } = useColumnSort<RosterSortKey>("resource");
+  const { projects } = useProjects();
+  const { formatDate } = useAppDateFormat();
 
   useEffect(() => {
     if (open && row) setTrendMetric("confirmationDiscipline");
@@ -133,6 +138,20 @@ export function ProjectExecutionDrawer({ open, onClose, row, history, roster, pe
     });
   }, [roster, sortKey, sortDir]);
 
+  const headerTitle = useMemo(() => {
+    if (!row) return { name: "", timeline: null as string | null, full: "" };
+    const project = projects.find((p) => p.id === row.projectId);
+    if (!project?.startDate || !project?.endDate) {
+      return { name: row.projectName, timeline: null, full: row.projectName };
+    }
+    const timeline = `${formatDate(project.startDate)} – ${formatDate(project.endDate)}`;
+    return {
+      name: row.projectName,
+      timeline,
+      full: `${row.projectName} · (${timeline})`,
+    };
+  }, [row, projects, formatDate]);
+
   if (!row) return null;
 
   const chartConfig = TREND_METRICS[trendMetric];
@@ -151,7 +170,19 @@ export function ProjectExecutionDrawer({ open, onClose, row, history, roster, pe
       >
         <div className="flex flex-shrink-0 items-center justify-between border-b border-border-soft px-[18px] py-3.5">
           <div className="min-w-0">
-            <div className="truncate text-[14px] font-semibold text-foreground">{row.projectName}</div>
+            <TruncateText
+              as="div"
+              fullText={headerTitle.full}
+              className="text-[14px] font-semibold text-foreground"
+            >
+              {headerTitle.name}
+              {headerTitle.timeline ? (
+                <span className="text-[11px] font-normal text-muted-foreground">
+                  {" "}
+                  · ({headerTitle.timeline})
+                </span>
+              ) : null}
+            </TruncateText>
             <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
               <ExecutionStatusBadge status={row.executionStatus} />
               <ProjectHealthBadge health={row.health} />

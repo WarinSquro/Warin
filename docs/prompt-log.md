@@ -32,6 +32,15 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-27 14:58 IST
+
+**Prompt:**  
+> ProjectExecutionDrawer title: put middle dot between project name and timeline, same as `· August 2026` on the status line.
+
+**Output:**  
+- Title now renders `EDM · (01-Feb-2026 – 31-Mar-2027)` with muted `· (timeline)` matching period separator style.
+- **File:** `components/ProjectExecutionDrawer.tsx`.
+
 ### 2026-08-27 14:52 IST
 
 **Prompt:**  
