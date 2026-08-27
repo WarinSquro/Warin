@@ -32,6 +32,33 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-27 16:10 IST
+
+**Prompt:**  
+> Enable “Add unplanned work” only after description is entered on existing unplanned rows.
+
+**Output:**  
+- Button disabled while any unplanned row has an empty description (`unplannedMissingDescription`); tooltip explains why.
+- **File:** `screens/WorkConfirmation.tsx`.
+
+### 2026-08-27 16:08 IST
+
+**Prompt:**  
+> Unplanned work text (“What did you work on?”) is mandatory — put validation.
+
+**Output:**  
+- Empty description shows danger border + “Description is required.”; Confirm stays disabled; submit/toast reinforces the rule.
+- **File:** `screens/WorkConfirmation.tsx`.
+
+### 2026-08-27 16:05 IST
+
+**Prompt:**  
+> Unplanned trash: follow delete rule — confirm then delete.
+
+**Output:**  
+- Trash opens shared `ConfirmDeleteDialog`; row removed only on Confirm.
+- **File:** `screens/WorkConfirmation.tsx`.
+
 ### 2026-08-27 16:00 IST
 
 **Prompt:**  

@@ -14,10 +14,11 @@ import {
 import { Tooltip } from "../components/Tooltip";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import {
-  AllocationFocusTimer,
-  ConfirmationDayCalendar,
   WorkdayTimelinePanel,
+  ConfirmationDayCalendar,
+  AllocationFocusTimer,
 } from "../components/ConfirmationProductivity";
+import { ConfirmDeleteDialog } from "../components/ConfirmDeleteDialog";
 import type { PlannedLine, DayStatus, ComplianceRow, DeviationEntry } from "../data/confirmation";
 import { useAuth } from "../context/AuthContext";
 import { useSettings } from "../context/SettingsContext";
@@ -210,6 +211,8 @@ function EmployeeConfirm() {
   const [fetchError, setFetchError] = useState("");
   const [fetchedMissDate, setFetchedMissDate] = useState("");
   const [dayEndConfirmOpen, setDayEndConfirmOpen] = useState(false);
+  /** Pending unplanned row id awaiting delete confirmation. */
+  const [unplannedDeleteId, setUnplannedDeleteId] = useState<string | null>(null);
   const {
     sortKey: lineSortKey,
     sortDir: lineSortDir,
@@ -933,6 +936,8 @@ function EmployeeConfirm() {
   /** Miss-posting requires a successful FETCH before confirm (avoids confirming today by mistake). */
   const missPostingAwaitingFetch = missedPosting && !fetchedMissDate;
 
+  const unplannedMissingDescription = unplanned.some((u) => u.project.trim() === "");
+
   const canSubmit =
     !missPostingAwaitingFetch &&
     activeLines.length + unplanned.length > 0 &&
@@ -941,6 +946,11 @@ function EmployeeConfirm() {
     focusTimersAllStopped;
 
   const handleSubmit = async () => {
+    if (unplannedMissingDescription) {
+      setSaveError("Enter a description for each unplanned work entry.");
+      toast.error("Unplanned work description is required.");
+      return;
+    }
     if (!canSubmit) return;
     if (missedPosting && !fetchedMissDate) {
       toast.error("Fetch a missed day with a plan before confirming.");
@@ -1297,7 +1307,7 @@ function EmployeeConfirm() {
                 {viewingConfirmableDate && !submitted && (
                   <button
                     type="button"
-                    onClick={() => setUnplanned((arr) => arr.filter((x) => x.id !== u.id))}
+                    onClick={() => setUnplannedDeleteId(u.id)}
                     className="cursor-pointer text-muted-foreground hover:text-danger"
                     aria-label="Remove unplanned work"
                     title="Remove"
@@ -1306,18 +1316,35 @@ function EmployeeConfirm() {
                   </button>
                 )}
               </div>
-              <div className="mt-2 flex items-center gap-2">
-                <input
-                  placeholder="What did you work on?"
-                  value={u.project}
-                  disabled={!viewingConfirmableDate || submitted}
-                  onChange={(e) =>
-                    setUnplanned((arr) =>
-                      arr.map((x) => (x.id === u.id ? { ...x, project: e.target.value } : x))
-                    )
-                  }
-                  className="flex-1 rounded-md border border-border bg-surface px-2.5 py-1.5 text-[12px] text-foreground outline-none focus:border-accent-line disabled:bg-surface-alt disabled:text-muted-foreground"
-                />
+              <div className="mt-2 flex items-start gap-2">
+                <div className="min-w-0 flex-1">
+                  <input
+                    placeholder="What did you work on?"
+                    value={u.project}
+                    required
+                    aria-required
+                    aria-invalid={
+                      viewingConfirmableDate && !submitted && u.project.trim() === ""
+                        ? true
+                        : undefined
+                    }
+                    disabled={!viewingConfirmableDate || submitted}
+                    onChange={(e) => {
+                      setUnplanned((arr) =>
+                        arr.map((x) => (x.id === u.id ? { ...x, project: e.target.value } : x))
+                      );
+                      if (saveError.includes("unplanned")) setSaveError("");
+                    }}
+                    className={`w-full rounded-md border bg-surface px-2.5 py-1.5 text-[12px] text-foreground outline-none disabled:bg-surface-alt disabled:text-muted-foreground ${
+                      viewingConfirmableDate && !submitted && u.project.trim() === ""
+                        ? "border-danger focus:border-danger"
+                        : "border-border focus:border-accent-line"
+                    }`}
+                  />
+                  {viewingConfirmableDate && !submitted && u.project.trim() === "" && (
+                    <div className="mt-1 text-[11px] text-danger">Description is required.</div>
+                  )}
+                </div>
                 <input
                   type="number"
                   step={0.5}
@@ -1331,7 +1358,7 @@ function EmployeeConfirm() {
                   }
                   className="w-[4.25rem] rounded-md border border-border bg-surface px-2.5 py-1.5 text-[12px] text-foreground outline-none focus:border-accent-line disabled:bg-surface-alt"
                 />
-                <span className="text-[11px] text-muted-foreground">h</span>
+                <span className="mt-2 text-[11px] text-muted-foreground">h</span>
               </div>
             </div>
           ))}
@@ -1339,17 +1366,23 @@ function EmployeeConfirm() {
           {viewingConfirmableDate && !submitted && (
           <button
             type="button"
-            disabled={blockUnplannedAdd}
-            title={unplannedAddBlockedReason}
+            disabled={blockUnplannedAdd || unplannedMissingDescription}
+            title={
+              blockUnplannedAdd
+                ? unplannedAddBlockedReason
+                : unplannedMissingDescription
+                  ? "Enter a description for each unplanned work entry before adding another"
+                  : undefined
+            }
             onClick={() => {
-              if (blockUnplannedAdd) return;
+              if (blockUnplannedAdd || unplannedMissingDescription) return;
               setUnplanned((arr) => [
                 ...arr,
                 { id: `u${Date.now()}`, project: "", hours: 1, reason: "logged" },
               ]);
             }}
             className={`flex w-full items-center gap-1.5 border-t border-dashed border-border px-4 py-2.5 text-[12px] ${
-              blockUnplannedAdd
+              blockUnplannedAdd || unplannedMissingDescription
                 ? "cursor-not-allowed text-muted-foreground opacity-50"
                 : "cursor-pointer text-primary hover:bg-surface-alt"
             }`}
@@ -1395,9 +1428,11 @@ function EmployeeConfirm() {
             title={
               missPostingAwaitingFetch
                 ? "Fetch a missed day with a plan before confirming"
-                : !focusTimersAllStopped
-                  ? "Stop all focus timers before submitting"
-                  : undefined
+                : unplannedMissingDescription
+                  ? "Enter a description for each unplanned work entry"
+                  : !focusTimersAllStopped
+                    ? "Stop all focus timers before submitting"
+                    : undefined
             }
             className={`flex items-center justify-center gap-2 rounded-md px-4 py-2.5 text-[13px] font-semibold ${
               deviationCount === 0 ? "flex-1 bg-primary text-primary-foreground" : "flex-1 bg-brand text-white"
@@ -1461,6 +1496,16 @@ function EmployeeConfirm() {
           </div>
         </div>
       )}
+
+      <ConfirmDeleteDialog
+        open={unplannedDeleteId != null}
+        onCancel={() => setUnplannedDeleteId(null)}
+        onConfirm={() => {
+          if (!unplannedDeleteId) return;
+          setUnplanned((arr) => arr.filter((x) => x.id !== unplannedDeleteId));
+          setUnplannedDeleteId(null);
+        }}
+      />
     </div>
   );
 }
