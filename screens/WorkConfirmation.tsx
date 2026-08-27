@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Check, Plus, X, CheckCircle2, Bell, Timer } from "lucide-react";
 import { formatAppDate, formatAppDateTime } from "../utils/formatAppDate";
@@ -226,6 +226,14 @@ function EmployeeConfirm() {
   const [calendarDate, setCalendarDate] = useState(today);
   const [tick, setTick] = useState(0);
   const [stampingWorkday, setStampingWorkday] = useState(false);
+  /** True while a plan fetch for the selected calendar day is in flight. */
+  const [planLoading, setPlanLoading] = useState(false);
+  /** Monotonic id so stale plan responses never overwrite a newer calendar selection. */
+  const planLoadSeqRef = useRef(0);
+  const calendarDateRef = useRef(calendarDate);
+  calendarDateRef.current = calendarDate;
+  const fetchedMissDateRef = useRef(fetchedMissDate);
+  fetchedMissDateRef.current = fetchedMissDate;
 
   /** Prefer server IST “today” for Workday Timeline and confirmable day. */
   useEffect(() => {
@@ -627,10 +635,24 @@ function EmployeeConfirm() {
     return linesFromAllocations(rows);
   };
 
+  /** Apply plan panel state only if this response is still the latest for that calendar day. */
+  const applyPlanIfCurrent = (
+    dateIso: string,
+    seq: number,
+    apply: () => void
+  ): boolean => {
+    if (seq !== planLoadSeqRef.current) return false;
+    if (calendarDateRef.current !== dateIso) return false;
+    apply();
+    return true;
+  };
+
   /** Show allocations for the calendar-selected day in the plan panel. */
   const loadPlanForCalendarDate = useCallback(
     async (dateIso: string) => {
       if (!hrmsId) return;
+      const seq = ++planLoadSeqRef.current;
+      setPlanLoading(true);
       setPlanHeading(
         dateIso === today
           ? "Your plan for today"
@@ -641,19 +663,26 @@ function EmployeeConfirm() {
         const existing = await fetchMyConfirmation(dateIso);
         if (existing) {
           const hydrated = hydrateFromConfirmation(existing);
-          setActiveLines(hydrated.lines);
-          setStates(hydrated.states);
-          setUnplanned(hydrated.unplanned);
+          applyPlanIfCurrent(dateIso, seq, () => {
+            setActiveLines(hydrated.lines);
+            setStates(hydrated.states);
+            setUnplanned(hydrated.unplanned);
+          });
           return;
         }
         const lines = await loadPlanForDate(dateIso);
-        setActiveLines(lines);
-        setStates(initLineStates(lines));
-        setUnplanned([]);
+        applyPlanIfCurrent(dateIso, seq, () => {
+          setActiveLines(lines);
+          setStates(initLineStates(lines));
+          setUnplanned([]);
+        });
       } catch {
-        setActiveLines(EMPTY_LINES);
-        setStates(initLineStates(EMPTY_LINES));
-        setUnplanned([]);
+        // Keep prior lines on failure so the panel does not flash empty.
+        applyPlanIfCurrent(dateIso, seq, () => {
+          setSaveError("Could not load plan for this date. Try again.");
+        });
+      } finally {
+        if (seq === planLoadSeqRef.current) setPlanLoading(false);
       }
     },
     // loadPlanForDate closes over hrmsId; include deps used for heading/fetch
@@ -662,6 +691,7 @@ function EmployeeConfirm() {
   );
 
   const handleCalendarSelect = (iso: string) => {
+    calendarDateRef.current = iso;
     setCalendarDate(iso);
     void loadPlanForCalendarDate(iso);
   };
@@ -670,6 +700,7 @@ function EmployeeConfirm() {
   const viewingConfirmableDate = calendarDate === workDate;
 
   const loadMyDay = useCallback(async () => {
+    const seqAtStart = planLoadSeqRef.current;
     try {
       const [missCount, existing, lines] = await Promise.all([
         fetchMissPostingCount(today.slice(0, 7)),
@@ -679,6 +710,15 @@ function EmployeeConfirm() {
           : Promise.resolve([] as PlannedLine[]),
       ]);
       setMonthMissCount(missCount);
+
+      // Do not overwrite the plan panel while browsing another calendar day
+      // (or a fetched miss-posting day). Stale today-loads caused blank/task flicker.
+      const browsingOtherDay =
+        calendarDateRef.current !== today || Boolean(fetchedMissDateRef.current);
+      if (browsingOtherDay || seqAtStart !== planLoadSeqRef.current) {
+        return;
+      }
+
       if (existing) {
         const hydrated = hydrateFromConfirmation(existing);
         setActiveLines(hydrated.lines);
@@ -695,8 +735,14 @@ function EmployeeConfirm() {
         setSubmitted(false);
       }
     } catch {
-      setActiveLines(EMPTY_LINES);
-      setStates(initLineStates(EMPTY_LINES));
+      if (
+        calendarDateRef.current === today &&
+        !fetchedMissDateRef.current &&
+        seqAtStart === planLoadSeqRef.current
+      ) {
+        setActiveLines(EMPTY_LINES);
+        setStates(initLineStates(EMPTY_LINES));
+      }
     }
   }, [hrmsId, today, dateFmt]);
 
@@ -712,30 +758,42 @@ function EmployeeConfirm() {
 
   /** Reload today's plan lines while staying in edit mode (never bounce to submitted view). */
   const loadTodayPlanForEdit = async () => {
+    const seq = ++planLoadSeqRef.current;
     setPlanHeading("Your plan for today");
     setFetchedMissDate("");
+    fetchedMissDateRef.current = "";
+    calendarDateRef.current = today;
     setCalendarDate(today);
     setFetchError("");
     setSaveError("");
     setSubmitted(false);
     setSubmittedAtLabel("");
+    setPlanLoading(true);
     try {
       const existing = await fetchMyConfirmation(today);
       if (existing) {
         const hydrated = hydrateFromConfirmation(existing);
-        setActiveLines(hydrated.lines);
-        setStates(hydrated.states);
-        setUnplanned(hydrated.unplanned);
+        applyPlanIfCurrent(today, seq, () => {
+          setActiveLines(hydrated.lines);
+          setStates(hydrated.states);
+          setUnplanned(hydrated.unplanned);
+        });
         return;
       }
       const lines = await loadPlanForDate(today);
-      setActiveLines(lines);
-      setStates(initLineStates(lines));
-      setUnplanned([]);
+      applyPlanIfCurrent(today, seq, () => {
+        setActiveLines(lines);
+        setStates(initLineStates(lines));
+        setUnplanned([]);
+      });
     } catch {
-      setActiveLines(EMPTY_LINES);
-      setStates(initLineStates(EMPTY_LINES));
-      setUnplanned([]);
+      applyPlanIfCurrent(today, seq, () => {
+        setActiveLines(EMPTY_LINES);
+        setStates(initLineStates(EMPTY_LINES));
+        setUnplanned([]);
+      });
+    } finally {
+      if (seq === planLoadSeqRef.current) setPlanLoading(false);
     }
   };
 
@@ -745,6 +803,7 @@ function EmployeeConfirm() {
     setMissDate("");
     setFetchError("");
     setFetchedMissDate("");
+    fetchedMissDateRef.current = "";
     if (!checked) {
       void loadTodayPlanForEdit();
     }
@@ -753,36 +812,52 @@ function EmployeeConfirm() {
 
   const handleFetch = async () => {
     setFetchError("");
+    const seq = ++planLoadSeqRef.current;
+    setPlanLoading(true);
     try {
       const existing = await fetchMyConfirmation(missDate);
       if (existing) {
         const hydrated = hydrateFromConfirmation(existing);
-        setActiveLines(hydrated.lines);
-        setStates(hydrated.states);
-        setUnplanned(hydrated.unplanned);
-        // Stay in edit mode — do not bounce to the confirmed summary screen.
-        setSubmitted(false);
-        setSubmittedAtLabel(formatAppDateTime(existing.submittedAt, dateFmt));
+        fetchedMissDateRef.current = missDate;
+        calendarDateRef.current = missDate;
         setFetchedMissDate(missDate);
         setCalendarDate(missDate);
-        setPlanHeading(`Your plan for ${formatPlanDate(missDate, dateFmt)}`);
+        applyPlanIfCurrent(missDate, seq, () => {
+          setActiveLines(hydrated.lines);
+          setStates(hydrated.states);
+          setUnplanned(hydrated.unplanned);
+          // Stay in edit mode — do not bounce to the confirmed summary screen.
+          setSubmitted(false);
+          setSubmittedAtLabel(formatAppDateTime(existing.submittedAt, dateFmt));
+          setPlanHeading(`Your plan for ${formatPlanDate(missDate, dateFmt)}`);
+        });
         return;
       }
       const lines = await loadPlanForDate(missDate);
       if (lines.length === 0) {
-        setFetchError("No plan found for this date. Try another day.");
+        if (seq === planLoadSeqRef.current) {
+          setFetchError("No plan found for this date. Try another day.");
+        }
         return;
       }
-      setActiveLines(lines);
-      setStates(initLineStates(lines));
-      setUnplanned([]);
-      setSubmitted(false);
-      setSubmittedAtLabel("");
+      fetchedMissDateRef.current = missDate;
+      calendarDateRef.current = missDate;
       setFetchedMissDate(missDate);
       setCalendarDate(missDate);
-      setPlanHeading(`Your plan for ${formatPlanDate(missDate, dateFmt)}`);
+      applyPlanIfCurrent(missDate, seq, () => {
+        setActiveLines(lines);
+        setStates(initLineStates(lines));
+        setUnplanned([]);
+        setSubmitted(false);
+        setSubmittedAtLabel("");
+        setPlanHeading(`Your plan for ${formatPlanDate(missDate, dateFmt)}`);
+      });
     } catch (e) {
-      setFetchError(e instanceof Error ? e.message : "Failed to load plan");
+      if (seq === planLoadSeqRef.current) {
+        setFetchError(e instanceof Error ? e.message : "Failed to load plan");
+      }
+    } finally {
+      if (seq === planLoadSeqRef.current) setPlanLoading(false);
     }
   };
 
@@ -1107,17 +1182,24 @@ function EmployeeConfirm() {
         <div className="mb-3 flex items-baseline justify-between">
           <div className="text-[13px] font-semibold text-foreground">{planHeading}</div>
           <div className="text-[12px] text-muted-foreground">
-            {plannedTotal}h planned across {activeLines.length} lines
+            {planLoading
+              ? "Loading plan…"
+              : `${plannedTotal}h planned across ${activeLines.length} lines`}
           </div>
         </div>
 
-        {activeLines.length === 0 && unplanned.length === 0 && (
+        {!planLoading && activeLines.length === 0 && unplanned.length === 0 && (
           <div className="mb-3 rounded-lg border border-border bg-surface px-4 py-8 text-center text-[12px] text-muted-foreground">
             No allocations for this date — add one in Resource Planner, or log unplanned work below.
           </div>
         )}
 
-        <div className="overflow-hidden rounded-lg border border-border bg-surface">
+        <div
+          className={`overflow-hidden rounded-lg border border-border bg-surface ${
+            planLoading ? "opacity-60" : ""
+          }`}
+          aria-busy={planLoading || undefined}
+        >
           <div className="grid flex-shrink-0 grid-cols-[minmax(0,1fr)_220px_200px] items-center gap-3 border-b border-border-soft bg-surface-alt px-4 py-2 text-[11px] font-semibold text-muted">
             <SortColHeader
               label="ALLOCATION"

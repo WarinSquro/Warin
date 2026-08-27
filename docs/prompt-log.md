@@ -32,6 +32,16 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-27 14:35 IST
+
+**Prompt:**  
+> Work Confirmation calendar date change flickers: blank → tasks → blank → tasks until it settles. Correct it.
+
+**Output:**  
+- **Root cause:** Unsequenced `loadPlanForCalendarDate` fetches raced; stale responses overwrote newer ones. `loadMyDay` (on `today` / settings change) also wrote today’s lines while browsing another calendar day.
+- **Fix:** Plan-load sequence + `calendarDateRef` / `fetchedMissDateRef`; ignore stale results; `loadMyDay` skips plan panel when browsing another day; keep prior lines on fetch error; `planLoading` shows “Loading plan…” and dims table (no empty flash).
+- **File:** `screens/WorkConfirmation.tsx`.
+
 ### 2026-08-27 14:10 IST
 
 **Prompt:**  
