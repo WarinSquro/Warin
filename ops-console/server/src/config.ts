@@ -65,7 +65,7 @@ export const config = {
   ),
   viteApiBaseUrl: env("OPS_VITE_API_BASE_URL", "http://127.0.0.1/api/v1"),
   adminUser: env("OPS_ADMIN_USER", "admin"),
-  adminPasswordSeed: env("OPS_ADMIN_PASSWORD", "19312"),
+  adminPasswordSeed: env("OPS_ADMIN_PASSWORD", "91203"),
   serveStatic: (() => {
     const forced = process.env.OPS_SERVE_STATIC?.trim();
     if (forced === "0") return false;

@@ -335,7 +335,7 @@ export function DashboardPage() {
                   const creds = await promptCredentials({
                     title: "Verify credentials to restore",
                     message:
-                      "Restoring a dump into local Docker overwrites this machine's database. Enter your Backup & Deployment User Id and password.",
+                      "Restoring a dump into local Docker overwrites this machine's database. Enter your Backup & Deployment User Id and PIN.",
                     submitLabel: "Verify",
                     verify: async (userId, password) => {
                       await api("/auth/verify", { method: "POST", json: { userId, password } });
@@ -840,15 +840,7 @@ function LocalDockerRestorePanel({
     : "No file selected";
 
   if (isEc2Layout) {
-    return (
-      <div className="rounded-lg border border-border bg-white p-4">
-        <div className="text-[14px] font-semibold text-brand">Restore database to Local docker</div>
-        <p className="mt-1 text-[12px] text-muted">
-          Not available on EC2. On your laptop run <code>npm run ops:dev</code>, then select a downloaded{" "}
-          <code>.dump</code> and restore into local Docker Postgres.
-        </p>
-      </div>
-    );
+    return null;
   }
 
   return (

@@ -17,8 +17,8 @@ Storage boundary: `ops-console-json-independent-of-warin-db`.
 
 ## Credentials
 
-Initial admin is seeded on first server start (password hashed with bcrypt).  
-Credentials are **not** shown in the UI. Set `OPS_ADMIN_PASSWORD` only before first boot if changing the seed.
+Initial admin is seeded on first server start (5-digit PIN hashed with bcrypt).  
+Default User Id is `admin`; default PIN is `91203`. Credentials are **not** shown in the UI. Set `OPS_ADMIN_PASSWORD` to override the seed.
 
 ## Run (Windows / local dev)
 

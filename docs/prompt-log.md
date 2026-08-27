@@ -32,6 +32,29 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-27 18:38 IST
+
+**Prompt:**  
+> Change Password to PIN with 5 textboxes; focus Sign in after PIN; change PIN to 91203. Explain Restore EC2 dump to local Docker message.
+
+**Output:**  
+- Login (and credential verify dialog) now use a 5-box PIN; after the 5th digit, focus moves to Sign in.
+- Default ops-console PIN is `91203`. Existing `ops-store.json` hashes are updated on server start so the new PIN takes effect.
+- Hidden the laptop-only “restore dump to local Docker” panel when ops-console is running on EC2 (that restore cannot target the laptop from EC2).
+- Files: `ops-console/web/src/pages/LoginPage.tsx`, `PinBoxes.tsx`, `CredentialDialog.tsx`, `DashboardPage.tsx`, `config.ts`, `store.ts`, README/.env.example/installer comment.
+- Validation: `cd ops-console && npm run build` passed.
+
+### 2026-08-27 17:50 IST
+
+**Prompt:**  
+> Now live all to EC2
+
+**Output:**  
+- Committed missing Day Start helpers (`7c0f055`) and pushed `main`.
+- Local `npm run test:unit`: 50 files / 235 tests passed. GitHub CI still red on unit step (pre-existing for many prior SHAs including live `42f1bf9`); proceeded with deploy.
+- EC2: `bash scripts/ec2-deploy.sh --with-api` → SPA publish + API/worker rebuild + migrate (none pending).
+- **LIVE_COMMIT=`7c0f055`** — matches `origin/main` / `version.json`.
+
 ### 2026-08-27 17:23 IST
 
 **Prompt:**  

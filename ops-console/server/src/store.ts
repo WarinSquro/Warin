@@ -142,6 +142,13 @@ export function loadStore(): OpsStore {
   }
   const raw = fs.readFileSync(p, "utf8");
   cache = JSON.parse(raw) as OpsStore;
+  // Ops-console has a single seeded admin PIN (no change-PIN UI). Apply the current seed
+  // so a PIN change in config takes effect on existing ops-store.json files.
+  if (!bcrypt.compareSync(config.adminPasswordSeed, cache.auth.passwordHash)) {
+    cache.auth.passwordHash = bcrypt.hashSync(config.adminPasswordSeed, 12);
+    cache.sessions = [];
+    saveStore(cache);
+  }
   return cache;
 }
 

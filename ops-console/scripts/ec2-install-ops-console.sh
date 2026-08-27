@@ -58,7 +58,7 @@ OPS_DATA_DIR=${DATA_DIR}
 OPS_ENVIRONMENT_LABEL=PRODUCTION
 OPS_SESSION_SECRET=$(openssl rand -hex 24)
 OPS_VITE_API_BASE_URL=${VITE_API:-http://127.0.0.1/api/v1}
-# OPS_ADMIN_PASSWORD=  # set only before first boot if changing seed
+# OPS_ADMIN_PASSWORD=91203
 EOF
   chown "${SERVICE_USER}:${SERVICE_USER}" "$ENV_FILE"
   chmod 600 "$ENV_FILE"

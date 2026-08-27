@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Eye, EyeOff } from "lucide-react";
+import { PinBoxes } from "./PinBoxes";
 
 export function CredentialDialog({
   open,
@@ -19,26 +19,27 @@ export function CredentialDialog({
   onSubmit: (userId: string, password: string) => void | Promise<void>;
 }) {
   const [userId, setUserId] = useState("");
-  const [password, setPassword] = useState("");
-  const [show, setShow] = useState(false);
+  const [pin, setPin] = useState<string[]>(["", "", "", "", ""]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const submitBtnRef = useRef<HTMLButtonElement | null>(null);
 
   if (!open || typeof document === "undefined") return null;
 
-  const canSubmit = userId.trim().length > 0 && password.length > 0 && !busy;
+  const pinValue = pin.join("");
+  const canSubmit = userId.trim().length > 0 && pin.every((d) => d !== "") && !busy;
 
   const submit = async () => {
     if (!canSubmit) {
-      setError("Enter User Id and password");
+      setError("Enter User Id and 5-digit PIN");
       return;
     }
     setBusy(true);
     setError(null);
     try {
-      await onSubmit(userId.trim(), password);
+      await onSubmit(userId.trim(), pinValue);
       setUserId("");
-      setPassword("");
+      setPin(["", "", "", "", ""]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Verification failed");
     } finally {
@@ -83,33 +84,19 @@ export function CredentialDialog({
             />
           </div>
           <div>
-            <label htmlFor="ops-cred-pass" className="mb-1 block text-[12px] font-medium">
-              Password
+            <label htmlFor="ops-pin-0" className="mb-1 block text-[12px] font-medium">
+              PIN
             </label>
-            <div className="relative">
-              <input
-                id="ops-cred-pass"
-                type={show ? "text" : "password"}
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  setError(null);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") void submit();
-                }}
-                className="h-[42px] w-full rounded-md border border-brand-border/20 bg-white px-3 pr-10 text-[13px] outline-none focus:border-brand-border focus:ring-2 focus:ring-brand-muted/25"
-              />
-              <button
-                type="button"
-                className="absolute top-1/2 right-2 -translate-y-1/2 cursor-pointer p-1 text-muted"
-                onClick={() => setShow((v) => !v)}
-                aria-label={show ? "Hide password" : "Show password"}
-              >
-                {show ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
+            <PinBoxes
+              pin={pin}
+              error={Boolean(error)}
+              disabled={busy}
+              onChange={(next) => {
+                setPin(next);
+                setError(null);
+              }}
+              onComplete={() => submitBtnRef.current?.focus()}
+            />
           </div>
           {error && <div className="text-[12px] text-danger">{error}</div>}
         </div>
@@ -119,8 +106,9 @@ export function CredentialDialog({
             Cancel
           </button>
           <button
+            ref={submitBtnRef}
             type="button"
-            className="btn btn-primary cursor-pointer"
+            className="btn btn-primary cursor-pointer outline-none focus:ring-2 focus:ring-brand-muted/25"
             disabled={!canSubmit}
             onClick={() => void submit()}
           >
