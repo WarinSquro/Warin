@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { CalendarClock, X, ArrowRight, FileSpreadsheet, FileText, Search } from "lucide-react";
+import { CalendarClock, X, ArrowRight, FileSpreadsheet, FileText } from "lucide-react";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import { DepartmentSelect } from "../components/DepartmentSelect";
+import { DropdownMenuSearch } from "../components/DropdownMenuSearch";
 import { matchesSearchQuery } from "../utils/textSearch";
 import {
   UTIL_MONTHS,
@@ -543,7 +544,9 @@ function MonthSelect({ value, onChange }: { value: string; onChange: (id: string
       setMenuQuery("");
       return;
     }
-    const focusRaf = window.requestAnimationFrame(() => searchRef.current?.focus());
+    const focusRaf = window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => searchRef.current?.focus());
+    });
     const onPointerDown = (event: MouseEvent) => {
       if (rootRef.current?.contains(event.target as Node)) return;
       setOpen(false);
@@ -567,24 +570,20 @@ function MonthSelect({ value, onChange }: { value: string; onChange: (id: string
       </button>
       {open && (
         <div className="absolute right-0 top-[calc(100%+4px)] z-20 flex max-h-[280px] min-w-[200px] flex-col overflow-hidden rounded-md border border-border bg-surface shadow-lg">
-          <div className="flex flex-shrink-0 items-center gap-2 border-b border-border-soft px-3 py-2">
-            <Search className="pointer-events-none h-3.5 w-3.5 text-muted-foreground" />
-            <input
-              ref={searchRef}
-              value={menuQuery}
-              onChange={(e) => setMenuQuery(e.target.value)}
-              onKeyDown={(e) => {
-                e.stopPropagation();
-                if (e.key === "Escape") {
-                  e.preventDefault();
-                  setOpen(false);
-                }
-              }}
-              placeholder="Type to search…"
-              aria-label="Search months"
-              className="w-full bg-transparent text-[12px] text-foreground outline-none placeholder:text-muted-foreground"
-            />
-          </div>
+          <DropdownMenuSearch
+            inputRef={searchRef}
+            value={menuQuery}
+            onChange={setMenuQuery}
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (e.key === "Escape") {
+                e.preventDefault();
+                setOpen(false);
+              }
+            }}
+            placeholder="Type to search…"
+            aria-label="Search months"
+          />
           <div className="min-h-0 flex-1 overflow-y-auto py-1">
             {visibleMonths.length === 0 ? (
               <div className="px-3 py-3 text-[12px] text-muted-foreground">No matches.</div>

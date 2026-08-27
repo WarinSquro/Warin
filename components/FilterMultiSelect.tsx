@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { Check, Search } from "lucide-react";
+import { Check } from "lucide-react";
 import { matchesSearchQuery } from "../utils/textSearch";
+import { DropdownMenuSearch } from "./DropdownMenuSearch";
 
 type MenuLayout = {
   top?: number;
@@ -83,17 +84,24 @@ export function FilterMultiSelect({
 
     triggerRef.current?.scrollIntoView({ block: "nearest", behavior: "instant" });
     updateMenuLayout();
-    const focusRaf = window.requestAnimationFrame(() => searchRef.current?.focus());
 
     const onReposition = () => updateMenuLayout();
     window.addEventListener("resize", onReposition);
     window.addEventListener("scroll", onReposition, true);
     return () => {
-      window.cancelAnimationFrame(focusRaf);
       window.removeEventListener("resize", onReposition);
       window.removeEventListener("scroll", onReposition, true);
     };
   }, [open, updateMenuLayout]);
+
+  /** Focus search after the portal menu mounts so type-to-search works on open. */
+  useEffect(() => {
+    if (!open || !menuLayout) return;
+    const focusRaf = window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => searchRef.current?.focus());
+    });
+    return () => window.cancelAnimationFrame(focusRaf);
+  }, [open, menuLayout]);
 
   useEffect(() => {
     if (!open) return;
@@ -129,7 +137,7 @@ export function FilterMultiSelect({
       ? createPortal(
           <div
             ref={menuRef}
-            className="fixed z-[100] flex flex-col rounded-md border border-border bg-surface py-1 shadow-lg"
+            className="fixed z-[100] flex flex-col overflow-hidden rounded-md border border-border bg-surface shadow-lg"
             style={{
               top: menuLayout.top,
               bottom: menuLayout.bottom,
@@ -154,18 +162,15 @@ export function FilterMultiSelect({
                 Clear
               </button>
             </div>
-            <div className="flex flex-shrink-0 items-center gap-2 border-b border-border-soft px-3 py-2">
-              <Search className="pointer-events-none h-3.5 w-3.5 text-muted-foreground" />
-              <input
-                ref={searchRef}
-                value={menuQuery}
-                onChange={(e) => setMenuQuery(e.target.value)}
-                onKeyDown={(e) => e.stopPropagation()}
-                placeholder={`Search ${pluralLabel}…`}
-                className="w-full bg-transparent text-[12px] text-foreground outline-none placeholder:text-muted-foreground"
-              />
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto">
+            <DropdownMenuSearch
+              inputRef={searchRef}
+              value={menuQuery}
+              onChange={setMenuQuery}
+              onKeyDown={(e) => e.stopPropagation()}
+              placeholder={`Search ${pluralLabel}…`}
+              aria-label={`Search ${pluralLabel}`}
+            />
+            <div className="min-h-0 flex-1 overflow-y-auto py-1">
               {visibleItems.length === 0 ? (
                 <div className="px-3 py-3 text-[12px] text-muted-foreground">No matches.</div>
               ) : (

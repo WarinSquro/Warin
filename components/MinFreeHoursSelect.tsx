@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Search } from "lucide-react";
 import { matchesSearchQuery } from "../utils/textSearch";
+import { DropdownMenuSearch } from "./DropdownMenuSearch";
 
 export function MinFreeHoursSelect({
   options,
@@ -34,7 +34,9 @@ export function MinFreeHoursSelect({
       setMenuQuery("");
       return;
     }
-    const focusRaf = window.requestAnimationFrame(() => searchRef.current?.focus());
+    const focusRaf = window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => searchRef.current?.focus());
+    });
     const onPointerDown = (event: MouseEvent) => {
       if (rootRef.current?.contains(event.target as Node)) return;
       setOpen(false);
@@ -78,24 +80,20 @@ export function MinFreeHoursSelect({
               Reset
             </button>
           </div>
-          <div className="flex flex-shrink-0 items-center gap-2 border-b border-border-soft px-3 py-2">
-            <Search className="pointer-events-none h-3.5 w-3.5 text-muted-foreground" />
-            <input
-              ref={searchRef}
-              value={menuQuery}
-              onChange={(e) => setMenuQuery(e.target.value)}
-              onKeyDown={(e) => {
-                e.stopPropagation();
-                if (e.key === "Escape") {
-                  e.preventDefault();
-                  setOpen(false);
-                }
-              }}
-              placeholder="Type to search…"
-              aria-label="Search options"
-              className="w-full bg-transparent text-[12px] text-foreground outline-none placeholder:text-muted-foreground"
-            />
-          </div>
+          <DropdownMenuSearch
+            inputRef={searchRef}
+            value={menuQuery}
+            onChange={setMenuQuery}
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (e.key === "Escape") {
+                e.preventDefault();
+                setOpen(false);
+              }
+            }}
+            placeholder="Type to search…"
+            aria-label="Search options"
+          />
           <div className="min-h-0 flex-1 overflow-y-auto py-1">
             {visibleOptions.length === 0 ? (
               <div className="px-3 py-3 text-[12px] text-muted-foreground">No matches.</div>

@@ -32,6 +32,17 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-27 15:08 IST
+
+**Prompt:**  
+> Dropdown “Type to search…” should match Resource… search look; focus search on open; document in rule and apply app-wide.
+
+**Output:**  
+- Added shared `components/DropdownMenuSearch.tsx` (h-8 bordered field + inset Search icon).
+- Wired into `FilterSingleSelect`, `FilterMultiSelect`, `MinFreeHoursSelect`, Utilization `MonthSelect`.
+- Fixed focus-on-open to run after portal menu mounts (`open && menuLayout` + double rAF).
+- Updated `.cursor/rules/oneview-ui.mdc` type-to-search rule (chrome + focus required).
+
 ### 2026-08-27 14:58 IST
 
 **Prompt:**  
