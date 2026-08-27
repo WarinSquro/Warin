@@ -32,6 +32,16 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-27 14:52 IST
+
+**Prompt:**  
+> PerformanceHistoryDrawer “View Work Confirmations” → open Daily Work Detail with that resource and month filter (not self confirmation).
+
+**Output:**  
+- Link now goes to `/reports/daily-work?employee&employeeId&from&to&period` from the RPR period range; label **View Daily Work Detail**.
+- Daily Work Detail reads `period`, `from`/`to`, `employeeId` (plus existing `employee`/`date`).
+- **Files:** `PerformanceHistoryDrawer.tsx`, `ResourcePerformanceReport.tsx`, `DailyWorkReport.tsx`.
+
 ### 2026-08-27 14:45 IST
 
 **Prompt:**  

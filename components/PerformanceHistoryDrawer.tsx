@@ -22,6 +22,8 @@ interface Props {
   row: PerformanceRow | null;
   history: PerformanceHistory | null;
   periodLabel: string;
+  /** Deep-link into Daily Work Detail for this resource + report range. */
+  dailyWorkHref?: string;
 }
 
 type TrendMetric = "planningAccuracy" | "confirmationDiscipline" | "utilization" | "billableSplit";
@@ -86,7 +88,14 @@ const TREND_METRICS: Record<
   },
 };
 
-export function PerformanceHistoryDrawer({ open, onClose, row, history, periodLabel }: Props) {
+export function PerformanceHistoryDrawer({
+  open,
+  onClose,
+  row,
+  history,
+  periodLabel,
+  dailyWorkHref,
+}: Props) {
   const [trendMetric, setTrendMetric] = useState<TrendMetric>("confirmationDiscipline");
 
   useEffect(() => {
@@ -252,12 +261,12 @@ export function PerformanceHistoryDrawer({ open, onClose, row, history, periodLa
             Edit plan in Resource Planner
           </Link>
           <Link
-            to="/confirmations"
+            to={dailyWorkHref || "/reports/daily-work"}
             onClick={onClose}
             className="flex items-center justify-center gap-1.5 rounded-md border border-border py-2 text-[12px] font-medium text-foreground hover:bg-surface-alt"
           >
             <ClipboardCheck className="h-3.5 w-3.5" />
-            View Work Confirmations
+            View Daily Work Detail
           </Link>
         </div>
       </div>

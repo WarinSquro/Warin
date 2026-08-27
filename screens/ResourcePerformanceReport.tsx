@@ -303,6 +303,17 @@ export function ResourcePerformanceReport() {
     leaveDatesByEmployee,
   ]);
 
+  const drawerDailyWorkHref = useMemo(() => {
+    if (!drawerRow) return "/reports/daily-work";
+    const q = new URLSearchParams();
+    q.set("employee", drawerRow.employeeName);
+    q.set("employeeId", drawerRow.employeeId);
+    q.set("from", range.from);
+    q.set("to", range.to);
+    q.set("period", periodId === "week" ? "week" : "month");
+    return `/reports/daily-work?${q.toString()}`;
+  }, [drawerRow, range.from, range.to, periodId]);
+
   const showExportToast = (msg: string) => {
     toast.info(msg);
   };
@@ -652,6 +663,7 @@ export function ResourcePerformanceReport() {
         row={drawerRow}
         history={drawerHistory}
         periodLabel={periodLabel}
+        dailyWorkHref={drawerDailyWorkHref}
       />
     </div>
   );

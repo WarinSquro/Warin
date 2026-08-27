@@ -168,14 +168,30 @@ function exportCellValue(
 export function DailyWorkReport() {
   const [searchParams] = useSearchParams();
   const drillEmployee = searchParams.get("employee")?.trim() || "";
+  const drillEmployeeId = searchParams.get("employeeId")?.trim() || "";
   const drillDate = searchParams.get("date")?.slice(0, 10) || "";
+  const drillFrom = searchParams.get("from")?.slice(0, 10) || "";
+  const drillTo = searchParams.get("to")?.slice(0, 10) || "";
+  const drillPeriodRaw = searchParams.get("period")?.trim() || "";
+  const drillPeriod: DailyWorkPeriodId | null =
+    drillPeriodRaw === "week" ||
+    drillPeriodRaw === "today" ||
+    drillPeriodRaw === "month" ||
+    drillPeriodRaw === "last_month" ||
+    drillPeriodRaw === "last_3_months"
+      ? drillPeriodRaw
+      : null;
   const { sessionKey, filtersReady, markFiltersReady } = useReportFilterSession("daily_work");
   const { currentEmployee, isSuperAdmin } = useAuth();
   const { dateFormat } = useAppDateFormat();
   const { settings } = useSettings();
   const { employees } = useEmployees();
   const { projects: liveProjects } = useProjects();
-  const [periodId, setPeriodId] = useState<DailyWorkPeriodId>("week");
+  const [periodId, setPeriodId] = useState<DailyWorkPeriodId>(() => drillPeriod || "week");
+  /** When set (e.g. RPR custom month), overrides the period preset until the user changes period. */
+  const [rangeOverride, setRangeOverride] = useState<{ from: string; to: string } | null>(() =>
+    drillFrom && drillTo && drillFrom <= drillTo ? { from: drillFrom, to: drillTo } : null
+  );
   const [search, setSearch] = useState(() => drillEmployee || "");
   const [page, setPageState] = useState(() => readReportPage(DAILY_WORK_PAGE_KEY));
   const setPage = useCallback((next: number) => {
@@ -196,6 +212,9 @@ export function DailyWorkReport() {
   );
 
   const range = useMemo(() => {
+    if (rangeOverride) {
+      return { from: rangeOverride.from, to: rangeOverride.to };
+    }
     const weekOpts = { workingDays: settings.workingDays };
     let base =
       periodId === "today"
@@ -212,7 +231,7 @@ export function DailyWorkReport() {
       if (drillDate > base.to) base = { ...base, to: drillDate };
     }
     return base;
-  }, [periodId, settings.workingDays, drillDate]);
+  }, [periodId, settings.workingDays, drillDate, rangeOverride]);
 
   const load = useCallback(async () => {
     try {
@@ -277,9 +296,10 @@ export function DailyWorkReport() {
 
   const scopedRows = useMemo(() => {
     let rows = periodRows.filter((r) => visibleEmployeeIds.has(r.employeeId));
+    if (drillEmployeeId) rows = rows.filter((r) => r.employeeId === drillEmployeeId);
     if (drillDate) rows = rows.filter((r) => r.workDate === drillDate);
     return rows;
-  }, [periodRows, visibleEmployeeIds, drillDate]);
+  }, [periodRows, visibleEmployeeIds, drillEmployeeId, drillDate]);
 
   const allDepts = useMemo(() => dailyWorkDepartments(scopedRows), [scopedRows]);
   const allProjects = useMemo(() => {
@@ -518,7 +538,10 @@ export function DailyWorkReport() {
         <div className="flex items-center gap-2">
           <FilterSingleSelect
             value={periodId}
-            onChange={(v) => setPeriodId(v as DailyWorkPeriodId)}
+            onChange={(v) => {
+              setRangeOverride(null);
+              setPeriodId(v as DailyWorkPeriodId);
+            }}
             options={DAILY_WORK_PERIODS.map((p) => ({ value: p.id, label: p.label }))}
             className="min-w-[12.5rem]"
             aria-label="Period"
