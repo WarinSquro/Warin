@@ -32,6 +32,29 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-27 13:56 IST
+
+**Prompt:**  
+> AllocationDrawer Team Member (`FilterSingleSelect` / “Select person”) — type & search not working.
+
+**Output:**  
+- **Root cause:** `FilterSingleSelect` opened a plain listbox with no search input or typeahead (unlike `FilterMultiSelect`).
+- **Fix:** Added menu search field (auto-focus on open), filter via `matchesSearchQuery` on label/value, Escape closes, “No matches.” empty state — `components/FilterSingleSelect.tsx`.
+- Applies to all `FilterSelect` / `FilterSingleSelect` usages (Team Member, Project, etc. in AllocationDrawer).
+
+### 2026-08-27 12:50 IST
+
+**Prompt:**  
+> Please do it — store server date/time as IST for Workday Timeline marks (Day Start, Lunch Start/End, Log Out).
+
+**Output:**  
+- **Root cause:** Timeline stamps used the browser clock (`new Date().toISOString()` / local `todayISO()`), so wrong timezone or skewed PC time could mark the wrong day/time.
+- **API:** `GET /api/v1/health/clock` (public) returns `nowIso`, `todayIst` (Asia/Kolkata), `timeZone`.
+- **Client:** `fetchServerClock()` in `api/domain.ts`; Work Confirmation loads server `todayIst` and stamps all four marks (and Log Out confirm) with `nowIso`.
+- **UI:** Timeline disabled briefly while fetching server time.
+- **Verify:** rebuild local API (`docker compose up -d --build api`); hit `/api/v1/health/clock`. Focus timers still use client `Date.now()` (out of scope).
+- **Files:** `apps/oneview-api/src/api/health/health.controller.ts`, `api/domain.ts`, `screens/WorkConfirmation.tsx`.
+
 ### 2026-08-27 11:45 IST
 
 **Prompt:**  
