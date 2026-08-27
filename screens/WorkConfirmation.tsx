@@ -1717,6 +1717,8 @@ function ManagerCompliance() {
   const [deviationEmployeeId, setDeviationEmployeeId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [remindingId, setRemindingId] = useState<string | null>(null);
+  /** Ignore stale fetchTeamCompliance responses (poll / remount / employee hydrate races). */
+  const loadSeqRef = useRef(0);
   const {
     sortKey: complianceSortKey,
     sortDir: complianceSortDir,
@@ -1724,8 +1726,11 @@ function ManagerCompliance() {
   } = useColumnSort<"member" | "today">("member");
 
   const loadTeam = useCallback(async () => {
+    const seq = ++loadSeqRef.current;
     try {
       const res = await fetchTeamCompliance({ asOf: today });
+      if (seq !== loadSeqRef.current) return;
+
       const visible = res.rows.filter((r) => {
         const n = r.name?.trim().toLowerCase() ?? "";
         if (n === "administrator" || r.id === "EMP-0001") return false;
@@ -1791,6 +1796,8 @@ function ManagerCompliance() {
       );
       setError("");
     } catch (e) {
+      // Keep prior rows/deviations on failure so the panel does not flash empty.
+      if (seq !== loadSeqRef.current) return;
       setError(e instanceof Error ? e.message : "Failed to load team compliance");
     }
   }, [today, currentEmployee?.id]);

@@ -32,6 +32,15 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-27 16:18 IST
+
+**Prompt:**  
+> Team Compliance (ManagerCompliance) flickers blank then data — apply sequencing fix.
+
+**Output:**  
+- `loadTeam` uses `loadSeqRef`; only latest fetch applies rows/KPIs/deviations; failed refresh keeps prior data (no empty flash).
+- **File:** `screens/WorkConfirmation.tsx` (`ManagerCompliance`).
+
 ### 2026-08-27 16:10 IST
 
 **Prompt:**  
