@@ -32,6 +32,16 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-27 15:45 IST
+
+**Prompt:**  
+> ProjectExecutionDrawer header: line1 Project Name; line2 Customer · Timeline; line3 Active / Healthy · period.
+
+**Output:**  
+- Header is three lines: project name; customer · (start – end); status badges · period.
+- Customer from Project Master; strips trailing ` (Customer)` from name when it matches.
+- **File:** `components/ProjectExecutionDrawer.tsx`.
+
 ### 2026-08-27 15:18 IST
 
 **Prompt:**  

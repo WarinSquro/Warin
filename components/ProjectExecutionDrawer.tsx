@@ -139,16 +139,31 @@ export function ProjectExecutionDrawer({ open, onClose, row, history, roster, pe
   }, [roster, sortKey, sortDir]);
 
   const headerTitle = useMemo(() => {
-    if (!row) return { name: "", timeline: null as string | null, full: "" };
-    const project = projects.find((p) => p.id === row.projectId);
-    if (!project?.startDate || !project?.endDate) {
-      return { name: row.projectName, timeline: null, full: row.projectName };
+    if (!row) {
+      return { name: "", customer: "", timeline: null as string | null, full: "" };
     }
-    const timeline = `${formatDate(project.startDate)} – ${formatDate(project.endDate)}`;
+    const project = projects.find((p) => p.id === row.projectId);
+    const rawName = project?.name ?? row.projectName;
+    const customer = (project?.customer ?? "").trim();
+    // If master name was stored as "Name (Customer)", show bare project name on line 1.
+    const suffix = customer ? ` (${customer})` : "";
+    const name =
+      suffix && rawName.endsWith(suffix) ? rawName.slice(0, -suffix.length).trim() : rawName;
+    const timeline =
+      project?.startDate && project?.endDate
+        ? `${formatDate(project.startDate)} – ${formatDate(project.endDate)}`
+        : null;
+    const line2Parts = [
+      customer || null,
+      timeline ? `(${timeline})` : null,
+    ].filter(Boolean);
+    const line2 = line2Parts.join(" · ");
     return {
-      name: row.projectName,
+      name,
+      customer,
       timeline,
-      full: `${row.projectName} · (${timeline})`,
+      line2,
+      full: [name, line2].filter(Boolean).join(" · "),
     };
   }, [row, projects, formatDate]);
 
@@ -172,17 +187,22 @@ export function ProjectExecutionDrawer({ open, onClose, row, history, roster, pe
           <div className="min-w-0">
             <TruncateText
               as="div"
-              fullText={headerTitle.full}
+              fullText={headerTitle.name}
               className="text-[14px] font-semibold text-foreground"
             >
               {headerTitle.name}
-              {headerTitle.timeline ? (
-                <span className="text-[11px] font-normal text-muted-foreground">
-                  {" "}
-                  · ({headerTitle.timeline})
-                </span>
-              ) : null}
             </TruncateText>
+            {headerTitle.line2 ? (
+              <TruncateText
+                as="div"
+                fullText={headerTitle.line2}
+                className="mt-0.5 text-[11px] font-normal text-muted-foreground"
+              >
+                {headerTitle.customer ? <>{headerTitle.customer}</> : null}
+                {headerTitle.customer && headerTitle.timeline ? " · " : null}
+                {headerTitle.timeline ? <>({headerTitle.timeline})</> : null}
+              </TruncateText>
+            ) : null}
             <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
               <ExecutionStatusBadge status={row.executionStatus} />
               <ProjectHealthBadge health={row.health} />
