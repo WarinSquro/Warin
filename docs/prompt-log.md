@@ -32,6 +32,14 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-27 16:00 IST
+
+**Prompt:**  
+> Unplanned work remove control: put delete icon instead of “x”.
+
+**Output:**  
+- Replaced `X` with `Trash2` on unplanned-row remove in `screens/WorkConfirmation.tsx` (aria-label/title added).
+
 ### 2026-08-27 15:45 IST
 
 **Prompt:**  

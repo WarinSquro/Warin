@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, Plus, X, CheckCircle2, Bell, Timer } from "lucide-react";
+import { Check, Plus, Trash2, CheckCircle2, Bell, Timer, X } from "lucide-react";
 import { formatAppDate, formatAppDateTime } from "../utils/formatAppDate";
 import { useAppDateFormat } from "../hooks/useAppDateFormat";
 import { useSharedDataSync, usePauseSharedDataSync, MASTER_TXN_SYNC_INTERVAL_MS } from "../hooks/useSharedDataSync";
@@ -1299,8 +1299,10 @@ function EmployeeConfirm() {
                     type="button"
                     onClick={() => setUnplanned((arr) => arr.filter((x) => x.id !== u.id))}
                     className="cursor-pointer text-muted-foreground hover:text-danger"
+                    aria-label="Remove unplanned work"
+                    title="Remove"
                   >
-                    <X className="h-3.5 w-3.5" />
+                    <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 )}
               </div>
