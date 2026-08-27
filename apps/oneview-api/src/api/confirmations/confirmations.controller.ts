@@ -840,32 +840,103 @@ export class ConfirmationsController {
     }
 
     const manager = await this.employeeFromJwt(req.user);
-    const appUrl = (process.env.APP_PUBLIC_URL ?? "http://127.0.0.1:5173").replace(/\/$/, "");
-    const confirmUrl = `${appUrl}/confirmations`;
     const workDateLabel = formatPlanDateLabel(workDateIso);
 
-    const text = [
+    const today = todayLocalISO().slice(0, 10);
+    const mon = mondayOfISO(workDateIso);
+    const settings = await this.prisma.appSettings.findFirst({
+      where: { code: "default", isDeleted: false },
+      select: { workingDays: true },
+    });
+    const weekDates = workingWeekDatesFromSettings(mon, settings?.workingDays);
+    const fri = weekDates[weekDates.length - 1] ?? addDaysISO(mon, 4);
+
+    const offRows = await this.prisma.companyOffDay.findMany({
+      where: {
+        isDeleted: false,
+        date: { gte: parseDate(mon)!, lte: parseDate(fri)! },
+      },
+      select: { date: true },
+    });
+    const companyOffSet = new Set(offRows.map((r) => isoDate(r.date)));
+
+    const weekConfirmations = await this.prisma.workConfirmation.findMany({
+      where: {
+        isDeleted: false,
+        employeeId: employee.id,
+        workDate: { gte: parseDate(mon)!, lte: parseDate(fri)! },
+      },
+      include: { lines: true },
+    });
+    const confByDate = new Map(
+      weekConfirmations.map((c) => [isoDate(c.workDate), c] as const)
+    );
+
+    const weekAllocations = await this.prisma.allocation.findMany({
+      where: {
+        isDeleted: false,
+        employeeId: employee.id,
+        startDate: { lte: parseDate(fri)! },
+        endDate: { gte: parseDate(mon)! },
+      },
+      select: { startDate: true, endDate: true },
+    });
+    const hasPlanOnDay = (dayIso: string): boolean => {
+      for (const a of weekAllocations) {
+        const start = isoDate(a.startDate);
+        const end = isoDate(a.endDate);
+        if (dayIso >= start && dayIso <= end) return true;
+      }
+      return false;
+    };
+
+    const pendingDates = weekDates.filter((d) => {
+      if (d === today) return false;
+      const c = confByDate.get(d);
+      return (
+        teamDayStatus({
+          workDate: d,
+          today,
+          isCompanyOff: companyOffSet.has(d),
+          hasPlan: hasPlanOnDay(d),
+          confirmation: c
+            ? {
+                hasDeviation: c.hasDeviation,
+                submittedAt: c.submittedAt,
+                lines: c.lines.map((l) => ({ kind: l.kind })),
+              }
+            : null,
+        }) === "pending"
+      );
+    });
+    const pendingDatesLabel = pendingDates.map(formatPlanDateLabel).join(" · ");
+
+    const textLines = [
       `Hi ${employee.name},`,
       "",
-      `${manager.name} is reminding you to confirm your work for ${workDateLabel}.`,
-      `Open Warin and submit your confirmation:`,
-      confirmUrl,
-      "",
-      "Thank you,",
-      "Warin",
-    ].join("\n");
+      `${manager.name} is reminding you to confirm your work for this week.`,
+    ];
+    if (pendingDatesLabel) {
+      textLines.push(`Pending dates: ${pendingDatesLabel}`);
+    }
+    textLines.push("", "Thank you,", "SE Workspace");
+    const text = textLines.join("\n");
+
+    const pendingHtml = pendingDatesLabel
+      ? `<p>Pending dates: <strong>${pendingDatesLabel}</strong></p>`
+      : "";
     const html = `
       <p>Hi ${employee.name},</p>
-      <p><strong>${manager.name}</strong> is reminding you to confirm your work for <strong>${workDateLabel}</strong>.</p>
-      <p><a href="${confirmUrl}">Open Work Confirmation</a></p>
-      <p style="color:#666;font-size:13px">Warin</p>
+      <p><strong>${manager.name}</strong> is reminding you to confirm your work for <strong>this week</strong>.</p>
+      ${pendingHtml}
+      <p style="color:#666;font-size:13px">SE Workspace</p>
     `;
 
     let mailResult;
     try {
       mailResult = await this.mail.send({
         to: toEmail,
-        subject: `Reminder: confirm your work for ${workDateLabel}`,
+        subject: "Reminder: confirm your work for this week",
         text,
         html,
         template: "confirmation-remind",
@@ -873,7 +944,8 @@ export class ConfirmationsController {
           employeeName: employee.name,
           managerName: manager.name,
           workDate: workDateIso,
-          confirmUrl,
+          workDateLabel,
+          pendingDates: pendingDatesLabel,
         },
       });
     } catch (err) {
@@ -895,6 +967,7 @@ export class ConfirmationsController {
       message: `Reminder sent to ${employee.name}`,
       employeeHrmsId: hrmsId,
       workDate: workDateIso,
+      pendingDates,
       deliveredVia: "email",
       to: toEmail,
     });
