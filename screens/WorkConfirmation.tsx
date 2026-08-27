@@ -806,8 +806,17 @@ function EmployeeConfirm() {
     fetchedMissDateRef.current = "";
     if (!checked) {
       void loadTodayPlanForEdit();
+      return;
     }
-    // When enabling: stay on the edit screen — do not reload into "plan confirmed".
+    // Entering miss-posting: clear today's plan so CONFIRM cannot submit the wrong day.
+    planLoadSeqRef.current += 1;
+    setActiveLines(EMPTY_LINES);
+    setStates(initLineStates(EMPTY_LINES));
+    setUnplanned([]);
+    setSubmitted(false);
+    setSubmittedAtLabel("");
+    setSaveError("");
+    setPlanHeading("Fetch a missed day to load its plan");
   };
 
   const handleFetch = async () => {
@@ -837,6 +846,18 @@ function EmployeeConfirm() {
       if (lines.length === 0) {
         if (seq === planLoadSeqRef.current) {
           setFetchError("No plan found for this date. Try another day.");
+          // Do not keep today's allocations / CONFIRM for a failed miss fetch.
+          fetchedMissDateRef.current = "";
+          setFetchedMissDate("");
+          calendarDateRef.current = missDate;
+          setCalendarDate(missDate);
+          setActiveLines(EMPTY_LINES);
+          setStates(initLineStates(EMPTY_LINES));
+          setUnplanned([]);
+          setSubmitted(false);
+          setSubmittedAtLabel("");
+          setSaveError("");
+          setPlanHeading(`No plan for ${formatPlanDate(missDate, dateFmt)}`);
         }
         return;
       }
@@ -855,6 +876,11 @@ function EmployeeConfirm() {
     } catch (e) {
       if (seq === planLoadSeqRef.current) {
         setFetchError(e instanceof Error ? e.message : "Failed to load plan");
+        fetchedMissDateRef.current = "";
+        setFetchedMissDate("");
+        setActiveLines(EMPTY_LINES);
+        setStates(initLineStates(EMPTY_LINES));
+        setUnplanned([]);
       }
     } finally {
       if (seq === planLoadSeqRef.current) setPlanLoading(false);
@@ -904,7 +930,11 @@ function EmployeeConfirm() {
     ? unplannedEntryBlockedReason(todayProd.workday)
     : undefined;
 
+  /** Miss-posting requires a successful FETCH before confirm (avoids confirming today by mistake). */
+  const missPostingAwaitingFetch = missedPosting && !fetchedMissDate;
+
   const canSubmit =
+    !missPostingAwaitingFetch &&
     activeLines.length + unplanned.length > 0 &&
     activeLines.every((l) => states[l.id]?.mode === "planned" || states[l.id]?.reason !== "") &&
     unplanned.every((u) => u.project.trim() !== "" && u.reason !== "") &&
@@ -912,6 +942,10 @@ function EmployeeConfirm() {
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
+    if (missedPosting && !fetchedMissDate) {
+      toast.error("Fetch a missed day with a plan before confirming.");
+      return;
+    }
     if (canUseProductivity && hasAnyUnstoppedFocusSession(todayProd.focusByAllocation)) {
       toast.error("Stop all focus timers before submitting confirmation.");
       return;
@@ -1326,10 +1360,20 @@ function EmployeeConfirm() {
         {viewingConfirmableDate && saveError && (
           <div className="mt-2 text-[12px] text-danger">{saveError}</div>
         )}
-        {!viewingConfirmableDate && (
+        {missPostingAwaitingFetch && (
+          <div className="mt-2 text-[12px] text-warning">
+            Fetch a missed day with allocations before you can confirm. Today&apos;s plan is cleared until then.
+          </div>
+        )}
+        {!viewingConfirmableDate && !missPostingAwaitingFetch && (
           <div className="mt-2 text-[12px] text-muted-foreground">
             Viewing plan for {formatPlanDate(calendarDate, dateFmt)}. Select{" "}
             {workDate === today ? "today" : formatPlanDate(workDate, dateFmt)} to confirm or edit.
+          </div>
+        )}
+        {!viewingConfirmableDate && missPostingAwaitingFetch && fetchError && (
+          <div className="mt-2 text-[12px] text-muted-foreground">
+            Choose another miss date and FETCH again, or uncheck missed posting to return to today.
           </div>
         )}
         {viewingConfirmableDate &&
@@ -1347,9 +1391,11 @@ function EmployeeConfirm() {
             disabled={!canSubmit || saving}
             onClick={() => void handleSubmit()}
             title={
-              !focusTimersAllStopped
-                ? "Stop all focus timers before submitting"
-                : undefined
+              missPostingAwaitingFetch
+                ? "Fetch a missed day with a plan before confirming"
+                : !focusTimersAllStopped
+                  ? "Stop all focus timers before submitting"
+                  : undefined
             }
             className={`flex items-center justify-center gap-2 rounded-md px-4 py-2.5 text-[13px] font-semibold ${
               deviationCount === 0 ? "flex-1 bg-primary text-primary-foreground" : "flex-1 bg-brand text-white"

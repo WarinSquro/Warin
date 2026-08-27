@@ -32,6 +32,16 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-27 14:45 IST
+
+**Prompt:**  
+> Correct the miss-FETCH empty-plan path — when miss date has no work, today’s allocations and CONFIRM stayed active.
+
+**Output:**  
+- **Root cause:** Failed FETCH only set `fetchError` and returned; left today’s `activeLines` and `canSubmit` intact.
+- **Fix:** On empty/failed miss FETCH — clear plan panel, clear `fetchedMissDate`, set calendar/heading to the miss date, keep error. Enabling miss checkbox clears today’s plan. `canSubmit` / submit require successful FETCH when `missedPosting`. Helper copy when awaiting fetch.
+- **File:** `screens/WorkConfirmation.tsx`.
+
 ### 2026-08-27 14:35 IST
 
 **Prompt:**  
