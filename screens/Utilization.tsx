@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { CalendarClock, X, ArrowRight, FileSpreadsheet, FileText } from "lucide-react";
+import { CalendarClock, X, ArrowRight, FileSpreadsheet, FileText, Search } from "lucide-react";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import { DepartmentSelect } from "../components/DepartmentSelect";
+import { matchesSearchQuery } from "../utils/textSearch";
 import {
   UTIL_MONTHS,
   DEFAULT_UTIL_MONTH,
@@ -523,40 +524,90 @@ function UtilTableRow({
 
 function MonthSelect({ value, onChange }: { value: string; onChange: (id: string) => void }) {
   const [open, setOpen] = useState(false);
+  const [menuQuery, setMenuQuery] = useState("");
+  const rootRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
   const selected = UTIL_MONTHS.find((m) => m.id === value) ?? UTIL_MONTHS[UTIL_MONTHS.length - 1];
   const triggerLabel = value === DEFAULT_UTIL_MONTH ? "This Month" : selected.shortLabel;
+  const monthsNewestFirst = useMemo(() => [...UTIL_MONTHS].reverse(), []);
+  const visibleMonths = useMemo(
+    () =>
+      monthsNewestFirst.filter((m) =>
+        matchesSearchQuery(menuQuery, m.label, m.shortLabel, m.rangeLabel, m.id)
+      ),
+    [monthsNewestFirst, menuQuery]
+  );
+
+  useEffect(() => {
+    if (!open) {
+      setMenuQuery("");
+      return;
+    }
+    const focusRaf = window.requestAnimationFrame(() => searchRef.current?.focus());
+    const onPointerDown = (event: MouseEvent) => {
+      if (rootRef.current?.contains(event.target as Node)) return;
+      setOpen(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    return () => {
+      window.cancelAnimationFrame(focusRaf);
+      document.removeEventListener("mousedown", onPointerDown);
+    };
+  }, [open]);
 
   return (
-    <div className="relative">
+    <div className="relative" ref={rootRef}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="rounded-md border border-border px-3 py-1.5 text-[12px] text-foreground hover:bg-surface-alt"
+        className="inline-flex cursor-pointer items-center justify-between gap-3 rounded-md border border-border px-3 py-1.5 text-[12px] text-foreground hover:bg-surface-alt"
       >
-        {triggerLabel} ▾
+        <span className="min-w-0 truncate">{triggerLabel}</span>
+        <span className="shrink-0 text-[10px] text-muted-foreground">▾</span>
       </button>
       {open && (
-        <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden />
-          <div className="absolute right-0 top-[calc(100%+4px)] z-20 max-h-[280px] min-w-[180px] overflow-y-auto rounded-md border border-border bg-surface py-1 shadow-lg">
-            {[...UTIL_MONTHS].reverse().map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => {
-                  onChange(m.id);
+        <div className="absolute right-0 top-[calc(100%+4px)] z-20 flex max-h-[280px] min-w-[200px] flex-col overflow-hidden rounded-md border border-border bg-surface shadow-lg">
+          <div className="flex flex-shrink-0 items-center gap-2 border-b border-border-soft px-3 py-2">
+            <Search className="pointer-events-none h-3.5 w-3.5 text-muted-foreground" />
+            <input
+              ref={searchRef}
+              value={menuQuery}
+              onChange={(e) => setMenuQuery(e.target.value)}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === "Escape") {
+                  e.preventDefault();
                   setOpen(false);
-                }}
-                className={`flex w-full flex-col px-3 py-2 text-left text-[12px] hover:bg-surface-alt ${
-                  m.id === value ? "bg-highlight font-medium text-foreground" : "text-foreground"
-                }`}
-              >
-                <span>{m.label}</span>
-                <span className="text-[11px] text-muted-foreground">{m.rangeLabel}</span>
-              </button>
-            ))}
+                }
+              }}
+              placeholder="Type to search…"
+              aria-label="Search months"
+              className="w-full bg-transparent text-[12px] text-foreground outline-none placeholder:text-muted-foreground"
+            />
           </div>
-        </>
+          <div className="min-h-0 flex-1 overflow-y-auto py-1">
+            {visibleMonths.length === 0 ? (
+              <div className="px-3 py-3 text-[12px] text-muted-foreground">No matches.</div>
+            ) : (
+              visibleMonths.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => {
+                    onChange(m.id);
+                    setOpen(false);
+                  }}
+                  className={`flex w-full cursor-pointer flex-col px-3 py-2 text-left text-[12px] hover:bg-surface-alt ${
+                    m.id === value ? "bg-highlight font-medium text-foreground" : "text-foreground"
+                  }`}
+                >
+                  <span>{m.label}</span>
+                  <span className="text-[11px] text-muted-foreground">{m.rangeLabel}</span>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

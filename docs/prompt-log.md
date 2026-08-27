@@ -32,6 +32,18 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-27 14:05 IST
+
+**Prompt:**  
+> Set rule for single selection dropdown should have type-to-search and check for entire app it should working.
+
+**Output:**  
+- **Rule:** `.cursor/rules/oneview-ui.mdc` — type-to-search required on every single-select (prefer `FilterSingleSelect` / `FilterSelect`; special-purpose menus must match).
+- **App audit:** Almost all single-selects already go through `FilterSingleSelect` (search added earlier). Gaps fixed:
+  - `components/MinFreeHoursSelect.tsx` — search field + filter (Availability / Find Matches).
+  - `screens/Utilization.tsx` `MonthSelect` — search field + filter.
+- Multi-selects already had search via `FilterMultiSelect`. `ReportColumnPicker` / AppShell menus are not single-select value pickers (unchanged).
+
 ### 2026-08-27 13:56 IST
 
 **Prompt:**  
