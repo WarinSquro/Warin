@@ -50,6 +50,8 @@ import {
   isFocusStartBlocked,
   isUnplannedEntryBlocked,
   unplannedEntryBlockedReason,
+  isConfirmBlockedWithoutDayStart,
+  confirmBlockedWithoutDayStartReason,
   CONFIRM_AS_PLANNED_PRODUCTIVE_WINDOW_MESSAGE,
   workdayDurationMs,
   FOCUS_TIMERS_FINALIZED_EVENT,
@@ -592,8 +594,11 @@ function EmployeeConfirm() {
 
   // Keep calendar "Total (Planned/Unplan.) Work Hours" in sync as plan/deviation/unplanned change.
   // Wait for productivity hydrate so we never PUT an empty focus day before GET returns (wipes EC2 laps).
+  // Only while viewing the confirmable day — browsing 24/25/26 must not overwrite today's hours.
   useEffect(() => {
     if (!hrmsId || !productivityHydrated) return;
+    if (calendarDate !== workDate) return;
+    if (submitted) return;
     setProdStore((prev) => {
       const current = getDayProductivity(prev, workDate);
       if (current.workHours === liveWorkHours) return prev;
@@ -603,7 +608,7 @@ function EmployeeConfirm() {
       syncProductivityToApi(workDate, day);
       return next;
     });
-  }, [liveWorkHours, workDate, hrmsId, productivityHydrated]);
+  }, [liveWorkHours, workDate, calendarDate, hrmsId, productivityHydrated, submitted]);
 
   const liveFocusMs = useMemo(() => {
     void tick;
@@ -650,11 +655,16 @@ function EmployeeConfirm() {
     return true;
   };
 
-  /** Show allocations for the calendar-selected day in the plan panel. */
+  /**
+   * Show allocations for the calendar-selected day in the plan panel.
+   * When leaving the confirmable day, clear the success ("submitted") chrome so past days
+   * never render under "Today's plan confirmed" with today's focus timers.
+   */
   const loadPlanForCalendarDate = useCallback(
     async (dateIso: string) => {
       if (!hrmsId) return;
       const seq = ++planLoadSeqRef.current;
+      const confirmable = dateIso === (fetchedMissDateRef.current || today);
       setPlanLoading(true);
       setPlanHeading(
         dateIso === today
@@ -670,6 +680,13 @@ function EmployeeConfirm() {
             setActiveLines(hydrated.lines);
             setStates(hydrated.states);
             setUnplanned(hydrated.unplanned);
+            if (confirmable) {
+              setSubmitted(true);
+              setSubmittedAtLabel(formatAppDateTime(existing.submittedAt, dateFmt));
+            } else {
+              setSubmitted(false);
+              setSubmittedAtLabel("");
+            }
           });
           return;
         }
@@ -678,11 +695,17 @@ function EmployeeConfirm() {
           setActiveLines(lines);
           setStates(initLineStates(lines));
           setUnplanned([]);
+          setSubmitted(false);
+          setSubmittedAtLabel("");
         });
       } catch {
         // Keep prior lines on failure so the panel does not flash empty.
         applyPlanIfCurrent(dateIso, seq, () => {
           setSaveError("Could not load plan for this date. Try again.");
+          if (!confirmable) {
+            setSubmitted(false);
+            setSubmittedAtLabel("");
+          }
         });
       } finally {
         if (seq === planLoadSeqRef.current) setPlanLoading(false);
@@ -696,6 +719,11 @@ function EmployeeConfirm() {
   const handleCalendarSelect = (iso: string) => {
     calendarDateRef.current = iso;
     setCalendarDate(iso);
+    // Leave success view immediately so banner/focus cannot stick on a past day.
+    if (iso !== workDate && submitted) {
+      setSubmitted(false);
+      setSubmittedAtLabel("");
+    }
     void loadPlanForCalendarDate(iso);
   };
 
@@ -938,9 +966,24 @@ function EmployeeConfirm() {
 
   const unplannedMissingDescription = unplanned.some((u) => u.project.trim() === "");
 
+  /**
+   * Today with plan lines (allocations / unplanned): Day Start must be stamped before Confirm.
+   * Matches Workday Timeline — do not allow confirm while DAY START is still 00:00.
+   */
+  const hasPlanLinesToConfirm = activeLines.length + unplanned.length > 0;
+  const blockConfirmWithoutDayStart =
+    viewingConfirmableDate &&
+    isTodayWorkDate &&
+    hasPlanLinesToConfirm &&
+    isConfirmBlockedWithoutDayStart(todayProd.workday);
+  const confirmDayStartBlockedReason = blockConfirmWithoutDayStart
+    ? confirmBlockedWithoutDayStartReason(todayProd.workday)
+    : undefined;
+
   const canSubmit =
     !missPostingAwaitingFetch &&
-    activeLines.length + unplanned.length > 0 &&
+    !blockConfirmWithoutDayStart &&
+    hasPlanLinesToConfirm &&
     activeLines.every((l) => states[l.id]?.mode === "planned" || states[l.id]?.reason !== "") &&
     unplanned.every((u) => u.project.trim() !== "" && u.reason !== "") &&
     focusTimersAllStopped;
@@ -949,6 +992,11 @@ function EmployeeConfirm() {
     if (unplannedMissingDescription) {
       setSaveError("Enter a description for each unplanned work entry.");
       toast.error("Unplanned work description is required.");
+      return;
+    }
+    if (blockConfirmWithoutDayStart) {
+      setSaveError(confirmDayStartBlockedReason ?? "Complete Day Start before confirming.");
+      toast.error(confirmDayStartBlockedReason ?? "Complete Day Start before confirming.");
       return;
     }
     if (!canSubmit) return;
@@ -1055,7 +1103,8 @@ function EmployeeConfirm() {
     </aside>
   );
 
-  if (submitted) {
+  // Success chrome only while still on the day that was confirmed — never while browsing 24/25/26.
+  if (submitted && calendarDate === workDate) {
     return (
       <div className="flex min-h-0 flex-1 overflow-y-auto overscroll-contain bg-background p-5">
         <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-4 lg:flex-row lg:items-start">
@@ -1412,6 +1461,13 @@ function EmployeeConfirm() {
           </div>
         )}
         {viewingConfirmableDate &&
+          blockConfirmWithoutDayStart &&
+          hasPlanLinesToConfirm && (
+            <div className="mt-2 text-[12px] text-warning">
+              Complete Day Start before confirming your work.
+            </div>
+          )}
+        {viewingConfirmableDate &&
           canUseProductivity &&
           !focusTimersAllStopped &&
           activeLines.length + unplanned.length > 0 && (
@@ -1423,20 +1479,24 @@ function EmployeeConfirm() {
         {viewingConfirmableDate && !submitted && (
         <div className="mt-4 flex items-center gap-3">
           <button
+            type="button"
             disabled={!canSubmit || saving}
+            aria-disabled={!canSubmit || saving}
             onClick={() => void handleSubmit()}
             title={
               missPostingAwaitingFetch
                 ? "Fetch a missed day with a plan before confirming"
-                : unplannedMissingDescription
-                  ? "Enter a description for each unplanned work entry"
-                  : !focusTimersAllStopped
-                    ? "Stop all focus timers before submitting"
-                    : undefined
+                : blockConfirmWithoutDayStart
+                  ? confirmDayStartBlockedReason
+                  : unplannedMissingDescription
+                    ? "Enter a description for each unplanned work entry"
+                    : !focusTimersAllStopped
+                      ? "Stop all focus timers before submitting"
+                      : undefined
             }
             className={`flex items-center justify-center gap-2 rounded-md px-4 py-2.5 text-[13px] font-semibold ${
               deviationCount === 0 ? "flex-1 bg-primary text-primary-foreground" : "flex-1 bg-brand text-white"
-            } ${!canSubmit || saving ? "cursor-not-allowed opacity-50" : ""}`}
+            } ${!canSubmit || saving ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
           >
             <Check className="h-4 w-4" />
             {saving

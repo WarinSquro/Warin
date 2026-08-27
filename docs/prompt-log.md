@@ -32,6 +32,41 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-27 17:23 IST
+
+**Prompt:**  
+> Fix: after confirming today, browsing 26/25/24 shows today's success banner and today's focus timers on past days (wrong past data).
+
+**Output:**  
+- **Root cause:** `submitted` success view stayed mounted while calendar `loadPlanForCalendarDate` swapped `activeLines`; focus still bound to `todayProd`; live `workHours` sync wrote browsed-day hours onto today.
+- **Fix (`screens/WorkConfirmation.tsx`):**
+  1. Leaving confirmable day clears submitted chrome immediately; past days use normal browse UI + `viewProd` focus.
+  2. Success view only when `submitted && calendarDate === workDate`.
+  3. Reloading confirmable day with an existing confirmation restores success view; other days force `submitted=false`.
+  4. `liveWorkHours` → productivity sync only when `calendarDate === workDate` and not submitted.
+
+### 2026-08-27 16:28 IST
+
+**Prompt:**  
+> If user has allocations but Day Start not started, do not enable “Confirm all as planned”.
+
+**Output:**  
+- Confirm disabled when viewing today, plan has lines (allocations/unplanned), and `workday.dayStart` is missing — no longer tied only to `canUseProductivity`.
+- Warning text under plan + tooltip + `disabled`/`opacity-50` on the button.
+- Files: `screens/WorkConfirmation.tsx`, `utils/confirmationProductivity.ts`, unit test; vitest pass.
+
+### 2026-08-27 16:24 IST
+
+**Prompt:**  
+> Why is “Confirm all as planned” enabled while Day Start is still 00:00 / not started?
+
+**Output:**  
+- **Root cause:** Confirm `canSubmit` never required Workday Timeline Day Start (timeline historically reference-only). Focus timers and “Add unplanned” already gated on Day Start; Confirm did not.
+- **Fix:** When today’s productivity UI is active (`canUseProductivity`), require `workday.dayStart` before enable/submit; disable button + tooltip + toast.
+- Helpers: `isConfirmBlockedWithoutDayStart` / `confirmBlockedWithoutDayStartReason` in `utils/confirmationProductivity.ts`.
+- Wired in `screens/WorkConfirmation.tsx`; unit test added; vitest 19 passed.
+- Miss-posting / non-today days unchanged (no Day Start requirement).
+
 ### 2026-08-27 16:18 IST
 
 **Prompt:**  
