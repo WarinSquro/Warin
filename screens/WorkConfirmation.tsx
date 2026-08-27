@@ -31,6 +31,7 @@ import {
   submitConfirmation,
   fetchConfirmationProductivity,
   upsertConfirmationProductivity,
+  fetchServerClock,
   type ApiConfirmation,
 } from "../api/domain";
 import {
@@ -192,7 +193,7 @@ function EmployeeConfirm() {
   const { settings, loading: settingsLoading } = useSettings();
   const dateFmt = settings.dateFormat ?? "dd/MM/yyyy";
   const toast = useToast();
-  const today = todayISO();
+  const [today, setToday] = useState(todayISO);
   const [activeLines, setActiveLines] = useState<PlannedLine[]>(EMPTY_LINES);
   const [planHeading, setPlanHeading] = useState("Your plan for today");
   const [states, setStates] = useState<Record<string, LineState>>(() => initLineStates(EMPTY_LINES));
@@ -224,6 +225,31 @@ function EmployeeConfirm() {
   const [productivityHydrated, setProductivityHydrated] = useState(false);
   const [calendarDate, setCalendarDate] = useState(today);
   const [tick, setTick] = useState(0);
+  const [stampingWorkday, setStampingWorkday] = useState(false);
+
+  /** Prefer server IST “today” for Workday Timeline and confirmable day. */
+  useEffect(() => {
+    let cancelled = false;
+    void fetchServerClock()
+      .then((clock) => {
+        if (cancelled) return;
+        setToday((prev) => {
+          if (prev === clock.todayIst) return prev;
+          return clock.todayIst;
+        });
+        setCalendarDate((prev) => {
+          // Keep browsing a past/future day; only snap if still on provisional/local today.
+          if (prev === todayISO() || prev === clock.todayIst) return clock.todayIst;
+          return prev;
+        });
+      })
+      .catch(() => {
+        /* keep browser today if clock API unavailable */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   /** Working Calendar (Settings): working weekdays + company off-days. */
   const workingCalendar = useMemo(
@@ -302,7 +328,11 @@ function EmployeeConfirm() {
     [prodStore, calendarDate]
   );
 
-  const syncProductivityToApi = (dateIso: string, day: DayProductivity) => {
+  const syncProductivityToApi = (
+    dateIso: string,
+    day: DayProductivity,
+    opts?: { applyServerWorkday?: boolean }
+  ) => {
     void upsertConfirmationProductivity({
       workDate: dateIso,
       workday: {
@@ -314,69 +344,149 @@ function EmployeeConfirm() {
       focusByAllocation: day.focusByAllocation,
       activeTimerId: day.activeTimerId ?? null,
       workHours: day.workHours ?? null,
-    }).catch(() => {
-      /* local cache remains source until next successful sync */
-    });
+    })
+      .then((res) => {
+        if (!opts?.applyServerWorkday || !hrmsId || !res?.day?.workday) return;
+        const serverMarks = res.day.workday;
+        setProdStore((prev) => {
+          const cur = getDayProductivity(prev, dateIso);
+          const nextDay: DayProductivity = {
+            ...cur,
+            workday: {
+              ...cur.workday,
+              ...(serverMarks.dayStart ? { dayStart: serverMarks.dayStart } : {}),
+              ...(serverMarks.lunchOut ? { lunchOut: serverMarks.lunchOut } : {}),
+              ...(serverMarks.lunchIn ? { lunchIn: serverMarks.lunchIn } : {}),
+              ...(serverMarks.dayEnd ? { dayEnd: serverMarks.dayEnd } : {}),
+            },
+          };
+          const next = upsertDayProductivity(prev, dateIso, nextDay);
+          saveProductivityStore(hrmsId, next);
+          return next;
+        });
+      })
+      .catch(() => {
+        /* local cache remains source until next successful sync */
+      });
   };
 
-  const persistDay = (dateIso: string, day: DayProductivity) => {
+  const persistDay = (
+    dateIso: string,
+    day: DayProductivity,
+    opts?: { applyServerWorkday?: boolean }
+  ) => {
     if (!hrmsId) return;
     setProdStore((prev) => {
       const next = upsertDayProductivity(prev, dateIso, day);
       saveProductivityStore(hrmsId, next);
       return next;
     });
-    syncProductivityToApi(dateIso, day);
+    syncProductivityToApi(dateIso, day, opts);
   };
 
-  const stampWorkday = (key: WorkdayMarkKey) => {
-    if (!canUseProductivity) return;
+  const stampWorkday = async (key: WorkdayMarkKey) => {
+    if (!canUseProductivity || stampingWorkday) return;
     if (!canStampWorkdayAction(todayProd.workday, key)) return;
 
-    if (key === "dayEnd") {
-      const allocationRunning = Object.values(todayProd.focusByAllocation).some(
-        (s) => !!s?.segmentStartedAt
-      );
-      if (allocationRunning) {
-        setDayEndConfirmOpen(true);
+    setStampingWorkday(true);
+    let nowIso: string;
+    let serverToday: string;
+    try {
+      const clock = await fetchServerClock();
+      nowIso = clock.nowIso;
+      serverToday = clock.todayIst;
+      setToday(clock.todayIst);
+    } catch {
+      toast.error("Could not get server time. Try again.");
+      setStampingWorkday(false);
+      return;
+    }
+
+    // Stamps apply only to the server’s IST calendar day.
+    if (workDate !== serverToday) {
+      toast.error("Server date changed. Refresh and try again.");
+      setStampingWorkday(false);
+      return;
+    }
+
+    try {
+      if (key === "dayEnd") {
+        const allocationRunning = Object.values(todayProd.focusByAllocation).some(
+          (s) => !!s?.segmentStartedAt
+        );
+        if (allocationRunning) {
+          setDayEndConfirmOpen(true);
+          return;
+        }
+        // Log Out: finalize every open session (running + paused) into laps and update totals.
+        const day = stopAllOpenFocusTimers({
+          ...todayProd,
+          workday: { ...todayProd.workday, dayEnd: nowIso },
+        });
+        persistDay(workDate, day, { applyServerWorkday: true });
         return;
       }
-      // Log Out: finalize every open session (running + paused) into laps and update totals.
-      const day = stopAllOpenFocusTimers({
-        ...todayProd,
-        workday: { ...todayProd.workday, dayEnd: new Date().toISOString() },
-      });
-      persistDay(workDate, day);
-      return;
-    }
 
-    if (key === "lunchOut") {
-      const day = pauseAllRunningFocusTimers({
-        ...todayProd,
-        workday: { ...todayProd.workday, lunchOut: new Date().toISOString() },
-      });
-      persistDay(workDate, day);
-      return;
-    }
+      if (key === "lunchOut") {
+        const day = pauseAllRunningFocusTimers({
+          ...todayProd,
+          workday: { ...todayProd.workday, lunchOut: nowIso },
+        });
+        persistDay(workDate, day, { applyServerWorkday: true });
+        return;
+      }
 
-    persistDay(workDate, {
-      ...todayProd,
-      workday: { ...todayProd.workday, [key]: new Date().toISOString() },
-    });
+      persistDay(
+        workDate,
+        {
+          ...todayProd,
+          workday: { ...todayProd.workday, [key]: nowIso },
+        },
+        { applyServerWorkday: true }
+      );
+    } finally {
+      setStampingWorkday(false);
+    }
   };
 
-  const confirmDayEndWithAllocationStop = () => {
-    if (!canUseProductivity) return;
+  const confirmDayEndWithAllocationStop = async () => {
+    if (!canUseProductivity || stampingWorkday) return;
     if (!canStampWorkdayAction(todayProd.workday, "dayEnd")) {
       setDayEndConfirmOpen(false);
       return;
     }
-    const day = stopAllOpenFocusTimers({
-      ...todayProd,
-      workday: { ...todayProd.workday, dayEnd: new Date().toISOString() },
-    });
-    persistDay(workDate, day);
-    setDayEndConfirmOpen(false);
+
+    setStampingWorkday(true);
+    let nowIso: string;
+    let serverToday: string;
+    try {
+      const clock = await fetchServerClock();
+      nowIso = clock.nowIso;
+      serverToday = clock.todayIst;
+      setToday(clock.todayIst);
+    } catch {
+      toast.error("Could not get server time. Try again.");
+      setStampingWorkday(false);
+      return;
+    }
+
+    if (workDate !== serverToday) {
+      toast.error("Server date changed. Refresh and try again.");
+      setDayEndConfirmOpen(false);
+      setStampingWorkday(false);
+      return;
+    }
+
+    try {
+      const day = stopAllOpenFocusTimers({
+        ...todayProd,
+        workday: { ...todayProd.workday, dayEnd: nowIso },
+      });
+      persistDay(workDate, day, { applyServerWorkday: true });
+      setDayEndConfirmOpen(false);
+    } finally {
+      setStampingWorkday(false);
+    }
   };
 
   const pauseActiveTimer = (day: DayProductivity, exceptId?: string): DayProductivity => {
@@ -800,15 +910,17 @@ function EmployeeConfirm() {
       <WorkdayTimelinePanel
         marks={getDayProductivity(prodStore, calendarDate).workday}
         onStamp={stampWorkday}
-        disabled={settingsLoading || !canUseProductivity || calendarDate !== workDate}
+        disabled={settingsLoading || !canUseProductivity || calendarDate !== workDate || stampingWorkday}
         disabledReason={
           settingsLoading
             ? undefined
-            : !workingCalendar.ok
-              ? workingCalendar.reason ?? "Unavailable"
-              : calendarDate !== workDate
-                ? "Select today to log times"
-                : undefined
+            : stampingWorkday
+              ? "Getting server time…"
+              : !workingCalendar.ok
+                ? workingCalendar.reason ?? "Unavailable"
+                : calendarDate !== workDate
+                  ? "Select today to log times"
+                  : undefined
         }
         selectedDate={calendarDate}
         dateLabel={formatAppDate(calendarDate, dateFmt)}

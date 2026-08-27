@@ -21,6 +21,7 @@ import {
 } from "../auth/resource-scope";
 import { descendantEmployeeIds } from "../auth/resource-owner-tree";
 import { EmitDataChange } from "../realtime/emit-data-change.decorator";
+import { todayIsoInAppTz } from "../health/health.controller";
 
 function ser<T>(v: T): T {
   return JSON.parse(JSON.stringify(v, (_k, x) => (typeof x === "bigint" ? x.toString() : x))) as T;
@@ -284,13 +285,25 @@ function isEmptyFocusPayload(
   });
 }
 
+function hasWorkdayStamp(iso?: string | null): boolean {
+  return Boolean(iso && String(iso).trim());
+}
+
 /**
- * On update, omit stamp fields when the client sends null/empty so we do not clear
- * Day Start / Log Out during a hours-only sync.
+ * Persist server clock for new Workday Timeline marks.
+ * Existing stamps are immutable (hours-only sync must not clear or rewrite them).
  */
-function stampUpdateValue(iso?: string | null): Date | undefined {
-  const d = parseOptionalDateTime(iso);
-  return d ?? undefined;
+function serverStampOnCreate(iso: string | null | undefined, serverNow: Date): Date | null {
+  return hasWorkdayStamp(iso) ? serverNow : null;
+}
+
+function serverStampOnUpdate(
+  iso: string | null | undefined,
+  previous: Date | null | undefined,
+  serverNow: Date
+): Date | undefined {
+  if (previous) return undefined;
+  return hasWorkdayStamp(iso) ? serverNow : undefined;
 }
 
 @ApiTags("confirmations")
@@ -527,11 +540,20 @@ export class ConfirmationsController {
       /^\d+$/.test(key) && validAllocIds.has(key) ? BigInt(key) : null;
 
     const incomingFocusEmpty = isEmptyFocusPayload(focusByAllocation);
+    const workDateIso = isoDate(workDate);
+    const todayIst = todayIsoInAppTz();
+    const serverNow = new Date();
 
     const saved = await this.prisma.$transaction(async (tx) => {
       const existingDay = await tx.confirmationProductivityDay.findUnique({
         where: { employeeId_workDate: { employeeId: emp.id, workDate } },
-        select: { id: true },
+        select: {
+          id: true,
+          dayStartAt: true,
+          lunchOutAt: true,
+          lunchInAt: true,
+          dayEndAt: true,
+        },
       });
       let preserveFocus = false;
       if (existingDay && incomingFocusEmpty) {
@@ -544,6 +566,17 @@ export class ConfirmationsController {
         preserveFocus = existingLapCount > 0 || existingSessionCount > 0;
       }
 
+      const settingNewStamp =
+        (hasWorkdayStamp(workday.dayStart) && !existingDay?.dayStartAt) ||
+        (hasWorkdayStamp(workday.lunchOut) && !existingDay?.lunchOutAt) ||
+        (hasWorkdayStamp(workday.lunchIn) && !existingDay?.lunchInAt) ||
+        (hasWorkdayStamp(workday.dayEnd) && !existingDay?.dayEndAt);
+      if (settingNewStamp && workDateIso !== todayIst) {
+        throw new BadRequestException(
+          "Workday timeline stamps are only allowed for today (IST)."
+        );
+      }
+
       const day = await tx.confirmationProductivityDay.upsert({
         where: {
           employeeId_workDate: { employeeId: emp.id, workDate },
@@ -551,10 +584,10 @@ export class ConfirmationsController {
         create: {
           employeeId: emp.id,
           workDate,
-          dayStartAt: parseOptionalDateTime(workday.dayStart),
-          lunchOutAt: parseOptionalDateTime(workday.lunchOut),
-          lunchInAt: parseOptionalDateTime(workday.lunchIn),
-          dayEndAt: parseOptionalDateTime(workday.dayEnd),
+          dayStartAt: serverStampOnCreate(workday.dayStart, serverNow),
+          lunchOutAt: serverStampOnCreate(workday.lunchOut, serverNow),
+          lunchInAt: serverStampOnCreate(workday.lunchIn, serverNow),
+          dayEndAt: serverStampOnCreate(workday.dayEnd, serverNow),
           workHoursSnapshot:
             body.workHours == null || Number.isNaN(Number(body.workHours))
               ? null
@@ -564,10 +597,10 @@ export class ConfirmationsController {
           modifiedBy: emp.id,
         },
         update: {
-          dayStartAt: stampUpdateValue(workday.dayStart),
-          lunchOutAt: stampUpdateValue(workday.lunchOut),
-          lunchInAt: stampUpdateValue(workday.lunchIn),
-          dayEndAt: stampUpdateValue(workday.dayEnd),
+          dayStartAt: serverStampOnUpdate(workday.dayStart, existingDay?.dayStartAt, serverNow),
+          lunchOutAt: serverStampOnUpdate(workday.lunchOut, existingDay?.lunchOutAt, serverNow),
+          lunchInAt: serverStampOnUpdate(workday.lunchIn, existingDay?.lunchInAt, serverNow),
+          dayEndAt: serverStampOnUpdate(workday.dayEnd, existingDay?.dayEndAt, serverNow),
           workHoursSnapshot:
             body.workHours == null || Number.isNaN(Number(body.workHours))
               ? undefined

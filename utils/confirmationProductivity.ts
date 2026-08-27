@@ -274,7 +274,13 @@ export function formatClockAmPm(isoOrEmpty?: string | null): string {
   if (!isoOrEmpty) return "00:00";
   const d = new Date(isoOrEmpty);
   if (Number.isNaN(d.getTime())) return "00:00";
-  return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+  // Always render Workday Timeline clocks in product TZ (IST), not the browser TZ.
+  return d.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "Asia/Kolkata",
+  });
 }
 
 export function formatHms(ms: number): string {

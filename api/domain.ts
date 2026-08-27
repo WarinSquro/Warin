@@ -1171,6 +1171,15 @@ export async function remindConfirmation(body: {
   });
 }
 
+/** Server clock — UTC instant + calendar date in product TZ (IST). */
+export async function fetchServerClock(): Promise<{
+  nowIso: string;
+  todayIst: string;
+  timeZone: string;
+}> {
+  return apiFetch("/health/clock");
+}
+
 export type ApiWeeklyCheckInConfig = {
   rankingLevels: { value: number; title: string; color: string }[];
   actionTypes: string[];

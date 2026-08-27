@@ -32,6 +32,19 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-27 14:10 IST
+
+**Prompt:**  
+> Workday Timeline (`WorkdayTimelinePanel`): store server date-time as IST for all four marks (Day Start, Lunch Start, Lunch End, Log Out) and implement.
+
+**Output:**  
+- **Root cause:** stamps used browser clock; even after client clock fetch, API still trusted client ISO and UI clock format used browser TZ.
+- **API:** `GET /health/clock` → `nowIso` + `todayIst` (Asia/Kolkata). `PUT /confirmations/me/productivity` now writes **server `new Date()`** for newly set Day Start / Lunch Out / Lunch In / Day End; existing stamps immutable; rejects new stamps when `workDate ≠ todayIst`.
+- **Client:** Work Confirmation stamps via `fetchServerClock()`; persists then merges returned server workday into local store.
+- **UI:** `formatClockAmPm` always formats in `Asia/Kolkata`.
+- **Files:** `health.controller.ts`, `confirmations.controller.ts`, `api/domain.ts`, `screens/WorkConfirmation.tsx`, `utils/confirmationProductivity.ts`.
+- **Verify:** `docker compose up -d --build api` then stamp Day Start and confirm DB/`GET` productivity times match server IST.
+
 ### 2026-08-27 14:05 IST
 
 **Prompt:**  
