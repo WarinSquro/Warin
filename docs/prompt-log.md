@@ -32,6 +32,16 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-27 18:45 IST
+
+**Prompt:**  
+> When open this from EC2 then keep hide "Restore database to Local docker" section
+
+**Output:**  
+- Restore-to-local-Docker panel is not rendered until `/status` confirms this is not EC2 / PRODUCTION (avoids showing it before status loads).
+- File: `ops-console/web/src/pages/DashboardPage.tsx`.
+- Validation: `npm run build` passed; push + EC2 ops-console reinstall.
+
 ### 2026-08-27 18:38 IST
 
 **Prompt:**  

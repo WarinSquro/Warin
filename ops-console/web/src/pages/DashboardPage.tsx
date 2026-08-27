@@ -327,9 +327,9 @@ export function DashboardPage() {
                   download={downloadMeta("docker", "Create a Docker backup first")}
                 />
               </div>
+              {status && !status.isEc2Layout && status.environment !== "PRODUCTION" && (
               <LocalDockerRestorePanel
                 busy={busy}
-                isEc2Layout={Boolean(status?.isEc2Layout)}
                 onRestore={async (file: File) => {
                   const displayName = (file as File & { path?: string }).path || file.name;
                   const creds = await promptCredentials({
@@ -366,6 +366,7 @@ export function DashboardPage() {
                   });
                 }}
               />
+              )}
             </section>
           )}
 
@@ -820,11 +821,9 @@ function BackupCard({
 
 function LocalDockerRestorePanel({
   busy,
-  isEc2Layout,
   onRestore,
 }: {
   busy: boolean;
-  isEc2Layout: boolean;
   onRestore: (file: File) => Promise<void>;
 }) {
   const [file, setFile] = useState<File | null>(null);
@@ -838,10 +837,6 @@ function LocalDockerRestorePanel({
   const selectedLabel = file
     ? `${(file as File & { path?: string }).path || file.name} · ${formatBytes(file.size)}`
     : "No file selected";
-
-  if (isEc2Layout) {
-    return null;
-  }
 
   return (
     <div className="rounded-lg border border-border bg-white p-4">
