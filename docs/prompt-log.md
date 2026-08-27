@@ -32,6 +32,16 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-27 15:18 IST
+
+**Prompt:**  
+> From dropdown search: ↓ moves highlight to items; Enter selects. Implement.
+
+**Output:**  
+- Shared `utils/dropdownListNav.ts` (`nextEnabledIndex` / `firstEnabledIndex`).
+- Keyboard nav (↓/↑ highlight, Enter select; multi also Space toggle) in `FilterSingleSelect`, `FilterMultiSelect`, `MinFreeHoursSelect`, Utilization `MonthSelect`. Focus stays in search.
+- Rule updated in `.cursor/rules/oneview-ui.mdc`.
+
 ### 2026-08-27 15:08 IST
 
 **Prompt:**  

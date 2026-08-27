@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { Check } from "lucide-react";
 import { matchesSearchQuery } from "../utils/textSearch";
+import { nextEnabledIndex } from "../utils/dropdownListNav";
 import { DropdownMenuSearch } from "./DropdownMenuSearch";
 
 type MenuLayout = {
@@ -37,11 +38,13 @@ export function FilterMultiSelect({
 }) {
   const [open, setOpen] = useState(false);
   const [menuQuery, setMenuQuery] = useState("");
+  const [highlightIndex, setHighlightIndex] = useState(-1);
   const [menuLayout, setMenuLayout] = useState<MenuLayout | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const optionRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const allSelected = selected.length === items.length;
   const noneSelected = selected.length === 0;
   const visibleItems = useMemo(
@@ -79,6 +82,7 @@ export function FilterMultiSelect({
     if (!open) {
       setMenuLayout(null);
       setMenuQuery("");
+      setHighlightIndex(-1);
       return;
     }
 
@@ -93,6 +97,15 @@ export function FilterMultiSelect({
       window.removeEventListener("scroll", onReposition, true);
     };
   }, [open, updateMenuLayout]);
+
+  useEffect(() => {
+    setHighlightIndex(-1);
+  }, [menuQuery]);
+
+  useEffect(() => {
+    if (highlightIndex < 0) return;
+    optionRefs.current[highlightIndex]?.scrollIntoView({ block: "nearest" });
+  }, [highlightIndex]);
 
   /** Focus search after the portal menu mounts so type-to-search works on open. */
   useEffect(() => {
@@ -132,6 +145,32 @@ export function FilterMultiSelect({
     );
   };
 
+  const onSearchKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    e.stopPropagation();
+    if (e.key === "Escape") {
+      e.preventDefault();
+      setOpen(false);
+      triggerRef.current?.focus();
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlightIndex((i) => nextEnabledIndex(visibleItems, i, 1));
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlightIndex((i) => nextEnabledIndex(visibleItems, i, -1));
+      return;
+    }
+    if ((e.key === "Enter" || e.key === " ") && highlightIndex >= 0) {
+      const item = visibleItems[highlightIndex];
+      if (!item) return;
+      e.preventDefault();
+      toggle(item);
+    }
+  };
+
   const menu =
     open && menuLayout
       ? createPortal(
@@ -166,7 +205,7 @@ export function FilterMultiSelect({
               inputRef={searchRef}
               value={menuQuery}
               onChange={setMenuQuery}
-              onKeyDown={(e) => e.stopPropagation()}
+              onKeyDown={onSearchKeyDown}
               placeholder={`Search ${pluralLabel}…`}
               aria-label={`Search ${pluralLabel}`}
             />
@@ -174,27 +213,34 @@ export function FilterMultiSelect({
               {visibleItems.length === 0 ? (
                 <div className="px-3 py-3 text-[12px] text-muted-foreground">No matches.</div>
               ) : (
-                visibleItems.map((item) => {
-                const checked = selected.includes(item);
-                return (
-                  <button
-                    key={item}
-                    type="button"
-                    onClick={() => toggle(item)}
-                    className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[12px] hover:bg-surface-alt"
-                  >
-                    <span
-                      className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border ${
-                        checked ? "border-primary bg-primary text-white" : "border-border bg-surface"
+                visibleItems.map((item, index) => {
+                  const checked = selected.includes(item);
+                  const isHighlighted = index === highlightIndex;
+                  return (
+                    <button
+                      key={item}
+                      ref={(el) => {
+                        optionRefs.current[index] = el;
+                      }}
+                      type="button"
+                      onMouseEnter={() => setHighlightIndex(index)}
+                      onClick={() => toggle(item)}
+                      className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-[12px] ${
+                        isHighlighted ? "bg-surface-alt" : "hover:bg-surface-alt"
                       }`}
                     >
-                      {checked && <Check className="h-3 w-3" strokeWidth={3} />}
-                    </span>
-                    <span className="flex-1 text-foreground">{item}</span>
-                    <span className="text-[11px] text-muted-foreground">{counts[item] ?? 0}</span>
-                  </button>
-                );
-              })
+                      <span
+                        className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border ${
+                          checked ? "border-primary bg-primary text-white" : "border-border bg-surface"
+                        }`}
+                      >
+                        {checked && <Check className="h-3 w-3" strokeWidth={3} />}
+                      </span>
+                      <span className="flex-1 text-foreground">{item}</span>
+                      <span className="text-[11px] text-muted-foreground">{counts[item] ?? 0}</span>
+                    </button>
+                  );
+                })
               )}
             </div>
           </div>,

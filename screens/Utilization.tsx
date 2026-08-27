@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { CalendarClock, X, ArrowRight, FileSpreadsheet, FileText } from "lucide-react";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
 import { DepartmentSelect } from "../components/DepartmentSelect";
 import { DropdownMenuSearch } from "../components/DropdownMenuSearch";
 import { matchesSearchQuery } from "../utils/textSearch";
+import { nextEnabledIndex } from "../utils/dropdownListNav";
 import {
   UTIL_MONTHS,
   DEFAULT_UTIL_MONTH,
@@ -526,8 +527,10 @@ function UtilTableRow({
 function MonthSelect({ value, onChange }: { value: string; onChange: (id: string) => void }) {
   const [open, setOpen] = useState(false);
   const [menuQuery, setMenuQuery] = useState("");
+  const [highlightIndex, setHighlightIndex] = useState(-1);
   const rootRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const optionRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const selected = UTIL_MONTHS.find((m) => m.id === value) ?? UTIL_MONTHS[UTIL_MONTHS.length - 1];
   const triggerLabel = value === DEFAULT_UTIL_MONTH ? "This Month" : selected.shortLabel;
   const monthsNewestFirst = useMemo(() => [...UTIL_MONTHS].reverse(), []);
@@ -542,6 +545,7 @@ function MonthSelect({ value, onChange }: { value: string; onChange: (id: string
   useEffect(() => {
     if (!open) {
       setMenuQuery("");
+      setHighlightIndex(-1);
       return;
     }
     const focusRaf = window.requestAnimationFrame(() => {
@@ -557,6 +561,41 @@ function MonthSelect({ value, onChange }: { value: string; onChange: (id: string
       document.removeEventListener("mousedown", onPointerDown);
     };
   }, [open]);
+
+  useEffect(() => {
+    setHighlightIndex(-1);
+  }, [menuQuery]);
+
+  useEffect(() => {
+    if (highlightIndex < 0) return;
+    optionRefs.current[highlightIndex]?.scrollIntoView({ block: "nearest" });
+  }, [highlightIndex]);
+
+  const onSearchKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    e.stopPropagation();
+    if (e.key === "Escape") {
+      e.preventDefault();
+      setOpen(false);
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlightIndex((i) => nextEnabledIndex(visibleMonths, i, 1));
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlightIndex((i) => nextEnabledIndex(visibleMonths, i, -1));
+      return;
+    }
+    if (e.key === "Enter" && highlightIndex >= 0) {
+      const m = visibleMonths[highlightIndex];
+      if (!m) return;
+      e.preventDefault();
+      onChange(m.id);
+      setOpen(false);
+    }
+  };
 
   return (
     <div className="relative" ref={rootRef}>
@@ -574,13 +613,7 @@ function MonthSelect({ value, onChange }: { value: string; onChange: (id: string
             inputRef={searchRef}
             value={menuQuery}
             onChange={setMenuQuery}
-            onKeyDown={(e) => {
-              e.stopPropagation();
-              if (e.key === "Escape") {
-                e.preventDefault();
-                setOpen(false);
-              }
-            }}
+            onKeyDown={onSearchKeyDown}
             placeholder="Type to search…"
             aria-label="Search months"
           />
@@ -588,16 +621,24 @@ function MonthSelect({ value, onChange }: { value: string; onChange: (id: string
             {visibleMonths.length === 0 ? (
               <div className="px-3 py-3 text-[12px] text-muted-foreground">No matches.</div>
             ) : (
-              visibleMonths.map((m) => (
+              visibleMonths.map((m, index) => (
                 <button
                   key={m.id}
+                  ref={(el) => {
+                    optionRefs.current[index] = el;
+                  }}
                   type="button"
+                  onMouseEnter={() => setHighlightIndex(index)}
                   onClick={() => {
                     onChange(m.id);
                     setOpen(false);
                   }}
-                  className={`flex w-full cursor-pointer flex-col px-3 py-2 text-left text-[12px] hover:bg-surface-alt ${
-                    m.id === value ? "bg-highlight font-medium text-foreground" : "text-foreground"
+                  className={`flex w-full cursor-pointer flex-col px-3 py-2 text-left text-[12px] ${
+                    index === highlightIndex
+                      ? "bg-surface-alt text-foreground"
+                      : m.id === value
+                        ? "bg-highlight font-medium text-foreground"
+                        : "text-foreground hover:bg-surface-alt"
                   }`}
                 >
                   <span>{m.label}</span>

@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, type KeyboardEvent } from "react";
 import { matchesSearchQuery } from "../utils/textSearch";
+import { nextEnabledIndex } from "../utils/dropdownListNav";
 import { DropdownMenuSearch } from "./DropdownMenuSearch";
 
 export function MinFreeHoursSelect({
@@ -19,8 +20,10 @@ export function MinFreeHoursSelect({
 }) {
   const [open, setOpen] = useState(false);
   const [menuQuery, setMenuQuery] = useState("");
+  const [highlightIndex, setHighlightIndex] = useState(-1);
   const rootRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const optionRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const selected = options.find((o) => o.value === value);
   const triggerLabel = value === 0 ? defaultLabel : (selected?.label ?? defaultLabel);
 
@@ -32,6 +35,7 @@ export function MinFreeHoursSelect({
   useEffect(() => {
     if (!open) {
       setMenuQuery("");
+      setHighlightIndex(-1);
       return;
     }
     const focusRaf = window.requestAnimationFrame(() => {
@@ -47,6 +51,45 @@ export function MinFreeHoursSelect({
       document.removeEventListener("mousedown", onPointerDown);
     };
   }, [open]);
+
+  useEffect(() => {
+    setHighlightIndex(-1);
+  }, [menuQuery]);
+
+  useEffect(() => {
+    if (highlightIndex < 0) return;
+    optionRefs.current[highlightIndex]?.scrollIntoView({ block: "nearest" });
+  }, [highlightIndex]);
+
+  const selectOption = (option: { value: number; label: string }) => {
+    onChange(option.value);
+    setOpen(false);
+  };
+
+  const onSearchKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    e.stopPropagation();
+    if (e.key === "Escape") {
+      e.preventDefault();
+      setOpen(false);
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlightIndex((i) => nextEnabledIndex(visibleOptions, i, 1));
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlightIndex((i) => nextEnabledIndex(visibleOptions, i, -1));
+      return;
+    }
+    if (e.key === "Enter" && highlightIndex >= 0) {
+      const opt = visibleOptions[highlightIndex];
+      if (!opt) return;
+      e.preventDefault();
+      selectOption(opt);
+    }
+  };
 
   const menuAlign = align === "end" ? "right-0" : "left-0";
 
@@ -84,13 +127,7 @@ export function MinFreeHoursSelect({
             inputRef={searchRef}
             value={menuQuery}
             onChange={setMenuQuery}
-            onKeyDown={(e) => {
-              e.stopPropagation();
-              if (e.key === "Escape") {
-                e.preventDefault();
-                setOpen(false);
-              }
-            }}
+            onKeyDown={onSearchKeyDown}
             placeholder="Type to search…"
             aria-label="Search options"
           />
@@ -98,17 +135,21 @@ export function MinFreeHoursSelect({
             {visibleOptions.length === 0 ? (
               <div className="px-3 py-3 text-[12px] text-muted-foreground">No matches.</div>
             ) : (
-              visibleOptions.map((option) => {
+              visibleOptions.map((option, index) => {
                 const checked = value === option.value;
+                const isHighlighted = index === highlightIndex;
                 return (
                   <button
                     key={option.value}
-                    type="button"
-                    onClick={() => {
-                      onChange(option.value);
-                      setOpen(false);
+                    ref={(el) => {
+                      optionRefs.current[index] = el;
                     }}
-                    className="flex w-full cursor-pointer items-center gap-2.5 px-3 py-2 text-left text-[12px] hover:bg-surface-alt"
+                    type="button"
+                    onMouseEnter={() => setHighlightIndex(index)}
+                    onClick={() => selectOption(option)}
+                    className={`flex w-full cursor-pointer items-center gap-2.5 px-3 py-2 text-left text-[12px] ${
+                      isHighlighted ? "bg-surface-alt" : "hover:bg-surface-alt"
+                    }`}
                   >
                     <span
                       className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border ${
