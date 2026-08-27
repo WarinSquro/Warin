@@ -67,6 +67,16 @@ export function unplannedEntryBlockedReason(marks: WorkdayMarks): string | undef
   return undefined;
 }
 
+/** True when Day Start is missing (empty string / undefined / null all count as not started). */
+export function isConfirmBlockedWithoutDayStart(marks: WorkdayMarks): boolean {
+  return !marks.dayStart;
+}
+
+export function confirmBlockedWithoutDayStartReason(marks: WorkdayMarks): string | undefined {
+  if (!marks.dayStart) return "Complete Day Start before confirming your work";
+  return undefined;
+}
+
 /** Pause every running focus segment (keeps sessionAccumMs; no new lap). */
 export function pauseAllRunningFocusTimers(
   day: DayProductivity,

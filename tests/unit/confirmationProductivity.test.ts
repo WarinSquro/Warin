@@ -6,6 +6,8 @@ import {
   focusElapsedMsForWorkDate,
   isFocusStartBlocked,
   isUnplannedEntryBlocked,
+  isConfirmBlockedWithoutDayStart,
+  confirmBlockedWithoutDayStartReason,
   loadProductivityStore,
   pauseAllRunningFocusTimers,
   stopAllOpenFocusTimers,
@@ -172,6 +174,21 @@ describe("confirmation unplanned entry gate", () => {
         dayEnd: "2026-08-20T12:00:00.000Z",
       })
     ).toBe(false);
+  });
+});
+
+describe("confirmation submit Day Start gate", () => {
+  it("blocks confirm until Day Start is stamped", () => {
+    expect(isConfirmBlockedWithoutDayStart({})).toBe(true);
+    expect(confirmBlockedWithoutDayStartReason({})).toMatch(/Day Start/i);
+    expect(isConfirmBlockedWithoutDayStart({ dayStart: "2026-08-20T03:00:00.000Z" })).toBe(false);
+    expect(confirmBlockedWithoutDayStartReason({ dayStart: "2026-08-20T03:00:00.000Z" })).toBeUndefined();
+  });
+
+  it("treats empty dayStart the same as missing (allocations present case)", () => {
+    expect(isConfirmBlockedWithoutDayStart({ dayStart: undefined })).toBe(true);
+    expect(isConfirmBlockedWithoutDayStart({ dayStart: "" })).toBe(true);
+    expect(isConfirmBlockedWithoutDayStart({ lunchOut: "2026-08-20T07:00:00.000Z" })).toBe(true);
   });
 });
 
