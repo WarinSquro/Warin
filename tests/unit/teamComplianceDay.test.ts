@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   confirmationHasDeviantWork,
   teamComplianceDayStatus,
+  teamComplianceTodayIndex,
+  teamComplianceWeekHasPending,
 } from "../../utils/teamComplianceDay";
 
 describe("teamComplianceDayStatus", () => {
@@ -97,6 +99,35 @@ describe("teamComplianceDayStatus", () => {
         },
       })
     ).toBe("confirmed");
+  });
+});
+
+describe("teamComplianceTodayIndex", () => {
+  const week = ["2026-08-24", "2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28"];
+
+  it("returns exact weekday index when today is in the strip", () => {
+    expect(teamComplianceTodayIndex(week, "2026-08-27")).toBe(3);
+  });
+
+  it("on weekend uses the latest working day on or before today (not -1 → fake pending)", () => {
+    expect(teamComplianceTodayIndex(week, "2026-08-29")).toBe(4); // Sat → Fri
+    expect(teamComplianceTodayIndex(week, "2026-08-30")).toBe(4); // Sun → Fri
+  });
+
+  it("returns -1 when the whole strip is still in the future", () => {
+    expect(teamComplianceTodayIndex(week, "2026-08-20")).toBe(-1);
+  });
+});
+
+describe("teamComplianceWeekHasPending", () => {
+  it("is true when any day in the week strip is pending", () => {
+    expect(
+      teamComplianceWeekHasPending(["leave", "pending", "leave", "leave", "leave"])
+    ).toBe(true);
+    expect(
+      teamComplianceWeekHasPending(["leave", "confirmed", "leave", "leave", "leave"])
+    ).toBe(false);
+    expect(teamComplianceWeekHasPending([])).toBe(false);
   });
 });
 

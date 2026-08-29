@@ -32,6 +32,26 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-29 17:15 IST
+
+**Prompt:**  
+> Aditi has pending mid-week (Tue) but no Remind — Remind must show if any day in the week is pending (not only “today”).
+
+**Output:**  
+- Remind gated on `teamComplianceWeekHasPending(week)` (any pending cell), not only the anchored today/Friday cell.
+- API label/`todayStatus` treat week-pending as remindable (“Not yet confirmed”); all-leave weeks stay without Remind.
+- Files: `utils/teamComplianceDay.ts`, `WorkConfirmation.tsx`, `confirmations.controller.ts`, unit tests.
+
+### 2026-08-29 17:07 IST
+
+**Prompt:**  
+> Fix Team Compliance showing Remind / “Not yet confirmed” when week dots are all leave (no allocation + Friday holiday) — especially on weekend.
+
+**Output:**  
+- **Root cause:** When `today` is outside the working-week strip (e.g. Sat), `todayIndex === -1` and both API/UI fell back to `pending`.
+- **Fix:** `teamComplianceTodayIndex` uses the latest strip day ≤ today (Fri on weekend); never invent pending. Fallback status `leave` / label `—` if strip is all future.
+- Files: `utils/teamComplianceDay.ts`, `confirmations.controller.ts` (synced helper), `screens/WorkConfirmation.tsx`, unit tests (11 passed).
+
 ### 2026-08-27 18:45 IST
 
 **Prompt:**  

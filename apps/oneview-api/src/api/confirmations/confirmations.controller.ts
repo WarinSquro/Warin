@@ -212,6 +212,28 @@ function teamDayStatus(input: {
   return "pending";
 }
 
+/**
+ * Index of “today” in the working-week strip.
+ * Keep in sync with `utils/teamComplianceDay.ts` → `teamComplianceTodayIndex`.
+ * On weekends (or any day not in the strip), use the latest strip day on/before today
+ * so we never invent a fake `pending` status for “today”.
+ */
+function teamComplianceTodayIndex(weekDates: string[], todayIso: string): number {
+  const today = todayIso.slice(0, 10);
+  const exact = weekDates.indexOf(today);
+  if (exact >= 0) return exact;
+  let best = -1;
+  for (let i = 0; i < weekDates.length; i++) {
+    const d = weekDates[i]?.slice(0, 10);
+    if (d && d <= today) best = i;
+  }
+  return best;
+}
+
+function weekHasPending(week: string[]): boolean {
+  return week.some((s) => s === "pending");
+}
+
 type LineBody = {
   allocationId?: string | null;
   projectLabel: string;
@@ -1021,7 +1043,7 @@ export class ConfirmationsController {
     });
     const weekDates = workingWeekDatesFromSettings(mon, settings?.workingDays);
     const fri = weekDates[weekDates.length - 1] ?? addDaysISO(mon, 4);
-    const todayIndex = weekDates.indexOf(today);
+    const todayIndex = teamComplianceTodayIndex(weekDates, today);
 
     const offRows = await this.prisma.companyOffDay.findMany({
       where: {
@@ -1130,14 +1152,19 @@ export class ConfirmationsController {
         })
       );
 
-      const todayStatus = todayIndex >= 0 ? week[todayIndex] : "pending";
+      const todayStatus = todayIndex >= 0 ? week[todayIndex] : "leave";
       const todayConf =
         todayIndex >= 0
           ? byEmpDate.get(`${e.id.toString()}:${weekDates[todayIndex]}`)
           : undefined;
+      const hasPendingInWeek = weekHasPending(week);
 
       let todayLabel = "Not yet confirmed";
-      if (todayStatus === "future") todayLabel = "—";
+      if (hasPendingInWeek) {
+        // Any unconfirmed plan day this week → still remindable (even if “today” is leave/weekend).
+        todayLabel = "Not yet confirmed";
+      } else if (todayIndex < 0) todayLabel = "—";
+      else if (todayStatus === "future") todayLabel = "—";
       else if (todayStatus === "leave") todayLabel = "No plan / leave";
       else if (todayStatus === "pending") todayLabel = "Not yet confirmed";
       else if (todayStatus === "deviation" || todayStatus === "deviation_delayed") {
@@ -1157,7 +1184,8 @@ export class ConfirmationsController {
         role: e.skills[0]?.skill.name ?? "—",
         week,
         todayLabel,
-        todayStatus,
+        // Expose week-pending for Remind/KPIs: not only the anchored “today” cell.
+        todayStatus: hasPendingInWeek ? "pending" : todayStatus,
       };
     });
 
@@ -1166,10 +1194,14 @@ export class ConfirmationsController {
       ["confirmed", "confirmed_delayed"].includes(r.todayStatus)
     ).length;
     const pending = todayRows.filter((r) => r.todayStatus === "pending").length;
-    const deviations = todayRows.filter((r) =>
-      ["deviation", "deviation_delayed"].includes(r.todayStatus)
+    const deviations = todayRows.filter(
+      (r) =>
+        !weekHasPending(r.week) &&
+        ["deviation", "deviation_delayed"].includes(r.todayStatus)
     ).length;
-    const onLeave = todayRows.filter((r) => r.todayStatus === "leave").length;
+    const onLeave = todayRows.filter(
+      (r) => r.todayStatus === "leave" && !weekHasPending(r.week)
+    ).length;
     const team = todayRows.length;
     const confirmedPct = team > 0 ? Math.round((confirmedToday / team) * 100) : 0;
 

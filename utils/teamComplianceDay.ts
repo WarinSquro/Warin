@@ -68,3 +68,29 @@ export function teamComplianceDayStatus(input: {
   if (input.hasPlan === false) return "leave";
   return "pending";
 }
+
+/**
+ * Index of “today” within the Team Compliance week strip (working weekdays only).
+ * On weekends / days not in the strip, use the latest working day on or before `today`
+ * so we never fall back to a fake `pending` (which incorrectly showed Remind).
+ * Returns -1 only when every strip day is still in the future.
+ */
+export function teamComplianceTodayIndex(weekDates: string[], todayIso: string): number {
+  const today = todayIso.slice(0, 10);
+  const exact = weekDates.indexOf(today);
+  if (exact >= 0) return exact;
+  let best = -1;
+  for (let i = 0; i < weekDates.length; i++) {
+    const d = weekDates[i]?.slice(0, 10);
+    if (d && d <= today) best = i;
+  }
+  return best;
+}
+
+/** True when any working-day cell in the week strip is still pending confirmation. */
+export function teamComplianceWeekHasPending(
+  week: Array<TeamComplianceDayStatus | string> | null | undefined
+): boolean {
+  if (!week?.length) return false;
+  return week.some((s) => s === "pending");
+}

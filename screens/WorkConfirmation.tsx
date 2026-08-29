@@ -64,6 +64,7 @@ import {
   canStampWorkdayAction,
 } from "../utils/confirmationProductivity";
 import { workingDayHeaderLetters, weekStartMonday, workingDatesInWeek, workingDayStatus } from "../utils/workingCalendar";
+import { teamComplianceTodayIndex, teamComplianceWeekHasPending } from "../utils/teamComplianceDay";
 
 const EMPTY_LINES: PlannedLine[] = [];
 
@@ -1800,11 +1801,20 @@ function ManagerCompliance() {
       const confirmedCount = todayStatuses.filter((s) =>
         s === "confirmed" || s === "confirmed_delayed"
       ).length;
-      const pending = todayStatuses.filter((s) => s === "pending").length;
+      // Pending = anyone with at least one pending day this week (API todayStatus already week-aware).
+      const pending = visible.filter(
+        (r) =>
+          r.todayStatus === "pending" ||
+          teamComplianceWeekHasPending(r.week)
+      ).length;
       const deviationsCount = todayStatuses.filter(
         (s) => s === "deviation" || s === "deviation_delayed"
       ).length;
-      const onLeave = todayStatuses.filter((s) => s === "leave").length;
+      const onLeave = visible.filter(
+        (r) =>
+          r.todayStatus === "leave" &&
+          !teamComplianceWeekHasPending(r.week)
+      ).length;
       const team = visible.length;
       setKpis({
         confirmedPct: team > 0 ? Math.round((confirmedCount / team) * 100) : 0,
@@ -1877,7 +1887,7 @@ function ManagerCompliance() {
   );
   const todayIndex = useMemo(() => {
     const weekDates = workingDatesInWeek(weekStartMonday(today), settings.workingDays);
-    return weekDates.indexOf(today);
+    return teamComplianceTodayIndex(weekDates, today);
   }, [today, settings.workingDays]);
 
   const sortedCompliance = useMemo(() => {
@@ -2054,9 +2064,12 @@ function ComplianceRowView({
   onSelectEmployee: () => void;
   onRemind: () => void;
 }) {
-  const todayStatus = row.week[todayIndex] ?? "pending";
-  const pending = todayStatus === "pending";
-  const onLeave = todayStatus === "leave";
+  const todayStatus =
+    todayIndex >= 0 ? (row.week[todayIndex] ?? "leave") : "leave";
+  /** Remind if any working day this week is still pending — not only the “today” cell. */
+  const hasPendingInWeek = teamComplianceWeekHasPending(row.week);
+  const labelStatus = hasPendingInWeek ? "pending" : todayStatus;
+  const onLeave = !hasPendingInWeek && todayStatus === "leave";
   return (
     <div
       className={`flex items-center border-b border-border-soft px-4 py-2.5 last:border-b-0 ${
@@ -2078,7 +2091,7 @@ function ComplianceRowView({
         </div>
         <div className="min-w-0">
           <div className="truncate text-[12px] font-medium text-foreground">{row.name}</div>
-          <div className={`text-[10px] ${todayLabelClass(todayStatus)}`}>{row.todayLabel}</div>
+          <div className={`text-[10px] ${todayLabelClass(labelStatus)}`}>{row.todayLabel}</div>
         </div>
       </button>
       <div className={complianceWeekGridClass(weekDayCount)}>
@@ -2093,7 +2106,7 @@ function ComplianceRowView({
         ))}
       </div>
       <div className="w-[120px] shrink-0 text-right">
-        {pending && (
+        {hasPendingInWeek && (
           <button
             type="button"
             onClick={onRemind}
