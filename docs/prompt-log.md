@@ -32,6 +32,15 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-31 13:57 IST
+
+**Prompt:**  
+> Allocation drawer: default "Hours per day" should be 1 hour (user can change after).
+
+**Output:**  
+- `components/AllocationDrawer.tsx` — `DEFAULT_ALLOCATION_HOURS_PER_DAY = 1`; empty form and prefill fallback use it (was 6).
+- `screens/ResourcePlanner.tsx` — new-allocation prefill from grid / find matches uses same default (was 8); free-capacity suggestion unchanged.
+
 ### 2026-08-31 13:51 IST
 
 **Prompt:**  

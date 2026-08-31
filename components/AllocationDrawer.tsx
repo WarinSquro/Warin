@@ -63,6 +63,9 @@ export interface AllocationSavePayload {
   createRef?: AllocationCreateRef;
 }
 
+/** Default hours per day when creating a new allocation (user can change in the drawer). */
+export const DEFAULT_ALLOCATION_HOURS_PER_DAY = 1;
+
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -109,7 +112,7 @@ function createEmptyForm() {
     tasks: [] as string[],
     start,
     end: upcomingFridayISO(),
-    hoursPerDay: 6,
+    hoursPerDay: DEFAULT_ALLOCATION_HOURS_PER_DAY,
     reason: "",
   };
 }
@@ -190,7 +193,7 @@ export function AllocationDrawer({ open, onClose, prefill, people, allocations =
         tasks: prefill?.tasks ? [...prefill.tasks] : [],
         start: prefill?.start ?? defaults.start,
         end: prefill?.end ?? defaults.end,
-        hoursPerDay: Math.min(12, prefill?.hoursPerDay ?? 6),
+        hoursPerDay: Math.min(12, prefill?.hoursPerDay ?? DEFAULT_ALLOCATION_HOURS_PER_DAY),
         reason: prefill?.reason ?? "",
       });
       setTaskInput("");

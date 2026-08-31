@@ -24,7 +24,7 @@ import {
 } from "../data/planner";
 import { workingWeekEnd } from "../utils/workingWeek";
 import type { Chip, ChipKind, Demand, Candidate, PlannerRow, AllocationSlice } from "../data/planner";
-import { AllocationDrawer } from "../components/AllocationDrawer";
+import { AllocationDrawer, DEFAULT_ALLOCATION_HOURS_PER_DAY } from "../components/AllocationDrawer";
 import { ResourceLeavesModal } from "../components/ResourceLeavesModal";
 import type { AllocationPrefill, AllocationSavePayload, AllocationEditRef } from "../components/AllocationDrawer";
 import { FindMatchesPanel } from "../components/FindMatchesPanel";
@@ -109,7 +109,7 @@ function buildNewPrefill(
       ? view === "week"
         ? Math.min(8, freeHours / workingSpan)
         : Math.min(8, freeHours)
-      : 8;
+      : DEFAULT_ALLOCATION_HOURS_PER_DAY;
 
   return {
     mode: "create",
@@ -589,7 +589,7 @@ export function ResourcePlanner() {
     }
     const demand = matchesDemand;
     setMatchesDemand(null);
-    openAllocate({ personName: c.name, projectName: demand?.project, hoursPerDay: 8 });
+    openAllocate({ personName: c.name, projectName: demand?.project, hoursPerDay: DEFAULT_ALLOCATION_HOURS_PER_DAY });
   };
 
   const headerRangeLabel =
