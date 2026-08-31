@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, X } from "lucide-react";
+import { ReportPagination } from "../components/ReportPagination";
 import { TruncateText } from "../components/TruncateText";
+import { paginateRows } from "../data/dailyWorkReport";
 import { useToast } from "../context/ToastContext";
 import {
   actOnDecisionPoint,
@@ -77,6 +79,8 @@ export function DecisionPoints() {
   const [error, setError] = useState<string | null>(null);
   const [raiseOpen, setRaiseOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -105,6 +109,12 @@ export function DecisionPoints() {
   }, [reload]);
 
   const rows = tab === "requiring" ? requiring : mine;
+
+  const pagedRows = useMemo(() => paginateRows(rows, page, pageSize), [rows, page, pageSize]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [tab]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -182,7 +192,7 @@ export function DecisionPoints() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((r) => (
+                  {pagedRows.map((r) => (
                     <tr
                       key={r.id}
                       onClick={() => setDetailId(r.id)}
@@ -242,7 +252,7 @@ export function DecisionPoints() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((r) => (
+                  {pagedRows.map((r) => (
                     <tr
                       key={r.id}
                       onClick={() => setDetailId(r.id)}
@@ -279,6 +289,16 @@ export function DecisionPoints() {
               </table>
             )}
           </div>
+
+          {!loading && rows.length > 0 && (
+            <ReportPagination
+              page={page}
+              pageSize={pageSize}
+              totalRows={rows.length}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
+          )}
         </div>
       </div>
 

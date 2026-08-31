@@ -32,6 +32,14 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-31 14:09 IST
+
+**Prompt:**  
+> Decision Points table: add bottom pagination same as Workday Summary Report.
+
+**Output:**  
+- `screens/DecisionPoints.tsx` — `page` / `pageSize` state, `paginateRows`, `ReportPagination` below scroll area; reset page on tab switch; both tabs use `pagedRows`.
+
 ### 2026-08-31 14:03 IST
 
 **Prompt:**  
