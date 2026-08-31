@@ -102,6 +102,21 @@ function inclusiveDaysBetween(start: string, end: string) {
   return Math.round((e.getTime() - s.getTime()) / 86400000) + 1;
 }
 
+function clampHoursPerDay(raw: number): number {
+  if (!Number.isFinite(raw)) return 0;
+  return Math.min(12, Math.max(0, raw));
+}
+
+/** "01" → "1" while typing; keeps "0.", "10", decimals intact. */
+function normalizeHoursTyping(raw: string): string {
+  if (/^0[1-9]$/.test(raw)) return raw.slice(1);
+  return raw;
+}
+
+function formatHoursInputValue(hours: number): string {
+  return String(clampHoursPerDay(hours));
+}
+
 function createEmptyForm() {
   const start = todayISO();
   return {
@@ -136,6 +151,7 @@ export function AllocationDrawer({ open, onClose, prefill, people, allocations =
   );
   const isEdit = prefill?.mode === "edit";
   const [form, setForm] = useState({ ...EMPTY });
+  const [hoursInput, setHoursInput] = useState(formatHoursInputValue(DEFAULT_ALLOCATION_HOURS_PER_DAY));
   const [taskInput, setTaskInput] = useState("");
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -184,6 +200,7 @@ export function AllocationDrawer({ open, onClose, prefill, people, allocations =
       setConfirmDeleteOpen(false);
       setDeleting(false);
       setActionError(null);
+      const hoursPerDay = clampHoursPerDay(prefill?.hoursPerDay ?? DEFAULT_ALLOCATION_HOURS_PER_DAY);
       setForm({
         ...defaults,
         personId: person?.id ?? "",
@@ -193,9 +210,10 @@ export function AllocationDrawer({ open, onClose, prefill, people, allocations =
         tasks: prefill?.tasks ? [...prefill.tasks] : [],
         start: prefill?.start ?? defaults.start,
         end: prefill?.end ?? defaults.end,
-        hoursPerDay: Math.min(12, prefill?.hoursPerDay ?? DEFAULT_ALLOCATION_HOURS_PER_DAY),
+        hoursPerDay,
         reason: prefill?.reason ?? "",
       });
+      setHoursInput(formatHoursInputValue(hoursPerDay));
       setTaskInput("");
     }
   }, [open, prefill, projects, assignableRoster, activities, activityMilestones]);
@@ -393,9 +411,20 @@ export function AllocationDrawer({ open, onClose, prefill, people, allocations =
 
   const set = (k: keyof typeof form, v: string | number) => setForm((f) => ({ ...f, [k]: v }));
 
-  const setHoursPerDay = (raw: number) => {
-    if (!Number.isFinite(raw)) return;
-    set("hoursPerDay", Math.min(12, Math.max(0, raw)));
+  const handleHoursInputChange = (raw: string) => {
+    const v = normalizeHoursTyping(raw);
+    setHoursInput(v);
+    if (v === "" || v === "-" || v.endsWith(".")) return;
+    const n = Number(v);
+    if (Number.isFinite(n)) {
+      set("hoursPerDay", clampHoursPerDay(n));
+    }
+  };
+
+  const commitHoursInput = () => {
+    const clamped = clampHoursPerDay(Number(hoursInput));
+    set("hoursPerDay", clamped);
+    setHoursInput(formatHoursInputValue(clamped));
   };
 
   const addTask = () => {
@@ -587,8 +616,10 @@ export function AllocationDrawer({ open, onClose, prefill, people, allocations =
               min={0}
               max={12}
               step={0.5}
-              value={form.hoursPerDay}
-              onChange={(e) => setHoursPerDay(Number(e.target.value))}
+              value={hoursInput}
+              onFocus={(e) => e.currentTarget.select()}
+              onChange={(e) => handleHoursInputChange(e.target.value)}
+              onBlur={commitHoursInput}
               className="w-full rounded-md border border-border bg-surface px-2.5 py-2 text-[13px] text-foreground outline-none focus:border-primary"
             />
           </Field>

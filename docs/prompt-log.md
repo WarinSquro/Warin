@@ -32,6 +32,14 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-31 14:03 IST
+
+**Prompt:**  
+> Hours per day input: when field shows 0, typing 1–9 showed 01–09; fix typing UX.
+
+**Output:**  
+- `components/AllocationDrawer.tsx` — string draft `hoursInput`, select-all on focus, normalize `01`→`1` while typing, clamp on blur; form `hoursPerDay` unchanged for save/validation.
+
 ### 2026-08-31 13:57 IST
 
 **Prompt:**  
