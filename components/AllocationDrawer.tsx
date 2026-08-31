@@ -200,7 +200,11 @@ export function AllocationDrawer({ open, onClose, prefill, people, allocations =
       setConfirmDeleteOpen(false);
       setDeleting(false);
       setActionError(null);
-      const hoursPerDay = clampHoursPerDay(prefill?.hoursPerDay ?? DEFAULT_ALLOCATION_HOURS_PER_DAY);
+      const hoursPerDay = clampHoursPerDay(
+        prefill?.mode === "edit"
+          ? (prefill?.hoursPerDay ?? DEFAULT_ALLOCATION_HOURS_PER_DAY)
+          : DEFAULT_ALLOCATION_HOURS_PER_DAY
+      );
       setForm({
         ...defaults,
         personId: person?.id ?? "",

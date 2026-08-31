@@ -95,28 +95,13 @@ function buildNewPrefill(
   const effective = allocationEffectiveDate(view, cellIndex, plannerTodayISO(), dayStartIso);
   const start = effective;
   const end = cellEnd < start ? start : cellEnd;
-  const freeChip = cell.find((c) => c.kind === "free");
-  const freeHours = freeChip ? parseChipLabel(freeChip.label)?.hours : undefined;
-  const spanDays = Math.max(
-    1,
-    Math.round(
-      (new Date(`${end}T12:00:00`).getTime() - new Date(`${start}T12:00:00`).getTime()) / 86400000
-    ) + 1
-  );
-  const workingSpan = view === "week" ? Math.min(workingDays?.length || 5, spanDays) : 1;
-  const hoursPerDay =
-    freeHours != null
-      ? view === "week"
-        ? Math.min(8, freeHours / workingSpan)
-        : Math.min(8, freeHours)
-      : DEFAULT_ALLOCATION_HOURS_PER_DAY;
 
   return {
     mode: "create",
     personName: row.name,
     start,
     end,
-    hoursPerDay: Number.isInteger(hoursPerDay) ? hoursPerDay : parseFloat(hoursPerDay.toFixed(1)),
+    hoursPerDay: DEFAULT_ALLOCATION_HOURS_PER_DAY,
     pastAllocationHours: cellBookedHours(cell),
     createRef: {
       rowId: row.id,
@@ -589,7 +574,7 @@ export function ResourcePlanner() {
     }
     const demand = matchesDemand;
     setMatchesDemand(null);
-    openAllocate({ personName: c.name, projectName: demand?.project, hoursPerDay: DEFAULT_ALLOCATION_HOURS_PER_DAY });
+    openAllocate({ personName: c.name, projectName: demand?.project });
   };
 
   const headerRangeLabel =

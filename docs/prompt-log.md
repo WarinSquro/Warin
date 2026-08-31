@@ -32,6 +32,16 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-31 14:22 IST
+
+**Prompt:**  
+> New allocation from anywhere (Availability, Planner, etc.) should default Hours per day to 1 hour.
+
+**Output:**  
+- `components/AllocationDrawer.tsx` — create mode always uses `DEFAULT_ALLOCATION_HOURS_PER_DAY` (1); edit mode keeps existing hours.
+- `screens/Availability.tsx` — removed `hoursPerDay: 8` from allocate / plan-ahead prefills.
+- `screens/ResourcePlanner.tsx` — `buildNewPrefill` always 1h; removed free-capacity prefill to 8h; find-matches prefill omits hours.
+
 ### 2026-08-31 14:09 IST
 
 **Prompt:**  

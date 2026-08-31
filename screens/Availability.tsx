@@ -705,7 +705,7 @@ export function Availability() {
       toast.warning(blocked);
       return;
     }
-    setPrefill({ personName: row.name, hoursPerDay: 8 });
+    setPrefill({ personName: row.name });
     setDrawerOpen(true);
   };
 
@@ -715,7 +715,7 @@ export function Availability() {
       toast.warning(blocked);
       return;
     }
-    setPrefill({ personName: person.name, hoursPerDay: 8 });
+    setPrefill({ personName: person.name });
     setDrawerOpen(true);
   };
 
