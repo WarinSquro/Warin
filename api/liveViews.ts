@@ -66,25 +66,28 @@ export function addDaysISO(iso: string, days: number): string {
 }
 
 export function reportRange(
-  period: "today" | "week" | "month" | "last_month" | "last_3_months",
+  period: "today" | "week" | "next_week" | "month" | "last_month" | "last_3_months",
   opts?: { workingDays?: string[] }
 ): { from: string; to: string; label: string } {
   const today = toLocalISO();
   const mon = mondayISO();
   const fmtDay = (iso: string) =>
     new Date(`${iso}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const weekSpanLabel = (start: string, end: string) =>
+    `${fmtDay(start)} – ${fmtDay(end)}`;
   if (period === "today") {
     return { from: today, to: today, label: `Today (${fmtDay(today)})` };
   }
   if (period === "week") {
     const { start, end } = workingWeekBounds(mon, opts?.workingDays);
-    const a = new Date(`${start}T12:00:00`);
-    const b = new Date(`${end}T12:00:00`);
-    const span =
-      a.getMonth() === b.getMonth()
-        ? `${fmtDay(start)} – ${b.getDate()}`
-        : `${fmtDay(start)} – ${fmtDay(end)}`;
+    const span = weekSpanLabel(start, end);
     return { from: start, to: end, label: `This week (${span})` };
+  }
+  if (period === "next_week") {
+    const nextMon = addDaysISO(mon, 7);
+    const { start, end } = workingWeekBounds(nextMon, opts?.workingDays);
+    const span = weekSpanLabel(start, end);
+    return { from: start, to: end, label: `Next week (${span})` };
   }
   if (period === "month") {
     const d = new Date();

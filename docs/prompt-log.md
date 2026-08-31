@@ -32,6 +32,45 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-31 13:51 IST
+
+**Prompt:**  
+> Week span labels: show month abbreviation on end date too (e.g. Next week (Sep 7 – Sep 13)).
+
+**Output:**  
+- `utils/reportPeriods.ts` — `formatWeekSpan` always uses `formatMonthDay` for start and end.
+- `api/liveViews.ts` — `weekSpanLabel` in `reportRange` aligned for This/Next week.
+- `tests/unit/reportPeriods.test.ts` — expectations updated.
+
+### 2026-08-31 13:48 IST
+
+**Prompt:**  
+> Resource Deployment Report period dropdown: add "Next week (date range)" after "This week" and make it filter allocations for the next calendar week.
+
+**Output:**  
+- `utils/reportPeriods.ts` — `nextWeekBounds`, `next_week` option in `deploymentPeriodOptions`.
+- `api/liveViews.ts` — `reportRange("next_week")` Mon–Sun window (+7 days from current week Monday).
+- `screens/ResourceDeploymentReport.tsx` — range resolution for `next_week`.
+- `data/deploymentReport.ts` — mock map entry for `next_week`.
+- `tests/unit/reportPeriods.test.ts` — labels and bounds for Aug 31 2026 anchor.
+- **Validation:** `npm run test:unit -- tests/unit/reportPeriods.test.ts`.
+
+### 2026-08-31 13:31 IST
+
+**Prompt:**  
+> Workday Timeline: replace "LOG OUT" label with "Day End".
+
+**Output:**  
+- `utils/confirmationProductivity.ts` — `WORKDAY_ACTIONS` `dayEnd` label `"Log Out"` → `"Day End"` (renders as DAY END via existing uppercase styling in `WorkdayTimelinePanel`).
+
+### 2026-08-31 13:28 IST
+
+**Prompt:**  
+> Remove the global red "Focus time >=80% else mark deviation" text above the Confirm button (keep per-line hints).
+
+**Output:**  
+- `screens/WorkConfirmation.tsx` — removed the page-level `FOCUS_BELOW_PLANNED_HINT` banner above submit; per-line red hint and disabled Confirm/As planned behavior unchanged.
+
 ### 2026-08-31 12:51 IST
 
 **Prompt:**  

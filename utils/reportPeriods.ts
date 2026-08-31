@@ -37,14 +37,8 @@ export function formatMonthDay(iso: string): string {
   return parseISO(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-/** e.g. "Jul 20 – 24" or "Jul 28 – Aug 1" */
+/** e.g. "Jul 20 – Jul 24" or "Jul 28 – Aug 1" */
 export function formatWeekSpan(startIso: string, endIso: string): string {
-  const a = parseISO(startIso);
-  const b = parseISO(endIso);
-  const sameMonth = a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear();
-  if (sameMonth) {
-    return `${a.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${b.getDate()}`;
-  }
   return `${formatMonthDay(startIso)} – ${formatMonthDay(endIso)}`;
 }
 
@@ -126,11 +120,22 @@ export function currentWeekBounds(
   return workingWeekBounds(monday, workingDays);
 }
 
+export function nextWeekBounds(
+  from = new Date(),
+  workingDays?: string[]
+): { start: string; end: string } {
+  const monday = mondayISO(from);
+  const nextMonday = addDaysISO(monday, 7);
+  return workingWeekBounds(nextMonday, workingDays);
+}
+
 export function deploymentPeriodOptions(from = new Date(), workingDays?: string[]) {
   const { start, end } = currentWeekBounds(from, workingDays);
+  const next = nextWeekBounds(from, workingDays);
   return [
     { id: "today" as const, label: "Today" },
     { id: "week" as const, label: `This week (${formatWeekSpan(start, end)})` },
+    { id: "next_week" as const, label: `Next week (${formatWeekSpan(next.start, next.end)})` },
     { id: "month" as const, label: formatMonthYear(from) },
   ];
 }
