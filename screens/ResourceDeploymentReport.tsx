@@ -89,6 +89,7 @@ export function ResourceDeploymentReport() {
   const range = useMemo(() => {
     if (periodId === "today") return reportRange("today");
     if (periodId === "week") return reportRange("week", { workingDays: settings.workingDays });
+    if (periodId === "next_week") return reportRange("next_week", { workingDays: settings.workingDays });
     return reportRange("month");
   }, [periodId, settings.workingDays]);
 

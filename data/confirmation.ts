@@ -152,6 +152,59 @@ export const DEVIATION_REASONS = [
   "Task finished early",
 ];
 
+/** Work Confirmation → unplanned work category (stored on line `reason`). */
+export const UNPLANNED_WORK_REASONS = [
+  {
+    value: "No Allocated Work",
+    hint: "Resource had available capacity but no work was planned/allotted",
+  },
+  {
+    value: "Client / External Request",
+    hint: "Unplanned client call, live meeting, urgent clarification, demo, etc.",
+  },
+  {
+    value: "Internal Meeting / Discussion",
+    hint: "Unscheduled internal meeting, review, coordination or discussion",
+  },
+  {
+    value: "Production / Critical Issue",
+    hint: "Production bug, outage, urgent customer issue or critical support intervention",
+  },
+  {
+    value: "Urgent Internal Work",
+    hint: "Management/department request, urgent internal activity, documentation, data preparation, etc.",
+  },
+] as const;
+
+export type UnplannedWorkReasonValue = (typeof UNPLANNED_WORK_REASONS)[number]["value"];
+
+const UNPLANNED_REASON_VALUE_SET = new Set<string>(
+  UNPLANNED_WORK_REASONS.map((r) => r.value)
+);
+
+/** Pre-dropdown saves and placeholders — not a valid category; user must re-select. */
+const LEGACY_UNPLANNED_REASONS = new Set(
+  ["logged", "unplanned work", "unplanned", ""].map((s) => s.toLowerCase())
+);
+
+export function isValidUnplannedReason(reason: string | null | undefined): boolean {
+  const t = (reason ?? "").trim();
+  return t !== "" && UNPLANNED_REASON_VALUE_SET.has(t);
+}
+
+/** Map stored line reason to a dropdown value, or "" when legacy/unknown. */
+export function normalizeUnplannedReason(reason: string | null | undefined): string {
+  const t = (reason ?? "").trim();
+  if (!t) return "";
+  if (UNPLANNED_REASON_VALUE_SET.has(t)) return t;
+  if (LEGACY_UNPLANNED_REASONS.has(t.toLowerCase())) return "";
+  return "";
+}
+
+export function unplannedReasonHint(value: string): string | undefined {
+  return UNPLANNED_WORK_REASONS.find((r) => r.value === value)?.hint;
+}
+
 // ---- Manager view ----
 export type DayStatus =
   | "confirmed"

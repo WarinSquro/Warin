@@ -506,6 +506,7 @@ const MONTH_ROWS: DeploymentRow[] = [
 const DEPLOYMENT_BY_PERIOD: Record<ReportPeriodId, DeploymentRow[]> = {
   today: TODAY_ROWS,
   week: WEEK_ROWS,
+  next_week: WEEK_ROWS,
   month: MONTH_ROWS,
 };
 

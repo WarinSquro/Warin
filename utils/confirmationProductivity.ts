@@ -526,7 +526,7 @@ export const WORKDAY_ACTIONS: { key: WorkdayMarkKey; label: string }[] = [
   { key: "dayStart", label: "Day Start" },
   { key: "lunchOut", label: "Lunch Start" },
   { key: "lunchIn", label: "Lunch End" },
-  { key: "dayEnd", label: "Log Out" },
+  { key: "dayEnd", label: "Day End" },
 ];
 
 /** Lunch was skipped when the day ended without a lunch-out stamp. */

@@ -1563,11 +1563,6 @@ function EmployeeConfirm() {
               Stop all focus timers before submitting confirmation.
             </div>
           )}
-        {viewingConfirmableDate &&
-          anyPlannedLineFocusBelowPlanned &&
-          activeLines.length > 0 && (
-            <div className="mt-2 text-[12px] text-danger">{FOCUS_BELOW_PLANNED_HINT}</div>
-          )}
 
         {viewingConfirmableDate && !submitted && (
         <div className="mt-4 flex items-center gap-3">
