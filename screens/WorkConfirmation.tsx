@@ -9,7 +9,11 @@ import { FilterSelect } from "../components/FilterSelect";
 import {
   DEVIATION_REASONS,
   MISS_POSTING_REASONS,
+  UNPLANNED_WORK_REASONS,
   formatPlanDate,
+  isValidUnplannedReason,
+  normalizeUnplannedReason,
+  unplannedReasonHint,
 } from "../data/confirmation";
 import { Tooltip } from "../components/Tooltip";
 import { SortColHeader, useColumnSort } from "../components/SortColHeader";
@@ -43,9 +47,13 @@ import {
   computeConfirmationWorkHours,
   emptyFocusState,
   focusElapsedMs,
+  focusElapsedMsForWorkDate,
+  focusMeetsPlannedThreshold,
   focusStartBlockedReason,
+  FOCUS_BELOW_PLANNED_HINT,
   getDayProductivity,
   hasAnyUnstoppedFocusSession,
+  isEmptyFocusByAllocation,
   isConfirmAllAsPlannedBlockedByProductiveWindow,
   isFocusStartBlocked,
   isUnplannedEntryBlocked,
@@ -119,7 +127,7 @@ function hydrateFromConfirmation(c: ApiConfirmation): {
         id: l.id,
         project: l.projectLabel,
         hours: l.actualHours,
-        reason: l.reason || "logged",
+        reason: normalizeUnplannedReason(l.reason),
       });
       continue;
     }
@@ -336,6 +344,8 @@ function EmployeeConfirm() {
     () => getDayProductivity(prodStore, workDate),
     [prodStore, workDate]
   );
+  /** Productivity for the day being confirmed (today or fetched miss date). */
+  const confirmProd = todayProd;
   /** Productivity for the calendar-selected day (laps shown read-only on past dates). */
   const viewProd = useMemo(
     () => getDayProductivity(prodStore, calendarDate),
@@ -955,6 +965,30 @@ function EmployeeConfirm() {
   const focusTimersAllStopped =
     !canUseProductivity || !hasAnyUnstoppedFocusSession(todayProd.focusByAllocation);
 
+  /** Per-allocation focus vs 80% of planned hours (today and miss-posted past dates). */
+  const lineFocusBelowPlanned = useMemo(() => {
+    const now = Date.now();
+    const out: Record<string, boolean> = {};
+    for (const l of activeLines) {
+      const focusMs = focusElapsedMsForWorkDate(
+        confirmProd.focusByAllocation[l.id],
+        workDate,
+        { dayEndIso: confirmProd.workday.dayEnd, now }
+      );
+      out[l.id] = !focusMeetsPlannedThreshold(focusMs, l.plannedHours);
+    }
+    return out;
+  }, [activeLines, confirmProd, workDate, tick]);
+
+  const anyLineFocusBelowPlanned = activeLines.some((l) => lineFocusBelowPlanned[l.id]);
+  const anyPlannedLineFocusBelowPlanned = activeLines.some(
+    (l) => (states[l.id]?.mode ?? "planned") !== "deviation" && lineFocusBelowPlanned[l.id]
+  );
+
+  const showConfirmLineFocus =
+    viewingConfirmableDate &&
+    (canUseProductivity || !isEmptyFocusByAllocation(confirmProd.focusByAllocation));
+
   /** Today: require Day Start before adding unplanned. Miss-posting past days: still allowed. */
   const blockUnplannedAdd =
     isTodayWorkDate && isUnplannedEntryBlocked(todayProd.workday);
@@ -966,6 +1000,10 @@ function EmployeeConfirm() {
   const missPostingAwaitingFetch = missedPosting && !fetchedMissDate;
 
   const unplannedMissingDescription = unplanned.some((u) => u.project.trim() === "");
+  const unplannedMissingReason = unplanned.some((u) => !isValidUnplannedReason(u.reason));
+  const unplannedRowIncomplete = unplanned.some(
+    (u) => u.project.trim() === "" || !isValidUnplannedReason(u.reason)
+  );
 
   /**
    * Today with plan lines (allocations / unplanned): Day Start must be stamped before Confirm.
@@ -986,10 +1024,17 @@ function EmployeeConfirm() {
     !blockConfirmWithoutDayStart &&
     hasPlanLinesToConfirm &&
     activeLines.every((l) => states[l.id]?.mode === "planned" || states[l.id]?.reason !== "") &&
-    unplanned.every((u) => u.project.trim() !== "" && u.reason !== "") &&
-    focusTimersAllStopped;
+    unplanned.every((u) => u.project.trim() !== "" && isValidUnplannedReason(u.reason)) &&
+    focusTimersAllStopped &&
+    !anyPlannedLineFocusBelowPlanned &&
+    (deviationCount === 0 ? !anyLineFocusBelowPlanned : true);
 
   const handleSubmit = async () => {
+    if (unplannedMissingReason) {
+      setSaveError("Select a reason for each unplanned work entry.");
+      toast.error("Unplanned work reason is required.");
+      return;
+    }
     if (unplannedMissingDescription) {
       setSaveError("Enter a description for each unplanned work entry.");
       toast.error("Unplanned work description is required.");
@@ -998,6 +1043,16 @@ function EmployeeConfirm() {
     if (blockConfirmWithoutDayStart) {
       setSaveError(confirmDayStartBlockedReason ?? "Complete Day Start before confirming.");
       toast.error(confirmDayStartBlockedReason ?? "Complete Day Start before confirming.");
+      return;
+    }
+    if (anyPlannedLineFocusBelowPlanned) {
+      setSaveError(FOCUS_BELOW_PLANNED_HINT);
+      toast.error(FOCUS_BELOW_PLANNED_HINT);
+      return;
+    }
+    if (deviationCount === 0 && anyLineFocusBelowPlanned) {
+      setSaveError(FOCUS_BELOW_PLANNED_HINT);
+      toast.error(FOCUS_BELOW_PLANNED_HINT);
       return;
     }
     if (!canSubmit) return;
@@ -1045,7 +1100,7 @@ function EmployeeConfirm() {
           plannedHours: 0,
           actualHours: u.hours,
           kind: "unplanned" as const,
-          reason: u.reason || "Unplanned work",
+          reason: u.reason,
           tasks: [] as string[],
         })),
       ];
@@ -1179,7 +1234,9 @@ function EmployeeConfirm() {
                   <Check className="h-4 w-4 flex-shrink-0 text-success" />
                   <div className="flex-1">
                     <div className="text-[13px] font-medium text-foreground">{u.project}</div>
-                    <div className="text-[11px] text-muted-foreground">Unplanned work</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      {isValidUnplannedReason(u.reason) ? u.reason : "Unplanned work"}
+                    </div>
                   </div>
                   <span className="text-[12px] text-warning">{u.hours}h</span>
                 </div>
@@ -1326,10 +1383,9 @@ function EmployeeConfirm() {
               first={i === 0}
               onChange={(p) => setLine(l.id, p)}
               statusDisabled={!viewingConfirmableDate || submitted}
-              showFocus={canUseProductivity}
-              focusState={
-                canUseProductivity ? viewProd.focusByAllocation[l.id] : undefined
-              }
+              focusBelowPlanned={Boolean(lineFocusBelowPlanned[l.id])}
+              showFocus={showConfirmLineFocus}
+              focusState={showConfirmLineFocus ? confirmProd.focusByAllocation[l.id] : undefined}
               isActiveRunner={
                 canUseProductivity &&
                 viewingConfirmableDate &&
@@ -1341,16 +1397,20 @@ function EmployeeConfirm() {
               onFocusStop={
                 canUseProductivity && viewingConfirmableDate ? handleFocusStop : undefined
               }
-              focusShowControls={viewingConfirmableDate}
-              focusWorkDateIso={calendarDate}
-              focusDayEndIso={viewProd.workday.dayEnd}
+              focusShowControls={canUseProductivity && viewingConfirmableDate}
+              focusWorkDateIso={workDate}
+              focusDayEndIso={confirmProd.workday.dayEnd}
               focusDisabled={Boolean(todayProd.workday.dayEnd) || submitted}
               focusStartDisabled={isFocusStartBlocked(todayProd.workday)}
               focusStartDisabledReason={focusStartBlockedReason(todayProd.workday)}
             />
           ))}
 
-          {unplanned.map((u) => (
+          {unplanned.map((u) => {
+            const reasonHint = unplannedReasonHint(u.reason);
+            const reasonInvalid =
+              viewingConfirmableDate && !submitted && !isValidUnplannedReason(u.reason);
+            return (
             <div key={u.id} className="border-t border-border-soft bg-accent-soft/30 px-4 py-3">
               <div className="flex items-center justify-between">
                 <div className="text-[12px] font-medium text-primary">Unplanned work</div>
@@ -1364,6 +1424,30 @@ function EmployeeConfirm() {
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
+                )}
+              </div>
+              <div className="mt-2">
+                <FilterSelect
+                  value={u.reason}
+                  disabled={!viewingConfirmableDate || submitted}
+                  onChange={(v) => {
+                    setUnplanned((arr) =>
+                      arr.map((x) => (x.id === u.id ? { ...x, reason: v } : x))
+                    );
+                    if (saveError.includes("unplanned") || saveError.includes("reason")) {
+                      setSaveError("");
+                    }
+                  }}
+                  options={UNPLANNED_WORK_REASONS.map((r) => ({ value: r.value, label: r.value }))}
+                  placeholder="Select unplanned reason…"
+                  aria-label="Reason for unplanned work"
+                  className="w-full"
+                />
+                {reasonHint && (
+                  <p className="mt-1 text-[11px] leading-snug text-muted-foreground">{reasonHint}</p>
+                )}
+                {reasonInvalid && (
+                  <div className="mt-1 text-[11px] text-danger">Reason is required.</div>
                 )}
               </div>
               <div className="mt-2 flex items-start gap-2">
@@ -1411,28 +1495,31 @@ function EmployeeConfirm() {
                 <span className="mt-2 text-[11px] text-muted-foreground">h</span>
               </div>
             </div>
-          ))}
+            );
+          })}
 
           {viewingConfirmableDate && !submitted && (
           <button
             type="button"
-            disabled={blockUnplannedAdd || unplannedMissingDescription}
+            disabled={blockUnplannedAdd || unplannedRowIncomplete}
             title={
               blockUnplannedAdd
                 ? unplannedAddBlockedReason
-                : unplannedMissingDescription
-                  ? "Enter a description for each unplanned work entry before adding another"
+                : unplannedRowIncomplete
+                  ? unplannedMissingReason
+                    ? "Select a reason for each unplanned work entry before adding another"
+                    : "Enter a description for each unplanned work entry before adding another"
                   : undefined
             }
             onClick={() => {
-              if (blockUnplannedAdd || unplannedMissingDescription) return;
+              if (blockUnplannedAdd || unplannedRowIncomplete) return;
               setUnplanned((arr) => [
                 ...arr,
-                { id: `u${Date.now()}`, project: "", hours: 1, reason: "logged" },
+                { id: `u${Date.now()}`, project: "", hours: 1, reason: "" },
               ]);
             }}
             className={`flex w-full items-center gap-1.5 border-t border-dashed border-border px-4 py-2.5 text-[12px] ${
-              blockUnplannedAdd || unplannedMissingDescription
+              blockUnplannedAdd || unplannedRowIncomplete
                 ? "cursor-not-allowed text-muted-foreground opacity-50"
                 : "cursor-pointer text-primary hover:bg-surface-alt"
             }`}
@@ -1476,6 +1563,11 @@ function EmployeeConfirm() {
               Stop all focus timers before submitting confirmation.
             </div>
           )}
+        {viewingConfirmableDate &&
+          anyPlannedLineFocusBelowPlanned &&
+          activeLines.length > 0 && (
+            <div className="mt-2 text-[12px] text-danger">{FOCUS_BELOW_PLANNED_HINT}</div>
+          )}
 
         {viewingConfirmableDate && !submitted && (
         <div className="mt-4 flex items-center gap-3">
@@ -1489,11 +1581,17 @@ function EmployeeConfirm() {
                 ? "Fetch a missed day with a plan before confirming"
                 : blockConfirmWithoutDayStart
                   ? confirmDayStartBlockedReason
-                  : unplannedMissingDescription
-                    ? "Enter a description for each unplanned work entry"
-                    : !focusTimersAllStopped
+                  : unplannedMissingReason
+                    ? "Select a reason for each unplanned work entry"
+                    : unplannedMissingDescription
+                      ? "Enter a description for each unplanned work entry"
+                      : !focusTimersAllStopped
                       ? "Stop all focus timers before submitting"
-                      : undefined
+                      : anyPlannedLineFocusBelowPlanned
+                        ? FOCUS_BELOW_PLANNED_HINT
+                        : deviationCount === 0 && anyLineFocusBelowPlanned
+                          ? FOCUS_BELOW_PLANNED_HINT
+                          : undefined
             }
             className={`flex items-center justify-center gap-2 rounded-md px-4 py-2.5 text-[13px] font-semibold ${
               deviationCount === 0 ? "flex-1 bg-primary text-primary-foreground" : "flex-1 bg-brand text-white"
@@ -1588,12 +1686,15 @@ function LineRow({
   focusDisabled = false,
   focusStartDisabled = false,
   focusStartDisabledReason,
+  focusBelowPlanned = false,
 }: {
   line: PlannedLine;
   state: LineState | undefined;
   first: boolean;
   onChange: (p: Partial<LineState>) => void;
   statusDisabled?: boolean;
+  /** Focus time is below 80% of planned hours for this line. */
+  focusBelowPlanned?: boolean;
   showFocus?: boolean;
   focusState?: FocusAllocationState;
   isActiveRunner?: boolean;
@@ -1653,14 +1754,16 @@ function LineRow({
             <span className="text-[11px] text-muted-foreground">—</span>
           )}
         </div>
-        <div className="flex justify-end">
+        <div className="flex flex-col items-end">
           <div className="inline-flex overflow-hidden rounded-md border border-border text-[11px]">
             <button
               type="button"
-              disabled={statusDisabled}
+              disabled={statusDisabled || focusBelowPlanned}
               onClick={() => onChange({ mode: "planned" })}
               className={`whitespace-nowrap px-2.5 py-1 ${
-                statusDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+                statusDisabled || focusBelowPlanned
+                  ? "cursor-not-allowed opacity-60"
+                  : "cursor-pointer"
               } ${!dev ? "bg-success text-white" : "text-muted"}`}
             >
               As planned
@@ -1676,6 +1779,11 @@ function LineRow({
               Deviation
             </button>
           </div>
+          {focusBelowPlanned && !dev && !statusDisabled && (
+            <p className="mt-1 max-w-[200px] text-right text-[10px] leading-snug text-danger">
+              {FOCUS_BELOW_PLANNED_HINT}
+            </p>
+          )}
         </div>
       </div>
       {dev && (

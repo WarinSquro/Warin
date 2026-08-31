@@ -424,6 +424,46 @@ export function workdayDurationMs(marks: WorkdayMarks): {
   return { officeMs, lunchMs, productiveMs };
 }
 
+/** Minimum focus time vs planned hours (per allocation) to allow "As planned". */
+export const FOCUS_PLANNED_MIN_RATIO = 0.8;
+
+/** Shown under a line's status toggles when focus is below the planned threshold. */
+export const FOCUS_BELOW_PLANNED_HINT = "Focus time >=80% else mark deviation";
+
+/**
+ * True when allocation focus meets or exceeds `ratio` of planned hours.
+ * Zero planned hours always passes (nothing to compare).
+ */
+export function focusMeetsPlannedThreshold(
+  focusMs: number,
+  plannedHours: number,
+  ratio = FOCUS_PLANNED_MIN_RATIO
+): boolean {
+  const planned = Number(plannedHours) || 0;
+  if (planned <= 0) return true;
+  const requiredMs = planned * ratio * 3_600_000;
+  return Math.max(0, Number(focusMs) || 0) >= requiredMs;
+}
+
+/** Focus ms for an allocation on the work date being confirmed (caps at Day End / EOD). */
+export function allocationFocusMsForWorkDate(
+  state: FocusAllocationState | undefined,
+  workDateIso: string,
+  opts?: { dayEndIso?: string | null; now?: number }
+): number {
+  return focusElapsedMsForWorkDate(state, workDateIso, opts);
+}
+
+export function isAllocationFocusBelowPlannedThreshold(
+  state: FocusAllocationState | undefined,
+  plannedHours: number,
+  workDateIso: string,
+  opts?: { dayEndIso?: string | null; now?: number }
+): boolean {
+  const focusMs = allocationFocusMsForWorkDate(state, workDateIso, opts);
+  return !focusMeetsPlannedThreshold(focusMs, plannedHours);
+}
+
 /** Exact message when Confirm all as planned is blocked by a short productive window. */
 export const CONFIRM_AS_PLANNED_PRODUCTIVE_WINDOW_MESSAGE =
   "Your productive window is less than the actual hours planned for you. Please update the appropriate deviation and submit the confirmation with deviation.";

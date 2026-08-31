@@ -16,9 +16,59 @@ import {
   workdayDurationMs,
   isConfirmAllAsPlannedBlockedByProductiveWindow,
   CONFIRM_AS_PLANNED_PRODUCTIVE_WINDOW_MESSAGE,
+  focusMeetsPlannedThreshold,
+  isAllocationFocusBelowPlannedThreshold,
+  FOCUS_PLANNED_MIN_RATIO,
+  FOCUS_BELOW_PLANNED_HINT,
   isEmptyFocusByAllocation,
   hasWorkdayStampEvidence,
 } from "../../utils/confirmationProductivity";
+
+describe("focusMeetsPlannedThreshold", () => {
+  it("requires focus >= 80% of planned hours", () => {
+    const planned = 8.5;
+    const passMs = planned * FOCUS_PLANNED_MIN_RATIO * 3_600_000;
+    const failMs = passMs - 1;
+    expect(focusMeetsPlannedThreshold(passMs, planned)).toBe(true);
+    expect(focusMeetsPlannedThreshold(failMs, planned)).toBe(false);
+  });
+
+  it("passes when planned hours are zero", () => {
+    expect(focusMeetsPlannedThreshold(0, 0)).toBe(true);
+    expect(focusMeetsPlannedThreshold(1000, 0)).toBe(true);
+  });
+
+  it("isAllocationFocusBelowPlannedThreshold uses work-date capped focus", () => {
+    const workDate = "2026-08-31";
+    const passMs = 8.5 * FOCUS_PLANNED_MIN_RATIO * 3_600_000;
+    const state = {
+      laps: [
+        {
+          startedAt: `${workDate}T10:00:00.000Z`,
+          endedAt: `${workDate}T10:00:00.000Z`,
+          durationMs: passMs,
+        },
+      ],
+      sessionAccumMs: 0,
+      segmentStartedAt: null,
+    };
+    expect(isAllocationFocusBelowPlannedThreshold(state, 8.5, workDate)).toBe(false);
+    expect(
+      isAllocationFocusBelowPlannedThreshold(
+        {
+          ...state,
+          laps: [{ ...state.laps[0], durationMs: passMs - 1 }],
+        },
+        8.5,
+        workDate
+      )
+    ).toBe(true);
+  });
+
+  it("exports the UI hint copy", () => {
+    expect(FOCUS_BELOW_PLANNED_HINT).toContain("80%");
+  });
+});
 
 describe("empty focus payload guards", () => {
   it("treats missing or blank focus maps as empty", () => {

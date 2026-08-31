@@ -32,6 +32,27 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-08-31 12:51 IST
+
+**Prompt:**  
+> Per allocation line: disable "As planned" and "Confirm all as planned" until focus time ≥ 80% of planned hours; show red hint "Focus time >=80% else mark deviation"; force deviation path; apply to today and miss-posted past dates.
+
+**Output:**  
+- `utils/confirmationProductivity.ts` — `FOCUS_PLANNED_MIN_RATIO`, `FOCUS_BELOW_PLANNED_HINT`, `focusMeetsPlannedThreshold`, `allocationFocusMsForWorkDate`, `isAllocationFocusBelowPlannedThreshold`.
+- `screens/WorkConfirmation.tsx` — per-line focus vs planned gate; disable As planned + Confirm when below threshold; red hint per line and above Confirm; read-only focus totals on miss-posted days when laps exist; submit safety toasts.
+- `tests/unit/confirmationProductivity.test.ts` — 4 tests for 80% threshold helpers.
+- **Validation:** `npm run test:unit -- tests/unit/confirmationProductivity.test.ts` — 24 passed.
+
+### 2026-08-31 12:38 IST
+
+**Prompt:**  
+> Unplanned work: mandatory reason dropdown before description; show when-to-use hint; map legacy `logged` / `Unplanned work` on load.
+
+**Output:**  
+- `UNPLANNED_WORK_REASONS` + `normalizeUnplannedReason` / `isValidUnplannedReason` / `unplannedReasonHint` in `data/confirmation.ts`.
+- Work Confirmation unplanned row: reason dropdown → hint → description → hours; validation + legacy hydrate.
+- Unit tests: `tests/unit/unplannedWorkReason.test.ts`.
+
 ### 2026-08-29 17:15 IST
 
 **Prompt:**  
