@@ -32,6 +32,46 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-09-01 16:20 IST
+
+**Prompt:**  
+> Allocation drawer project dropdown — data should be sorted alphabetically.
+
+**Output:**  
+- `components/AllocationDrawer.tsx` — `selectableProjects` now sorted by `name` via `localeCompare` before passing to `FilterSelect`.
+- Validation: UI-only; no new tests.
+
+### 2026-09-01 14:35 IST
+
+**Prompt:**  
+> Deviation line Actual hours: default to focus time rounded to nearest 0.5h (18 min → 0.5h)
+
+**Output:**  
+- `utils/confirmationProductivity.ts` — `roundFocusMsToHalfHours`.
+- `screens/WorkConfirmation.tsx` `LineRow` — switching to Deviation sets Actual from rounded focus timer (not planned hours).
+- **Test** `tests/unit/confirmationProductivity.test.ts`. SPA-only.
+
+### 2026-09-01 13:50 IST
+
+**Prompt:**  
+> Deviation feed: for deviation lines show “Deviation” chip and `5h → 5h (3.5h)` with parenthetical focus time
+
+**Output:**  
+- **API** `confirmations-focus.util.ts`, `confirmations.controller.ts` — `focusHours` on deviation feed items from productivity timer.
+- **Types** `api/domain.ts`, `data/confirmation.ts`; **UI** `DeviationChip` + `DeviationRow` in `WorkConfirmation.tsx`.
+- **Test** `tests/unit/confirmationsFocus.util.test.ts`. API rebuild: `--with-api`.
+
+### 2026-09-01 12:11 IST
+
+**Prompt:**  
+> Manager deviation feed: show "Unplanned work" as MetricChip-style badge instead of plain suffix text.
+
+**Output:**  
+- `screens/WorkConfirmation.tsx` — `UnplannedWorkChip`, `DeviationRow` splits description + chip when unplanned.
+- `data/confirmation.ts` — optional `kind` on `DeviationEntry`.
+- `api/domain.ts` — team compliance deviation `kind` type.
+- `apps/oneview-api/.../confirmations.controller.ts` — expose `kind` on deviation feed items.
+
 ### 2026-08-31 14:22 IST
 
 **Prompt:**  

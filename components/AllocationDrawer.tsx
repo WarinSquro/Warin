@@ -251,12 +251,13 @@ export function AllocationDrawer({ open, onClose, prefill, people, allocations =
     const active = projects.filter((p) => p.status === "active");
     if (!form.personId || mappedProjectCodes == null) return [];
     const mapped = active.filter((p) => mappedSet.has(p.id));
+    let list = mapped;
     // Edit: keep current project visible even if unmapped so existing rows remain editable.
     if (isEdit && form.projectId && !mapped.some((p) => p.id === form.projectId)) {
       const current = projects.find((p) => p.id === form.projectId);
-      if (current) return [...mapped, current];
+      if (current) list = [...mapped, current];
     }
-    return mapped;
+    return [...list].sort((a, b) => a.name.localeCompare(b.name));
   }, [
     projects,
     form.personId,
