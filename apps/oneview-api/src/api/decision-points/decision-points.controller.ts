@@ -372,6 +372,9 @@ export class DecisionPointsController {
   @RequirePermissions("my_team.decision_points")
   async detail(@Req() req: { user: JwtPayload }, @Param("id") id: string) {
     const actor = await this.requireActor(req.user);
+    if (!/^\d+$/.test(id.trim())) {
+      throw new NotFoundException("Decision Point not found");
+    }
     const row = await this.prisma.decisionPoint.findFirst({
       where: { id: BigInt(id), isDeleted: false },
       include: pointInclude,

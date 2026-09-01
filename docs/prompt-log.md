@@ -32,6 +32,24 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-09-01 16:55 IST
+
+**Prompt:**  
+> Fix View tab error (“An unexpected error occurred”).
+
+**Output:**  
+- **Root cause:** Docker API lacked `GET /decision-points/team`; request hit `:id` and `BigInt("team")` threw 500.
+- Rebuilt API: `docker compose up -d --build api` — route now mapped.
+- **Hardening** `decision-points.controller.ts` — non-numeric `:id` returns 404 instead of 500.
+
+### 2026-09-01 16:42 IST
+
+**Prompt:**  
+> Put View button after Raised by me (inside tab group). Click View → all direct/indirect reporting records; row click opens existing drawer in read-only mode.
+
+**Output:**  
+- `screens/DecisionPoints.tsx` — **View** is third segment after “Raised by me”; **View** tab loads `fetchDecisionPointsTeam()` into main table (Raised By column); row click opens `PointDetailDrawer` with `readOnly`; removed separate list drawer.
+
 ### 2026-09-01 16:35 IST
 
 **Prompt:**  
