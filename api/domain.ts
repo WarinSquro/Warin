@@ -1046,6 +1046,9 @@ export type TeamComplianceResponse = {
     reason: string;
     workDate: string;
     addedAt?: string;
+    kind?: "deviation" | "unplanned";
+    /** Focus timer hours for this allocation on the work date (deviation lines only). */
+    focusHours?: number;
   }[];
 };
 
@@ -1671,6 +1674,10 @@ export async function fetchDecisionPointsMine(): Promise<DecisionPointListRow[]>
 
 export async function fetchDecisionPointsRequiringAction(): Promise<DecisionPointListRow[]> {
   return apiFetch("/decision-points/requiring-action");
+}
+
+export async function fetchDecisionPointsTeam(): Promise<DecisionPointListRow[]> {
+  return apiFetch("/decision-points/team");
 }
 
 export async function fetchDecisionPointDetail(id: string): Promise<DecisionPointDetail> {

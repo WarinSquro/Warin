@@ -18,6 +18,7 @@ import type {
 } from "@prisma/client";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import type { JwtPayload } from "../auth/jwt.strategy";
+import { descendantEmployeeIds } from "../auth/resource-owner-tree";
 import { RequirePermissions } from "../auth/guards";
 import { EmitDataChange } from "../realtime/emit-data-change.decorator";
 
@@ -91,6 +92,22 @@ export class DecisionPointsController {
     });
     if (!emp) throw new ForbiddenException("Employee not found");
     return emp;
+  }
+
+  /** Direct + indirect reports (excludes the owner). */
+  private async reportSubtreeIds(ownerId: bigint): Promise<bigint[]> {
+    const rows = await this.prisma.employee.findMany({
+      where: { isDeleted: false },
+      select: { id: true, resourceOwnerId: true },
+    });
+    const ids = descendantEmployeeIds(
+      ownerId.toString(),
+      rows.map((r) => ({
+        id: r.id.toString(),
+        resourceOwnerId: r.resourceOwnerId?.toString() ?? null,
+      }))
+    );
+    return ids.filter((id) => /^\d+$/.test(id)).map((id) => BigInt(id));
   }
 
   private async nextPointCode(tx: Prisma.TransactionClient): Promise<string> {
@@ -321,6 +338,20 @@ export class DecisionPointsController {
     return ser(rows.map((r) => this.mapListRow(r, "mine")));
   }
 
+  @Get("team")
+  @RequirePermissions("my_team.decision_points")
+  async team(@Req() req: { user: JwtPayload }) {
+    const actor = await this.requireActor(req.user);
+    const reportIds = await this.reportSubtreeIds(actor.id);
+    if (reportIds.length === 0) return [];
+    const rows = await this.prisma.decisionPoint.findMany({
+      where: { raisedById: { in: reportIds }, isDeleted: false },
+      include: pointInclude,
+      orderBy: { createdAt: "desc" },
+    });
+    return ser(rows.map((r) => this.mapListRow(r, "requiring")));
+  }
+
   @Get("requiring-action")
   @RequirePermissions("my_team.decision_points")
   async requiringAction(@Req() req: { user: JwtPayload }) {
@@ -347,10 +378,13 @@ export class DecisionPointsController {
     });
     if (!row) throw new NotFoundException("Decision Point not found");
 
+    const reportIds = await this.reportSubtreeIds(actor.id);
+    const raisedByReport = reportIds.some((id) => id === row.raisedById);
     const allowed =
       req.user.isSuperAdmin ||
       row.raisedById === actor.id ||
       row.currentOwnerId === actor.id ||
+      raisedByReport ||
       row.actions.some((a) => a.performedById === actor.id);
     if (!allowed) throw new ForbiddenException("Not allowed to view this Decision Point");
 

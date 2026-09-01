@@ -32,6 +32,17 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-09-01 16:35 IST
+
+**Prompt:**  
+> Decision Points tab bar: add "View" button at last to show all records of direct and indirect reporting in read-only mode when clicked, opening in a drawer.
+
+**Output:**  
+- **API** `decision-points.controller.ts` — `GET /decision-points/team` returns points raised by direct + indirect reports (`descendantEmployeeIds`); detail endpoint allows RO to view subtree-raised points.
+- **Types/API client** `api/domain.ts` — `fetchDecisionPointsTeam()`.
+- **UI** `screens/DecisionPoints.tsx` — "View" button (`ml-auto`) on tab bar; `TeamRecordsDrawer` (paginated table, read-only); `PointDetailDrawer` `readOnly` prop hides actions when opened from team view.
+- Validation: linter clean on touched files. API rebuild required for live: `--with-api`.
+
 ### 2026-09-01 16:20 IST
 
 **Prompt:**  

@@ -11,6 +11,7 @@ import {
   fetchDecisionPointSummary,
   fetchDecisionPointsMine,
   fetchDecisionPointsRequiringAction,
+  fetchDecisionPointsTeam,
   raiseDecisionPoint,
   type DecisionPointActionType,
   type DecisionPointDetail,
@@ -78,7 +79,9 @@ export function DecisionPoints() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [raiseOpen, setRaiseOpen] = useState(false);
+  const [teamViewOpen, setTeamViewOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [detailReadOnly, setDetailReadOnly] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
@@ -158,6 +161,13 @@ export function DecisionPoints() {
                 </button>
               ))}
             </div>
+            <button
+              type="button"
+              onClick={() => setTeamViewOpen(true)}
+              className="ml-auto cursor-pointer rounded-md border border-border px-3.5 py-1.5 text-[12px] text-foreground hover:bg-surface-alt"
+            >
+              View
+            </button>
           </div>
 
           <div className="min-h-0 flex-1 overflow-auto">
@@ -195,7 +205,10 @@ export function DecisionPoints() {
                   {pagedRows.map((r) => (
                     <tr
                       key={r.id}
-                      onClick={() => setDetailId(r.id)}
+                      onClick={() => {
+                        setDetailReadOnly(false);
+                        setDetailId(r.id);
+                      }}
                       className="cursor-pointer hover:bg-surface-alt/60"
                     >
                       <td className="border-b border-border-soft px-3 py-2.5 font-semibold text-foreground">
@@ -255,7 +268,10 @@ export function DecisionPoints() {
                   {pagedRows.map((r) => (
                     <tr
                       key={r.id}
-                      onClick={() => setDetailId(r.id)}
+                      onClick={() => {
+                        setDetailReadOnly(false);
+                        setDetailId(r.id);
+                      }}
                       className="cursor-pointer hover:bg-surface-alt/60"
                     >
                       <td className="border-b border-border-soft px-3 py-2.5 font-semibold text-foreground">
@@ -312,15 +328,170 @@ export function DecisionPoints() {
           }}
         />
       )}
+      {teamViewOpen && (
+        <TeamRecordsDrawer
+          onClose={() => setTeamViewOpen(false)}
+          onSelect={(id) => {
+            setTeamViewOpen(false);
+            setDetailReadOnly(true);
+            setDetailId(id);
+          }}
+        />
+      )}
       {detailId && (
         <PointDetailDrawer
           id={detailId}
-          onClose={() => setDetailId(null)}
+          readOnly={detailReadOnly}
+          onClose={() => {
+            setDetailId(null);
+            setDetailReadOnly(false);
+          }}
           onChanged={async () => {
             await reload();
           }}
         />
       )}
+    </div>
+  );
+}
+
+function TeamRecordsDrawer({
+  onClose,
+  onSelect,
+}: {
+  onClose: () => void;
+  onSelect: (id: string) => void;
+}) {
+  const toast = useToast();
+  const [rows, setRows] = useState<DecisionPointListRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    void fetchDecisionPointsTeam()
+      .then((data) => {
+        if (!cancelled) setRows(data);
+      })
+      .catch((e) => toast.error(e instanceof Error ? e.message : "Failed to load team records"))
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [toast]);
+
+  const pagedRows = useMemo(() => paginateRows(rows, page, pageSize), [rows, page, pageSize]);
+
+  return (
+    <div className="fixed inset-0 z-40">
+      <div onClick={onClose} className="absolute inset-0 bg-brand/30" aria-hidden />
+      <div className="absolute right-0 top-0 flex h-full w-[min(960px,100vw)] flex-col bg-surface shadow-2xl">
+        <div className="flex flex-shrink-0 items-start justify-between gap-3 border-b border-border-soft px-5 py-4">
+          <div className="min-w-0">
+            <div className="text-[15px] font-semibold text-foreground">Team Decision Points</div>
+            <div className="mt-0.5 text-[12px] text-muted-foreground">
+              Direct and indirect reports · read-only
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="cursor-pointer text-muted-foreground hover:text-foreground"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-auto">
+          {loading ? (
+            <div className="px-5 py-10 text-center text-[12px] text-muted-foreground">Loading…</div>
+          ) : rows.length === 0 ? (
+            <div className="px-5 py-10 text-center text-[12px] text-muted-foreground">
+              No Decision Points from your direct or indirect reports.
+            </div>
+          ) : (
+            <table className="w-full min-w-[900px] border-separate border-spacing-0 text-left text-[12px]">
+              <thead>
+                <tr className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+                  {[
+                    "Point ID",
+                    "Date",
+                    "Raised By",
+                    "Type",
+                    "Subject",
+                    "Work Reference",
+                    "Current With",
+                    "Status",
+                    "Last Action",
+                  ].map((h) => (
+                    <th
+                      key={h}
+                      className="sticky top-0 z-10 border-b border-border-soft bg-surface-alt px-3 py-2.5 font-semibold"
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {pagedRows.map((r) => (
+                  <tr
+                    key={r.id}
+                    onClick={() => onSelect(r.id)}
+                    className="cursor-pointer hover:bg-surface-alt/60"
+                  >
+                    <td className="border-b border-border-soft px-3 py-2.5 font-semibold text-foreground">
+                      {r.pointCode}
+                    </td>
+                    <td className="border-b border-border-soft px-3 py-2.5 text-muted-foreground">
+                      {formatShortDate(r.raisedDate)}
+                    </td>
+                    <td className="border-b border-border-soft px-3 py-2.5">{r.raisedByName ?? "—"}</td>
+                    <td className="border-b border-border-soft px-3 py-2.5">{r.typeName}</td>
+                    <td className="max-w-[200px] border-b border-border-soft px-3 py-2.5">
+                      <TruncateText text={r.subject} className="block truncate" />
+                    </td>
+                    <td className="max-w-[160px] border-b border-border-soft px-3 py-2.5 text-muted-foreground">
+                      <TruncateText text={r.workReference ?? "—"} className="block truncate" />
+                    </td>
+                    <td className="border-b border-border-soft px-3 py-2.5">{r.currentWithName ?? "—"}</td>
+                    <td className="border-b border-border-soft px-3 py-2.5">
+                      <StatusBadge status={r.status} />
+                    </td>
+                    <td className="border-b border-border-soft px-3 py-2.5 text-muted-foreground">
+                      {formatShortDate(r.lastActionDate)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {!loading && rows.length > 0 && (
+          <ReportPagination
+            page={page}
+            pageSize={pageSize}
+            totalRows={rows.length}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+          />
+        )}
+
+        <div className="flex flex-shrink-0 border-t border-border-soft px-5 py-3.5">
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full cursor-pointer rounded-md border border-border py-2 text-[13px] text-foreground hover:bg-surface-alt"
+          >
+            Close
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -556,10 +727,12 @@ function RaisePointDrawer({
 
 function PointDetailDrawer({
   id,
+  readOnly = false,
   onClose,
   onChanged,
 }: {
   id: string;
+  readOnly?: boolean;
   onClose: () => void;
   onChanged: () => Promise<void>;
 }) {
@@ -601,7 +774,7 @@ function PointDetailDrawer({
   };
 
   const p = detail?.permissions;
-  const showActions = !!p && (p.canActAsRo || p.canSelfResolve);
+  const showActions = !readOnly && !!p && (p.canActAsRo || p.canSelfResolve);
 
   return (
     <div className="fixed inset-0 z-40">
@@ -615,6 +788,9 @@ function PointDetailDrawer({
             <div className="mt-0.5 text-[12px] text-muted-foreground">
               <TruncateText text={detail?.subject ?? ""} className="block truncate" />
             </div>
+            {readOnly && (
+              <div className="mt-1 text-[11px] font-medium text-muted-foreground">Read-only view</div>
+            )}
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {detail && (
