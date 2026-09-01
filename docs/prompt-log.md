@@ -32,6 +32,17 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-09-01 17:16 IST
+
+**Prompt:**  
+> Live to EC2 done but today's changes not showing; commit/push remaining work (Agent mode).
+
+**Output:**  
+- Confirmed Decision Points View already on `origin/main` (`85a07ae`). Remaining uncommitted Work Confirmation deviation work committed as `fedd23d`.
+- **Files:** `confirmations-focus.util.ts`, `confirmations.controller.ts`, `WorkConfirmation.tsx`, `confirmationProductivity.ts`, `data/confirmation.ts`, unit tests.
+- Tests: `confirmationProductivity.test.ts`, `confirmationsFocus.util.test.ts` — 27 passed.
+- **Next:** `git push origin main` then EC2 `bash scripts/ec2-deploy.sh --with-api`.
+
 ### 2026-09-01 16:55 IST
 
 **Prompt:**  

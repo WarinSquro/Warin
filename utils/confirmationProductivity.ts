@@ -454,6 +454,12 @@ export function allocationFocusMsForWorkDate(
   return focusElapsedMsForWorkDate(state, workDateIso, opts);
 }
 
+/** Round focus elapsed ms to nearest 0.5h for deviation actual hours (18 min → 0.5h). */
+export function roundFocusMsToHalfHours(ms: number): number {
+  const hours = Math.max(0, ms) / 3_600_000;
+  return Math.round(hours / 0.5) * 0.5;
+}
+
 export function isAllocationFocusBelowPlannedThreshold(
   state: FocusAllocationState | undefined,
   plannedHours: number,

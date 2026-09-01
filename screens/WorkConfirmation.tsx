@@ -65,6 +65,7 @@ import {
   FOCUS_TIMERS_FINALIZED_EVENT,
   loadProductivityStore,
   pauseAllRunningFocusTimers,
+  roundFocusMsToHalfHours,
   saveProductivityStore,
   stopAllOpenFocusTimers,
   stopFocusTimerOnDay,
@@ -73,6 +74,7 @@ import {
 } from "../utils/confirmationProductivity";
 import { workingDayHeaderLetters, weekStartMonday, workingDatesInWeek, workingDayStatus } from "../utils/workingCalendar";
 import { teamComplianceTodayIndex, teamComplianceWeekHasPending } from "../utils/teamComplianceDay";
+import { formatHoursLabel } from "../utils/formatHours";
 
 const EMPTY_LINES: PlannedLine[] = [];
 
@@ -1707,6 +1709,15 @@ function LineRow({
   const dateFmt = settings.dateFormat ?? "dd/MM/yyyy";
   const st = state ?? { mode: "planned" as const, actual: line.plannedHours, reason: "" };
   const dev = st.mode === "deviation";
+
+  const deviationActualFromFocus = () => {
+    if (!focusWorkDateIso) return 0;
+    const focusMs = focusElapsedMsForWorkDate(focusState, focusWorkDateIso, {
+      dayEndIso: focusDayEndIso ?? null,
+    });
+    return roundFocusMsToHalfHours(focusMs);
+  };
+
   return (
     <div className={`px-4 py-3 ${first ? "" : "border-t border-border-soft"} ${dev ? "bg-warning-soft/30" : ""}`}>
       <div className="grid grid-cols-[minmax(0,1fr)_220px_200px] items-start gap-3">
@@ -1766,7 +1777,9 @@ function LineRow({
             <button
               type="button"
               disabled={statusDisabled}
-              onClick={() => onChange({ mode: "deviation" })}
+              onClick={() =>
+                onChange({ mode: "deviation", actual: deviationActualFromFocus(), reason: st.reason })
+              }
               className={`whitespace-nowrap px-2.5 py-1 ${
                 statusDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
               } ${dev ? "bg-warning text-white" : "text-muted"}`}
@@ -1964,6 +1977,8 @@ function ManagerCompliance() {
             reason: d.reason,
             workDate,
             addedAt,
+            kind: d.kind,
+            focusHours: d.focusHours,
           };
         })
       );
@@ -2228,6 +2243,13 @@ function DeviationRow({ d }: { d: DeviationEntry }) {
   const { formatDateTime } = useAppDateFormat();
   const dir = d.actual < d.planned;
   const dateLabel = formatDateTime(d.addedAt || d.workDate);
+  const isUnplanned =
+    d.kind === "unplanned" || d.line.endsWith(" · Unplanned work");
+  const isDeviation = d.kind === "deviation";
+  const lineDescription = isUnplanned
+    ? d.line.replace(/ · Unplanned work$/, "")
+    : d.line;
+  const showFocusHours = isDeviation && d.focusHours != null;
   return (
     <div className="flex items-start gap-2.5 border-b border-border-soft px-4 py-3 last:border-b-0">
       <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-warning-soft text-[10px] font-semibold text-warning">
@@ -2238,14 +2260,43 @@ function DeviationRow({ d }: { d: DeviationEntry }) {
           <div className="truncate text-[12px] font-medium text-foreground">{d.name}</div>
           <div className="shrink-0 text-[10px] tabular-nums text-muted-foreground">{dateLabel}</div>
         </div>
-        <div className="text-[11px] text-muted-foreground">{d.line}</div>
+        <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+          {lineDescription ? (
+            <span className="min-w-0 text-muted-foreground">{lineDescription}</span>
+          ) : null}
+          {isUnplanned ? <UnplannedWorkChip /> : null}
+          {isDeviation ? <DeviationChip /> : null}
+        </div>
         <div className="mt-1 text-[11px]">
-          <span className="text-muted-foreground">{d.planned}h → </span>
-          <span className={dir ? "font-semibold text-danger" : "font-semibold text-success"}>{d.actual}h</span>
+          <span className="text-muted-foreground">{formatHoursLabel(d.planned)} → </span>
+          <span className={dir ? "font-semibold text-danger" : "font-semibold text-success"}>
+            {formatHoursLabel(d.actual)}
+          </span>
+          {showFocusHours ? (
+            <span className="text-muted-foreground"> ({formatHoursLabel(d.focusHours!)})</span>
+          ) : null}
           <span className="text-muted-foreground"> · {d.reason}</span>
         </div>
       </div>
     </div>
+  );
+}
+
+/** MetricChip-style badge for planned-line deviations in the manager deviation feed. */
+function DeviationChip() {
+  return (
+    <span className="inline-flex shrink-0 items-center rounded-sm border border-danger-border bg-danger-soft px-2 py-0.5 text-[10px] font-medium text-danger">
+      Deviation
+    </span>
+  );
+}
+
+/** MetricChip-style badge for unplanned confirmation lines in the manager deviation feed. */
+function UnplannedWorkChip() {
+  return (
+    <span className="inline-flex shrink-0 items-center rounded-sm border border-warning-border bg-warning-soft px-2 py-0.5 text-[10px] font-medium text-warning">
+      Unplanned work
+    </span>
   );
 }
 

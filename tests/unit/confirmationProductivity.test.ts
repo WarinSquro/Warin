@@ -22,7 +22,18 @@ import {
   FOCUS_BELOW_PLANNED_HINT,
   isEmptyFocusByAllocation,
   hasWorkdayStampEvidence,
+  roundFocusMsToHalfHours,
 } from "../../utils/confirmationProductivity";
+
+describe("roundFocusMsToHalfHours", () => {
+  it("rounds focus elapsed to nearest 0.5h", () => {
+    expect(roundFocusMsToHalfHours(65_000)).toBe(0);
+    expect(roundFocusMsToHalfHours(14 * 60 * 1000)).toBe(0);
+    expect(roundFocusMsToHalfHours(18 * 60 * 1000)).toBe(0.5);
+    expect(roundFocusMsToHalfHours(45 * 60 * 1000)).toBe(1);
+    expect(roundFocusMsToHalfHours(3.5 * 3_600_000)).toBe(3.5);
+  });
+});
 
 describe("focusMeetsPlannedThreshold", () => {
   it("requires focus >= 80% of planned hours", () => {

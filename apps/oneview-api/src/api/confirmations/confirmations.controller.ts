@@ -22,6 +22,11 @@ import {
 import { descendantEmployeeIds } from "../auth/resource-owner-tree";
 import { EmitDataChange } from "../realtime/emit-data-change.decorator";
 import { todayIsoInAppTz } from "../health/health.controller";
+import {
+  focusElapsedMsForWorkDate,
+  focusHoursFromMs,
+  type FocusAllocationState,
+} from "./confirmations-focus.util";
 
 function ser<T>(v: T): T {
   return JSON.parse(JSON.stringify(v, (_k, x) => (typeof x === "bigint" ? x.toString() : x))) as T;
@@ -1117,6 +1122,49 @@ export class ConfirmationsController {
             select: { employeeId: true, startDate: true, endDate: true },
           });
 
+    const productivityDays =
+      rosterIds.length === 0
+        ? []
+        : await this.prisma.confirmationProductivityDay.findMany({
+            where: {
+              isDeleted: false,
+              employeeId: { in: rosterIds },
+              workDate: { gte: parseDate(mon)!, lte: parseDate(fri)! },
+            },
+            include: {
+              focusSessions: true,
+              focusLaps: { orderBy: { id: "asc" } },
+            },
+          });
+
+    const prodByEmpDate = new Map<
+      string,
+      {
+        focusByAllocation: Record<string, FocusAllocationState>;
+        workday: Record<string, string>;
+      }
+    >();
+    for (const p of productivityDays) {
+      const mapped = this.mapProductivityDay(p);
+      prodByEmpDate.set(`${p.employeeId.toString()}:${isoDate(p.workDate)}`, mapped);
+    }
+
+    const focusHoursForLine = (
+      employeeId: bigint,
+      workDateIso: string,
+      allocationId: bigint | null
+    ): number | undefined => {
+      if (!allocationId) return undefined;
+      const day = prodByEmpDate.get(`${employeeId.toString()}:${workDateIso}`);
+      if (!day) return undefined;
+      const state = day.focusByAllocation[allocationId.toString()];
+      if (!state) return undefined;
+      const ms = focusElapsedMsForWorkDate(state, workDateIso, {
+        dayEndIso: day.workday?.dayEnd ?? null,
+      });
+      return focusHoursFromMs(ms);
+    };
+
     const byEmpDate = new Map<string, (typeof confirmations)[0]>();
     for (const c of confirmations) {
       byEmpDate.set(`${c.employeeId.toString()}:${isoDate(c.workDate)}`, c);
@@ -1211,7 +1259,14 @@ export class ConfirmationsController {
       .flatMap((c) =>
         c.lines
           .filter((l) => l.kind === "deviation" || l.kind === "unplanned")
-          .map((l) => ({
+          .map((l) => {
+            const kind = l.kind === "unplanned" ? "unplanned" : "deviation";
+            const workDate = isoDate(c.workDate);
+            const focusHours =
+              kind === "deviation"
+                ? focusHoursForLine(c.employeeId, workDate, l.allocationId)
+                : undefined;
+            return {
             id: l.id.toString(),
             employeeHrmsId: c.employee.hrmsId,
             name: c.employee.name,
@@ -1220,9 +1275,12 @@ export class ConfirmationsController {
             planned: l.plannedHours,
             actual: l.actualHours,
             reason: l.reason || (l.kind === "unplanned" ? "Unplanned work" : "—"),
-            workDate: isoDate(c.workDate),
-            addedAt: c.submittedAt ? c.submittedAt.toISOString() : isoDate(c.workDate),
-          }))
+            workDate,
+            addedAt: c.submittedAt ? c.submittedAt.toISOString() : workDate,
+            kind,
+            focusHours,
+          };
+          })
       )
       .sort((a, b) => {
         const ta = a.addedAt || a.workDate;

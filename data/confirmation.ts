@@ -247,6 +247,10 @@ export interface DeviationEntry {
   planned: number;
   actual: number;
   reason: string;
+  /** Present when loaded from team compliance API. */
+  kind?: "deviation" | "unplanned";
+  /** Focus timer hours on the work date (deviation lines). */
+  focusHours?: number;
   /** ISO YYYY-MM-DD — work date of the deviation */
   workDate: string;
   /** ISO datetime (or YYYY-MM-DD) — when the deviation was submitted / added */
