@@ -192,10 +192,10 @@ async function main() {
   const rights: Record<string, string[]> = {
     "EMP-1042": [
       "my_workspace", "planner", "availability", "utilization", "confirmations",
-      "reports.deployment", "reports.performance", "reports.execution", "reports.daily_work", "reports.workday_summary", "my_team.weekly_check_in",
+      "reports.deployment", "reports.performance", "reports.execution", "reports.daily_work", "reports.workday_summary", "my_team.weekly_check_in", "my_team.team_projects",
     ],
     "EMP-1043": ["my_workspace", "planner", "confirmations", "reports.performance", "reports.daily_work", "reports.workday_summary"],
-    "EMP-1051": ["my_workspace", "confirmations", "reports.execution", "reports.daily_work", "reports.workday_summary", "my_team.weekly_check_in"],
+    "EMP-1051": ["my_workspace", "confirmations", "reports.execution", "reports.daily_work", "reports.workday_summary", "my_team.weekly_check_in", "my_team.team_projects"],
     "EMP-1088": ["my_workspace", "utilization", "confirmations", "my_team.weekly_check_in"],
   };
 

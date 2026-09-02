@@ -32,6 +32,74 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-09-02 12:28 IST
+
+**Prompt:**  
+> Next week allocation for Aditi Jha not reflected on Team Projects (still 0h next week).
+
+**Output:**  
+- **Root cause:** API only loaded allocations active *today*; future day/week rows (e.g. Sep 7+) were excluded from next-week hour sum.
+- `team-projects.controller.ts` — fetch allocations overlapping this week + next week window (aligned with Resource Planner).
+- `team-projects.util.ts` — `allocationOverlapsRange` helper.
+- `tests/unit/teamProjects.util.test.ts` — future-only row case (6 passed).
+
+### 2026-09-02 12:25 IST
+
+**Prompt:**  
+> Team Projects milestones: remove middle dot after `1.`
+
+**Output:**  
+- `screens/TeamProjects.tsx` — milestone line `{idx + 1}. {m.name}` (removed `·` separator).
+
+### 2026-09-02 12:23 IST
+
+**Prompt:**  
+> Team Projects milestones: use `1.` prefix instead of `M1.`
+
+**Output:**  
+- `screens/TeamProjects.tsx` — milestone list prefix `{idx + 1}. ·` (was `M{idx + 1} ·`).
+
+### 2026-09-02 11:17 IST
+
+**Prompt:**  
+> Team Projects hours tooltip: exactly 3 lines (your team plan / this week / next week); show below the control.
+
+**Output:**  
+- `components/Tooltip.tsx` — multiline mode uses `whitespace-pre` + `w-max` so lines don’t wrap; placement below via `top-full`.
+- `screens/TeamProjects.tsx` — `placement="bottom"` on plan-hours tooltip.
+
+### 2026-09-02 11:13 IST
+
+**Prompt:**  
+> Team Projects card: show first line as “85.5h this week”, second as “12.5h next week”; tooltip on both lines with “your team plan”, this week, and next week hours.
+
+**Output:**  
+- `apps/oneview-api/src/api/team-projects/team-projects.controller.ts` — compute `nextWeekPlannedHours` (next working week); extend company off-day fetch through next week end.
+- `api/domain.ts` — `TeamProjectCard` adds `nextWeekPlannedHours`, `nextWeekStart`, `nextWeekEnd`.
+- `screens/TeamProjects.tsx` — card header shows `{hours}h this week` / `{hours}h next week`; shared `Tooltip` on hover.
+- `components/Tooltip.tsx` — optional `multiline` prop for multi-line labels (right-aligned for card header).
+- `tests/unit/teamProjects.util.test.ts` — next-week planned-hours case (5 passed).
+
+### 2026-09-01 19:18 IST
+
+**Prompt:**  
+> Team Projects status filter: use same dropdown chrome as FilterMultiSelect (All Departments); document rule for all screens — no native `<select>`.
+
+**Output:**  
+- `screens/TeamProjects.tsx` — status filter uses `FilterSingleSelect` (matches Resource Planner trigger).
+- **Docs** `docs/ui-filter-dropdowns.md`; linked from `AGENTS.md` (4d) and `.cursor/rules/oneview-ui.mdc`.
+
+### 2026-09-01 18:46 IST
+
+**Prompt:**  
+> Build Team Projects v1: read-only RO summary under My Team (card layout, hierarchy, milestones, week planned hours, access rights).
+
+**Output:**  
+- **API** `team-projects.controller.ts` + `team-projects.util.ts` — `GET /team-projects`; subtree scoping via `descendantEmployeeIds`; week planned hours = sum per-resource allocation overlap; milestone Next/Overdue markers.
+- **UI** `screens/TeamProjects.tsx` — 2-col cards, search + health chips + status filter; header week block top-right per mockup; `ProjectHealthBadge`, `ProjectTypeBadge`, Direct/Indirect member chips.
+- **Wiring** `my_team.team_projects` in navConfig, routes, AppShell (`FolderKanban`), domain client, seed-demo + accessRights.
+- **Test** `tests/unit/teamProjects.util.test.ts` (4 passed). API rebuild: `docker compose up -d --build api`.
+
 ### 2026-09-01 17:16 IST
 
 **Prompt:**  

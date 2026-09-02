@@ -36,6 +36,7 @@ Setup guide: `docs/postgres-local-setup.md`. Monorepo: `docs/monorepo.md`.
 4. Theme: `docs/theme.md` + `theme/tokens.css` / `index.css`. Do not redesign brand colors.
 4b. **Truncated text:** Ellipsis (`truncate`) must show full value on hover — `docs/ui-truncate-tooltips.md` (`TruncateHoverTitles` / `TruncateText`).
 4c. **Toasts:** Shared `useToast()` only — 5s default, hover pauses, remaining time resumes on mouse leave. `docs/ui-toast.md`. Do not add one-off toasts.
+4d. **Filter dropdowns:** Use `FilterSingleSelect` / `FilterMultiSelect` / `FilterSelect` — never native `<select>`. `docs/ui-filter-dropdowns.md`.
 5. Preserve `AppShell`, `routes.tsx`, and permission keys in `data/navConfig.ts`.
 6. Treat `data/*.ts` as temporary mocks until API + Prisma replace them screen-by-screen.
 7. Prefer minimal diffs; do not mass-refactor folder structure (`src/`) unless asked.

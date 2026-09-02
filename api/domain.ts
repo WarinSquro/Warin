@@ -1710,3 +1710,49 @@ export async function actOnDecisionPoint(
   });
 }
 
+// ─── Team Projects ───────────────────────────────────────────────────────────
+
+export type TeamProjectMember = {
+  employeeId: string;
+  hrmsId: string;
+  name: string;
+  relation: "direct" | "indirect";
+};
+
+export type TeamProjectMilestone = {
+  id: string;
+  name: string;
+  date: string;
+  isNext: boolean;
+  isOverdue: boolean;
+};
+
+export type TeamProjectCard = {
+  projectId: string;
+  projectCode: string;
+  projectName: string;
+  customerName: string;
+  type: "paid" | "poc" | "product" | "support";
+  status: "active" | "inactive";
+  isActive: boolean;
+  startDate: string;
+  endDate: string;
+  health: "green" | "amber" | "red";
+  teamHeadcount: number;
+  weekPlannedHours: number;
+  nextWeekPlannedHours: number;
+  weekStart: string;
+  weekEnd: string;
+  nextWeekStart: string;
+  nextWeekEnd: string;
+  members: TeamProjectMember[];
+  milestones: TeamProjectMilestone[];
+};
+
+export async function fetchTeamProjects(
+  status: "active" | "inactive" | "all" = "active"
+): Promise<{ items: TeamProjectCard[]; weekStart: string; weekEnd: string }> {
+  const q = status === "active" ? "" : `?status=${encodeURIComponent(status)}`;
+  return apiFetch(`/team-projects${q}`);
+}
+

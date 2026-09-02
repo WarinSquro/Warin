@@ -23,6 +23,7 @@ import { HardDeleteModule } from "./api/hard-delete/hard-delete.module";
 import { EmployeeProjectMapsModule } from "./api/employee-project-maps/employee-project-maps.module";
 import { ResourceLeavesModule } from "./api/resource-leaves/resource-leaves.module";
 import { DecisionPointsModule } from "./api/decision-points/decision-points.module";
+import { TeamProjectsModule } from "./api/team-projects/team-projects.module";
 
 @Module({
   imports: [
@@ -66,6 +67,7 @@ import { DecisionPointsModule } from "./api/decision-points/decision-points.modu
     WeeklyCheckInModule,
     KpiModule,
     DecisionPointsModule,
+    TeamProjectsModule,
     HardDeleteModule,
   ],
   controllers: [HealthController],

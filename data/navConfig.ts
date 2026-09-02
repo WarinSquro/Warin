@@ -120,6 +120,13 @@ export const PERMISSION_PAGES: PermissionPage[] = [
     menuVisible: true,
   },
   {
+    key: "my_team.team_projects",
+    label: "Team Projects",
+    route: "/my-team/team-projects",
+    group: "My Team",
+    menuVisible: true,
+  },
+  {
     key: "masters",
     label: "Org · Skills · Activities",
     route: "/masters",
