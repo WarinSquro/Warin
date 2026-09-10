@@ -32,6 +32,17 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-09-10 23:18 IST
+
+**Prompt:**  
+> Now live it all on EC2
+
+**Output:**  
+- Pulled `origin/main`; committed/pushed `5210460` — Performance Card polish (trend chip fallback, empty-week `—`, API nulls, competency/unplanned/WCI).
+- CI red on known pre-existing `activityBulkUpload` Downloads XLSX path only (not this change); proceeded as with prior Performance Card ship.
+- EC2: `bash scripts/ec2-deploy.sh --with-api` → `LIVE_COMMIT=5210460`, `SPA_PUBLISH_OK`, API rebuild + migrate (none pending), `API_HEALTH_OK`.
+- Verify: `version.json` commit `5210460…`, health `ok` / `database: up`. Hard-refresh https://seworkspace.com/
+
 ### 2026-09-10 18:00 IST
 
 **Prompt:**  
