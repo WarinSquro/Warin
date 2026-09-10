@@ -1800,8 +1800,24 @@ export type PerfCardPayload = {
     billableSplitPct: PerfCardMetricPoint;
   };
   competencies: {
-    behavioural: Array<{ id: string; code?: string; name: string; score: number | null; kind: string }>;
-    technical: Array<{ id: string; code?: string; name: string; score: number | null; kind: string }>;
+    behavioural: Array<{
+      id: string;
+      code?: string;
+      name: string;
+      score: number | null;
+      kind: string;
+      remark?: string;
+      sequence?: number;
+    }>;
+    technical: Array<{
+      id: string;
+      code?: string;
+      name: string;
+      score: number | null;
+      kind: string;
+      remark?: string;
+      sequence?: number;
+    }>;
     behaviouralAvg: number | null;
     technicalAvg: number | null;
     historyWeeks?: string[];
@@ -1837,6 +1853,17 @@ export type PerfCardPayload = {
       actualHrs: number;
       sharePct: number | null;
       billableHrs: number;
+    };
+  };
+  unplanned: {
+    rows: Array<{
+      reason: string;
+      hrs: number;
+      sharePct: number | null;
+    }>;
+    totals: {
+      hrs: number;
+      sharePct: number | null;
     };
   };
   snapshot: {

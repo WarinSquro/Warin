@@ -130,6 +130,53 @@ export function WeeklyCheckInWorkspace() {
     !!employee &&
     (isSuperAdmin || employee.resourceOwnerId === reviewerId);
 
+  const draftForValidation: WeeklyCheckInDraft = useMemo(
+    () => ({
+      employeeId,
+      resourceOwnerId: reviewerId,
+      weekStart,
+      technicalRatings,
+      behaviouralRatings,
+      weeklyStatus,
+      confidence,
+      roRemarks,
+      actionType,
+      actionNotes,
+      previousActionStatus:
+        previousActionStatus ??
+        (previousSubmission?.actionType !== "None" ? "Completed" : undefined),
+      recognition,
+    }),
+    [
+      employeeId,
+      reviewerId,
+      weekStart,
+      technicalRatings,
+      behaviouralRatings,
+      weeklyStatus,
+      confidence,
+      roRemarks,
+      actionType,
+      actionNotes,
+      previousActionStatus,
+      previousSubmission?.actionType,
+      recognition,
+    ]
+  );
+
+  const submitIssue = useMemo(
+    () =>
+      findFirstSubmissionIssue(
+        draftForValidation,
+        existing ?? undefined,
+        deptConfigKey
+      ),
+    [draftForValidation, existing, deptConfigKey]
+  );
+
+  const canSubmit =
+    canAssess && !alreadySubmitted && configReady && !submitIssue && !submitting;
+
   const loadWorkspace = useCallback(
     async (opts?: { silent?: boolean }) => {
       if (!opts?.silent) {
@@ -507,9 +554,14 @@ export function WeeklyCheckInWorkspace() {
               {!alreadySubmitted && (
                 <button
                   type="button"
-                  disabled={submitting || !canAssess}
+                  disabled={!canSubmit}
+                  aria-disabled={!canSubmit}
                   onClick={() => void handleSubmit()}
-                  className="w-full rounded-md bg-primary py-2.5 text-[13px] font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                  className={`w-full rounded-md bg-primary py-2.5 text-[13px] font-semibold text-primary-foreground ${
+                    canSubmit
+                      ? "cursor-pointer"
+                      : "cursor-not-allowed opacity-50"
+                  }`}
                 >
                   {submitting ? "Submitting…" : "Submit weekly check-in"}
                 </button>

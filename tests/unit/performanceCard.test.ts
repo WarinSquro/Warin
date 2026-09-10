@@ -10,6 +10,7 @@ import {
   pickStrengthsAndNeeds,
   previousComparableRange,
   resolvePeriodRange,
+  resolveTrendChip,
   scoreOutOf5ToRankPct,
   threePeriodBasis,
 } from "../../utils/performanceCard";
@@ -83,6 +84,16 @@ describe("performanceCard trends", () => {
     expect(compareArrow(80, 70, "higher_better")).toBe("up");
     expect(compareArrow(10, 20, "lower_better")).toBe("up");
     expect(compareArrow(20, 10, "lower_better")).toBe("down");
+  });
+
+  it("resolveTrendChip falls back to Selection vs Previous when 3-period is null/Same", () => {
+    // Incomplete series (oldest missing) — Focus 102% vs 77% case
+    expect(resolveTrendChip([null, 77, 102], 102, 77, "higher_better")).toBe("Improved");
+    expect(resolveTrendChip([null, 90, 70], 70, 90, "higher_better")).toBe("Off Track");
+    // Flat 3-period (Same) but Selection vs Previous moved
+    expect(resolveTrendChip([80, 80, 80], 102, 77, "higher_better")).toBe("Improved");
+    // Prefer real 3-period Improving over fallback
+    expect(resolveTrendChip([72, 76, 80], 80, 76, "higher_better")).toBe("Improving");
   });
 });
 

@@ -3,13 +3,25 @@ import { Info, X } from "lucide-react";
 import {
   fetchPerformanceCard,
   fetchPerformanceCardResources,
+  fetchWeeklyCheckInConfig,
   type PerfCardPayload,
   type PerfCardResource,
 } from "../api/domain";
+import { CompetencyGuideModal } from "../components/WeeklyCheckInCompetencyRating";
 import { FilterSingleSelect } from "../components/FilterSingleSelect";
+import { UNPLANNED_WORK_REASONS } from "../data/confirmation";
+import type { DepartmentCompetency } from "../data/weeklyCheckIn";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { useAppDateFormat } from "../hooks/useAppDateFormat";
+import {
+  DEFAULT_RANKING_LEVELS,
+  rankingBarFillClass,
+  rankingBarFillForProgress,
+  rankingChipClass,
+  rankingLevelForScore,
+  type RankingLevel,
+} from "../data/weeklyCheckIn";
 import {
   areWeeksContinuous,
   classifyTrend,
@@ -29,14 +41,21 @@ const BAR_BLUE = "bg-[#2A5580]";
 const BAR_BLUE_DEEP = "bg-[#1A3A5C]";
 const BAR_BROWN = "bg-[#A67C52]";
 
-const CONTRIB_BAR_COLORS = [
-  "bg-[#1A3A5C]",
-  "bg-[#2A5580]",
-  "bg-[#5B7FA6]",
-  "bg-[#A67C52]",
-  "bg-[#3D6B5A]",
-  "bg-[#6B7C93]",
-];
+/** Contribution share % — higher share is fine: ≥80 green, 70–79 amber, else red. */
+function contributionShareBarFill(pct: number | null | undefined): string {
+  if (pct == null || !Number.isFinite(pct)) return BAR_BLUE_DEEP;
+  if (pct >= 80) return "bg-success";
+  if (pct >= 70) return "bg-warning";
+  return "bg-danger";
+}
+
+/** Unplanned reason share % — lower is better: ≤10 green, 11–15 amber, ≥16 red. */
+function unplannedShareBarFill(pct: number | null | undefined): string {
+  if (pct == null || !Number.isFinite(pct)) return BAR_BLUE_DEEP;
+  if (pct <= 10) return "bg-success";
+  if (pct <= 15) return "bg-warning";
+  return "bg-danger";
+}
 
 function fmtNum(v: number | null | undefined, suffix = ""): string {
   if (v == null || !Number.isFinite(v)) return "—";
@@ -56,11 +75,13 @@ function TrendChip({
 }) {
   if (!trend || trend === "Same") return null;
   const tone =
-    trend === "Improving" || trend === "Improved"
+    trend === "Improving"
       ? "border border-[#ABEFC6] bg-[#ECFDF3] text-[#027A48]"
-      : trend === "Concern"
-        ? "border border-[#FECDCA] bg-[#FEF3F2] text-[#B42318]"
-        : "border border-[#FEDF89] bg-[#FFFAEB] text-[#B54708]";
+      : trend === "Improved"
+        ? "border border-[#D1FADF] bg-[#F6FEF9] text-[#3CCB7F]"
+        : trend === "Concern"
+          ? "border border-[#FECDCA] bg-[#FEF3F2] text-[#B42318]"
+          : "border border-[#FEDF89] bg-[#FFFAEB] text-[#B54708]";
   return (
     <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold leading-none ${tone}`}>
       {trend}
@@ -137,7 +158,7 @@ export function PerformanceCard() {
   const { currentEmployee } = useAuth();
   const [resources, setResources] = useState<PerfCardResource[]>([]);
   const [hrmsId, setHrmsId] = useState("");
-  const [period, setPeriod] = useState<PerfCardPeriodId>("this_week");
+  const [period, setPeriod] = useState<PerfCardPeriodId>("prev_week");
   const [customWeeks, setCustomWeeks] = useState<string[]>([]);
   const [data, setData] = useState<PerfCardPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -146,6 +167,25 @@ export function PerformanceCard() {
   const [compModalOpen, setCompModalOpen] = useState(false);
   const [compModalFocus, setCompModalFocus] = useState<"behavioural" | "technical">("behavioural");
   const [trendHelpOpen, setTrendHelpOpen] = useState(false);
+  const [rankingLevels, setRankingLevels] = useState<RankingLevel[]>(DEFAULT_RANKING_LEVELS);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const cfg = await fetchWeeklyCheckInConfig();
+        const levels = (cfg.rankingLevels ?? [])
+          .map((l) => ({
+            value: l.value as RankingLevel["value"],
+            title: l.title,
+            color: l.color as RankingLevel["color"],
+          }))
+          .filter((l) => l.value >= 1 && l.value <= 5);
+        if (levels.length >= 5) setRankingLevels(levels as RankingLevel[]);
+      } catch {
+        /* keep DEFAULT_RANKING_LEVELS */
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     void (async () => {
@@ -329,6 +369,7 @@ export function PerformanceCard() {
                   trend={data.summary.behavioural.trend}
                   max={5}
                   unit="of5"
+                  rankingLevels={rankingLevels}
                 />
                 <MiniMetric
                   label="Technical"
@@ -337,6 +378,7 @@ export function PerformanceCard() {
                   trend={data.summary.technical.trend}
                   max={5}
                   unit="of5"
+                  rankingLevels={rankingLevels}
                 />
               </SummaryCard>
               <SummaryCard title="Execution Discipline">
@@ -347,6 +389,7 @@ export function PerformanceCard() {
                   trend={data.summary.planningAccuracy.trend}
                   max={100}
                   unit="percent"
+                  rankingLevels={rankingLevels}
                 />
                 <MiniMetric
                   label="Confirmation Discipline"
@@ -355,6 +398,7 @@ export function PerformanceCard() {
                   trend={data.summary.confirmationDiscipline.trend}
                   max={100}
                   unit="percent"
+                  rankingLevels={rankingLevels}
                 />
               </SummaryCard>
               <BigMetricCard
@@ -363,7 +407,7 @@ export function PerformanceCard() {
                 prevScore={data.summary.focusPct.previous}
                 arrow={data.summary.focusPct.arrow}
                 trend={data.summary.focusPct.trend}
-                valueScale="higher_better"
+                barScale="higher_better"
                 onClick={() => setMetricModalId("focusPct")}
                 hint="Click for 12-week chart"
               />
@@ -373,7 +417,7 @@ export function PerformanceCard() {
                 prevScore={data.summary.unplannedPct.previous}
                 arrow={data.summary.unplannedPct.arrow}
                 trend={data.summary.unplannedPct.trend}
-                valueScale="unplanned"
+                barScale="unplanned"
                 onClick={() => setMetricModalId("unplannedPct")}
                 hint="Click for 12-week chart"
               />
@@ -383,7 +427,7 @@ export function PerformanceCard() {
                 prevScore={data.summary.billableSplitPct.previous}
                 arrow={data.summary.billableSplitPct.arrow}
                 trend={data.summary.billableSplitPct.trend}
-                valueScale="higher_better"
+                barScale="higher_better"
                 onClick={() => setMetricModalId("billableSplitPct")}
                 hint="Click for 12-week chart"
               />
@@ -393,10 +437,12 @@ export function PerformanceCard() {
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <CompetencyCard
                 title="Behavioural Competencies"
+                kind="behavioural"
                 avg={data.competencies.behaviouralAvg}
                 trend={data.summary.behavioural.trend}
                 rows={data.competencies.behavioural}
                 reviewWeeksInPeriod={countCompetencyReviewWeeks(data, "behavioural")}
+                rankingLevels={rankingLevels}
                 onViewDetail={() => {
                   setCompModalFocus("behavioural");
                   setCompModalOpen(true);
@@ -404,10 +450,12 @@ export function PerformanceCard() {
               />
               <CompetencyCard
                 title="Technical Competencies"
+                kind="technical"
                 avg={data.competencies.technicalAvg}
                 trend={data.summary.technical.trend}
                 rows={data.competencies.technical}
                 reviewWeeksInPeriod={countCompetencyReviewWeeks(data, "technical")}
+                rankingLevels={rankingLevels}
                 onViewDetail={() => {
                   setCompModalFocus("technical");
                   setCompModalOpen(true);
@@ -416,8 +464,8 @@ export function PerformanceCard() {
             </div>
 
             {/* Work & Productivity + Contribution */}
-            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-              <section className="rounded-lg border border-border bg-surface p-4">
+            <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-2">
+              <section className="min-w-0 overflow-hidden rounded-lg border border-border bg-surface p-4">
                 <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
                   <div className="flex items-center gap-1">
                     <h2 className="text-[13px] font-semibold text-foreground">
@@ -486,7 +534,8 @@ export function PerformanceCard() {
                 </p>
               </section>
 
-              <section className="rounded-lg border border-border bg-surface p-4">
+              <div className="flex min-w-0 flex-col gap-4">
+              <section className="min-w-0 overflow-hidden rounded-lg border border-border bg-surface p-4">
                 <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
                   <h2 className="text-[13px] font-semibold text-foreground">Contribution</h2>
                   <span className="text-[11px] text-muted-foreground">Where the effort went</span>
@@ -496,86 +545,139 @@ export function PerformanceCard() {
                     No contribution in this period.
                   </div>
                 ) : (
-                  <>
-                    <div className="mb-3 space-y-2">
-                      {data.contribution.rows.map((r, i) => (
-                        <div key={r.project}>
-                          <div className="mb-0.5 flex justify-between gap-2 text-[12px]">
-                            <span className="min-w-0 truncate font-medium text-foreground">
+                  <table className="w-full table-fixed text-left text-[12px]">
+                    <colgroup>
+                      <col className="w-auto" />
+                      <col className="w-[4.5rem]" />
+                      <col className="w-[4.5rem]" />
+                      <col className="w-[3.75rem]" />
+                      <col className="w-[4.75rem]" />
+                    </colgroup>
+                    <thead>
+                      <tr className="text-[10px] uppercase tracking-wide text-muted">
+                        <th className="pb-2 pr-3 font-semibold">Project</th>
+                        <th className="pb-2 px-1.5 text-right font-semibold">Planned</th>
+                        <th className="pb-2 px-1.5 text-right font-semibold">Actual</th>
+                        <th className="pb-2 px-1.5 text-right font-semibold">Share</th>
+                        <th className="pb-2 pl-1.5 text-right font-semibold">Billable</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.contribution.rows.map((r) => (
+                        <tr key={`t-${r.project}`} className="border-t border-border-soft">
+                          <td className="min-w-0 py-2 pr-3 align-top text-foreground">
+                            <div className="min-w-0 break-words [overflow-wrap:anywhere]">
                               {r.project}
-                            </span>
-                            <span className="shrink-0 text-muted-foreground">
-                              {r.sharePct == null ? "—" : `${r.sharePct}%`} · {r.actualHrs}h
-                            </span>
-                          </div>
-                          <ProgressBar
-                            value={r.sharePct}
-                            max={100}
-                            fillClass={CONTRIB_BAR_COLORS[i % CONTRIB_BAR_COLORS.length]}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                    <table className="w-full text-left text-[12px]">
-                      <thead>
-                        <tr className="text-[10px] uppercase tracking-wide text-muted">
-                          <th className="pb-2 font-semibold">Project</th>
-                          <th className="pb-2 font-semibold">Planned</th>
-                          <th className="pb-2 font-semibold">Actual</th>
-                          <th className="pb-2 font-semibold">Share</th>
-                          <th className="pb-2 font-semibold">Billable</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {data.contribution.rows.map((r) => (
-                          <tr key={`t-${r.project}`} className="border-t border-border-soft">
-                            <td className="py-2 text-foreground">{r.project}</td>
-                            <td className="py-2">{r.plannedHrs}h</td>
-                            <td className="py-2">{r.actualHrs}h</td>
-                            <td className="py-2">{r.sharePct == null ? "—" : `${r.sharePct}%`}</td>
-                            <td className="py-2">{r.billableHrs}h</td>
-                          </tr>
-                        ))}
-                        <tr className="border-t border-border font-semibold">
-                          <td className="py-2">TOTAL</td>
-                          <td className="py-2">{data.contribution.totals.plannedHrs}h</td>
-                          <td className="py-2">{data.contribution.totals.actualHrs}h</td>
-                          <td className="py-2">
-                            {data.contribution.totals.sharePct == null
-                              ? "—"
-                              : `${data.contribution.totals.sharePct}%`}
+                            </div>
+                            <div className="mt-1.5 w-full min-w-0">
+                              <ProgressBar
+                                value={r.sharePct}
+                                max={100}
+                                fillClass={contributionShareBarFill(r.sharePct)}
+                              />
+                            </div>
                           </td>
-                          <td className="py-2">{data.contribution.totals.billableHrs}h</td>
+                          <td className="whitespace-nowrap px-1.5 py-2 text-right align-top tabular-nums">
+                            {r.plannedHrs}h
+                          </td>
+                          <td className="whitespace-nowrap px-1.5 py-2 text-right align-top tabular-nums">
+                            {r.actualHrs}h
+                          </td>
+                          <td className="whitespace-nowrap px-1.5 py-2 text-right align-top tabular-nums">
+                            {r.sharePct == null ? "—" : `${r.sharePct}%`}
+                          </td>
+                          <td className="whitespace-nowrap py-2 pl-1.5 text-right align-top tabular-nums">
+                            {r.billableHrs}h
+                          </td>
                         </tr>
-                      </tbody>
-                    </table>
-                    <p className="mt-3 text-[11px] leading-snug text-muted-foreground">
-                      {(() => {
-                        const unplanned = data.contribution.rows.filter(
-                          (r) => r.plannedHrs === 0 && r.actualHrs > 0
-                        );
-                        const hrsLabel = (n: number) =>
-                          `${Number.isInteger(n) ? n : Math.round(n * 10) / 10}`;
-                        const unplannedPart =
-                          unplanned.length === 0
-                            ? null
-                            : unplanned.length === 1
-                              ? `${unplanned[0]!.project} shows ${hrsLabel(
-                                  unplanned[0]!.actualHrs
-                                )} actual hours against no plan — unplanned effort.`
-                              : `${unplanned
-                                  .map((r) => r.project)
-                                  .join(", ")} show actual hours against no plan — unplanned effort.`;
-                        const billablePart =
-                          "Billable hours come from activity classification, not project type.";
-                        return unplannedPart
-                          ? `${unplannedPart} ${billablePart}`
-                          : billablePart;
-                      })()}
-                    </p>
-                  </>
+                      ))}
+                      <tr className="border-t border-border font-semibold">
+                        <td className="py-2 pr-3">TOTAL</td>
+                        <td className="whitespace-nowrap px-1.5 py-2 text-right tabular-nums">
+                          {data.contribution.totals.plannedHrs}h
+                        </td>
+                        <td className="whitespace-nowrap px-1.5 py-2 text-right tabular-nums">
+                          {data.contribution.totals.actualHrs}h
+                        </td>
+                        <td className="whitespace-nowrap px-1.5 py-2 text-right tabular-nums">
+                          {data.contribution.totals.sharePct == null
+                            ? "—"
+                            : `${data.contribution.totals.sharePct}%`}
+                        </td>
+                        <td className="whitespace-nowrap py-2 pl-1.5 text-right tabular-nums">
+                          {data.contribution.totals.billableHrs}h
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
                 )}
               </section>
+
+              <section className="min-w-0 overflow-hidden rounded-lg border border-border bg-surface p-4">
+                <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+                  <h2 className="text-[13px] font-semibold text-foreground">Unplanned</h2>
+                  <span className="text-[11px] text-muted-foreground">
+                    Work Confirmation reasons
+                  </span>
+                </div>
+                <table className="w-full table-fixed text-left text-[12px]">
+                  <colgroup>
+                    <col className="w-auto" />
+                    <col className="w-[4.5rem]" />
+                    <col className="w-[3.75rem]" />
+                  </colgroup>
+                  <thead>
+                    <tr className="text-[10px] uppercase tracking-wide text-muted">
+                      <th className="pb-2 pr-3 font-semibold">Reason</th>
+                      <th className="pb-2 px-1.5 text-right font-semibold">Hours</th>
+                      <th className="pb-2 pl-1.5 text-right font-semibold">Share</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(
+                      data.unplanned?.rows ??
+                      UNPLANNED_WORK_REASONS.map((r) => ({
+                        reason: r.value,
+                        hrs: 0,
+                        sharePct: null as number | null,
+                      }))
+                    ).map((r) => (
+                      <tr key={r.reason} className="border-t border-border-soft">
+                        <td className="min-w-0 py-2 pr-3 align-top text-foreground">
+                          <div className="min-w-0 break-words [overflow-wrap:anywhere]">
+                            {r.reason}
+                          </div>
+                          <div className="mt-1.5 w-full min-w-0">
+                            <ProgressBar
+                              value={r.sharePct ?? 0}
+                              max={100}
+                              fillClass={unplannedShareBarFill(r.sharePct)}
+                            />
+                          </div>
+                        </td>
+                        <td className="whitespace-nowrap px-1.5 py-2 text-right align-top tabular-nums">
+                          {r.hrs}h
+                        </td>
+                        <td className="whitespace-nowrap py-2 pl-1.5 text-right align-top tabular-nums">
+                          {r.sharePct == null ? "—" : `${r.sharePct}%`}
+                        </td>
+                      </tr>
+                    ))}
+                    <tr className="border-t border-border font-semibold">
+                      <td className="py-2 pr-3">TOTAL</td>
+                      <td className="whitespace-nowrap px-1.5 py-2 text-right tabular-nums">
+                        {data.unplanned?.totals.hrs ?? 0}h
+                      </td>
+                      <td className="whitespace-nowrap py-2 pl-1.5 text-right tabular-nums">
+                        {data.unplanned?.totals.sharePct == null
+                          ? "—"
+                          : `${data.unplanned.totals.sharePct}%`}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </section>
+              </div>
             </div>
 
             {/* Snapshot */}
@@ -736,12 +838,7 @@ function ProductivityTrendHelpModal({ onClose }: { onClose: () => void }) {
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4">
-          <p className="text-[12px] leading-relaxed text-muted-foreground">
-            The <span className="font-medium text-foreground">↑ / ↓</span> arrow compares Selection vs
-            Previous only. The chip uses the last three comparable periods (Trend basis). “Better /
-            worse” follows each metric’s direction (higher-is-better or lower-is-better).
-          </p>
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
           <table className="w-full text-left text-[12px]">
             <thead>
               <tr className="text-[10px] uppercase tracking-wide text-muted">
@@ -806,13 +903,15 @@ function MiniTrend({
         ? false
         : trend === "Improving" || trend === "Improved";
   const tone =
-    trend === "Improving" || trend === "Improved"
+    trend === "Improving"
       ? "text-[#067647]"
-      : trend === "Concern"
-        ? "text-[#912018]"
-        : trend === "Off Track"
-          ? "text-[#B54708]"
-          : "text-[#667085]";
+      : trend === "Improved"
+        ? "text-[#3CCB7F]"
+        : trend === "Concern"
+          ? "text-[#912018]"
+          : trend === "Off Track"
+            ? "text-[#B54708]"
+            : "text-[#667085]";
   return (
     <span className={`text-[11px] font-semibold ${tone}`}>
       {up ? "↑" : "↓"} {trend}
@@ -827,6 +926,7 @@ function MiniMetric({
   trend,
   max = 100,
   unit = "percent",
+  rankingLevels = DEFAULT_RANKING_LEVELS,
 }: {
   label: string;
   score: number | null;
@@ -834,6 +934,7 @@ function MiniMetric({
   trend: PerfCardPayload["summary"]["focusPct"]["trend"];
   max?: number;
   unit?: "percent" | "of5";
+  rankingLevels?: RankingLevel[];
 }) {
   const formatPct = (v: number) =>
     Number.isInteger(v) ? String(v) : (Math.round(v * 10) / 10).toString();
@@ -846,6 +947,7 @@ function MiniMetric({
         ? prevScore.toFixed(1)
         : `${formatPct(prevScore)}%`;
   const unitLabel = unit === "of5" ? "/ 5" : "%";
+  const barFill = rankingBarFillForProgress(score, max, rankingLevels) || BAR_BLUE_DEEP;
 
   return (
     <div>
@@ -859,7 +961,7 @@ function MiniMetric({
         </span>
       </div>
       <div className="mt-2">
-        <ProgressBar value={score} max={max} fillClass={BAR_BLUE_DEEP} />
+        <ProgressBar value={score} max={max} fillClass={barFill} />
       </div>
       <div className="mt-1.5 flex items-center justify-between gap-2">
         <span className="text-[11px] text-[#98A2B3]">prev {prevText}</span>
@@ -869,29 +971,13 @@ function MiniMetric({
   );
 }
 
-function pctValueTone(
-  score: number | null,
-  scale: "higher_better" | "unplanned"
-): string {
-  if (score == null || !Number.isFinite(score)) return "text-[#101828]";
-  if (scale === "unplanned") {
-    if (score <= 10) return "text-[#067647]";
-    if (score <= 15) return "text-[#B54708]";
-    return "text-[#B42318]";
-  }
-  // Focus / Billable Split — higher is better
-  if (score >= 80) return "text-[#067647]";
-  if (score >= 70) return "text-[#B54708]";
-  return "text-[#B42318]";
-}
-
 function BigMetricCard({
   title,
   score,
   prevScore,
   arrow,
   trend,
-  valueScale = "higher_better",
+  barScale = "higher_better",
   onClick,
   hint,
 }: {
@@ -900,7 +986,7 @@ function BigMetricCard({
   prevScore: number | null;
   arrow: "up" | "down" | "same" | null;
   trend: PerfCardPayload["summary"]["focusPct"]["trend"];
-  valueScale?: "higher_better" | "unplanned";
+  barScale?: "higher_better" | "unplanned";
   onClick?: () => void;
   hint?: string;
 }) {
@@ -909,7 +995,10 @@ function BigMetricCard({
   const scoreText = score == null ? "—" : formatPct(score);
   const prevText = prevScore == null ? "—" : `${formatPct(prevScore)}%`;
   const clickable = Boolean(onClick);
-  const valueTone = pctValueTone(score, valueScale);
+  const barFill =
+    barScale === "unplanned"
+      ? unplannedShareBarFill(score)
+      : contributionShareBarFill(score);
 
   return (
     <div
@@ -935,13 +1024,13 @@ function BigMetricCard({
         {title}
       </div>
       <div className="flex min-h-0 flex-1 items-center">
-        <div className={`flex items-start gap-0.5 tabular-nums ${valueTone}`}>
+        <div className="flex items-start gap-0.5 tabular-nums text-[#101828]">
           <span className="text-[28px] font-semibold leading-none tracking-tight">{scoreText}</span>
           {score != null && <span className="pt-0.5 text-[13px] font-medium">%</span>}
         </div>
       </div>
       <div className="mt-auto shrink-0">
-        <ProgressBar value={score} max={100} fillClass={BAR_BLUE_DEEP} />
+        <ProgressBar value={score} max={100} fillClass={barFill} />
         <div className="mt-2 flex items-center justify-between gap-2">
           <span className="text-[11px] text-[#98A2B3]">prev {prevText}</span>
           <MiniTrend trend={trend} arrow={arrow} />
@@ -965,19 +1054,30 @@ function countCompetencyReviewWeeks(
 
 function CompetencyCard({
   title,
+  kind,
   avg,
   trend,
   rows,
   reviewWeeksInPeriod,
+  rankingLevels = DEFAULT_RANKING_LEVELS,
   onViewDetail,
 }: {
   title: string;
+  kind: "behavioural" | "technical";
   avg: number | null;
   trend: PerfCardPayload["summary"]["focusPct"]["trend"];
-  rows: Array<{ id: string; name: string; score: number | null }>;
+  rows: Array<{
+    id: string;
+    name: string;
+    score: number | null;
+    remark?: string;
+    sequence?: number;
+  }>;
   reviewWeeksInPeriod: number;
+  rankingLevels?: RankingLevel[];
   onViewDetail: () => void;
 }) {
+  const [guideOpen, setGuideOpen] = useState(false);
   const ordered = [...rows].sort((a, b) => {
     if (a.score == null && b.score == null) return a.name.localeCompare(b.name);
     if (a.score == null) return 1;
@@ -985,6 +1085,15 @@ function CompetencyCard({
     if (b.score !== a.score) return b.score - a.score;
     return a.name.localeCompare(b.name);
   });
+
+  const guideCompetencies: DepartmentCompetency[] = rows.map((r, i) => ({
+    id: r.id,
+    departmentId: "",
+    kind,
+    label: r.name,
+    remark: r.remark ?? "",
+    sequence: r.sequence ?? i + 1,
+  }));
 
   const hasUnrated = ordered.some((r) => r.score == null);
   const footerNote = hasUnrated
@@ -998,7 +1107,18 @@ function CompetencyCard({
   return (
     <section className="rounded-lg border border-border bg-surface p-4">
       <div className="mb-3">
-        <h2 className="text-[13px] font-semibold text-foreground">{title}</h2>
+        <div className="flex items-center gap-1">
+          <h2 className="text-[13px] font-semibold text-foreground">{title}</h2>
+          <button
+            type="button"
+            onClick={() => setGuideOpen(true)}
+            className="inline-flex cursor-pointer rounded p-0.5 text-muted-foreground hover:bg-surface-alt hover:text-foreground"
+            aria-label={`${title} guide`}
+            title={`${title} guide`}
+          >
+            <Info className="h-3.5 w-3.5" />
+          </button>
+        </div>
         <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
           <span>Average: {avg == null ? "—" : `${avg.toFixed(1)} / 5`}</span>
           <TrendChip trend={trend} />
@@ -1016,7 +1136,11 @@ function CompetencyCard({
                   {r.score == null ? "—" : `${r.score.toFixed(1)} / 5`}
                 </span>
               </div>
-              <ProgressBar value={r.score} max={5} fillClass={scoreBarFill(r.score)} />
+              <ProgressBar
+                value={r.score}
+                max={5}
+                fillClass={scoreBarFill(r.score, rankingLevels) || "bg-warning"}
+              />
             </li>
           ))}
         </ul>
@@ -1031,6 +1155,18 @@ function CompetencyCard({
           View 12-week detail →
         </button>
       </div>
+      {guideOpen ? (
+        <CompetencyGuideModal
+          dialogTitle={title}
+          groups={[
+            {
+              title: kind === "behavioural" ? "Behavioural" : "Technical",
+              competencies: guideCompetencies,
+            },
+          ]}
+          onClose={() => setGuideOpen(false)}
+        />
+      ) : null}
     </section>
   );
 }
@@ -1056,6 +1192,11 @@ function metricValue(
   if (!metrics) return null;
   const v = metrics[id];
   return typeof v === "number" ? v : null;
+}
+
+/** Weekly movement: 0 and null both mean “no bar” — show em dash like Planning Accuracy empty weeks. */
+function isEmptyWeekValue(v: number | null | undefined): boolean {
+  return v == null || v === 0;
 }
 
 function metricLabel(id: string, data: PerfCardPayload): string {
@@ -1126,7 +1267,8 @@ function MetricHistoryModal({
   const direction =
     row?.direction ?? (metricId === "unplannedPct" ? "lower_better" : "higher_better");
   const values = data.weekHistory.map((w) => metricValue(w.metrics, metricId));
-  const present = values.filter((v): v is number => v != null);
+  // Match Planning Accuracy: empty weeks (null or 0) are not plotted and not averaged.
+  const present = values.filter((v): v is number => !isEmptyWeekValue(v));
   const avg12 = present.length ? present.reduce((a, b) => a + b, 0) / present.length : null;
   const min = present.length ? Math.min(...present) : null;
   const maxVal = present.length ? Math.max(...present) : null;
@@ -1138,7 +1280,9 @@ function MetricHistoryModal({
   const currentWeek = values[values.length - 1] ?? null;
   const prevWeek = values.length >= 2 ? values[values.length - 2] : null;
   const delta =
-    currentWeek != null && prevWeek != null ? Math.round((currentWeek - prevWeek) * 10) / 10 : null;
+    !isEmptyWeekValue(currentWeek) && !isEmptyWeekValue(prevWeek)
+      ? Math.round(((currentWeek as number) - (prevWeek as number)) * 10) / 10
+      : null;
   const trendForModal =
     row?.trend ??
     (metricId === "unplannedPct"
@@ -1154,7 +1298,7 @@ function MetricHistoryModal({
   const nextId = metricIds[(idx + 1) % metricIds.length]!;
 
   const missingWeeks = data.weekHistory
-    .map((w, i) => (values[i] == null ? `W${String(i + 1).padStart(2, "0")}` : null))
+    .map((w, i) => (isEmptyWeekValue(values[i]) ? `W${String(i + 1).padStart(2, "0")}` : null))
     .filter(Boolean) as string[];
 
   const basisMonthShort = (iso: string) => {
@@ -1223,15 +1367,15 @@ function MetricHistoryModal({
       ? data.weekHistory[hoverWeekIdx]!
       : null;
   const hoverVal = hoverWeekIdx != null ? values[hoverWeekIdx] ?? null : null;
-  const hoverPct =
-    hoverVal == null ? 0 : Math.max(4, Math.min(100, (hoverVal / chartMax) * 100));
+  const hoverPct = isEmptyWeekValue(hoverVal)
+    ? 0
+    : Math.max(4, Math.min(100, ((hoverVal as number) / chartMax) * 100));
   const hoverTipLeftPct =
     hoverWeekIdx == null || weekCount === 0
       ? 50
       : Math.min(88, Math.max(12, ((hoverWeekIdx + 0.5) / weekCount) * 100));
   /** Keep tooltip inside the plot (tall bars would otherwise push it outside the modal). */
-  const hoverTipBottomPct =
-    hoverVal == null ? 10 : Math.min(hoverPct + 4, 62);
+  const hoverTipBottomPct = isEmptyWeekValue(hoverVal) ? 10 : Math.min(hoverPct + 4, 62);
 
   const handleExport = () => {
     exportReportExcel({
@@ -1246,7 +1390,7 @@ function MetricHistoryModal({
       rows: data.weekHistory.map((w, i) => [
         `W${String(i + 1).padStart(2, "0")}`,
         w.weekStart,
-        values[i] ?? "",
+        isEmptyWeekValue(values[i]) ? "—" : values[i],
       ]),
       filterLines: [
         `Resource: ${data.resource.name}`,
@@ -1311,7 +1455,7 @@ function MetricHistoryModal({
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <StatCell
               label="Current week"
-              value={currentWeek == null ? "—" : formatMetricStat(currentWeek, isPct)}
+              value={isEmptyWeekValue(currentWeek) ? "—" : formatMetricStat(currentWeek as number, isPct)}
               delta={
                 delta == null
                   ? undefined
@@ -1398,10 +1542,11 @@ function MetricHistoryModal({
                       <div className="absolute inset-0 flex items-stretch gap-1">
                         {data.weekHistory.map((w, i) => {
                           const v = values[i];
-                          const pct =
-                            v == null
-                              ? 0
-                              : Math.max(4, Math.min(100, (v / chartMax) * 100));
+                          const empty = isEmptyWeekValue(v);
+                          // Floor only for positive values — empty weeks match Planning Accuracy (—).
+                          const pct = empty
+                            ? 0
+                            : Math.max(4, Math.min(100, ((v as number) / chartMax) * 100));
                           const isCurrent = i === data.weekHistory.length - 1;
                           const isHovered = hoverWeekIdx === i;
                           const inPeriod = weekInRange(
@@ -1409,24 +1554,29 @@ function MetricHistoryModal({
                             data.period.from,
                             data.period.to
                           );
-                          const fill =
-                            v == null
-                              ? ""
-                              : isCurrent
-                                ? BAR_BLUE_DEEP
-                                : inPeriod
-                                  ? BAR_BLUE
-                                  : BAR_BLUE_SOFT;
-                          const crossesMid = v != null && pct >= midPct;
-                          const crossesAvg =
-                            v != null && avgPct != null && pct >= avgPct;
+                          const fill = empty
+                            ? ""
+                            : isCurrent
+                              ? BAR_BLUE_DEEP
+                              : inPeriod
+                                ? BAR_BLUE
+                                : BAR_BLUE_SOFT;
+                          const crossesMid = !empty && pct >= midPct;
+                          const crossesAvg = !empty && avgPct != null && pct >= avgPct;
                           return (
                             <div
                               key={w.weekStart}
                               className="relative z-[1] min-w-0 flex-1 cursor-pointer"
                               onMouseEnter={() => setHoverWeekIdx(i)}
                             >
-                              {v != null && (
+                              {empty ? (
+                                <span
+                                  className="pointer-events-none absolute left-0 right-0 z-[5] text-center text-[9px] text-muted-foreground"
+                                  style={{ bottom: "10px" }}
+                                >
+                                  —
+                                </span>
+                              ) : (
                                 <span
                                   className={`pointer-events-none absolute left-0 right-0 z-[5] text-center text-[9px] tabular-nums ${
                                     isCurrent || isHovered
@@ -1435,29 +1585,24 @@ function MetricHistoryModal({
                                   }`}
                                   style={{ bottom: `calc(${pct}% + 2px)` }}
                                 >
-                                  {isPct ? Math.round(v) : v}
+                                  {isPct ? Math.round(v as number) : v}
                                 </span>
                               )}
-                              {v == null && (
-                                <span
-                                  className="pointer-events-none absolute left-0 right-0 z-[5] text-center text-[9px] text-muted-foreground"
-                                  style={{ bottom: "10px" }}
-                                >
-                                  —
-                                </span>
+                              {empty ? (
+                                <div
+                                  className="absolute bottom-0 left-0.5 right-0.5 rounded-t border border-dashed border-border bg-transparent"
+                                  style={{ height: 8 }}
+                                />
+                              ) : (
+                                <div
+                                  className={`absolute bottom-0 left-0.5 right-0.5 rounded-t transition-[box-shadow] duration-150 ${fill} ${
+                                    isHovered
+                                      ? "shadow-[inset_0_0_0_2px_#175CD3]"
+                                      : ""
+                                  }`}
+                                  style={{ height: `${pct}%` }}
+                                />
                               )}
-                              <div
-                                className={`absolute bottom-0 left-0.5 right-0.5 rounded-t transition-[box-shadow] duration-150 ${
-                                  v == null
-                                    ? "border border-dashed border-border bg-transparent"
-                                    : fill
-                                } ${
-                                  isHovered && v != null
-                                    ? "shadow-[inset_0_0_0_2px_#175CD3]"
-                                    : ""
-                                }`}
-                                style={{ height: v == null ? 8 : `${pct}%` }}
-                              />
                               {crossesMid && (
                                 <div
                                   className="pointer-events-none absolute left-0.5 right-0.5 z-[4] border-t border-white"
@@ -1656,35 +1801,25 @@ function StatCell({
   );
 }
 
-/** Prototype 1–5 score chip colours (Competency Detail modal). */
-function scoreTone(s: number | null): string {
-  if (s == null) return "";
-  if (s <= 1) return "bg-[#FDE8E8] text-[#B42318] border border-[#F5C2C0]";
-  if (s <= 2) return "bg-[#FEF0E6] text-[#B54708] border border-[#F9DBAF]";
-  if (s <= 3) return "bg-[#F4F6F0] text-[#5F6B4A] border border-[#E2E6D8]";
-  if (s <= 4) return "bg-[#E8F5EE] text-[#067647] border border-[#ABEFC6]";
-  return "bg-[#D1FADF] text-[#054F31] border border-[#6CE9A6]";
+/** 1–5 chip colours from Weekly Check-In Ranking Master. */
+function scoreTone(s: number | null, levels: RankingLevel[] = DEFAULT_RANKING_LEVELS): string {
+  const level = rankingLevelForScore(s, levels);
+  return level ? rankingChipClass(level, true) : "";
 }
 
-/** Solid bar fill for week averages — same 1–5 bands as scale (rounded). */
-function scoreBarFill(s: number | null): string {
-  if (s == null) return "";
-  const band = Math.min(5, Math.max(1, Math.round(s)));
-  switch (band) {
-    case 1:
-      return "bg-[#B42318]";
-    case 2:
-      return "bg-[#B54708]";
-    case 3:
-      return "bg-[#5F6B4A]";
-    case 4:
-      return "bg-[#067647]";
-    default:
-      return "bg-[#054F31]";
-  }
+/** Solid bar fill for week averages — Ranking Master color tokens. */
+function scoreBarFill(s: number | null, levels: RankingLevel[] = DEFAULT_RANKING_LEVELS): string {
+  const level = rankingLevelForScore(s, levels);
+  return level ? rankingBarFillClass(level) : "";
 }
 
-function ScoreCell({ score }: { score: number | null }) {
+function ScoreCell({
+  score,
+  rankingLevels = DEFAULT_RANKING_LEVELS,
+}: {
+  score: number | null;
+  rankingLevels?: RankingLevel[];
+}) {
   // Fill week column width; height tuned for modal density.
   const box =
     "flex h-[26px] w-full items-center justify-center rounded-sm text-[11px] font-semibold tabular-nums";
@@ -1698,7 +1833,7 @@ function ScoreCell({ score }: { score: number | null }) {
       </span>
     );
   }
-  return <span className={`${box} ${scoreTone(score)}`}>{score}</span>;
+  return <span className={`${box} ${scoreTone(score, rankingLevels)}`}>{score}</span>;
 }
 
 function MovementCell({ trend }: { trend: TrendStatus }) {
@@ -1719,12 +1854,35 @@ function CompetencyHistoryModal({
 }) {
   const toast = useToast();
   const { formatDate } = useAppDateFormat();
+  const [rankingLevels, setRankingLevels] = useState<RankingLevel[]>(DEFAULT_RANKING_LEVELS);
   const weeks = data.competencies.historyWeeks ?? [];
   const history = data.competencies.history ?? [];
   const byWeek = new Map(history.map((h) => [h.weekStart, h]));
   const rater =
     [...history].reverse().find((h) => h.raterName)?.raterName ?? "Resource Owner";
 
+  useEffect(() => {
+    void (async () => {
+      try {
+        const cfg = await fetchWeeklyCheckInConfig();
+        const levels = (cfg.rankingLevels ?? [])
+          .map((l) => ({
+            value: l.value as RankingLevel["value"],
+            title: l.title,
+            color: l.color as RankingLevel["color"],
+          }))
+          .filter((l) => l.value >= 1 && l.value <= 5);
+        if (levels.length >= 5) setRankingLevels(levels as RankingLevel[]);
+      } catch {
+        /* keep DEFAULT_RANKING_LEVELS */
+      }
+    })();
+  }, []);
+
+  const scoreScale = useMemo(
+    () => [...rankingLevels].sort((a, b) => a.value - b.value),
+    [rankingLevels]
+  );
   const scoreAt = (
     kind: "behavioural" | "technical",
     row: { id: string; code?: string; name: string },
@@ -1817,14 +1975,6 @@ function CompetencyHistoryModal({
           focusWeekStart
         )} to ${formatDate(addDaysISO(focusWeekStart, 6))}`;
 
-  const SCORE_SCALE: Array<{ n: number; label: string }> = [
-    { n: 1, label: "Unsatisfactory" },
-    { n: 2, label: "Developing" },
-    { n: 3, label: "Meets Expectations" },
-    { n: 4, label: "Strong" },
-    { n: 5, label: "Exceptional" },
-  ];
-
   const handleExport = () => {
     const columns = [
       { header: "Kind" },
@@ -1894,8 +2044,8 @@ function CompetencyHistoryModal({
             className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[#667085]"
             aria-label="Score scale"
           >
-            {SCORE_SCALE.map((s, i) => (
-              <Fragment key={s.n}>
+            {scoreScale.map((s, i) => (
+              <Fragment key={s.value}>
                 {i > 0 && (
                   <span className="select-none text-[#D0D5DD]" aria-hidden>
                     ·
@@ -1903,13 +2053,14 @@ function CompetencyHistoryModal({
                 )}
                 <span className="inline-flex items-center gap-1.5">
                   <span
-                    className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-[10px] font-semibold ${scoreTone(
-                      s.n
+                    className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-[10px] font-semibold ${rankingChipClass(
+                      s,
+                      true
                     )}`}
                   >
-                    {s.n}
+                    {s.value}
                   </span>
-                  <span>{s.label}</span>
+                  <span>{s.title}</span>
                 </span>
               </Fragment>
             ))}
@@ -2000,7 +2151,10 @@ function CompetencyHistoryModal({
                             </td>
                             {weeks.map((w) => (
                               <td key={w} className="p-0.5 text-center">
-                                <ScoreCell score={scoreAt(kind, r, w)} />
+                                <ScoreCell
+                                  score={scoreAt(kind, r, w)}
+                                  rankingLevels={rankingLevels}
+                                />
                               </td>
                             ))}
                             <td className="px-1 py-0.5 text-center text-[12px] font-semibold text-[#101828]">
@@ -2021,10 +2175,10 @@ function CompetencyHistoryModal({
                         {weekAvgs.map((v, i) => {
                           const isCurrent = i === weekAvgs.length - 1;
                           const barH =
-                            v == null
+                            v == null || v <= 0
                               ? 0
                               : Math.max(2, Math.round((v / weekAvgMax) * 26 * 10) / 10);
-                          const barFill = scoreBarFill(v);
+                          const barFill = scoreBarFill(v, rankingLevels);
                           return (
                             <td key={weeks[i] ?? i} className="p-0.5 align-bottom">
                               <div className="flex h-[40px] flex-col items-center justify-end gap-0.5">

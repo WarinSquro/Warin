@@ -216,6 +216,24 @@ export function classifyTrend(
   return "Same";
 }
 
+/**
+ * Prefer 3-period chip. If that is null/Same but Selection vs Previous clearly moved,
+ * fall back to Improved / Off Track so the UI is not arrow-only (e.g. Focus 102% vs 77%).
+ */
+export function resolveTrendChip(
+  series: Array<number | null | undefined>,
+  current: number | null | undefined,
+  previous: number | null | undefined,
+  direction: MetricDirection
+): TrendStatus {
+  const three = classifyTrend(series, direction);
+  if (three && three !== "Same") return three;
+  const arrow = compareArrow(current, previous, direction);
+  if (arrow === "up") return "Improved";
+  if (arrow === "down") return "Off Track";
+  return three;
+}
+
 export function scoreOutOf5ToRankPct(score: number): number {
   return Math.round((score / 5) * 1000) / 10;
 }

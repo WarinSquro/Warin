@@ -13,7 +13,6 @@ import { descendantEmployeeIds } from "../auth/resource-owner-tree";
 import { RequirePermissions } from "../auth/guards";
 import {
   addDaysISO,
-  classifyTrend,
   compareArrow,
   invertPctForRank,
   isoDate,
@@ -22,6 +21,7 @@ import {
   pickStrengthsAndNeeds,
   previousComparableRange,
   resolvePeriodRange,
+  resolveTrendChip,
   round0,
   round1,
   scoreOutOf5ToRankPct,
@@ -49,6 +49,15 @@ const PERIOD_IDS: PerfCardPeriodId[] = [
   "custom",
 ];
 
+/** Work Confirmation → Unplanned work reasons (keep in sync with `data/confirmation.ts`). */
+const UNPLANNED_WORK_REASONS = [
+  "No Allocated Work",
+  "Client / External Request",
+  "Internal Meeting / Discussion",
+  "Production / Critical Issue",
+  "Urgent Internal Work",
+] as const;
+
 type PeriodMetrics = {
   plannedHrs: number | null;
   actualHrs: number | null;
@@ -74,6 +83,8 @@ type CompetencyRow = {
   name: string;
   score: number | null;
   kind: "behavioural" | "technical";
+  remark: string;
+  sequence: number;
 };
 
 @ApiTags("performance-card")
@@ -220,20 +231,23 @@ export class PerformanceCardController {
     const basis = threePeriodBasis(periodId, current, { customWeeks });
     const previous = previousComparableRange(periodId, current, { customWeeks });
 
-    const [currentM, previousM, basisMetrics, competencies, contribution, weekHistory, kpi] =
+    const [currentM, previousM, basisMetrics, competencies, contribution, unplanned, weekHistory, kpi] =
       await Promise.all([
         this.computePeriodMetrics(target.id, current, workingDays),
         this.computePeriodMetrics(target.id, previous, workingDays),
         Promise.all(basis.map((r) => this.computePeriodMetrics(target.id, r, workingDays))),
         this.computeCompetencies(target.id, target.departmentId, current),
         this.computeContribution(target.id, current),
+        this.computeUnplannedByReason(target.id, current),
         this.computeWeekHistory(target.id, workingDays),
         this.computeLastQuarterKpis(target.id),
       ]);
 
     const trend = (key: keyof PeriodMetrics, dir: MetricDirection): TrendStatus =>
-      classifyTrend(
+      resolveTrendChip(
         basisMetrics.map((m) => m[key] as number | null),
+        currentM[key] as number | null,
+        previousM[key] as number | null,
         dir
       );
 
@@ -304,7 +318,7 @@ export class PerformanceCardController {
         previous: prev,
         currentDisplay: cur == null ? "—" : fmt(cur),
         previousDisplay: prev == null ? "—" : fmt(prev),
-        trend: classifyTrend(series, direction),
+        trend: resolveTrendChip(series, cur, prev, direction),
         arrow: compareArrow(cur, prev, direction),
         countOnly: false,
         direction,
@@ -471,6 +485,7 @@ export class PerformanceCardController {
       competencies,
       productivity: productivityRows,
       contribution,
+      unplanned,
       snapshot: {
         strengths: strengths.map((s) => ({ id: s.id, label: s.label, value: s.displayValue })),
         needsAttention: needsAttention.map((s) => ({
@@ -582,7 +597,9 @@ export class PerformanceCardController {
     // If no sessions but laps exist, use lap total
     if (focusMs === 0 && lapMs > 0) focusMs = lapMs;
 
-    const focusHrs = focusMs > 0 ? round1(focusMs / 3_600_000) : confirmations.length || prodDays.length ? 0 : null;
+    const hasWorkData = confirmations.length > 0 || prodDays.length > 0;
+    const focusHrs =
+      focusMs > 0 ? round1(focusMs / 3_600_000) : hasWorkData ? 0 : null;
     const plannedOrActual = actual > 0 ? actual : planned > 0 ? planned : 0;
     const focusPct =
       focusHrs != null && plannedOrActual > 0 ? round0((focusHrs / plannedOrActual) * 100) : null;
@@ -595,7 +612,9 @@ export class PerformanceCardController {
     const workingDayCount = countWorkingDays(range.from, range.to, workingDays);
     const confirmedDays = new Set(confirmations.map((c) => isoDate(c.workDate))).size;
     const confirmationDiscipline =
-      workingDayCount > 0 ? round0((confirmedDays / workingDayCount) * 100) : null;
+      workingDayCount > 0 && confirmations.length > 0
+        ? round0((confirmedDays / workingDayCount) * 100)
+        : null;
 
     const unplannedPct = actual > 0 ? round0((unplanned / actual) * 100) : null;
     const billableSplitPct = actual > 0 ? round0((billable / actual) * 100) : null;
@@ -635,23 +654,21 @@ export class PerformanceCardController {
       if (tech != null) techScores.push(tech);
     }
 
-    const hasConfData = confirmations.length > 0 || prodDays.length > 0 || wci.length > 0 || negLeaves > 0;
-
     return {
-      plannedHrs: hasConfData || planned > 0 ? round1(planned) : null,
-      actualHrs: hasConfData || actual > 0 ? round1(actual) : null,
-      billableHrs: hasConfData || billable > 0 ? round1(billable) : null,
+      plannedHrs: hasWorkData || planned > 0 ? round1(planned) : null,
+      actualHrs: hasWorkData || actual > 0 ? round1(actual) : null,
+      billableHrs: hasWorkData || billable > 0 ? round1(billable) : null,
       focusHrs,
       focusPct,
       avgLapDurationMin,
-      unplannedHrs: hasConfData || unplanned > 0 ? round1(unplanned) : null,
+      unplannedHrs: hasWorkData || unplanned > 0 ? round1(unplanned) : null,
       unplannedPct,
       planningAccuracy,
       confirmationDiscipline,
       billableSplitPct,
-      negativeLeaves: negLeaves,
-      appreciation,
-      publicAppreciation,
+      negativeLeaves: negLeaves > 0 ? negLeaves : hasWorkData || wci.length > 0 ? 0 : null,
+      appreciation: wci.length > 0 ? appreciation : null,
+      publicAppreciation: wci.length > 0 ? publicAppreciation : null,
       behaviouralAvg: behScores.length ? round1(avg(behScores)!) : null,
       technicalAvg: techScores.length ? round1(avg(techScores)!) : null,
     };
@@ -706,6 +723,8 @@ export class PerformanceCardController {
         name: c.label,
         score: scores.length ? round1(avg(scores)!) : null,
         kind: c.kind === "behavioural" ? "behavioural" : "technical",
+        remark: (c.remark ?? "").trim(),
+        sequence: c.sequence,
       };
       if (c.kind === "behavioural") behavioural.push(row);
       else technical.push(row);
@@ -805,16 +824,17 @@ export class PerformanceCardController {
     const byProject = new Map<string, Agg>();
     for (const c of confirmations) {
       for (const line of c.lines) {
-        const name =
-          line.allocation?.project?.name ??
-          (line.projectLabel?.trim() || "Unplanned / Other");
+        // Contribution = Project Master only (allocated planned/deviation lines).
+        // Skip unplanned free-text projectLabel rows (e.g. "Electricity Issue", discussions).
+        if (line.kind === "unplanned" || line.allocationId == null) continue;
+        const project = line.allocation?.project;
+        if (!project?.name?.trim() && !project?.projectCode) continue;
+        const name = project.name?.trim() || project.projectCode;
         const row = byProject.get(name) ?? { project: name, planned: 0, actual: 0, billable: 0 };
         row.planned += line.plannedHours;
         row.actual += line.actualHours;
-        if (line.kind !== "unplanned" && line.allocation?.activity?.billable !== false) {
-          if (line.allocation?.activity?.billable === true || !line.allocation) {
-            row.billable += line.actualHours;
-          }
+        if (line.allocation?.activity?.billable === true) {
+          row.billable += line.actualHours;
         }
         byProject.set(name, row);
       }
@@ -834,6 +854,49 @@ export class PerformanceCardController {
         actualHrs: round1(totalActual),
         sharePct: totalActual > 0 ? 100 : null,
         billableHrs: round1(rows.reduce((s, r) => s + r.billable, 0)),
+      },
+    };
+  }
+
+  private async computeUnplannedByReason(employeeId: bigint, range: DateRange) {
+    const from = new Date(`${range.from}T00:00:00.000Z`);
+    const to = new Date(`${range.to}T00:00:00.000Z`);
+    const confirmations = await this.prisma.workConfirmation.findMany({
+      where: {
+        employeeId,
+        isDeleted: false,
+        workDate: { gte: from, lte: to },
+      },
+      include: { lines: true },
+    });
+
+    const hoursByReason = new Map<string, number>(
+      UNPLANNED_WORK_REASONS.map((r) => [r, 0])
+    );
+    for (const c of confirmations) {
+      for (const line of c.lines) {
+        if (line.kind !== "unplanned") continue;
+        const reason = (line.reason ?? "").trim();
+        if (!hoursByReason.has(reason)) continue;
+        hoursByReason.set(reason, (hoursByReason.get(reason) ?? 0) + line.actualHours);
+      }
+    }
+
+    const totalHrs = [...hoursByReason.values()].reduce((s, h) => s + h, 0);
+    const rows = UNPLANNED_WORK_REASONS.map((reason) => {
+      const hrs = hoursByReason.get(reason) ?? 0;
+      return {
+        reason,
+        hrs: round1(hrs),
+        sharePct: totalHrs > 0 ? round0((hrs / totalHrs) * 100) : null,
+      };
+    });
+
+    return {
+      rows,
+      totals: {
+        hrs: round1(totalHrs),
+        sharePct: totalHrs > 0 ? 100 : null,
       },
     };
   }

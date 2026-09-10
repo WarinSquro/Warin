@@ -1082,6 +1082,68 @@ export function rankingChipClass(level: RankingLevel, selected = true): string {
   }
 }
 
+/** Solid bar fill aligned with Ranking Master chip color tokens. */
+export function rankingBarFillClass(level: RankingLevel): string {
+  const tokenLevel =
+    typeof level.color === "string" && level.color.startsWith("#")
+      ? DEFAULT_RANKING_LEVELS.find((l) => l.value === level.value) ?? level
+      : level;
+
+  switch (tokenLevel.color) {
+    case "success":
+      return "bg-success";
+    case "accent":
+      return "bg-accent-softfg";
+    case "warning":
+      return "bg-warning";
+    case "danger-soft":
+      return "bg-danger";
+    case "danger":
+      return "bg-danger";
+    default:
+      return "bg-muted-foreground";
+  }
+}
+
+export function rankingLevelForScore(
+  value: number | null | undefined,
+  levels: RankingLevel[] = DEFAULT_RANKING_LEVELS
+): RankingLevel | undefined {
+  if (value == null || Number.isNaN(value)) return undefined;
+  const band = Math.min(5, Math.max(1, Math.round(value))) as RankingLevel["value"];
+  return levels.find((l) => l.value === band) ?? DEFAULT_RANKING_LEVELS.find((l) => l.value === band);
+}
+
+/**
+ * Map a 0–100% bar fill to Ranking Master 1–5 evenly
+ * (1–20→1, 21–40→2, 41–60→3, 61–80→4, 81–100→5).
+ */
+export function rankingLevelForPercent(
+  pct: number | null | undefined,
+  levels: RankingLevel[] = DEFAULT_RANKING_LEVELS
+): RankingLevel | undefined {
+  if (pct == null || Number.isNaN(pct)) return undefined;
+  const clamped = Math.min(100, Math.max(0, pct));
+  const band = (
+    clamped <= 0 ? 1 : Math.min(5, Math.ceil(clamped / 20))
+  ) as RankingLevel["value"];
+  return levels.find((l) => l.value === band) ?? DEFAULT_RANKING_LEVELS.find((l) => l.value === band);
+}
+
+/** Progress bar fill from Ranking Master — /5 uses score bands; other max uses %→1–5. */
+export function rankingBarFillForProgress(
+  value: number | null | undefined,
+  max: number,
+  levels: RankingLevel[] = DEFAULT_RANKING_LEVELS
+): string {
+  if (value == null || Number.isNaN(value) || max <= 0) return "";
+  const level =
+    max === 5
+      ? rankingLevelForScore(value, levels)
+      : rankingLevelForPercent((value / max) * 100, levels);
+  return level ? rankingBarFillClass(level) : "";
+}
+
 export function weeklyStatusArcClass(status: WeeklyStatus): string {
   switch (status) {
     case "On Track":

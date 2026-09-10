@@ -32,6 +32,216 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-09-10 18:00 IST
+
+**Prompt:**  
+> Why Weekly Movement shows `0` here but Planning Accuracy shows `—`? Align them.
+
+**Output:**  
+- Root cause: Planning Accuracy returns `null` (no planned work) → UI `—`. Other metrics returned numeric `0` for empty/no-activity weeks.
+- UI: `isEmptyWeekValue` — chart treats `null` and `0` the same (`—` + dashed stub); excluded from modal average/coverage.
+- API: hours only forced to `0` when confirmation/productivity exists (not WCI/leaves alone); Confirmation Discipline `null` with no confirmations; appreciation counts `null` without WCI.
+- Files: `screens/PerformanceCard.tsx`, `performance-card.controller.ts`, `docs/prompt-log.md`.
+- Rebuild Docker API for API part of the fix.
+
+### 2026-09-10 17:12 IST
+
+**Prompt:**  
+> MetricHistoryModal weekly movement: values with 0 show a bar; other popup charts show blank — check and fix.
+
+**Output:**  
+- Root cause: bar height used `Math.max(4, …)` so true `0` still rendered a ~4% stub.
+- `MetricHistoryModal`: floor only for positive values; render no filled bar when `v <= 0` (label still shows `0`); missing (`null`) keeps dashed stub.
+- Competency grid week-average bars: same zero → height 0.
+- Files: `screens/PerformanceCard.tsx`, `docs/prompt-log.md`.
+
+### 2026-09-10 16:56 IST
+
+**Prompt:**  
+> Work & Productivity Focus % cell shows only ↑ (102% vs 77%) — put trend chip there as values differ.
+
+**Output:**  
+- Root cause: chip used only 3-period `classifyTrend`; when series incomplete/Same, UI showed arrow-only even if Selection vs Previous moved.
+- Added `resolveTrendChip` in `utils/performanceCard.ts` and `performance-card.periods.ts` — prefer 3-period chip; else fall back to Improved/Off Track from Selection vs Previous.
+- Wired in API `metricRow` + summary trend helper (`performance-card.controller.ts`).
+- Unit tests for Focus 102 vs 77 / incomplete series fallback.
+- Rebuild Docker API (`:8080`) so local UI picks up the change.
+
+### 2026-09-10 16:40 IST
+
+**Prompt:**  
+> Differentiate Improving vs Improved chips (lighter green for Improved).
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: `TrendChip` + `MiniTrend` — Improving keeps deep green; Improved uses lighter green text/bg/border.
+
+### 2026-09-10 16:38 IST
+
+**Prompt:**  
+> Performance Card period filter: default to Previous Week on page open.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: initial `period` state `"prev_week"`.
+
+### 2026-09-10 16:32 IST
+
+**Prompt:**  
+> BigMetricCard bars: Unplanned ≤10 green / 11–15 amber / ≥16 red; Focus + Billable ≥80 green / 70–79 amber / else red.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: `BigMetricCard` `barScale` uses `unplannedShareBarFill` / `contributionShareBarFill`.
+
+### 2026-09-10 16:29 IST
+
+**Prompt:**  
+> Contribution bars: ≥80 green, 70–79 amber, else red. Unplanned bars: ≤10 green, 11–15 amber, ≥16 red.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: `contributionShareBarFill` + `unplannedShareBarFill` for those ProgressBars.
+
+### 2026-09-10 16:25 IST
+
+**Prompt:**  
+> Contribution + Unplanned share bars: Ranking Master colors with 1–5 = 1–100% bands.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: both cards use `rankingBarFillForProgress(sharePct, 100, rankingLevels)`; removed `CONTRIB_BAR_COLORS`.
+
+### 2026-09-10 16:22 IST
+
+**Prompt:**  
+> Trend values help modal: remove the ↑/↓ explanatory paragraph.
+
+**Output:**  
+- `screens/PerformanceCard.tsx` (`ProductivityTrendHelpModal`): removed muted intro paragraph; table only.
+
+### 2026-09-10 16:19 IST
+
+**Prompt:**  
+> Behavioural / Technical CompetencyCard bars: use Ranking Master colors again.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: CompetencyCard bars use `scoreBarFill` / Ranking Master levels (same as summary MiniMetric `/5` mapping).
+
+### 2026-09-10 16:13 IST
+
+**Prompt:**  
+> Behavioural / Technical CompetencyCard bars: use same color as Competency summary MiniMetric (`bg-warning`).
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: CompetencyCard `ProgressBar` fill fixed to `bg-warning`.
+
+### 2026-09-10 15:57 IST
+
+**Prompt:**  
+> Below Contribution: add Unplanned card with the 5 Work Confirmation unplanned reasons (Hours | Share) + Total.
+
+**Output:**  
+- API `computeUnplannedByReason` returns all 5 canonical reasons + totals for the selected period.
+- `PerfCardPayload.unplanned` typed in `api/domain.ts`.
+- UI: Unplanned card stacked under Contribution (Reason / Hours / Share + bars).
+- Rebuild local Docker API to serve the new payload.
+
+### 2026-09-10 15:49 IST
+
+**Prompt:**  
+> Weekly Check-In Submit button should stay disabled until all required data is filled.
+
+**Output:**  
+- Root cause: button only gated on `canAssess` / `submitting`, not `findFirstSubmissionIssue`.
+- `WeeklyCheckInWorkspace.tsx`: `canSubmit` requires no validation issue (competencies, RO remarks min length, action notes when needed) + assessable week + config ready; pointer cursor when enabled.
+
+### 2026-09-10 15:46 IST
+
+**Prompt:**  
+> Check and fix — page error `FilterSingleSelect is not defined`.
+
+**Output:**  
+- Root cause: import dropped when adding `CompetencyGuideModal`.
+- Restored `FilterSingleSelect` import in `screens/PerformanceCard.tsx`.
+
+### 2026-09-10 15:25 IST
+
+**Prompt:**  
+> Behavioural / Technical Competencies: add info (i) icon; popup table of competencies + what it evaluates — same as Weekly Check-In.
+
+**Output:**  
+- API `CompetencyRow` includes `remark` + `sequence` from WCI competency master.
+- Exported `CompetencyGuideModal` from `WeeklyCheckInCompetencyRating.tsx` (optional dialog title).
+- `CompetencyCard`: Info button opens same # / Competency / What it evaluates table for that kind.
+- Rebuild local Docker API to pick up remark fields.
+
+### 2026-09-10 15:16 IST
+
+**Prompt:**  
+> Focus / Unplanned / Billable BigMetricCard: keep % and value color black only.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: BigMetricCard value + `%` use `text-[#101828]` only; Ranking Master colors remain on the bar; removed unused `pctValueTone` / `valueScale`.
+
+### 2026-09-10 15:13 IST
+
+**Prompt:**  
+> Summary MiniMetric / BigMetricCard progress bars: use Ranking Master colors; for % bars map 1–5 evenly across 1–100%.
+
+**Output:**  
+- `data/weeklyCheckIn.ts`: `rankingLevelForPercent` + `rankingBarFillForProgress` ( /5 → score band; % → ceil(pct/20) ).
+- `screens/PerformanceCard.tsx`: load Ranking Master once; MiniMetric, BigMetricCard, CompetencyCard bars use Ranking fills.
+
+### 2026-09-10 15:04 IST
+
+**Prompt:**  
+> Competency Detail score scale 1–5: use colors same as Weekly Check-In Config → Ranking Master.
+
+**Output:**  
+- `data/weeklyCheckIn.ts`: added `rankingBarFillClass` + `rankingLevelForScore`.
+- `screens/PerformanceCard.tsx`: modal loads Ranking Master via `fetchWeeklyCheckInConfig`; legend chips + score cells + avg bars use `rankingChipClass` / Ranking Master titles (fallback `DEFAULT_RANKING_LEVELS`).
+
+### 2026-09-10 14:43 IST
+
+**Prompt:**  
+> We don't want to show other than Projects (Contribution still listed Electricity Issue / discussions).
+
+**Output:**  
+- DB check: those labels are `kind=unplanned`, `allocation_id=null` — **not** in Project Master (`projects` match count 0).
+- Root cause of still showing: Vite uses Docker API `:8080`; host controller change was not in the running image.
+- `performance-card.controller.ts`: skip `unplanned` / null allocation; only named `allocation.project`.
+- Rebuilt local `docker compose up -d --build api` so preview picks up the filter.
+
+### 2026-09-10 14:36 IST
+
+**Prompt:**  
+> Contribution: do not show other than projects (hide free-text discussion / unplanned labels).
+
+**Output:**  
+- Root cause: `computeContribution` fell back to `projectLabel` when no allocation project.
+- `performance-card.controller.ts`: aggregate only lines with `allocation.project`; share/totals from those rows only.
+- Restart local `api:dev` to pick up; live needs `ec2-deploy.sh --with-api`.
+
+### 2026-09-10 14:34 IST
+
+**Prompt:**  
+> Contribution card: keep data inside card; wrap long project names; keep clear space between Planned/Actual/Share/Billable headers.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: `min-w-0 overflow-hidden` on section; `table-fixed` + col widths; project wraps (`break-words`); numeric cols right-aligned with padding/nowrap.
+
+### 2026-09-10 14:31 IST
+
+**Prompt:**  
+> Contribution: show share ProgressBar under each project name in the table (same bar as the list below); remove duplicate list.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: ProgressBar under project cell; removed separate share-bar list.
+
+### 2026-09-10 14:25 IST
+
+**Prompt:**  
+> Contribution: (1) remove footer note about unplanned/billable; (2) move share bars below the project table.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: table first, then share progress bars; removed muted footer paragraph.
+
 ### 2026-09-10 13:08 IST
 
 **Prompt:**  

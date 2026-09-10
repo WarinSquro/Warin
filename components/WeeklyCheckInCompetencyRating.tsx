@@ -131,12 +131,14 @@ export function WeeklyCheckInCompetencyRating({
   );
 }
 
-function CompetencyGuideModal({
+export function CompetencyGuideModal({
   groups,
   onClose,
+  dialogTitle = "Technical & Behavioural competencies",
 }: {
-  groups: CompetencyRatingGroup[];
+  groups: Array<{ title: string; competencies: DepartmentCompetency[] }>;
   onClose: () => void;
+  dialogTitle?: string;
 }) {
   const sectionTitle = (title: string) =>
     title === "Technical"
@@ -156,7 +158,7 @@ function CompetencyGuideModal({
       >
         <div className="flex flex-shrink-0 items-center justify-between border-b border-border-soft px-5 py-3.5">
           <div id="competency-guide-title" className="text-[15px] font-semibold text-foreground">
-            Technical & Behavioural competencies
+            {dialogTitle}
           </div>
           <button
             type="button"
