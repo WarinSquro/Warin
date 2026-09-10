@@ -32,6 +32,17 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-09-10 13:08 IST
+
+**Prompt:**  
+> Live all to EC2 (Agent mode). Follow-up after unit suite notification.
+
+**Output:**  
+- Commit `fabebba` pushed to `origin/main` (Performance Card UI + Nest API + helpers/tests).
+- CI red on pre-existing `activityBulkUpload.test.ts` (ENOENT local Downloads XLSX) — not blocking ship; local suite 55 passed / 1 failed same cause.
+- EC2: `bash scripts/ec2-deploy.sh --with-api` → `LIVE_COMMIT=fabebba`, `SPA_PUBLISH_OK`, API rebuild + migrate (none pending), `API_HEALTH_OK`.
+- Hard-refresh https://seworkspace.com/
+
 ### 2026-09-10 12:42 IST
 
 **Prompt:**  
