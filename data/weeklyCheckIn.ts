@@ -168,8 +168,8 @@ const SUBMISSIONS_VERSION_KEY = "oneview_wci_submissions_version";
 const SUBMISSIONS_VERSION = 5;
 
 export const CURRENT_WEEK_START = "2026-01-06";
-/** Max length for RO Remarks (textarea + validation). Field is required but may be shorter. */
-export const MAX_RO_REMARKS_LENGTH = 100;
+/** Min length for RO Remarks (required coaching text). No character maximum. */
+export const MIN_RO_REMARKS_LENGTH = 100;
 /** Min length for Action Notes when Action Type is not None. */
 export const MIN_REMARKS_LENGTH = 100;
 
@@ -924,15 +924,10 @@ export function findFirstSubmissionIssue(
     }
   }
 
-  if (!draft.roRemarks.trim()) {
+  const roRemarksLen = draft.roRemarks.trim().length;
+  if (roRemarksLen < MIN_RO_REMARKS_LENGTH) {
     return {
-      message: "RO Remarks are required.",
-      focusId: WCI_FOCUS_RO_REMARKS,
-    };
-  }
-  if (draft.roRemarks.trim().length > MAX_RO_REMARKS_LENGTH) {
-    return {
-      message: `RO Remarks must be at most ${MAX_RO_REMARKS_LENGTH} characters.`,
+      message: `RO Remarks must be at least ${MIN_RO_REMARKS_LENGTH} characters.`,
       focusId: WCI_FOCUS_RO_REMARKS,
     };
   }

@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
+  IdCard,
   CalendarRange,
   CalendarClock,
   Activity,
@@ -34,6 +35,7 @@ import { getMenuNavItems } from "../data/navConfig";
 
 const NAV_ICONS: Record<string, LucideIcon> = {
   my_workspace: LayoutDashboard,
+  "my_workspace.performance_card": IdCard,
   planner: CalendarRange,
   availability: CalendarClock,
   utilization: Activity,

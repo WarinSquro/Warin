@@ -1,7 +1,7 @@
 # FRD vs current app — Phase-1 gap checklist
 
 **Created:** 2026-07-27 IST  
-**Last verified:** 2026-07-27 IST (RPR-021 live Performance history shipped; Must backlog clear)  
+**Last verified:** 2026-09-09 IST (Performance Card v1 shipped)  
 **Basis:** PDFs in `docs/specs/` + UI/API/Prisma ([Audit pending FRD gaps](7d2067bf-446a-4580-84c4-a2f0b58ea6eb))  
 **Legend:** **Match** | **Partial** | **Missing** | **Differs**
 
@@ -50,6 +50,22 @@ Use with [`docs/specs/HOW-TO-USE-FRD.md`](./specs/HOW-TO-USE-FRD.md). Re-score r
 | ECP-017–018 | Department health ranking + drill | **Match** | Live composite score; ranked; drill `?department=` |
 | ECP-019–020 | Utilization trend + drill | **Match** | 8-week live trend |
 | ECP-BR / exceptions | Pending Calculation when metrics unavailable | **Match** | |
+
+---
+
+## A2. Performance Card (`phase1-perfcard-frd.pdf`) → `/performance-card`
+
+| FR (examples) | Requirement (short) | Status | Notes |
+|---------------|---------------------|--------|-------|
+| Nav / RBAC | My Workspace → Performance Card | **Match** | `my_workspace.performance_card`; Self + RO reports |
+| Periods | Week / month / quarter + Custom continuous weeks | **Match** | Continuity validated client + API |
+| Summary | Competency, discipline, Focus %, Unplanned %, Billable Split % | **Match** | Trends vs previous comparable period |
+| Competency | Behavioural / Technical averages + 12-week detail | **Match** | Missing = —; excluded from avg |
+| Productivity | Metrics table + count-only leave/appreciation | **Match** | Count-only excluded from Strengths/Needs ranking |
+| Contribution | Project planned/actual/share/billable | **Match** | Activity `billable` flag |
+| Snapshot | Top/bottom 3 by % rank + last-quarter KPI | **Match** | Not an appraisal score |
+| Drill | 12-week metric modal with prev/next | **Match** | Trend basis strip; neighbor metric chips; Export Excel |
+| Bars / Export | Score-aware colours; modal Export | **Match** | Slate-blue / brown fills (not near-black brand); Export on Focus + Competency modals; no-data = — |
 
 ---
 

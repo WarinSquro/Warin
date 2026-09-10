@@ -32,6 +32,683 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-09-10 12:42 IST
+
+**Prompt:**  
+> Competency Detail scale row: keep unique (even) space between 1 to 5.
+
+**Output:**  
+- `screens/PerformanceCard.tsx` (`CompetencyHistoryModal`): score legend uses equal `gap-x-4` with · separators as separate flex siblings so spacing between 1–5 is uniform.
+
+### 2026-09-10 12:39 IST
+
+**Prompt:**  
+> Work & Productivity: add info (i) icon; on click show Trend values in a table.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: Info button beside the heading; `ProductivityTrendHelpModal` with Trend / When it shows table (Improving, Improved, Off Track, Concern, Same, —) plus note on ↑/↓ vs 3-period chip.
+
+### 2026-09-10 12:36 IST
+
+**Prompt:**  
+> Work & Productivity: Planned/Actual Hrs show only ↑ without Improved/Off Track chip despite Selection/Previous values.
+
+**Output:**  
+- Root cause: those metrics used `direction: "neutral"`, so `classifyTrend` returned null (arrow still from `compareArrow`).
+- `performance-card.controller.ts`: Planned Hrs + Actual Hrs → `higher_better` so 3-period trend chips render like other rows.
+
+### 2026-09-10 12:24 IST
+
+**Prompt:**  
+> Metric History: This Month marks both Aug and Sept as selected; Trend basis shows Aug→Aug→Sep instead of Jul→Aug→Sep (fix for all period dropdowns).
+
+**Output:**  
+- Root cause (basis): `previousComparableRange("this_month"|"this_week"|"this_quarter")` re-resolved from today, so chaining collapsed to the same prior period.
+- `utils/performanceCard.ts` + API `performance-card.periods.ts`: step back from `current` range for week/month/quarter.
+- Month bands: “selected” only when week Monday is inside period (no spillover).
+- Trend labels use period mid-point month; unit tests assert Jul/Aug/Sep (and week/quarter chains).
+
+### 2026-09-10 12:09 IST
+
+**Prompt:**  
+> Work & Productivity table: rename Current column header to Selection.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: column header `Current` → `Selection`.
+
+### 2026-09-10 12:08 IST
+
+**Prompt:**  
+> Work & Productivity footnote: change to “Count-only rows (leaves are not scored by the trend engine)”.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: updated that footer copy.
+
+### 2026-09-10 12:05 IST
+
+**Prompt:**  
+> CompetencyCard bars: use same solid 1–5 scale colours as Competency Detail popup.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: Behavioural/Technical row `ProgressBar` uses `scoreBarFill(score)` (same bands as modal scale: 1 red … 5 deep green).
+
+### 2026-09-10 12:02 IST
+
+**Prompt:**  
+> BigMetricCard % value colours: Focus/Billable Split ≥80 green, 70–79 amber, else red; Unplanned ≤10 green, 11–15 amber, ≥16 red.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: `pctValueTone()` + `valueScale` on `BigMetricCard`; number and `%` use green/amber/red per thresholds.
+
+### 2026-09-10 11:58 IST
+
+**Prompt:**  
+> MetricHistoryModal metric switcher: remove ↑ / ↓ arrows from the segmented buttons.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: prev/next metric buttons show labels only (e.g. `Focus Hrs` | `Avg Lap Duration`).
+
+### 2026-09-10 11:56 IST
+
+**Prompt:**  
+> Metric History bar tooltip: remove third line; week start/end without year.
+
+**Output:**  
+- Tooltip now only `Wxx` + date range; dates use Settings pattern without year (`formatAppDateNoYear` / `formatDateNoYear`).
+
+### 2026-09-10 11:54 IST
+
+**Prompt:**  
+> Metric History bar tooltip: smooth bar-to-bar transition; must not resize/overflow the modal.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: one shared in-chart tooltip driven by `hoverWeekIdx` (slides with `transition-[left,bottom]`); plot uses `overflow-hidden` + clamped position so it stays inside the chart; hovered bar gets blue inset ring.
+
+### 2026-09-10 11:50 IST
+
+**Prompt:**  
+> MetricHistoryModal bar hover tooltip: row 1 week number, row 2 week start–end (prototype).
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: replaced native `title` with styled hover tooltip — `Wxx`, settings-formatted `from – to`, and `{metric}: value`.
+
+### 2026-09-10 11:48 IST
+
+**Prompt:**  
+> Performance Card subtitle dates must use Settings date format (always).
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: `useAppDateFormat()` for resource period line (`from`/`to`/`previousFrom`/`previousTo`), Metric History Excel period line, and Competency Detail week badge (`Wxx = … to …`).
+
+### 2026-09-10 11:43 IST
+
+**Prompt:**  
+> Competency Detail average-row bars: use solid colours from the 1–5 scale (not blue/teal).
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: `scoreBarFill()` maps rounded score to solid scale colours; Behavioural/Technical week-average bars use it (e.g. 2.4 / 2.0 → solid Developing `#B54708`).
+
+### 2026-09-10 11:40 IST
+
+**Prompt:**  
+> CompetencyHistoryModal: remove Selected period / Opened-from copy; week badge `W12 = 31-Aug to 6-Sep`; move labeled Scale 1–5 into banner; Behavioural/Technical headers get blue bar styling; banner white with no borders.
+
+**Output:**  
+- `screens/PerformanceCard.tsx` CompetencyHistoryModal:
+  - Banner: white, no border-y; scale chips + labels (Unsatisfactory…Exceptional); week badge `Wxx = d-Mon to d-Mon`.
+  - Removed “Opened from…” and “Selected period” label.
+  - Behavioural/Technical section titles: full-bleed `#F0F7FC` + `#D0E2F0` borders.
+
+### 2026-09-10 09:24 IST
+
+**Prompt:**  
+> Performance Snapshot: add per-column footer text and vertical dividers like prototype.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: three columns with `lg:divide-x`; footers — Strengths “Ranked by trend strength…”, Needs Attention “Derived from recorded values…”, KPI “KPI stays quarterly…”; KPI header + period badge (`Last Quarter · Apr–Jun YYYY`).
+
+### 2026-09-10 09:21 IST
+
+**Prompt:**  
+> Contribution card: add bottom footer text from prototype.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: Contribution header subtitle “Where the effort went”; footer note under TOTAL — if any project has actual &gt; 0 with planned 0, “{project} shows N actual hours against no plan — unplanned effort.” plus “Billable hours come from activity classification, not project type.”
+
+### 2026-09-10 09:18 IST
+
+**Prompt:**  
+> Competency cards: add bottom-left footer text from prototype (alongside View 12-week detail).
+
+**Output:**  
+- `screens/PerformanceCard.tsx` `CompetencyCard` footer is now left note + right link:
+  - Unrated rows → `Not rated this period — excluded from the average`
+  - Else → `Average of N weekly reviews in this period` (N from competency history weeks overlapping selected period)
+  - No reviews → `No weekly reviews in this period`
+
+### 2026-09-09 23:58 IST
+
+**Prompt:**  
+> MetricHistoryModal StatCells: show % as round values (e.g. 113.7% → 114%).
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: `formatMetricStat` now uses `Math.round` for percentage stats (Current week / 12-week average / Range).
+
+### 2026-09-09 23:56 IST
+
+**Prompt:**  
+> MetricHistoryModal first 3 StatCells (Current week / 12-week average / Range) should show `%` like the Focus % prototype.
+
+**Output:**  
+- Root cause: `isPctMetric` only checked `id.endsWith("Pct")` / `%` in label — missed `planningAccuracy` / `confirmationDiscipline` (API already formats them as `%`).
+- `screens/PerformanceCard.tsx`: broadened `isPctMetric` (+ `currentDisplay` ends with `%`); `formatMetricStat` for the three cards so values render e.g. `80%`, `75%`, `66–82%`.
+
+### 2026-09-09 23:52 IST
+
+**Prompt:**  
+> Weekly movement should show only two lines (1 dotted avg, 1 solid mid); app showed 2 dotted + 2 solid.
+
+**Output:**  
+- Root cause: full-width guides and white bar cut-throughs used different Y spaces (`pt-4` only on the bar layer), so overlays sat offset and looked like duplicate lines.
+- `screens/PerformanceCard.tsx`: one shared plot box for mid solid, avg dashed, bars, and white cut-throughs — still white over bars, but only one of each line.
+
+### 2026-09-09 23:48 IST
+
+**Prompt:**  
+> Weekly movement chart: where the solid/avg reference line crosses a bar, that segment should be white (prototype cut-through).
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: full-width grey mid line + gold dashed avg line; on each bar tall enough to cross those Y positions, overlay matching white solid / white dashed segments so the line reads white over the bar.
+
+### 2026-09-09 23:32 IST
+
+**Prompt:**  
+> MetricHistoryModal polish vs prototypes: Current week ↑ pts inline; bold black current week/month; remove `<`/`>` arrows; chart solid mid line + dashed avg line.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`:
+  - `StatCell`: delta (`↑ 16 pts`) sits baseline-aligned beside the value (green/red).
+  - Header: segmented ↑/↓ metric switcher + X only; no chevrons; `Average` → `Avg`.
+  - Chart: solid `#E4E7EC` mid grid + dashed gold avg line; W12 + selected month bold `#101828` with thicker underline; empty weeks show `—`.
+
+### 2026-09-09 23:22 IST
+
+**Prompt:**  
+> MetricHistoryModal weekly movement chart: W01–W09 empty, W10–W12 have data but no bars — fix so bars render when data exists (match prototype).
+
+**Output:**  
+- Root cause: bar `height: N%` was on a flex column sized by content (no defined height), so % resolved to ~0px; empty weeks used `8px` so placeholders still showed.
+- `screens/PerformanceCard.tsx`: plot area is now a fixed-height region; bars are `absolute` from the bottom with `%` of that area; week labels sit under the plot; Y-axis top scales with `chartMax` when values exceed 100%.
+
+### 2026-09-09 23:16 IST
+
+**Prompt:**  
+> MetricHistoryModal TREND BASIS: check colors/fonts and box position vs prototype; footer Export/Close — check missing-week text is present on the left.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`:
+  - Trend chip → rounded-full green/amber/red pills with soft border (prototype “Improving” style).
+  - Trend basis: `#F9FAFB` / `#E4E7EC`, month `11px` muted, values `20px` bold (`#101828` / last `#175CD3`), note `12px`, pinned just above footer (outside scroll).
+  - Modal shell: `max-h` (not forced full height) so the large white gap under the chart is gone.
+  - Footer (`ModalExportClose`): left note e.g. `W08 has no recorded activity — excluded from the average and from trend calculation, never counted as 0%.` + Export/Close on the right.
+
+### 2026-09-09 23:10 IST
+
+**Prompt:**  
+> Update MetricHistoryModal TREND BASIS box to match prototype image.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: Trend basis restyled — month short labels over large values, → separators, last period in blue, TrendChip inline, right-side note (partial-period / Improved wording). Uses live `trendBasis` metrics from API (no mock values).
+
+### 2026-09-09 23:00 IST
+
+**Prompt:**  
+> Adjust overall modal size to remove vertical scrollbar.
+
+**Output:**  
+- CompetencyHistoryModal: `max-h` `min(94vh,960px)` → `min(98vh,1100px)`; overlay padding `p-2 sm:p-4` → `p-1.5 sm:p-2` so content fits without scroll on typical viewports; `overflow-y-auto` still available if content exceeds.
+
+### 2026-09-09 19:46 IST
+
+**Prompt:**  
+> Remove vertical scrollbar when not required; show only when needed.
+
+**Output:**  
+- Body `overflow-auto` → `overflow-y-auto overflow-x-hidden` + `flex-1 min-h-0` so scroll engages only past `max-h`.
+- Removed nested table `overflow-x-auto` (full-width `table-fixed`) to avoid a spurious vertical scrollbar from nested scroll containers.
+
+### 2026-09-09 19:27 IST
+
+**Prompt:**  
+> Keep vertical space between score boxes same as horizontal.
+
+**Output:**  
+- Week cells `px-0.5 py-1` → `p-0.5` (2px pad → 4px gap H and V). Row name/avg use `py-0.5` to match.
+
+### 2026-09-09 19:18 IST
+
+**Prompt:**  
+> Fill blank space below Technical average and right of MOVEMENT — increase table/cells size.
+
+**Output:**  
+- Modal `h-[min(...)]` → `max-h-[min(...)]` (height follows content; no empty stretch below).
+- Tables `w-full table-fixed` with colgroup; ScoreCell/bars `w-full`, height `26px` / avg row `40px`.
+- Removes right-side dead space and bottom empty flex area without raising max popup size.
+
+### 2026-09-09 19:12 IST
+
+**Prompt:**  
+> Apply compressions so Competency Detail fits without vertical scrollbar (no larger popup). Keep revert notes if not proper.
+
+**Output:**  
+- `screens/PerformanceCard.tsx` CompetencyHistoryModal density pass (popup size unchanged):
+  - Header `pt-5 pb-3` → `pt-3 pb-2`; subtitle `mt-1` → `mt-0.5`; scale chips `h-6` → `h-5`
+  - Banner `mb-4 py-[5.2px]` → `mb-2 py-1`
+  - Section divider `11.2px` → `mt-2 pt-2`; section title `mb-3` → `mb-1.5`
+  - Row/cell pad `3.07px` → `2px`; th `pb-2` → `pb-1`
+  - ScoreCell / empty / bar max `24.64` → `22`; avg row `h-[42px]` → `h-[34px]`; avg `py-3` → `py-1.5`
+  - Footer `py-[11.2px]` → `py-2`
+- Revert hints left in comments on header/banner/footer. Body keeps `overflow-auto` as safety if many rows.
+
+### 2026-09-09 18:57 IST
+
+**Prompt:**  
+> Reduce Competency Detail modal title and subtitle font by 1 point.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: h2 `18px` → `17px`; subtitle `13px` → `12px`.
+
+### 2026-09-09 18:52 IST
+
+**Prompt:**  
+> Footer: keep controls horizontally aligned; reduce box height by 30%.
+
+**Output:**  
+- `CompetencyHistoryModal` footer: `py-4` → `py-[11.2px]` (−30%); `items-center` + `flex-nowrap`; tighter Export/Close (`py-1.5`, `text-[12px]`); note `truncate` + title tooltip.
+
+### 2026-09-09 18:45 IST
+
+**Prompt:**  
+> Footer missing weeks on one line; collapse continuous weeks (W01 - W09, W12).
+
+**Output:**  
+- Added `formatWeekLabelRanges` in `utils/performanceCard.ts` + unit tests.
+- `CompetencyHistoryModal` footer uses ranges + `whitespace-nowrap`.
+
+### 2026-09-09 18:39 IST
+
+**Prompt:**  
+> Shift Technical block up 30%; draw divider between Behavioural and Technical (same color as footer border).
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: removed `space-y-8` (32px); Technical section `mt-[11.2px] border-t border-[#E4E7EC] pt-[11.2px]` — gap −30% with line centered; border matches footer.
+
+### 2026-09-09 18:34 IST
+
+**Prompt:**  
+> Competency Detail body: reduce all fonts by 1 point respectively.
+
+**Output:**  
+- `screens/PerformanceCard.tsx` CompetencyHistoryModal body: section title 15→14, period avg 12→11, hint 11→10, table 12→11 / headers 10→9, names 12→11, avg cells 13→12, bar labels 10→9, empty 11→10; `ScoreCell`/`MovementCell` 12→11.
+
+### 2026-09-09 18:28 IST
+
+**Prompt:**  
+> Reduce “Period average …” font by 1pt; check Improving/Off Track chip.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: period average `text-[13px]` → `text-[12px]`.
+- Chip already existed via `TrendChip`; now uses `trend ?? gridTrend` so Improving/Off Track/etc. shows when period trend is null but 12-week series has movement. Chip radius `rounded-md` to match prototype.
+
+### 2026-09-09 18:22 IST
+
+**Prompt:**  
+> Selected period badge as per prototype (month year from period settings + week range).
+
+**Output:**  
+- `screens/PerformanceCard.tsx` CompetencyHistoryModal: label “Selected period” + badge `Mar 2026 · W09–W12` style — month/year from filter period `to`, Wxx–Wyy from history weeks overlapping `period.from`–`period.to`. Export line uses same badge text.
+
+### 2026-09-09 18:15 IST
+
+**Prompt:**  
+> Average bars: keep scale same as ScoreCell (24.64px), then resize height by score.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: avg bar max height = ScoreCell `24.64px`; `barH = (v / weekAvgMax) * 24.64`; removed forced 36px current-week min; value label above bar; row container `h-[42px]`.
+
+### 2026-09-09 18:11 IST
+
+**Prompt:**  
+> Reduce space between competency boxes by 20% vertically and horizontally.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: week cell padding `3.84px` → `3.07px` (−20%); col width `68px` → `66px`. H/V gaps stay equal (Behavioural + Technical).
+
+### 2026-09-09 18:06 IST
+
+**Prompt:**  
+> Reduce Competency Detail info banner height by 20%.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: banner `py-2.5` (10px) → `py-[5.2px]` (~−20% of prior ~48px height via vertical padding).
+
+### 2026-09-09 17:53 IST
+
+**Prompt:**  
+> Keep ProgressBar thin by 20%; apply to all same bars on Performance Card.
+
+**Output:**  
+- `screens/PerformanceCard.tsx` `ProgressBar`: height `h-2` (8px) → `h-[6.4px]` (−20%), including empty dashed state. Shared by MiniMetric, BigMetricCard, CompetencyCard, etc.
+
+### 2026-09-09 17:47 IST
+
+**Prompt:**  
+> Decrease MiniMetric label font size by 1.5 point (Behavioural, Technical, Planning Accuracy, Confirmation Discipline).
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: MiniMetric label `text-[13px]` → `text-[11.5px]`.
+
+### 2026-09-09 17:45 IST
+
+**Prompt:**  
+> BigMetricCard: vertically center % values; keep progress bar + prev + trend at bottom (all 3 cards).
+
+**Output:**  
+- `screens/PerformanceCard.tsx` `BigMetricCard`: `flex h-full min-h-[180px] flex-col`; score area `flex-1 items-center` (vertical center); bar + prev/trend in `mt-auto` bottom block.
+
+### 2026-09-09 17:35 IST
+
+**Prompt:**  
+> Update Focus / Unplanned Work / Billable Split BigMetricCards to match prototype image.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: `BigMetricCard` restyled — title (no %), large score + muted `%`, navy bar, footer `prev N%` + arrow/trend (direction from `arrow` for lower-better metrics). Removed chip + “12-week chart →” text; click/hover kept via `title` hint. `MiniTrend` Concern = deep red; arrow respects metric direction.
+
+### 2026-09-09 17:31 IST
+
+**Prompt:**  
+> Update EXECUTION DISCIPLINE SummaryCard style to match attached prototype.
+
+**Output:**  
+- `screens/PerformanceCard.tsx` `MiniMetric`: percent `prev` shows `%` (e.g. `prev 83%`); progress bars always navy (`BAR_BLUE_DEEP`, not brown for low %); tighter score/`%` gap; semibold trend text — matches Execution Discipline prototype.
+
+### 2026-09-09 17:25 IST
+
+**Prompt:**  
+> Update COMPETENCY SummaryCard style to match attached prototype image.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: restyled `SummaryCard` / `MiniMetric` to prototype — label + large score with muted `/ 5`, navy bar, footer `prev` left + `↑/↓` trend right (`MiniTrend`). Applied same layout to Execution Discipline (percent unit).
+
+### 2026-09-09 16:45 IST
+
+**Prompt:**  
+> CompetencyCard points order: highest on top, lowest at bottom.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: `CompetencyCard` sorts rows by score descending (nulls last; name tie-break). Applies to Behavioural + Technical cards.
+
+### 2026-09-09 16:39 IST
+
+**Prompt:**  
+> Show current month's week numbers in black while others stay the same color.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: week headers overlapping the current calendar month use `text-black`; other Wxx labels keep inherited `#98A2B3` (Behavioural + Technical).
+
+### 2026-09-09 16:35 IST
+
+**Prompt:**  
+> Avg column: move right by 20%.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: Avg header/cells left padding `8px` → `15.6px` (+20% of prior 38px width); still centered (Behavioural + Technical).
+
+### 2026-09-09 16:33 IST
+
+**Prompt:**  
+> Movement column: move right by 40% and keep data column centered.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: Movement header/cells `pl-[39px]` (~40% of prior 77px width), `text-center` + flex center for values (Behavioural + Technical).
+
+### 2026-09-09 16:31 IST
+
+**Prompt:**  
+> Remove background color from Behavioural/Technical average row.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: removed `bg-[#F9FAFB]` from average `<tr>` (both Behavioural + Technical).
+
+### 2026-09-09 16:27 IST
+
+**Prompt:**  
+> Increase ScoreCell box height by 10%.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: ScoreCell + empty avg placeholder `h-[22.4px]` → `h-[24.64px]` (+10%).
+
+### 2026-09-09 16:21 IST
+
+**Prompt:**  
+> Reduce distance between two boxes horizontally and vertically by 20%.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: week/cell padding `4.8px` → `3.84px` (−20%); col width `70px` → `68px`. Gaps stay equal H/V.
+
+### 2026-09-09 16:19 IST
+
+**Prompt:**  
+> Reduce ScoreCell box height by 20%.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: ScoreCell + empty avg placeholder `h-7` (28px) → `h-[22.4px]` (−20%).
+
+### 2026-09-09 16:16 IST
+
+**Prompt:**  
+> Decrease distance between boxes horizontally and vertically by 40%.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: week cell padding `8px` → `4.8px` (−40%); col width `76px` → `70px`; competency row vertical padding matched. Horizontal/vertical gaps stay equal.
+
+### 2026-09-09 16:12 IST
+
+**Prompt:**  
+> Keep the horizontal spacing between the two boxes the same as the vertical spacing between two boxes.
+
+**Output:**  
+- Root cause: `w-full` stretched week columns so centered chips had large visual horizontal gaps.
+- `screens/PerformanceCard.tsx`: table `w-max` (no stretch); week cols fixed `w-[76px]` with `p-2` (8px) so horizontal gap matches vertical gap (8+8); Behavioural + Technical.
+
+### 2026-09-09 16:08 IST
+
+**Prompt:**  
+> Keep boxes nearer by 10% and decrease width by 10%. Also decrease round shape of box.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: chips/bars `67px` → `60px`; week padding `5.5px` → `5px`; `rounded-md` → `rounded-sm` on score cells, empty avg, avg bars; table `min-w` 1120→1080.
+
+### 2026-09-09 16:03 IST
+
+**Prompt:**  
+> Keep each box near to each other by 30% and increase width by 20%.
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: ScoreCell / empty / avg bars `w-14` (56px) → `w-[67px]` (+20%); week cell padding `px-2` → `px-[5.5px]` (~30% tighter gap); table `min-w` 1080→1120.
+
+### 2026-09-09 15:56 IST
+
+**Prompt:**  
+> Reduce competency name font size by one point (CompetencyHistoryModal).
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: competency name `td` `text-[13px]` → `text-[12px]` (Behavioural + Technical).
+
+### 2026-09-09 15:52 IST
+
+**Prompt:**  
+> Remove horizontal line between two competencies (both Behavioural and Technical cards).
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: removed `border-t border-[#F2F4F7]` from competency rows in CompetencyHistoryModal (shared loop → both Behavioural + Technical). Kept average-row separator.
+
+### 2026-09-09 15:45 IST
+
+**Prompt:**  
+> Implement only competency box width to match attached prototype (landscape ~2:1); preserve functionality.
+
+**Output:**  
+- Updated `screens/PerformanceCard.tsx`: `ScoreCell` from `h-7 w-10` → `h-7 w-14` (28×56px ≈ 2:1); week column padding `px-1.5` → `px-2`; table `min-w` 920→1080; empty avg placeholders and avg bars aligned to `w-14` (bars also `rounded-md`).
+- No color/border/logic changes beyond width alignment with prototype.
+
+### 2026-09-09 15:36 IST
+
+**Prompt:**  
+> Apply exactly: Image-2 competency box width/height + gap; Image-4 full-bleed info bar (no side margins).
+
+**Output:**  
+- Score chips: `h-7 w-10 rounded-md` (wider than tall); week cells `px-1.5` for visible gaps.
+- Info banner: removed `mx-6`; full-width `border-y` flush to modal edges; inner `px-6` for text only.
+- File: `screens/PerformanceCard.tsx`.
+
+### 2026-09-09 15:28 IST
+
+**Prompt:**  
+> Apply three Competency Detail fixes: square competency boxes; different Behavioural vs Technical avg colours; rectangular banner/period (not pill).
+
+**Output:**  
+- Score/empty cells: `size-9 shrink-0 rounded-[4px]` (true squares).
+- Avg bars: Behavioural navy (`#1E4A7A`/`#0B1220`); Technical teal (`#2F6F6A`/`#1A3D3A`); `rounded-none`.
+- Info banner + Selected period: `rounded-none` (rectangles, not pill).
+- File: `screens/PerformanceCard.tsx`.
+
+### 2026-09-09 15:15 IST
+
+**Prompt:**  
+> Match Competency Detail modal to prototype (image 2): size, colours, rating boxes, avg bars, header/banner, footer buttons; verify live.
+
+**Output:**  
+- Restyled `CompetencyHistoryModal` to prototype: `min(96vw,1180px)` × `min(94vh,960px)`, Scale legend + blue info banner + Selected period pill.
+- Score chips 32×32 with prototype red/orange/olive/green palette; empty cells dashed box + —.
+- Avg row: value above bars, dark blue bars, black/deep current week with in-bar label; taller visual weight.
+- Footer note left + larger Export/Close.
+- File: `screens/PerformanceCard.tsx`.
+
+### 2026-09-09 14:35 IST
+
+**Prompt:**  
+> Fix no-data copy to app standard; bar colours not black; Competency Detail Avg without source data; enlarge modals to match reference; verify live.
+
+**Output:**  
+- **No-data:** Replaced “not rated this period” / “Not rated” with app-standard **—**.
+- **Bars:** Visible slate blues (`#9BB0C4` / `#5B7FA6` / `#2A5580` / `#1A3A5C`) + brown (`#A67C52`) for low scores — no longer near-black `bg-brand` fills.
+- **Avg bug:** Ratings keyed by competency **code**; API remaps history to code/id/label; UI lookup uses code. Footer / 12-week Avg computed only from weeks with ratings (never period avg fallback). Selected-period avg labeled separately.
+- **Modals:** Focus % + Competency Detail enlarged (`max-w-6xl`, ~92vh height, more padding).
+- Files: `PerformanceCard.tsx`, `performance-card.controller.ts`, `performance-card.periods.ts`, `api/domain.ts`. Rebuild API.
+
+### 2026-09-09 14:10 IST
+
+**Prompt:**  
+> Implement only PDF gaps: bar colours (not all black), Export on Focus % + Competency Detail popups, contribution bars, modal polish; data from DB already.
+
+**Output:**  
+- Score-aware bars: navy ≥3 / brown &lt;3 on competency; low % brown; chart tones soft/mid/deep + selected period; contribution multi-tone share bars.
+- **Export** Excel on both Focus % and Competency Detail modals (`exportReportExcel` + toast).
+- Modal polish: neighbor metric chips, month bands, Y-axis for %, missing-week footnote, MOVEMENT column, weekly average mini-bars, selected-period chip.
+- Empty weeks excluded from avg copy; never treated as 0.
+- Files: `screens/PerformanceCard.tsx`, `docs/frd-gap-checklist.md`.
+
+### 2026-09-09 13:45 IST
+
+**Prompt:**  
+> Align Performance Card with UI PDF: Behavioural/Technical not one card; how to open Focus % chart and Competency Detail 12 weeks.
+
+**Output:**  
+- Split Behavioural + Technical into **two separate cards**, each with **View 12-week detail →**.
+- Focus % chart: click **Focus %** summary card (also Unplanned / Billable) **or** click **Focus %** row in Work & Productivity (hint: “Click a row for last 12 weeks”).
+- Competency Detail modal opens from either card’s link; shows both sections (opened-from highlighted).
+- Enriched metric modal (stats, weekly bars, trend basis) and competency modal (1–5 scale chips, Avg column).
+- File: `screens/PerformanceCard.tsx`.
+
+### 2026-09-09 12:02 IST
+
+**Prompt:**  
+> Administrator should not come in Performance Card Resource dropdown — remove Administrator.
+
+**Output:**  
+- **Root cause:** SuperAdmin resources API prepended `self` (Administrator) to the list; UI also defaulted to `currentEmployee`.
+- API: SuperAdmin path returns only non-`isSuperAdmin` employees (no Administrator); RO reports also exclude SuperAdmin.
+- UI: Default selection = Self if present in list, else first resource (never force Administrator).
+- Files: `performance-card.controller.ts`, `screens/PerformanceCard.tsx`. Rebuild API required.
+
+### 2026-09-09 11:45 IST
+
+**Prompt:**  
+> build Performance Card v1
+
+**Output:**  
+- Shipped Performance Card under My Workspace (`/performance-card`, permission `my_workspace.performance_card`).
+- **API:** `GET /performance-card`, `GET /performance-card/resources` — aggregates confirmations, focus, WCI competencies, leaves, contribution, last-quarter KPIs, 12-week history + trends.
+- **UI:** Resource + period filters, custom continuous week chips, 5 summary cards, competency overview, Work & Productivity + Contribution, Snapshot (Strengths/Needs % rank + KPI), metric prev/next modal, competency 12-week modal.
+- **Utils/tests:** `utils/performanceCard.ts` + `tests/unit/performanceCard.test.ts` (8 passed).
+- **Seeds/nav:** `navConfig`, AppShell `IdCard`, accessRights STORAGE_VERSION=3, `seed-demo` permission keys.
+- **Docs:** `docs/specs/README.md`, `docs/frd-gap-checklist.md` §A2.
+- Rebuild: `docker compose up -d --build api`. Grant `my_workspace.performance_card` on live Access Rights if nav missing (no EC2 seed).
+
+### 2026-09-09 11:07 IST
+
+**Prompt:**  
+> Decision Points View tab: show count on page load like other tabs (not only after click).
+
+**Output:**  
+- **Root cause:** View label used `team.length` only after lazy `loadTeam()` on tab click; summary had no `view` count.
+- API `GET /decision-points?summary=1` now returns `view` (points raised by direct/indirect reports).
+- UI always shows `View ${counts.view}` (including 0); syncs count after team list load.
+- Files: `decision-points.controller.ts`, `api/domain.ts`, `screens/DecisionPoints.tsx`.
+
+### 2026-09-09 10:56 IST
+
+**Prompt:**  
+> RO Remarks still toast “at most 100” with 135 chars — fix.
+
+**Output:**  
+- Source already min-only; toast was from stale Docker API image.
+- Rebuilding `docker compose up -d --build api` so Nest drops max-100 check.
+
+### 2026-09-09 10:53 IST
+
+**Prompt:**  
+> RO Remarks: need minimum 100, not maximum 100.
+
+**Output:**  
+- Removed `MAX_RO_REMARKS_LENGTH` / `maxLength={100}` / API max-100 check.
+- Counter is `{n} (min 100)` (danger tint while under min); free-form text beyond 100 allowed.
+- Client + API still require `trim().length >= 100`.
+- Tests updated (4 passed) including >100 accepted.
+
+### 2026-09-09 10:51 IST
+
+**Prompt:**  
+> Weekly Check-In RO Remarks shows min 100 but allows fewer characters — check and correct.
+
+**Output:**  
+- **Root cause:** UI labeled `(min 100)` but client/API only required non-empty + max 100.
+- `data/weeklyCheckIn.ts` — `MIN_RO_REMARKS_LENGTH = 100`; `findFirstSubmissionIssue` rejects `< 100`.
+- `screens/WeeklyCheckInWorkspace.tsx` — counter uses trim length + `MIN_RO_REMARKS_LENGTH`.
+- `weekly-check-in.controller.ts` — API rejects `roRemarks` under 100 chars.
+- `tests/unit/weeklyCheckInRoRemarks.test.ts` — 3 passed.
+
+### 2026-09-02 14:40 IST
+
+**Prompt:**  
+> Live deploy all pending Team Projects work to EC2 (push & pull).
+
+**Output:**  
+- Committed `e907b9d` — Team Projects screen, API, tooltip, filter docs, tests (17 files).
+- Pushed `origin/main`; EC2 `bash scripts/ec2-deploy.sh --with-api` succeeded.
+- Verified: EC2 HEAD = `e907b9d96d30ccfc0282aca9485d290e4e458369`, `version.json` matches, API health `ok` / database `up`.
+
 ### 2026-09-02 12:28 IST
 
 **Prompt:**  

@@ -2,7 +2,7 @@ import { getAllAssignableKeys } from "./navConfig";
 
 const STORAGE_KEY = "oneview_access_rights_v1";
 const STORAGE_VERSION_KEY = "oneview_access_rights_version";
-const STORAGE_VERSION = 2;
+const STORAGE_VERSION = 3;
 
 export const SUPER_ADMIN_EMAIL = "admin@acme.io";
 
@@ -12,6 +12,7 @@ type RightsStore = Record<string, string[]>;
 const SEED_RIGHTS: RightsStore = {
   "EMP-1042": [
     "my_workspace",
+    "my_workspace.performance_card",
     "planner",
     "availability",
     "utilization",
@@ -24,9 +25,32 @@ const SEED_RIGHTS: RightsStore = {
     "my_team.weekly_check_in",
     "my_team.team_projects",
   ],
-  "EMP-1043": ["my_workspace", "planner", "confirmations", "reports.performance", "reports.daily_work", "reports.workday_summary"],
-  "EMP-1051": ["my_workspace", "confirmations", "reports.execution", "reports.daily_work", "reports.workday_summary", "my_team.weekly_check_in", "my_team.team_projects"],
-  "EMP-1088": ["my_workspace", "utilization", "confirmations", "my_team.weekly_check_in"],
+  "EMP-1043": [
+    "my_workspace",
+    "my_workspace.performance_card",
+    "planner",
+    "confirmations",
+    "reports.performance",
+    "reports.daily_work",
+    "reports.workday_summary",
+  ],
+  "EMP-1051": [
+    "my_workspace",
+    "my_workspace.performance_card",
+    "confirmations",
+    "reports.execution",
+    "reports.daily_work",
+    "reports.workday_summary",
+    "my_team.weekly_check_in",
+    "my_team.team_projects",
+  ],
+  "EMP-1088": [
+    "my_workspace",
+    "my_workspace.performance_card",
+    "utilization",
+    "confirmations",
+    "my_team.weekly_check_in",
+  ],
 };
 
 function readRawOverrides(): RightsStore {

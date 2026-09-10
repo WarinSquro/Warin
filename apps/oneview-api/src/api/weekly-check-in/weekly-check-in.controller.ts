@@ -477,11 +477,9 @@ export class WeeklyCheckInController {
         "Assessments can only be submitted for the last two weeks"
       );
     }
-    if (!body.roRemarks?.trim()) {
-      throw new BadRequestException("RO Remarks are required");
-    }
-    if (body.roRemarks.trim().length > 100) {
-      throw new BadRequestException("RO Remarks must be at most 100 characters");
+    const roRemarksLen = body.roRemarks?.trim().length ?? 0;
+    if (roRemarksLen < 100) {
+      throw new BadRequestException("RO Remarks must be at least 100 characters");
     }
 
     const ownerId = employee.resourceOwnerId ?? submitter.id;

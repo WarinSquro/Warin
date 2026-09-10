@@ -64,6 +64,37 @@ export function formatAppDate(
   }
 }
 
+/** Same as Settings date format but without the year (e.g. tooltip week ranges). */
+export function formatAppDateNoYear(
+  iso: string | null | undefined,
+  pattern: DateFormatPattern = "dd/MM/yyyy"
+): string {
+  if (!iso) return "—";
+  const p = partsFromIso(iso);
+  if (!p) {
+    const d = toDate(iso);
+    if (!d) return iso;
+    return formatAppDateNoYear(
+      `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`,
+      pattern
+    );
+  }
+  const dd = pad2(p.d);
+  const mm = pad2(p.m);
+  const mmm = MONTHS_SHORT[p.m - 1] ?? mm;
+  switch (pattern) {
+    case "MM/dd/yyyy":
+      return `${mm}/${dd}`;
+    case "yyyy-MM-dd":
+      return `${mm}-${dd}`;
+    case "dd-MMM-yyyy":
+      return `${dd}-${mmm}`;
+    case "dd/MM/yyyy":
+    default:
+      return `${dd}/${mm}`;
+  }
+}
+
 /** 12-hour clock in IST: hh:mm AM/PM (hour zero-padded). */
 export function formatAppTime12h(value: string | Date | null | undefined): string {
   const d = toDate(value);

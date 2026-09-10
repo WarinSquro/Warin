@@ -29,6 +29,13 @@ export const PERMISSION_PAGES: PermissionPage[] = [
     menuVisible: true,
   },
   {
+    key: "my_workspace.performance_card",
+    label: "Performance Card",
+    route: "/performance-card",
+    group: "My Workspace",
+    menuVisible: true,
+  },
+  {
     key: "planner",
     label: "Resource Planner",
     route: "/planner",

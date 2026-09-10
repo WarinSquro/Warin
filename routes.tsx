@@ -28,6 +28,7 @@ import { KpiFramework } from "./screens/KpiFramework";
 import { KpiResults } from "./screens/KpiResults";
 import { DecisionPoints } from "./screens/DecisionPoints";
 import { TeamProjects } from "./screens/TeamProjects";
+import { PerformanceCard } from "./screens/PerformanceCard";
 import { ChangePinRequired } from "./screens/ChangePinRequired";
 import { AccessRights } from "./screens/AccessRights";
 import { AccessDenied } from "./screens/AccessDenied";
@@ -77,6 +78,14 @@ function AppShellRoutes() {
       <Routes>
         <Route path="/" element={<DefaultRedirect />} />
         <Route path="/cockpit" element={<Guarded path="/cockpit"><ExecutiveCockpit /></Guarded>} />
+        <Route
+          path="/performance-card"
+          element={
+            <Guarded path="/performance-card" permissionKey="my_workspace.performance_card">
+              <PerformanceCard />
+            </Guarded>
+          }
+        />
         <Route path="/planning-conflicts" element={<Guarded path="/planning-conflicts"><PlanningConflicts /></Guarded>} />
         <Route path="/dashboard" element={<Navigate to="/cockpit" replace />} />
         <Route path="/exec-dashboard" element={<Navigate to="/cockpit" replace />} />

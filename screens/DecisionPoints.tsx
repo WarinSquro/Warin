@@ -75,7 +75,7 @@ export function DecisionPoints() {
   const [tab, setTab] = useState<Tab>("requiring");
   const [mine, setMine] = useState<DecisionPointListRow[]>([]);
   const [requiring, setRequiring] = useState<DecisionPointListRow[]>([]);
-  const [counts, setCounts] = useState({ mine: 0, requiring: 0 });
+  const [counts, setCounts] = useState({ mine: 0, requiring: 0, view: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [raiseOpen, setRaiseOpen] = useState(false);
@@ -95,7 +95,11 @@ export function DecisionPoints() {
         fetchDecisionPointsMine(),
         fetchDecisionPointsRequiringAction(),
       ]);
-      setCounts(summary);
+      setCounts({
+        mine: summary.mine,
+        requiring: summary.requiring,
+        view: summary.view ?? 0,
+      });
       setMine(mineRows);
       setRequiring(reqRows);
       if (summary.requiring === 0 && summary.mine > 0 && tab === "requiring") {
@@ -116,7 +120,9 @@ export function DecisionPoints() {
     setTeamLoading(true);
     setError(null);
     try {
-      setTeam(await fetchDecisionPointsTeam());
+      const rows = await fetchDecisionPointsTeam();
+      setTeam(rows);
+      setCounts((c) => ({ ...c, view: rows.length }));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load team Decision Points");
     } finally {
@@ -165,7 +171,7 @@ export function DecisionPoints() {
                 [
                   ["requiring", `Requiring my action ${counts.requiring}`],
                   ["mine", `Raised by me ${counts.mine}`],
-                  ["view", team.length > 0 ? `View ${team.length}` : "View"],
+                  ["view", `View ${counts.view}`],
                 ] as const
               ).map(([id, label]) => (
                 <button

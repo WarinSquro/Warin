@@ -24,6 +24,7 @@ import { EmployeeProjectMapsModule } from "./api/employee-project-maps/employee-
 import { ResourceLeavesModule } from "./api/resource-leaves/resource-leaves.module";
 import { DecisionPointsModule } from "./api/decision-points/decision-points.module";
 import { TeamProjectsModule } from "./api/team-projects/team-projects.module";
+import { PerformanceCardModule } from "./api/performance-card/performance-card.module";
 
 @Module({
   imports: [
@@ -68,6 +69,7 @@ import { TeamProjectsModule } from "./api/team-projects/team-projects.module";
     KpiModule,
     DecisionPointsModule,
     TeamProjectsModule,
+    PerformanceCardModule,
     HardDeleteModule,
   ],
   controllers: [HealthController],

@@ -1664,7 +1664,11 @@ export type DecisionPointRaiseOptions = {
   hasResourceOwner: boolean;
 };
 
-export async function fetchDecisionPointSummary(): Promise<{ mine: number; requiring: number }> {
+export async function fetchDecisionPointSummary(): Promise<{
+  mine: number;
+  requiring: number;
+  view: number;
+}> {
   return apiFetch("/decision-points?summary=1");
 }
 
@@ -1754,5 +1758,130 @@ export async function fetchTeamProjects(
 ): Promise<{ items: TeamProjectCard[]; weekStart: string; weekEnd: string }> {
   const q = status === "active" ? "" : `?status=${encodeURIComponent(status)}`;
   return apiFetch(`/team-projects${q}`);
+}
+
+export type PerfCardResource = {
+  employeeId: string;
+  hrmsId: string;
+  name: string;
+  relation: "self" | "direct" | "indirect";
+};
+
+export type PerfCardMetricPoint = {
+  current: number | null;
+  previous: number | null;
+  arrow: "up" | "down" | "same" | null;
+  trend: "Improving" | "Improved" | "Off Track" | "Concern" | "Same" | null;
+};
+
+export type PerfCardPayload = {
+  resource: {
+    employeeId: string;
+    hrmsId: string;
+    name: string;
+    department: string | null;
+  };
+  period: {
+    id: string;
+    from: string;
+    to: string;
+    previousFrom: string;
+    previousTo: string;
+    customWeeks: string[];
+    availableWeeks: Array<{ monday: string; label: string }>;
+  };
+  summary: {
+    behavioural: PerfCardMetricPoint;
+    technical: PerfCardMetricPoint;
+    planningAccuracy: PerfCardMetricPoint;
+    confirmationDiscipline: PerfCardMetricPoint;
+    focusPct: PerfCardMetricPoint;
+    unplannedPct: PerfCardMetricPoint;
+    billableSplitPct: PerfCardMetricPoint;
+  };
+  competencies: {
+    behavioural: Array<{ id: string; code?: string; name: string; score: number | null; kind: string }>;
+    technical: Array<{ id: string; code?: string; name: string; score: number | null; kind: string }>;
+    behaviouralAvg: number | null;
+    technicalAvg: number | null;
+    historyWeeks?: string[];
+    history?: Array<{
+      weekStart: string;
+      raterName: string;
+      behavioural: Record<string, number>;
+      technical: Record<string, number>;
+    }>;
+  };
+  productivity: Array<{
+    id: string;
+    label: string;
+    current: number | null;
+    previous: number | null;
+    currentDisplay: string;
+    previousDisplay: string;
+    trend: PerfCardMetricPoint["trend"];
+    arrow: PerfCardMetricPoint["arrow"];
+    countOnly: boolean;
+    direction: string;
+  }>;
+  contribution: {
+    rows: Array<{
+      project: string;
+      plannedHrs: number;
+      actualHrs: number;
+      sharePct: number | null;
+      billableHrs: number;
+    }>;
+    totals: {
+      plannedHrs: number;
+      actualHrs: number;
+      sharePct: number | null;
+      billableHrs: number;
+    };
+  };
+  snapshot: {
+    strengths: Array<{ id: string; label: string; value: string }>;
+    needsAttention: Array<{ id: string; label: string; value: string }>;
+    kpiAchievement: {
+      calendarYear: number;
+      assessmentCycle: string;
+      label: string;
+      items: Array<{
+        id: string;
+        name: string;
+        result: number | null;
+        score: number | null;
+        unit: string;
+        status: string;
+      }>;
+    };
+  };
+  weekHistory: Array<{
+    weekStart: string;
+    label: string;
+    metrics: Record<string, number | null>;
+  }>;
+  trendBasis: Array<{
+    from: string;
+    to: string;
+    label: string;
+    metrics: Record<string, number | null>;
+  }>;
+};
+
+export async function fetchPerformanceCardResources(): Promise<{ resources: PerfCardResource[] }> {
+  return apiFetch("/performance-card/resources");
+}
+
+export async function fetchPerformanceCard(params: {
+  employeeHrmsId?: string;
+  period: string;
+  weeks?: string[];
+}): Promise<PerfCardPayload> {
+  const q = new URLSearchParams();
+  if (params.employeeHrmsId) q.set("employeeHrmsId", params.employeeHrmsId);
+  q.set("period", params.period);
+  if (params.weeks?.length) q.set("weeks", params.weeks.join(","));
+  return apiFetch(`/performance-card?${q.toString()}`);
 }
 

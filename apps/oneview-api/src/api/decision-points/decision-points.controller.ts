@@ -261,7 +261,8 @@ export class DecisionPointsController {
       throw new BadRequestException("Use /decision-points/mine or /requiring-action");
     }
     const actor = await this.requireActor(req.user);
-    const [mine, requiring] = await Promise.all([
+    const reportIds = await this.reportSubtreeIds(actor.id);
+    const [mine, requiring, view] = await Promise.all([
       this.prisma.decisionPoint.count({
         where: { raisedById: actor.id, isDeleted: false },
       }),
@@ -272,8 +273,13 @@ export class DecisionPointsController {
           status: { in: OPEN_STATUSES },
         },
       }),
+      reportIds.length === 0
+        ? Promise.resolve(0)
+        : this.prisma.decisionPoint.count({
+            where: { raisedById: { in: reportIds }, isDeleted: false },
+          }),
     ]);
-    return { mine, requiring };
+    return { mine, requiring, view };
   }
 
   @Get("raise-options")

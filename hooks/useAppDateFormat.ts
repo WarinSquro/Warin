@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { useSettings } from "../context/SettingsContext";
 import {
   formatAppDate,
+  formatAppDateNoYear,
   formatAppDateTime,
   formatAppDateWithWeekday,
   formatAppTime12h,
@@ -17,6 +18,10 @@ export function useAppDateFormat() {
     (iso: string | null | undefined) => formatAppDate(iso, pattern),
     [pattern]
   );
+  const formatDateNoYear = useCallback(
+    (iso: string | null | undefined) => formatAppDateNoYear(iso, pattern),
+    [pattern]
+  );
   const formatDateTime = useCallback(
     (value: string | Date | null | undefined) => formatAppDateTime(value, pattern),
     [pattern]
@@ -30,5 +35,12 @@ export function useAppDateFormat() {
     [pattern]
   );
 
-  return { dateFormat: pattern, formatDate, formatDateTime, formatTime, formatDateWithWeekday };
+  return {
+    dateFormat: pattern,
+    formatDate,
+    formatDateNoYear,
+    formatDateTime,
+    formatTime,
+    formatDateWithWeekday,
+  };
 }
