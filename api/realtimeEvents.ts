@@ -10,7 +10,8 @@ export type DataResource =
   | "weekly-check-in"
   | "access-rights"
   | "kpi"
-  | "decision-points";
+  | "decision-points"
+  | "session";
 
 export type DataChangedEvent = {
   v: 1;

@@ -873,24 +873,38 @@ export class PerformanceCardController {
     const hoursByReason = new Map<string, number>(
       UNPLANNED_WORK_REASONS.map((r) => [r, 0])
     );
+    let otherHrs = 0;
     for (const c of confirmations) {
       for (const line of c.lines) {
         if (line.kind !== "unplanned") continue;
         const reason = (line.reason ?? "").trim();
-        if (!hoursByReason.has(reason)) continue;
-        hoursByReason.set(reason, (hoursByReason.get(reason) ?? 0) + line.actualHours);
+        if (hoursByReason.has(reason)) {
+          hoursByReason.set(reason, (hoursByReason.get(reason) ?? 0) + line.actualHours);
+        } else {
+          // Legacy / free-text / empty reasons still count toward Unplanned % — keep totals aligned.
+          otherHrs += line.actualHours;
+        }
       }
     }
 
-    const totalHrs = [...hoursByReason.values()].reduce((s, h) => s + h, 0);
-    const rows = UNPLANNED_WORK_REASONS.map((reason) => {
-      const hrs = hoursByReason.get(reason) ?? 0;
-      return {
-        reason,
-        hrs: round1(hrs),
-        sharePct: totalHrs > 0 ? round0((hrs / totalHrs) * 100) : null,
-      };
-    });
+    const knownHrs = [...hoursByReason.values()].reduce((s, h) => s + h, 0);
+    const totalHrs = knownHrs + otherHrs;
+    const rows: Array<{ reason: string; hrs: number; sharePct: number | null }> =
+      UNPLANNED_WORK_REASONS.map((reason) => {
+        const hrs = hoursByReason.get(reason) ?? 0;
+        return {
+          reason,
+          hrs: round1(hrs),
+          sharePct: totalHrs > 0 ? round0((hrs / totalHrs) * 100) : null,
+        };
+      });
+    if (otherHrs > 0) {
+      rows.push({
+        reason: "Other",
+        hrs: round1(otherHrs),
+        sharePct: totalHrs > 0 ? round0((otherHrs / totalHrs) * 100) : null,
+      });
+    }
 
     return {
       rows,

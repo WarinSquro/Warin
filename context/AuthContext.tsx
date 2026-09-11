@@ -47,6 +47,8 @@ type SessionUser = {
 
 interface AuthContextValue {
   sessionEmail: string | null;
+  /** Internal employee PK (string) — matches JWT sub / SSE session actorId. */
+  userId: string | null;
   currentEmployee: Employee | null;
   isSuperAdmin: boolean;
   allowedKeys: Set<string>;
@@ -403,6 +405,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     (): AuthContextValue => ({
       sessionEmail,
+      userId: user?.id ?? null,
       currentEmployee,
       isSuperAdmin,
       allowedKeys,
@@ -418,6 +421,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }),
     [
       sessionEmail,
+      user?.id,
       currentEmployee,
       isSuperAdmin,
       allowedKeys,

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { ProductLogo } from "./ProductLogo";
 import { RouteErrorBoundary } from "./RouteErrorBoundary";
+import { DATA_CHANGED_EVENT, type DataChangedEvent } from "../api/realtimeEvents";
 import { useAuth } from "../context/AuthContext";
 import { getMenuNavItems } from "../data/navConfig";
 
@@ -59,8 +60,31 @@ const NAV_ICONS: Record<string, LucideIcon> = {
 };
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { isSuperAdmin, allowedKeys } = useAuth();
+  const { isSuperAdmin, allowedKeys, userId } = useAuth();
   const navGroups = getMenuNavItems(allowedKeys, isSuperAdmin);
+  const [sessionLoginWarn, setSessionLoginWarn] = useState(false);
+  const sessionWarnTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    const onDataChanged = (ev: Event) => {
+      const detail = (ev as CustomEvent<DataChangedEvent>).detail;
+      if (detail?.resource !== "session" || detail.actorId !== userId) return;
+      setSessionLoginWarn(true);
+      if (sessionWarnTimer.current != null) window.clearTimeout(sessionWarnTimer.current);
+      sessionWarnTimer.current = window.setTimeout(() => {
+        sessionWarnTimer.current = null;
+        setSessionLoginWarn(false);
+      }, 3500);
+    };
+
+    window.addEventListener(DATA_CHANGED_EVENT, onDataChanged);
+    return () => {
+      window.removeEventListener(DATA_CHANGED_EVENT, onDataChanged);
+      if (sessionWarnTimer.current != null) window.clearTimeout(sessionWarnTimer.current);
+    };
+  }, [userId]);
 
   const exactMatchRoutes = useMemo(() => {
     const routes = navGroups.flatMap((g) => g.items.map((i) => i.to));
@@ -78,8 +102,15 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background">
-      <aside className="flex w-[236px] flex-shrink-0 flex-col bg-brand text-brand-fg">
-        <div className="flex h-14 flex-shrink-0 items-center justify-center border-b border-brand-border bg-brand px-3">
+      <aside className="flex w-[236px] flex-shrink-0 flex-col bg-brand text-brand-fg print:hidden">
+        <div className="relative flex h-14 flex-shrink-0 items-center justify-center border-b border-brand-border bg-brand px-3">
+          {sessionLoginWarn ? (
+            <span
+              className="session-login-warn absolute left-3 top-1/2 z-[1] h-2 w-2 -translate-y-1/2 rounded-full bg-danger"
+              title="Another device is trying to sign in with your account"
+              aria-label="Another device is trying to sign in with your account"
+            />
+          ) : null}
           <ProductLogo variant="contrast" height={26} className="max-w-[176px]" />
         </div>
 

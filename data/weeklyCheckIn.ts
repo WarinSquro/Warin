@@ -1082,7 +1082,7 @@ export function rankingChipClass(level: RankingLevel, selected = true): string {
   }
 }
 
-/** Solid bar fill aligned with Ranking Master chip color tokens. */
+/** Progress bar fill: Ranking Master chip hue, slightly darker than chip BG for thin bars. */
 export function rankingBarFillClass(level: RankingLevel): string {
   const tokenLevel =
     typeof level.color === "string" && level.color.startsWith("#")
@@ -1093,15 +1093,16 @@ export function rankingBarFillClass(level: RankingLevel): string {
     case "success":
       return "bg-success";
     case "accent":
-      return "bg-accent-softfg";
+      // Mix soft BG with soft-fg so bars read clearly (chip BG alone is too pale at 6px).
+      return "bg-[color-mix(in_srgb,var(--color-accent-soft-fg)_42%,var(--color-accent-soft))]";
     case "warning":
-      return "bg-warning";
+      return "bg-[color-mix(in_srgb,var(--color-warning)_40%,var(--color-warning-soft))]";
     case "danger-soft":
-      return "bg-danger";
+      return "bg-[color-mix(in_srgb,var(--color-danger)_36%,var(--color-danger-soft))]";
     case "danger":
       return "bg-danger";
     default:
-      return "bg-muted-foreground";
+      return "bg-surface-alt";
   }
 }
 

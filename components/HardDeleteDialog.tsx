@@ -122,7 +122,7 @@ export function HardDeleteDialog({
                 setEmail(e.target.value);
                 setLocalError(null);
               }}
-              placeholder="name@acme.io"
+              placeholder="Enter email"
               className="h-[42px] w-full rounded-md border border-border bg-white px-3 text-[13px] text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
             />
           </div>

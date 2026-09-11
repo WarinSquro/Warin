@@ -10,6 +10,7 @@ import { HashingService } from "@oneview/security";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { MailService, SmtpNotConfiguredError, SMTP_NOT_CONFIGURED_CODE } from "@oneview/mail";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
+import { DomainEventsService } from "../realtime/domain-events.service";
 import { SessionAuthCache } from "./session-auth.cache";
 import { isAllowedIpSatisfied } from "./client-ip";
 import type { SessionClientMeta } from "./session-client-meta";
@@ -57,7 +58,8 @@ export class AuthService {
     private readonly hashing: HashingService,
     private readonly jwt: JwtService,
     private readonly mail: MailService,
-    private readonly sessionCache: SessionAuthCache
+    private readonly sessionCache: SessionAuthCache,
+    private readonly domainEvents: DomainEventsService
   ) {}
 
   private hashToken(token: string) {
@@ -216,7 +218,7 @@ export class AuthService {
 
     this.assertAllowedClientIp(employee.allowedIp, meta.ipAddress);
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM employees WHERE id = ${employee.id} FOR UPDATE`;
 
       const active = await tx.refreshToken.findFirst({
@@ -291,6 +293,13 @@ export class AuthService {
         user: this.userPayload(employee, permissionKeys),
       });
     });
+
+    if (result.status === "session_conflict") {
+      // Notify the already-signed-in client (SSE) to flash a short warning beside the logo.
+      void this.domainEvents.publish("session", "update", employee.id.toString());
+    }
+
+    return result;
   }
 
   /** Accept takeover after session_conflict confirmation. */

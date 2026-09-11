@@ -50,7 +50,7 @@ export function ToastViewport({
 
   return (
     <div
-      className="pointer-events-none fixed bottom-4 right-4 z-[100] flex w-[min(100vw-2rem,22rem)] flex-col-reverse gap-2"
+      className="pointer-events-none fixed bottom-4 right-4 z-[100] flex w-[min(100vw-2rem,22rem)] flex-col-reverse gap-2 print:hidden"
       aria-live="polite"
       aria-relevant="additions"
     >

@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { Info, X } from "lucide-react";
+import { FileText, Info, X } from "lucide-react";
 import {
   fetchPerformanceCard,
   fetchPerformanceCardResources,
@@ -12,6 +12,7 @@ import { FilterSingleSelect } from "../components/FilterSingleSelect";
 import { UNPLANNED_WORK_REASONS } from "../data/confirmation";
 import type { DepartmentCompetency } from "../data/weeklyCheckIn";
 import { useAuth } from "../context/AuthContext";
+import { useSettings } from "../context/SettingsContext";
 import { useToast } from "../context/ToastContext";
 import { useAppDateFormat } from "../hooks/useAppDateFormat";
 import {
@@ -31,6 +32,7 @@ import {
   type PerfCardPeriodId,
   type TrendStatus,
 } from "../utils/performanceCard";
+import { exportPerformanceCardPdf } from "../utils/performanceCardExport";
 import { addDaysISO } from "../utils/reportPeriods";
 import { exportReportExcel } from "../utils/reportExport";
 
@@ -55,11 +57,6 @@ function unplannedShareBarFill(pct: number | null | undefined): string {
   if (pct <= 10) return "bg-success";
   if (pct <= 15) return "bg-warning";
   return "bg-danger";
-}
-
-function fmtNum(v: number | null | undefined, suffix = ""): string {
-  if (v == null || !Number.isFinite(v)) return "—";
-  return `${Number.isInteger(v) ? v : v.toFixed(1)}${suffix}`;
 }
 
 function Arrow({ arrow }: { arrow: "up" | "down" | "same" | null }) {
@@ -155,6 +152,7 @@ function quarterMonthRange(cycle: string): string {
 export function PerformanceCard() {
   const toast = useToast();
   const { formatDate } = useAppDateFormat();
+  const { settings } = useSettings();
   const { currentEmployee } = useAuth();
   const [resources, setResources] = useState<PerfCardResource[]>([]);
   const [hrmsId, setHrmsId] = useState("");
@@ -167,7 +165,9 @@ export function PerformanceCard() {
   const [compModalOpen, setCompModalOpen] = useState(false);
   const [compModalFocus, setCompModalFocus] = useState<"behavioural" | "technical">("behavioural");
   const [trendHelpOpen, setTrendHelpOpen] = useState(false);
+  const [unplannedHelpOpen, setUnplannedHelpOpen] = useState(false);
   const [rankingLevels, setRankingLevels] = useState<RankingLevel[]>(DEFAULT_RANKING_LEVELS);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -275,6 +275,21 @@ export function PerformanceCard() {
     });
   }, [data]);
 
+  const handleExportPdf = useCallback(() => {
+    if (!data || loading || exportingPdf) return;
+    setExportingPdf(true);
+    try {
+      const result = exportPerformanceCardPdf(data, {
+        formatDate,
+        dateFormat: settings.dateFormat,
+      });
+      if (result.ok) toast.success(result.message);
+      else toast.error(result.message);
+    } finally {
+      setExportingPdf(false);
+    }
+  }, [data, loading, exportingPdf, formatDate, settings.dateFormat, toast]);
+
   const toggleWeek = (monday: string) => {
     setCustomWeeks((prev) => {
       const next = prev.includes(monday) ? prev.filter((w) => w !== monday) : [...prev, monday];
@@ -306,6 +321,16 @@ export function PerformanceCard() {
             options={PERF_CARD_PERIOD_OPTIONS.map((o) => ({ value: o.id, label: o.label }))}
             aria-label="Period"
           />
+          <button
+            type="button"
+            onClick={handleExportPdf}
+            disabled={!data || loading || exportingPdf}
+            className="flex cursor-pointer items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1.5 text-[12px] font-medium text-foreground hover:bg-surface-alt disabled:cursor-not-allowed disabled:opacity-50"
+            title="Export Performance Card as PDF"
+          >
+            <FileText className="h-3.5 w-3.5" />
+            {exportingPdf ? "…" : "PDF"}
+          </button>
         </div>
       </header>
 
@@ -360,7 +385,7 @@ export function PerformanceCard() {
             </div>
 
             {/* Summary cards */}
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <div className="perf-card-print-break grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
               <SummaryCard title="Competency">
                 <MiniMetric
                   label="Behavioural"
@@ -434,7 +459,7 @@ export function PerformanceCard() {
             </div>
 
             {/* Behavioural + Technical as separate cards (UI PDF) */}
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div className="perf-card-print-break grid grid-cols-1 gap-4 lg:grid-cols-2">
               <CompetencyCard
                 title="Behavioural Competencies"
                 kind="behavioural"
@@ -464,7 +489,7 @@ export function PerformanceCard() {
             </div>
 
             {/* Work & Productivity + Contribution */}
-            <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-2">
+            <div className="perf-card-print-break grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-2">
               <section className="min-w-0 overflow-hidden rounded-lg border border-border bg-surface p-4">
                 <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
                   <div className="flex items-center gap-1">
@@ -474,14 +499,14 @@ export function PerformanceCard() {
                     <button
                       type="button"
                       onClick={() => setTrendHelpOpen(true)}
-                      className="inline-flex cursor-pointer rounded p-0.5 text-muted-foreground hover:bg-surface-alt hover:text-foreground"
+                      className="inline-flex cursor-pointer rounded p-0.5 text-muted-foreground hover:bg-surface-alt hover:text-foreground print:hidden"
                       aria-label="Trend values help"
                       title="Trend values"
                     >
                       <Info className="h-3.5 w-3.5" />
                     </button>
                   </div>
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-[11px] text-muted-foreground print:hidden">
                     Click a row for last 12 weeks
                   </span>
                 </div>
@@ -615,10 +640,18 @@ export function PerformanceCard() {
 
               <section className="min-w-0 overflow-hidden rounded-lg border border-border bg-surface p-4">
                 <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-                  <h2 className="text-[13px] font-semibold text-foreground">Unplanned</h2>
-                  <span className="text-[11px] text-muted-foreground">
-                    Work Confirmation reasons
-                  </span>
+                  <div className="flex items-center gap-1">
+                    <h2 className="text-[13px] font-semibold text-foreground">Unplanned</h2>
+                    <button
+                      type="button"
+                      onClick={() => setUnplannedHelpOpen(true)}
+                      className="inline-flex cursor-pointer rounded p-0.5 text-muted-foreground hover:bg-surface-alt hover:text-foreground print:hidden"
+                      aria-label="Unplanned work reasons help"
+                      title="Unplanned work reasons"
+                    >
+                      <Info className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
                 <table className="w-full table-fixed text-left text-[12px]">
                   <colgroup>
@@ -681,7 +714,7 @@ export function PerformanceCard() {
             </div>
 
             {/* Snapshot */}
-            <section className="rounded-lg border border-border bg-surface p-4">
+            <section className="perf-card-print-break rounded-lg border border-border bg-surface p-4">
               <h2 className="mb-3 text-[13px] font-semibold text-foreground">Performance Snapshot</h2>
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:gap-0 lg:divide-x lg:divide-[#E4E7EC]">
                 <div className="flex min-h-0 flex-col lg:pr-4">
@@ -721,7 +754,7 @@ export function PerformanceCard() {
                     )}
                   </ul>
                   <p className="mt-auto pt-3 text-[10px] leading-snug text-muted-foreground">
-                    Derived from recorded values and trend only — no generated commentary.
+                    Derived from recorded values and trend only.
                   </p>
                 </div>
                 <div className="flex min-h-0 flex-col border-t border-border-soft pt-4 lg:border-t-0 lg:pl-4 lg:pt-0">
@@ -749,9 +782,6 @@ export function PerformanceCard() {
                       ))
                     )}
                   </ul>
-                  <p className="mt-auto pt-3 text-[10px] leading-snug text-muted-foreground">
-                    KPI stays quarterly and is not restated for the selected period.
-                  </p>
                 </div>
               </div>
             </section>
@@ -760,6 +790,9 @@ export function PerformanceCard() {
       </div>
 
       {trendHelpOpen && <ProductivityTrendHelpModal onClose={() => setTrendHelpOpen(false)} />}
+      {unplannedHelpOpen && (
+        <UnplannedReasonsHelpModal onClose={() => setUnplannedHelpOpen(false)} />
+      )}
 
       {data && metricModalId && metricModalIndex >= 0 && (
         <MetricHistoryModal
@@ -869,6 +902,65 @@ function ProductivityTrendHelpModal({ onClose }: { onClose: () => void }) {
               ))}
             </tbody>
           </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function UnplannedReasonsHelpModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+      <div className="absolute inset-0 bg-brand/40" onClick={onClose} aria-hidden />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="unplanned-reasons-help-title"
+        className="relative z-10 flex max-h-[85vh] w-full max-w-[640px] flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-2xl"
+      >
+        <div className="flex flex-shrink-0 items-center justify-between border-b border-border-soft px-5 py-3.5">
+          <div
+            id="unplanned-reasons-help-title"
+            className="text-[15px] font-semibold text-foreground"
+          >
+            Unplanned work reasons
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="cursor-pointer rounded p-1 text-muted-foreground hover:bg-surface-alt hover:text-foreground"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          <div className="overflow-hidden rounded-md border border-border">
+            <table className="w-full table-fixed border-collapse text-left text-[12px]">
+              <colgroup>
+                <col className="w-[38%]" />
+                <col />
+              </colgroup>
+              <thead>
+                <tr className="border-b border-border bg-surface-alt">
+                  <th className="border-r border-border px-2.5 py-2 font-semibold text-foreground">
+                    Reason
+                  </th>
+                  <th className="px-2.5 py-2 font-semibold text-foreground">Explanation</th>
+                </tr>
+              </thead>
+              <tbody>
+                {UNPLANNED_WORK_REASONS.map((r) => (
+                  <tr key={r.value} className="border-b border-border last:border-b-0 align-top">
+                    <td className="border-r border-border px-2.5 py-2 font-medium text-foreground">
+                      {r.value}
+                    </td>
+                    <td className="break-words px-2.5 py-2 text-muted-foreground">{r.hint}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -1112,7 +1204,7 @@ function CompetencyCard({
           <button
             type="button"
             onClick={() => setGuideOpen(true)}
-            className="inline-flex cursor-pointer rounded p-0.5 text-muted-foreground hover:bg-surface-alt hover:text-foreground"
+            className="inline-flex cursor-pointer rounded p-0.5 text-muted-foreground hover:bg-surface-alt hover:text-foreground print:hidden"
             aria-label={`${title} guide`}
             title={`${title} guide`}
           >
@@ -1150,7 +1242,7 @@ function CompetencyCard({
         <button
           type="button"
           onClick={onViewDetail}
-          className="shrink-0 cursor-pointer text-[11px] font-medium text-brand hover:underline"
+          className="shrink-0 cursor-pointer text-[11px] font-medium text-brand hover:underline print:hidden"
         >
           View 12-week detail →
         </button>
@@ -1158,6 +1250,7 @@ function CompetencyCard({
       {guideOpen ? (
         <CompetencyGuideModal
           dialogTitle={title}
+          showSectionHeaders={false}
           groups={[
             {
               title: kind === "behavioural" ? "Behavioural" : "Technical",
@@ -1298,7 +1391,7 @@ function MetricHistoryModal({
   const nextId = metricIds[(idx + 1) % metricIds.length]!;
 
   const missingWeeks = data.weekHistory
-    .map((w, i) => (isEmptyWeekValue(values[i]) ? `W${String(i + 1).padStart(2, "0")}` : null))
+    .map((_w, i) => (isEmptyWeekValue(values[i]) ? `W${String(i + 1).padStart(2, "0")}` : null))
     .filter(Boolean) as string[];
 
   const basisMonthShort = (iso: string) => {
@@ -1813,6 +1906,17 @@ function scoreBarFill(s: number | null, levels: RankingLevel[] = DEFAULT_RANKING
   return level ? rankingBarFillClass(level) : "";
 }
 
+/**
+ * Competency Detail (12-week modal) average-row bars only.
+ * ≤3 red · >3 and ≤4 amber · >4 green.
+ */
+function competencyDetailAvgBarFill(score: number | null): string {
+  if (score == null || !Number.isFinite(score)) return "";
+  if (score <= 3) return "bg-danger";
+  if (score <= 4) return "bg-warning";
+  return "bg-success";
+}
+
 function ScoreCell({
   score,
   rankingLevels = DEFAULT_RANKING_LEVELS,
@@ -2178,7 +2282,7 @@ function CompetencyHistoryModal({
                             v == null || v <= 0
                               ? 0
                               : Math.max(2, Math.round((v / weekAvgMax) * 26 * 10) / 10);
-                          const barFill = scoreBarFill(v, rankingLevels);
+                          const barFill = competencyDetailAvgBarFill(v);
                           return (
                             <td key={weeks[i] ?? i} className="p-0.5 align-bottom">
                               <div className="flex h-[40px] flex-col items-center justify-end gap-0.5">

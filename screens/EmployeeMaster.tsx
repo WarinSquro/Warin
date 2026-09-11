@@ -585,7 +585,7 @@ function EmployeeDrawer({
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-foreground outline-none focus:border-accent-line"
-              placeholder="name@acme.io"
+              placeholder="Enter email"
             />
           </Field>
           <Field label="Department" required>

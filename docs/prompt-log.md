@@ -32,6 +32,157 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-09-11 15:25 IST
+
+**Prompt:**  
+> Revert to structured PDF export; fix trend values (see Performance_Card_Gaurav_Pithwa PDF) — keep button label PDF.
+
+**Output:**  
+- Root cause: Unicode arrows (↑↓→) in Trend cells are not in Helvetica → mojibake (`!'` / `!“`) and letter-spaced words (`O f f T r a c k`).
+- Restored structured multi-section export (`performanceCardExport.ts` + `exportMultiSectionPdf`); **PDF** button downloads again (not browser print).
+- Trends now ASCII: e.g. `Down - Off Track`, `Up - Improved`, `Same`, `-`.
+- `cellToPdf` also remaps arrows/dashes as a safety net for all report PDFs.
+
+### 2026-09-11 15:10 IST
+
+**Prompt:**  
+> Export PDF that looks like the on-screen Performance Card (not screenshot); rename button to "PDF".
+
+**Output:**  
+- Button label **PDF**; uses browser print (`window.print`) + print CSS so layout matches the card (Save as PDF in the print dialog).
+- Hides sidebar, filters, PDF button, help/info affordances, toasts, and open modals while printing; expands overflow so full card paginates.
+- Removed structured `performanceCardExport.ts` / multi-section PDF helpers (no longer used).
+- Files: `screens/PerformanceCard.tsx`, `index.css`, `components/AppShell.tsx`, `components/ToastViewport.tsx`, `utils/reportExport.ts`.
+
+### 2026-09-11 14:55 IST
+
+**Prompt:**  
+> Put "Export PDF" button top right after day/week/month selection dropdown and implement Export to PDF (structured PDF).
+
+**Output:**  
+- Header: **Export PDF** after period `FilterSingleSelect` (disabled while loading / no data).
+- `utils/reportExport.ts`: `exportMultiSectionPdf` + `runMultiSectionPdfExport` (multi-table PDF).
+- `utils/performanceCardExport.ts`: maps `PerfCardPayload` → Summary, Competencies, Productivity, Contribution, Unplanned, Snapshot/KPI, optional Competency 12-week appendix.
+- Toast via `useToast` on success/failure; uses Settings date format for Generated line.
+
+### 2026-09-11 14:35 IST
+
+**Prompt:**  
+> When another device tries to log in with the same credentials (session conflict), show a blinking red circle beside the logo for 3–4s on the already logged-in user’s screen.
+
+**Output:**  
+- API: on `session_conflict` login, publish SSE `resource: "session"` with `actorId` = employee id (`auth.service.ts` + `DataResource` in API + client).
+- Client: `AppShell` listens for that event when `actorId === userId`; blinking solid red dot top-left of sidebar logo for 3.5s (`.session-login-warn` in `index.css`).
+- Local: `npx nest build` OK; full `docker compose up -d --build api` failed mid-`npm ci`; hotpatched `auth.service.js` into `oneview-api` + restart — Nest started and publish line present in container.
+- How to verify: Device A logged in (SSE connected) → Device B same credentials until conflict dialog → Device A should see blink beside logo, then auto-hide after ~3.5s.
+
+### 2026-09-11 13:43 IST
+
+**Prompt:**  
+> Replace “name@acme.io” with “Enter email”.
+
+**Output:**  
+- Placeholder updated in `screens/Login.tsx`, `screens/ForgotPin.tsx`, `screens/EmployeeMaster.tsx`, `components/HardDeleteDialog.tsx`.
+
+### 2026-09-11 12:55 IST
+
+**Prompt:**  
+> Hide Behavioural/Technical Competencies section headers in Performance Card competency guide popup; keep them on Weekly Check-In.
+
+**Output:**  
+- `CompetencyGuideModal`: added `showSectionHeaders` (default `true`).
+- Weekly Check-In (`WeeklyCheckInCompetencyRating`) unchanged → headers still show.
+- Performance Card `CompetencyCard` passes `showSectionHeaders={false}`.
+
+### 2026-09-11 12:50 IST
+
+**Prompt:**  
+> Restore Technical Competencies / Behavioural Competencies subheadings in CompetencyGuideModal (match attached image).
+
+**Output:**  
+- Restored section header rows in `CompetencyGuideModal` (`components/WeeklyCheckInCompetencyRating.tsx`) — was removed earlier per prior request; now matches Weekly Check-In guide again.
+
+### 2026-09-11 12:43 IST
+
+**Prompt:**  
+> Remove “— no generated commentary.” from Needs Attention footnote.
+
+**Output:**  
+- Footnote now: “Derived from recorded values and trend only.” (`screens/PerformanceCard.tsx`).
+
+### 2026-09-11 11:49 IST
+
+**Prompt:**  
+> Unplanned card shows 0h total but Needs Attention shows Unplanned Work 61% — check and fix.
+
+**Output:**  
+- Root cause: `unplannedPct` counts all `kind=unplanned` hours; `computeUnplannedByReason` skipped lines whose reason was not one of the 5 canonical values (legacy/empty/free-text).
+- Fix: bucket unknown reasons into an **Other** row (only when hours > 0) so card TOTAL matches Unplanned % hours.
+- File: `performance-card.controller.ts`. Rebuild Docker API (`:8080`) to pick up.
+
+### 2026-09-11 11:40 IST
+
+**Prompt:**  
+> Remove “KPI stays quarterly and is not restated for the selected period.” footnote.
+
+**Output:**  
+- Removed the KPI Achievement footer note from `screens/PerformanceCard.tsx`.
+
+### 2026-09-11 10:58 IST
+
+**Prompt:**  
+> Remove “Work Confirmation reasons” text; move (i) icon next to Unplanned title.
+
+**Output:**  
+- Unplanned card header now matches Work & Productivity: title + info icon only (`screens/PerformanceCard.tsx`).
+
+### 2026-09-11 10:55 IST
+
+**Prompt:**  
+> Unplanned card: put (i) icon next to Work Confirmation reasons; click opens reason + explanation table popup.
+
+**Output:**  
+- Added info button + `UnplannedReasonsHelpModal` in `screens/PerformanceCard.tsx` (Reason / Explanation from `UNPLANNED_WORK_REASONS`).
+- Prompt log updated.
+
+### 2026-09-11 10:51 IST
+
+**Prompt:**  
+> Competency Detail Last 12 Weeks average row bars: ≤3 red, >3–≤4 amber, >4 green — that modal only.
+
+**Output:**  
+- Added `competencyDetailAvgBarFill` in `screens/PerformanceCard.tsx`; wired only to CompetencyHistoryModal `{kind} average` week bars.
+- Thresholds: `<=3` → `bg-danger`, `>3 && <=4` → `bg-warning`, `>4` → `bg-success`.
+- CompetencyCard / Ranking Master / ScoreCell unchanged.
+
+### 2026-09-11 10:13 IST
+
+**Prompt:**  
+> Competency bar `bg-accent-soft` tone is right but too light — darken same hue for readability.
+
+**Output:**  
+- `rankingBarFillClass` now mixes chip soft BG with soft-fg / status color (~40%) for accent / warning / danger-soft so thin bars stay the same tone but darker; solid success/danger unchanged.
+- File: `data/weeklyCheckIn.ts`. Chips still use soft BG.
+
+### 2026-09-11 10:00 IST
+
+**Prompt:**  
+> CompetencyCard bar colors not matched with Ranking Master — use chip BG, not text color.
+
+**Output:**  
+- Root cause: `rankingBarFillClass` used text-like tokens (`bg-accent-softfg`, `bg-warning`, `bg-danger` for soft) instead of chip backgrounds.
+- Updated `data/weeklyCheckIn.ts` to use chip BG tokens: `bg-success`, `bg-accent-soft`, `bg-warning-soft`, `bg-danger-soft`, `bg-danger`.
+- Affects Behavioural/Technical CompetencyCard bars (and other Ranking Master progress fills).
+
+### 2026-09-11 09:55 IST
+
+**Prompt:**  
+> CompetencyGuideModal: remove “Behavioural Competencies” and “Technical Competencies” section header rows.
+
+**Output:**  
+- Removed colspan section header rows from `CompetencyGuideModal` in `components/WeeklyCheckInCompetencyRating.tsx`; table lists competencies only under # / Competency / What it evaluates.
+- Prompt log updated.
+
 ### 2026-09-10 23:18 IST
 
 **Prompt:**  

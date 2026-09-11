@@ -58,7 +58,13 @@ function cellToExcel(value: ExportCell): string | number {
 function cellToPdf(value: ExportCell): string | number {
   if (value == null || value === "") return "";
   if (typeof value === "number") return Number.isFinite(value) ? value : "";
-  return String(value);
+  // Helvetica cannot render many Unicode glyphs; arrows corrupt following text.
+  return String(value)
+    .replace(/\u2191/g, "Up")
+    .replace(/\u2193/g, "Down")
+    .replace(/\u2192/g, "Flat")
+    .replace(/[\u2013\u2014\u2212]/g, "-")
+    .replace(/\u00B7/g, "-");
 }
 
 /**
@@ -203,6 +209,145 @@ export function exportReportPdf(input: ReportExportInput): void {
   doc.save(`${input.fileStem}_${todayISODate()}.pdf`);
 }
 
+export interface PdfTableSection {
+  heading: string;
+  columns: ExportColumn[];
+  rows: ExportCell[][];
+  totalsRow?: ExportCell[];
+}
+
+export interface MultiSectionPdfInput {
+  title: string;
+  fileStem: string;
+  filterLines?: string[];
+  sections: PdfTableSection[];
+  orientation?: "portrait" | "landscape";
+  dateFormat?: DateFormatPattern;
+}
+
+type JsPdfWithAutoTable = jsPDF & {
+  lastAutoTable?: { finalY: number };
+};
+
+/**
+ * Multi-section structured PDF (title + filters once, then sequential tables).
+ * Used by Performance Card and similar multi-block screens.
+ */
+export function exportMultiSectionPdf(input: MultiSectionPdfInput): void {
+  if (!input.sections.length) {
+    throw new Error("No sections to export");
+  }
+
+  const orientation = input.orientation ?? "portrait";
+  const doc = new jsPDF({
+    orientation,
+    unit: "in",
+    format: "letter",
+  }) as JsPdfWithAutoTable;
+
+  const margin = 0.55;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const generatedAt = formatGeneratedAt(new Date(), input.dateFormat ?? "dd/MM/yyyy");
+  const filterBlock = (input.filterLines ?? []).filter(Boolean);
+  const metaLines = [`Generated: ${generatedAt}`, ...filterBlock];
+  const headerBlockHeight = 0.32 + metaLines.length * 0.16 + 0.08;
+
+  const tableOpts = {
+    margin: { top: margin + headerBlockHeight, right: margin, bottom: 0.55, left: margin },
+    styles: {
+      font: "helvetica" as const,
+      fontSize: 8,
+      cellPadding: 0.045,
+      overflow: "linebreak" as const,
+      valign: "middle" as const,
+      textColor: [30, 30, 30] as [number, number, number],
+      lineColor: [200, 200, 200] as [number, number, number],
+      lineWidth: 0.01,
+    },
+    headStyles: {
+      fillColor: [15, 40, 70] as [number, number, number],
+      textColor: [255, 255, 255] as [number, number, number],
+      fontStyle: "bold" as const,
+      fontSize: 8,
+    },
+    footStyles: {
+      fillColor: [240, 242, 245] as [number, number, number],
+      textColor: [20, 20, 20] as [number, number, number],
+      fontStyle: "bold" as const,
+      fontSize: 8,
+    },
+    alternateRowStyles: {
+      fillColor: [248, 249, 250] as [number, number, number],
+    },
+    didDrawPage: () => {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(13);
+      doc.setTextColor(15, 40, 70);
+      doc.text(input.title, margin, margin + 0.1);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(80, 80, 80);
+      let y = margin + 0.3;
+      for (const line of metaLines) {
+        doc.text(line, margin, y, { maxWidth: pageWidth - margin * 2 });
+        y += 0.15;
+      }
+    },
+  };
+
+  let cursorY = margin + headerBlockHeight;
+
+  for (let s = 0; s < input.sections.length; s++) {
+    const section = input.sections[s]!;
+    const columnStyles: Record<number, { halign?: "left" | "center" | "right" }> = {};
+    section.columns.forEach((col, i) => {
+      if (col.align) columnStyles[i] = { halign: col.align };
+    });
+
+    const needHeadingSpace = 0.22;
+    if (cursorY + needHeadingSpace > pageHeight - 0.8) {
+      doc.addPage();
+      cursorY = margin + headerBlockHeight;
+    }
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(15, 40, 70);
+    doc.text(section.heading, margin, cursorY + 0.05);
+    cursorY += needHeadingSpace;
+
+    const foot = section.totalsRow ? [section.totalsRow.map(cellToPdf)] : undefined;
+
+    autoTable(doc, {
+      ...tableOpts,
+      head: [section.columns.map((c) => c.header)],
+      body: section.rows.map((row) => row.map(cellToPdf)),
+      foot,
+      startY: cursorY,
+      showHead: "everyPage",
+      showFoot: foot ? "lastPage" : "never",
+      columnStyles,
+    });
+
+    cursorY = (doc.lastAutoTable?.finalY ?? cursorY) + 0.28;
+  }
+
+  const pageCount = doc.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Page ${i} of ${pageCount}`, pageWidth / 2, pageHeight - 0.3, {
+      align: "center",
+    });
+  }
+
+  doc.save(`${input.fileStem}_${todayISODate()}.pdf`);
+}
+
 /** Run export and return a short success / error message for toast UI. */
 export function runReportExport(
   kind: "excel" | "pdf",
@@ -216,5 +361,20 @@ export function runReportExport(
   } catch (err) {
     const detail = err instanceof Error ? err.message : "Unknown error";
     return { ok: false, message: `${kind === "excel" ? "Excel" : "PDF"} export failed: ${detail}` };
+  }
+}
+
+export function runMultiSectionPdfExport(
+  input: MultiSectionPdfInput
+): { ok: true; message: string } | { ok: false; message: string } {
+  try {
+    exportMultiSectionPdf(input);
+    return {
+      ok: true,
+      message: `PDF downloaded (${input.fileStem}_${todayISODate()}.pdf)`,
+    };
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : "Unknown error";
+    return { ok: false, message: `PDF export failed: ${detail}` };
   }
 }

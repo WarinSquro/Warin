@@ -135,10 +135,13 @@ export function CompetencyGuideModal({
   groups,
   onClose,
   dialogTitle = "Technical & Behavioural competencies",
+  showSectionHeaders = true,
 }: {
   groups: Array<{ title: string; competencies: DepartmentCompetency[] }>;
   onClose: () => void;
   dialogTitle?: string;
+  /** Weekly Check-In keeps section rows; Performance Card guide hides them. */
+  showSectionHeaders?: boolean;
 }) {
   const sectionTitle = (title: string) =>
     title === "Technical"
@@ -192,14 +195,16 @@ export function CompetencyGuideModal({
               <tbody>
                 {groups.map((group) => (
                   <Fragment key={group.title}>
-                    <tr className="border-b border-border bg-surface-alt/70">
-                      <td
-                        colSpan={3}
-                        className="px-2.5 py-2 text-[12px] font-semibold text-foreground"
-                      >
-                        {sectionTitle(group.title)}
-                      </td>
-                    </tr>
+                    {showSectionHeaders ? (
+                      <tr className="border-b border-border bg-surface-alt/70">
+                        <td
+                          colSpan={3}
+                          className="px-2.5 py-2 text-[12px] font-semibold text-foreground"
+                        >
+                          {sectionTitle(group.title)}
+                        </td>
+                      </tr>
+                    ) : null}
                     {group.competencies.map((c, i) => (
                       <tr key={c.id} className="border-b border-border last:border-b-0">
                         <td className="border-r border-border px-2.5 py-2 align-top text-muted-foreground">

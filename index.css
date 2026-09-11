@@ -148,6 +148,20 @@ input[type="reset"]:not(:disabled),
   animation: toast-slide-in 220ms ease-out;
 }
 
+@keyframes session-login-warn-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.15;
+  }
+}
+
+.session-login-warn {
+  animation: session-login-warn-blink 0.55s ease-in-out infinite;
+}
+
 /*
  * Global focus border for text-entry / selection controls.
  * Unlayered (after Tailwind) so behavior is consistent app-wide.

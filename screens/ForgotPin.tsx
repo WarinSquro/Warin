@@ -81,7 +81,7 @@ export function ForgotPin() {
               setEmail(e.target.value);
               setErrorMsg(null);
             }}
-            placeholder="name@acme.io"
+            placeholder="Enter email"
             className="w-full rounded-md border border-border bg-surface px-3 py-2.5 text-[13px] text-foreground outline-none focus:border-accent-line"
           />
         </div>

@@ -139,7 +139,7 @@ export function Login() {
               setError(false);
               setInfoMsg(null);
             }}
-            placeholder="name@acme.io"
+            placeholder="Enter email"
             className="h-[42px] w-full rounded-md border border-brand-border/20 bg-white px-3 text-[13px] text-foreground outline-none focus:border-brand-border focus:ring-2 focus:ring-brand-muted/25"
           />
         </div>
