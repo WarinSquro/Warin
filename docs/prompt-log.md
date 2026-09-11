@@ -32,6 +32,16 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-09-11 15:45 IST
+
+**Prompt:**  
+> Now live all to EC2
+
+**Output:**  
+- Commit `be819c0` pushed to `origin/main` (PDF export + ASCII trends, session-conflict blink, Performance Card polish, related UI).
+- EC2: `bash scripts/ec2-deploy.sh --with-api` → `LIVE_COMMIT=be819c0`, `SPA_PUBLISH_OK`, API rebuild + migrate (none pending), `API_HEALTH_OK`.
+- Verify: `version.json` commit `be819c0…`; health `ok` / `database: up`. Hard-refresh https://seworkspace.com/
+
 ### 2026-09-11 15:25 IST
 
 **Prompt:**  
