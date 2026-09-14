@@ -179,6 +179,613 @@ export class PerformanceCardController {
     });
   }
 
+  /**
+   * Hidden Administrator diagnostic: focus laps for one employee week
+   * (powers MetricHistoryModal Shift+click). Super-admin only.
+   */
+  @Get("focus-laps")
+  @RequirePermissions("my_workspace.performance_card")
+  async focusLaps(
+    @Req() req: { user: JwtPayload },
+    @Query("employeeHrmsId") employeeHrmsId?: string,
+    @Query("weekStart") weekStart?: string
+  ) {
+    if (!req.user.isSuperAdmin) {
+      throw new ForbiddenException("Administrator only");
+    }
+    const hrms = (employeeHrmsId ?? "").trim();
+    const monday = (weekStart ?? "").trim();
+    if (!hrms) throw new BadRequestException("employeeHrmsId is required");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(monday)) {
+      throw new BadRequestException("weekStart must be YYYY-MM-DD (Monday)");
+    }
+    const sunday = addDaysISO(monday, 6);
+
+    const target = await this.prisma.employee.findFirst({
+      where: { hrmsId: hrms, isDeleted: false },
+      select: { id: true, hrmsId: true, name: true },
+    });
+    if (!target) throw new BadRequestException("Employee not found");
+
+    const from = new Date(`${monday}T00:00:00.000Z`);
+    const to = new Date(`${sunday}T00:00:00.000Z`);
+
+    const laps = await this.prisma.confirmationFocusLap.findMany({
+      where: {
+        day: {
+          employeeId: target.id,
+          isDeleted: false,
+          workDate: { gte: from, lte: to },
+        },
+      },
+      orderBy: [{ day: { workDate: "asc" } }, { startedAt: "asc" }],
+      select: {
+        startedAt: true,
+        endedAt: true,
+        durationMs: true,
+        day: { select: { workDate: true } },
+      },
+    });
+
+    const rows = laps.map((l) => {
+      const durationMs = Math.max(0, Math.floor(Number(l.durationMs) || 0));
+      return {
+        workDate: isoDate(l.day.workDate),
+        startedAt: l.startedAt.toISOString(),
+        endedAt: l.endedAt.toISOString(),
+        durationMs,
+        durationMin: round1(durationMs / 60_000),
+      };
+    });
+
+    const sumMs = rows.reduce((s, r) => s + r.durationMs, 0);
+    const avgMin = rows.length > 0 ? round1(sumMs / rows.length / 60_000) : null;
+
+    return ser({
+      employee: { hrmsId: target.hrmsId, name: target.name },
+      weekStart: monday,
+      weekEnd: sunday,
+      lapCount: rows.length,
+      avgDurationMin: avgMin,
+      sumDurationMs: sumMs,
+      sumDurationMin: round1(sumMs / 60_000),
+      resultColumn: "duration_min",
+      resultValue: avgMin,
+      calculation:
+        rows.length > 0 && avgMin != null
+          ? `avg_lap_min = sum(duration_ms) / lap_count / 60000 = ${sumMs} / ${rows.length} / 60000 = ${avgMin}`
+          : null,
+      rows,
+    });
+  }
+
+  /**
+   * Hidden Administrator diagnostic: underlying rows for a metric week bar.
+   * Super-admin only. Average Lap Duration continues to use GET focus-laps.
+   */
+  @Get("metric-debug")
+  @RequirePermissions("my_workspace.performance_card")
+  async metricDebug(
+    @Req() req: { user: JwtPayload },
+    @Query("employeeHrmsId") employeeHrmsId?: string,
+    @Query("weekStart") weekStart?: string,
+    @Query("metricId") metricId?: string
+  ) {
+    if (!req.user.isSuperAdmin) {
+      throw new ForbiddenException("Administrator only");
+    }
+    const hrms = (employeeHrmsId ?? "").trim();
+    const monday = (weekStart ?? "").trim();
+    const metric = (metricId ?? "").trim();
+    if (!hrms) throw new BadRequestException("employeeHrmsId is required");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(monday)) {
+      throw new BadRequestException("weekStart must be YYYY-MM-DD (Monday)");
+    }
+    const allowed = new Set([
+      "plannedHrs",
+      "actualHrs",
+      "billableHrs",
+      "unplannedHrs",
+      "unplannedPct",
+      "billableSplitPct",
+      "planningAccuracy",
+      "focusHrs",
+      "focusPct",
+      "confirmationDiscipline",
+    ]);
+    if (!allowed.has(metric)) {
+      throw new BadRequestException(`Unsupported metricId: ${metric || "(empty)"}`);
+    }
+
+    const sunday = addDaysISO(monday, 6);
+    const target = await this.prisma.employee.findFirst({
+      where: { hrmsId: hrms, isDeleted: false },
+      select: { id: true, hrmsId: true, name: true },
+    });
+    if (!target) throw new BadRequestException("Employee not found");
+
+    const from = new Date(`${monday}T00:00:00.000Z`);
+    const to = new Date(`${sunday}T00:00:00.000Z`);
+
+    const employee = { hrmsId: target.hrmsId, name: target.name };
+    const base = { metricId: metric, employee, weekStart: monday, weekEnd: sunday };
+
+    if (
+      metric === "plannedHrs" ||
+      metric === "actualHrs" ||
+      metric === "billableHrs" ||
+      metric === "unplannedHrs" ||
+      metric === "unplannedPct" ||
+      metric === "billableSplitPct" ||
+      metric === "planningAccuracy"
+    ) {
+      return ser(await this.debugConfirmationLines(target.id, from, to, metric, base));
+    }
+    if (metric === "focusHrs" || metric === "focusPct") {
+      return ser(await this.debugFocusSessions(target.id, from, to, metric, base));
+    }
+    return ser(await this.debugConfirmationDiscipline(target.id, monday, sunday, base));
+  }
+
+  private async debugConfirmationLines(
+    employeeId: bigint,
+    from: Date,
+    to: Date,
+    metric: string,
+    base: {
+      metricId: string;
+      employee: { hrmsId: string; name: string };
+      weekStart: string;
+      weekEnd: string;
+    }
+  ) {
+    const confirmations = await this.prisma.workConfirmation.findMany({
+      where: {
+        employeeId,
+        isDeleted: false,
+        workDate: { gte: from, lte: to },
+      },
+      include: {
+        lines: {
+          include: {
+            allocation: {
+              include: {
+                activity: { select: { billable: true, name: true } },
+                project: { select: { name: true, projectCode: true } },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { workDate: "asc" },
+    });
+
+    type LineOut = {
+      work_date: string;
+      kind: string;
+      project: string;
+      activity: string;
+      reason: string;
+      planned_hours: number;
+      actual_hours: number;
+      billable: boolean | null;
+    };
+
+    const all: LineOut[] = [];
+    for (const c of confirmations) {
+      const workDate = isoDate(c.workDate);
+      for (const line of c.lines) {
+        const project =
+          line.allocation?.project?.name?.trim() ||
+          line.allocation?.project?.projectCode ||
+          line.projectLabel ||
+          "—";
+        const activity = line.allocation?.activity?.name || line.activity || "—";
+        let billable: boolean | null = null;
+        if (line.kind === "unplanned") {
+          billable = false;
+        } else if (line.allocation?.activity?.billable === true) {
+          billable = true;
+        } else if (line.allocation?.activity?.billable === false) {
+          billable = false;
+        } else if (!line.allocation) {
+          billable = true; // orphan planned/deviation — matches computePeriodMetrics
+        }
+        all.push({
+          work_date: workDate,
+          kind: line.kind,
+          project,
+          activity,
+          reason: line.reason || "",
+          planned_hours: round1(line.plannedHours),
+          actual_hours: round1(line.actualHours),
+          billable,
+        });
+      }
+    }
+
+    let rows = all;
+    if (metric === "unplannedHrs" || metric === "unplannedPct") {
+      rows = all.filter((r) => r.kind === "unplanned");
+    } else if (metric === "billableHrs" || metric === "billableSplitPct") {
+      rows = all.filter((r) => r.billable === true);
+    }
+
+    const sumPlanned = round1(rows.reduce((s, r) => s + r.planned_hours, 0));
+    const sumActual = round1(rows.reduce((s, r) => s + r.actual_hours, 0));
+    const allPlanned = round1(all.reduce((s, r) => s + r.planned_hours, 0));
+    const allActual = round1(all.reduce((s, r) => s + r.actual_hours, 0));
+    const allBillable = round1(
+      all.filter((r) => r.billable === true).reduce((s, r) => s + r.actual_hours, 0)
+    );
+    const allUnplanned = round1(
+      all.filter((r) => r.kind === "unplanned").reduce((s, r) => s + r.actual_hours, 0)
+    );
+
+    const needsResultCol =
+      metric === "unplannedPct" ||
+      metric === "billableSplitPct" ||
+      metric === "planningAccuracy";
+
+    const columns =
+      metric === "unplannedHrs" || metric === "unplannedPct"
+        ? ["work_date", "kind", "project", "reason", "actual_hours", ...(needsResultCol ? ["metric_result"] : [])]
+        : metric === "billableHrs" || metric === "billableSplitPct"
+          ? [
+              "work_date",
+              "kind",
+              "project",
+              "activity",
+              "billable",
+              "actual_hours",
+              ...(needsResultCol ? ["metric_result"] : []),
+            ]
+          : metric === "planningAccuracy"
+            ? ["work_date", "kind", "project", "activity", "planned_hours", "actual_hours", "metric_result"]
+            : ["work_date", "kind", "project", "activity", "planned_hours", "actual_hours"];
+
+    let resultValue: number | string | null = null;
+    let resultColumn: string | null = null;
+    let calculation: string | null = null;
+
+    if (metric === "plannedHrs") {
+      resultColumn = "planned_hours";
+      resultValue = sumPlanned;
+      calculation = `planned_hrs = sum(planned_hours) = ${sumPlanned}`;
+    } else if (metric === "actualHrs") {
+      resultColumn = "actual_hours";
+      resultValue = sumActual;
+      calculation = `actual_hrs = sum(actual_hours) = ${sumActual}`;
+    } else if (metric === "billableHrs") {
+      resultColumn = "actual_hours";
+      resultValue = sumActual;
+      calculation = `billable_hrs = sum(actual_hours where billable) = ${sumActual}`;
+    } else if (metric === "unplannedHrs") {
+      resultColumn = "actual_hours";
+      resultValue = sumActual;
+      calculation = `unplanned_hrs = sum(actual_hours where kind=unplanned) = ${sumActual}`;
+    } else if (metric === "planningAccuracy") {
+      const pct =
+        allPlanned > 0 ? round0((Math.min(allActual, allPlanned) / allPlanned) * 100) : null;
+      resultColumn = "metric_result";
+      resultValue = pct;
+      calculation =
+        pct == null
+          ? "planning_accuracy = — (no planned hours)"
+          : `planning_accuracy = min(actual, planned) / planned × 100 = min(${allActual}, ${allPlanned}) / ${allPlanned} × 100 = ${pct}%`;
+    } else if (metric === "unplannedPct") {
+      const pct = allActual > 0 ? round0((allUnplanned / allActual) * 100) : null;
+      resultColumn = "metric_result";
+      resultValue = pct;
+      calculation =
+        pct == null
+          ? "unplanned_pct = — (no actual hours)"
+          : `unplanned_pct = unplanned_hrs / actual_hrs × 100 = ${allUnplanned} / ${allActual} × 100 = ${pct}%`;
+    } else if (metric === "billableSplitPct") {
+      const pct = allActual > 0 ? round0((allBillable / allActual) * 100) : null;
+      resultColumn = "metric_result";
+      resultValue = pct;
+      calculation =
+        pct == null
+          ? "billable_split_pct = — (no actual hours)"
+          : `billable_split_pct = billable_hrs / actual_hrs × 100 = ${allBillable} / ${allActual} × 100 = ${pct}%`;
+    }
+
+    const totals: Record<string, string | number | boolean | null> = { work_date: "TOTAL" };
+    for (const col of columns) {
+      if (col === "work_date") continue;
+      if (col === "planned_hours") totals[col] = allPlanned;
+      else if (col === "actual_hours") {
+        totals[col] =
+          metric === "billableHrs" || metric === "billableSplitPct"
+            ? allBillable
+            : metric === "unplannedHrs" || metric === "unplannedPct"
+              ? allUnplanned
+              : allActual;
+      } else if (col === "metric_result") {
+        totals[col] =
+          resultValue == null ? "—" : typeof resultValue === "number" ? `${resultValue}%` : resultValue;
+      } else totals[col] = "";
+    }
+
+    return {
+      ...base,
+      title:
+        metric === "plannedHrs"
+          ? "Planned Hrs"
+          : metric === "actualHrs"
+            ? "Actual Hrs"
+            : metric === "billableHrs"
+              ? "Billable Hrs"
+              : metric === "unplannedHrs"
+                ? "Unplanned Hrs"
+                : metric === "unplannedPct"
+                  ? "Unplanned %"
+                  : metric === "billableSplitPct"
+                    ? "Billable Split %"
+                    : "Planning Accuracy",
+      columns,
+      rows: rows.map((r) => {
+        const out: Record<string, string | number | boolean | null> = {};
+        for (const col of columns) {
+          if (col === "metric_result") out[col] = "";
+          else out[col] = (r as Record<string, string | number | boolean | null>)[col] ?? "";
+        }
+        return out;
+      }),
+      totals: rows.length || needsResultCol ? totals : null,
+      resultColumn,
+      resultValue,
+      calculation,
+      summary: calculation,
+    };
+  }
+
+  private async debugFocusSessions(
+    employeeId: bigint,
+    from: Date,
+    to: Date,
+    metric: string,
+    base: {
+      metricId: string;
+      employee: { hrmsId: string; name: string };
+      weekStart: string;
+      weekEnd: string;
+    }
+  ) {
+    const prodDays = await this.prisma.confirmationProductivityDay.findMany({
+      where: {
+        employeeId,
+        isDeleted: false,
+        workDate: { gte: from, lte: to },
+      },
+      include: { focusSessions: true, focusLaps: true },
+      orderBy: { workDate: "asc" },
+    });
+
+    // Match computePeriodMetrics: sessions first; if focusMs === 0, use lap total.
+    let sessionFocusMs = 0;
+    const sessionRows: Array<Record<string, string | number | boolean | null>> = [];
+    let lapMs = 0;
+    const lapRows: Array<Record<string, string | number | boolean | null>> = [];
+
+    for (const day of prodDays) {
+      const workDate = isoDate(day.workDate);
+      for (const s of day.focusSessions) {
+        const sessionAccumMs = Math.max(0, Math.floor(Number(s.sessionAccumMs) || 0));
+        let openSegmentMs = 0;
+        if (s.segmentStartedAt) {
+          const end = day.dayEndAt ?? new Date(`${workDate}T18:00:00.000Z`);
+          openSegmentMs = Math.max(0, end.getTime() - s.segmentStartedAt.getTime());
+        }
+        const focusMs = sessionAccumMs + openSegmentMs;
+        sessionFocusMs += focusMs;
+        sessionRows.push({
+          work_date: workDate,
+          source: "session",
+          allocation_key: s.allocationKey,
+          session_accum_ms: sessionAccumMs,
+          open_segment_ms: openSegmentMs,
+          focus_ms: focusMs,
+          focus_hrs: round1(focusMs / 3_600_000),
+        });
+      }
+      for (const lap of day.focusLaps) {
+        const durationMs = Math.max(0, Math.floor(Number(lap.durationMs) || 0));
+        lapMs += durationMs;
+        lapRows.push({
+          work_date: workDate,
+          source: "lap",
+          allocation_key: lap.allocationKey,
+          session_accum_ms: "",
+          open_segment_ms: "",
+          focus_ms: durationMs,
+          focus_hrs: round1(durationMs / 3_600_000),
+        });
+      }
+    }
+
+    const usedLapFallback = sessionFocusMs === 0 && lapMs > 0;
+    const totalFocusMs = usedLapFallback ? lapMs : sessionFocusMs;
+    const rows = usedLapFallback ? lapRows : sessionRows;
+    const focusHrs = round1(totalFocusMs / 3_600_000);
+
+    const columns = [
+      "work_date",
+      "source",
+      "allocation_key",
+      "session_accum_ms",
+      "open_segment_ms",
+      "focus_ms",
+      "focus_hrs",
+      ...(metric === "focusPct" ? ["metric_result"] : []),
+    ];
+
+    const confirmations = await this.prisma.workConfirmation.findMany({
+      where: { employeeId, isDeleted: false, workDate: { gte: from, lte: to } },
+      include: { lines: true },
+    });
+    let planned = 0;
+    let actual = 0;
+    for (const c of confirmations) {
+      for (const line of c.lines) {
+        planned += line.plannedHours;
+        actual += line.actualHours;
+      }
+    }
+    const denom = actual > 0 ? actual : planned > 0 ? planned : 0;
+    const focusPct = denom > 0 ? round0((focusHrs / denom) * 100) : null;
+
+    let resultColumn: string | null = metric === "focusPct" ? "metric_result" : "focus_hrs";
+    let resultValue: number | string | null = metric === "focusPct" ? focusPct : focusHrs;
+    let calculation: string | null =
+      metric === "focusPct"
+        ? focusPct == null
+          ? "focus_pct = — (no planned/actual hours)"
+          : `focus_pct = focus_hrs / ${actual > 0 ? "actual" : "planned"} × 100 = ${focusHrs} / ${round1(denom)} × 100 = ${focusPct}%${
+              usedLapFallback ? " (focus from laps; sessions sum to 0)" : ""
+            }`
+        : `focus_hrs = sum(focus_ms) / 3600000 = ${totalFocusMs} / 3600000 = ${focusHrs}${
+            usedLapFallback ? " (from laps; sessions sum to 0)" : ""
+          }`;
+
+    const totals: Record<string, string | number | boolean | null> = {
+      work_date: "TOTAL",
+      source: usedLapFallback ? "lap" : "session",
+      allocation_key: "",
+      session_accum_ms: usedLapFallback
+        ? ""
+        : rows.reduce((s, r) => s + Number(r.session_accum_ms || 0), 0),
+      open_segment_ms: usedLapFallback
+        ? ""
+        : rows.reduce((s, r) => s + Number(r.open_segment_ms || 0), 0),
+      focus_ms: totalFocusMs,
+      focus_hrs: focusHrs,
+    };
+    if (metric === "focusPct") {
+      totals.metric_result = focusPct == null ? "—" : `${focusPct}%`;
+    }
+
+    return {
+      ...base,
+      title: metric === "focusPct" ? "Focus %" : "Focus Hrs",
+      columns,
+      rows: rows.map((r) => {
+        const out: Record<string, string | number | boolean | null> = { ...r };
+        if (metric === "focusPct") out.metric_result = "";
+        return out;
+      }),
+      totals: rows.length || totalFocusMs > 0 ? totals : null,
+      resultColumn,
+      resultValue,
+      calculation,
+      summary: calculation,
+    };
+  }
+
+  private async debugConfirmationDiscipline(
+    employeeId: bigint,
+    monday: string,
+    sunday: string,
+    base: {
+      metricId: string;
+      employee: { hrmsId: string; name: string };
+      weekStart: string;
+      weekEnd: string;
+    }
+  ) {
+    const settings = await this.prisma.appSettings.findFirst({
+      where: { code: "default", isDeleted: false },
+      select: { workingDays: true },
+    });
+    const workingDays = settings?.workingDays ?? ["Mon", "Tue", "Wed", "Thu", "Fri"];
+    const set = new Set(workingDays.length ? workingDays : ["Mon", "Tue", "Wed", "Thu", "Fri"]);
+    const labels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+    const from = new Date(`${monday}T00:00:00.000Z`);
+    const to = new Date(`${sunday}T00:00:00.000Z`);
+    const confirmations = await this.prisma.workConfirmation.findMany({
+      where: {
+        employeeId,
+        isDeleted: false,
+        workDate: { gte: from, lte: to },
+      },
+      select: {
+        workDate: true,
+        submittedAt: true,
+        isMissedPosting: true,
+      },
+    });
+    const byDate = new Map(
+      confirmations.map((c) => [
+        isoDate(c.workDate),
+        { submittedAt: c.submittedAt.toISOString(), isMissedPosting: c.isMissedPosting },
+      ])
+    );
+
+    // Match computePeriodMetrics: unique confirmation dates / workingDayCount
+    const confirmedDays = new Set(confirmations.map((c) => isoDate(c.workDate))).size;
+    const workingDayCount = countWorkingDays(monday, sunday, workingDays);
+
+    const columns = [
+      "work_date",
+      "is_working_day",
+      "confirmed",
+      "submitted_at",
+      "is_missed_posting",
+      "metric_result",
+    ];
+    const rows: Array<Record<string, string | number | boolean | null>> = [];
+
+    for (let d = monday; d <= sunday; d = addDaysISO(d, 1)) {
+      const dt = new Date(`${d}T12:00:00`);
+      const isWorking = set.has(labels[dt.getDay()]!);
+      const conf = byDate.get(d);
+      const confirmed = Boolean(conf);
+      rows.push({
+        work_date: d,
+        is_working_day: isWorking,
+        confirmed,
+        submitted_at: conf?.submittedAt ?? "—",
+        is_missed_posting: conf ? conf.isMissedPosting : null,
+        metric_result: "",
+      });
+    }
+
+    const pct =
+      workingDayCount > 0 && confirmations.length > 0
+        ? round0((confirmedDays / workingDayCount) * 100)
+        : null;
+
+    const calculation =
+      pct == null
+        ? workingDayCount > 0
+          ? "confirmation_discipline = — (no confirmations in week)"
+          : "confirmation_discipline = — (no working days in week)"
+        : `confirmation_discipline = confirmed_days / working_days × 100 = ${confirmedDays} / ${workingDayCount} × 100 = ${pct}%`;
+
+    const totals: Record<string, string | number | boolean | null> = {
+      work_date: "TOTAL",
+      is_working_day: workingDayCount,
+      confirmed: confirmedDays,
+      submitted_at: "",
+      is_missed_posting: "",
+      metric_result: pct == null ? "—" : `${pct}%`,
+    };
+
+    return {
+      ...base,
+      title: "Confirmation Discipline",
+      columns,
+      rows,
+      totals,
+      resultColumn: "metric_result",
+      resultValue: pct,
+      calculation,
+      summary: calculation,
+    };
+  }
+
   @Get()
   @RequirePermissions("my_workspace.performance_card")
   async card(
@@ -333,24 +940,7 @@ export class PerformanceCardController {
     }
 
     const rankables: RankableMetric[] = [];
-    if (currentM.behaviouralAvg != null) {
-      rankables.push({
-        id: "beh_avg",
-        label: "Behavioural Competency",
-        displayValue: `${currentM.behaviouralAvg.toFixed(1)} / 5`,
-        nativeValue: currentM.behaviouralAvg,
-        rankPct: scoreOutOf5ToRankPct(currentM.behaviouralAvg),
-      });
-    }
-    if (currentM.technicalAvg != null) {
-      rankables.push({
-        id: "tech_avg",
-        label: "Technical Competency",
-        displayValue: `${currentM.technicalAvg.toFixed(1)} / 5`,
-        nativeValue: currentM.technicalAvg,
-        rankPct: scoreOutOf5ToRankPct(currentM.technicalAvg),
-      });
-    }
+    // Snapshot uses individual competencies + PARAMETER % metrics (not rollup averages).
     for (const c of competencies.behavioural) {
       if (c.score == null) continue;
       rankables.push({

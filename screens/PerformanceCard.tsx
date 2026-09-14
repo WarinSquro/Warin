@@ -2,8 +2,13 @@ import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } f
 import { FileText, Info, X } from "lucide-react";
 import {
   fetchPerformanceCard,
+  fetchPerformanceCardFocusLaps,
+  fetchPerformanceCardMetricDebug,
   fetchPerformanceCardResources,
   fetchWeeklyCheckInConfig,
+  type PerfCardFocusLapRow,
+  type PerfCardFocusLapsPayload,
+  type PerfCardMetricDebugPayload,
   type PerfCardPayload,
   type PerfCardResource,
 } from "../api/domain";
@@ -734,7 +739,7 @@ export function PerformanceCard() {
                     )}
                   </ul>
                   <p className="mt-auto pt-3 text-[10px] leading-snug text-muted-foreground">
-                    Ranked by trend strength, then by value within scale.
+                    Based on PARAMETER thresholds; ranked within band.
                   </p>
                 </div>
                 <div className="flex min-h-0 flex-col border-t border-border-soft pt-4 lg:border-t-0 lg:px-4 lg:pt-0">
@@ -754,7 +759,7 @@ export function PerformanceCard() {
                     )}
                   </ul>
                   <p className="mt-auto pt-3 text-[10px] leading-snug text-muted-foreground">
-                    Derived from recorded values and trend only.
+                    Based on PARAMETER thresholds; middle-band values omitted.
                   </p>
                 </div>
                 <div className="flex min-h-0 flex-col border-t border-border-soft pt-4 lg:border-t-0 lg:pl-4 lg:pt-0">
@@ -1340,6 +1345,19 @@ function ModalExportClose({
   );
 }
 
+const ADMIN_METRIC_DEBUG_IDS = new Set([
+  "plannedHrs",
+  "actualHrs",
+  "billableHrs",
+  "unplannedHrs",
+  "unplannedPct",
+  "billableSplitPct",
+  "planningAccuracy",
+  "focusHrs",
+  "focusPct",
+  "confirmationDiscipline",
+]);
+
 function MetricHistoryModal({
   data,
   metricId,
@@ -1354,7 +1372,28 @@ function MetricHistoryModal({
   onSelectMetric: (id: string) => void;
 }) {
   const toast = useToast();
-  const { formatDate, formatDateNoYear } = useAppDateFormat();
+  const { isSuperAdmin } = useAuth();
+  const { formatDate, formatDateNoYear, formatDateTime, dateFormat } = useAppDateFormat();
+  const [adminDebug, setAdminDebug] = useState<
+    | {
+        kind: "laps";
+        weekStart: string;
+        weekLabel: string;
+        loading: boolean;
+        payload: PerfCardFocusLapsPayload | null;
+        error: string | null;
+      }
+    | {
+        kind: "metric";
+        weekStart: string;
+        weekLabel: string;
+        metricId: string;
+        loading: boolean;
+        payload: PerfCardMetricDebugPayload | null;
+        error: string | null;
+      }
+    | null
+  >(null);
   const row = data.productivity.find((p) => p.id === metricId);
   const label = metricLabel(metricId, data);
   const direction =
@@ -1475,6 +1514,7 @@ function MetricHistoryModal({
       title: `${label} — 12 weeks`,
       fileStem: `Performance_Card_${label.replace(/[^a-zA-Z0-9]+/g, "_")}`,
       sheetName: label.slice(0, 31),
+      dateFormat,
       columns: [
         { header: "Week" },
         { header: "Week start" },
@@ -1482,7 +1522,7 @@ function MetricHistoryModal({
       ],
       rows: data.weekHistory.map((w, i) => [
         `W${String(i + 1).padStart(2, "0")}`,
-        w.weekStart,
+        formatDate(w.weekStart),
         isEmptyWeekValue(values[i]) ? "—" : values[i],
       ]),
       filterLines: [
@@ -1493,6 +1533,80 @@ function MetricHistoryModal({
       ],
     });
     toast.success("Exported Excel");
+  };
+
+  const openAdminLapDebug = (weekStart: string, weekIdx: number) => {
+    if (!isSuperAdmin) return;
+    const weekLabel = `W${String(weekIdx + 1).padStart(2, "0")}`;
+    setAdminDebug({ kind: "laps", weekStart, weekLabel, loading: true, payload: null, error: null });
+    void fetchPerformanceCardFocusLaps({
+      employeeHrmsId: data.resource.hrmsId,
+      weekStart,
+    })
+      .then((payload) => {
+        setAdminDebug({ kind: "laps", weekStart, weekLabel, loading: false, payload, error: null });
+      })
+      .catch((e) => {
+        const msg = e instanceof Error ? e.message : "Failed to load focus laps";
+        setAdminDebug({ kind: "laps", weekStart, weekLabel, loading: false, payload: null, error: msg });
+        toast.error(msg);
+      });
+  };
+
+  const METRIC_DEBUG_IDS = ADMIN_METRIC_DEBUG_IDS;
+
+  const openAdminMetricDebug = (weekStart: string, weekIdx: number, mid: string) => {
+    if (!isSuperAdmin) return;
+    const weekLabel = `W${String(weekIdx + 1).padStart(2, "0")}`;
+    setAdminDebug({
+      kind: "metric",
+      weekStart,
+      weekLabel,
+      metricId: mid,
+      loading: true,
+      payload: null,
+      error: null,
+    });
+    void fetchPerformanceCardMetricDebug({
+      employeeHrmsId: data.resource.hrmsId,
+      weekStart,
+      metricId: mid,
+    })
+      .then((payload) => {
+        setAdminDebug({
+          kind: "metric",
+          weekStart,
+          weekLabel,
+          metricId: mid,
+          loading: false,
+          payload,
+          error: null,
+        });
+      })
+      .catch((e) => {
+        const msg = e instanceof Error ? e.message : "Failed to load metric detail";
+        setAdminDebug({
+          kind: "metric",
+          weekStart,
+          weekLabel,
+          metricId: mid,
+          loading: false,
+          payload: null,
+          error: msg,
+        });
+        toast.error(msg);
+      });
+  };
+
+  const openAdminBarDebug = (weekStart: string, weekIdx: number) => {
+    if (!isSuperAdmin) return;
+    if (metricId === "avgLapDurationMin") {
+      openAdminLapDebug(weekStart, weekIdx);
+      return;
+    }
+    if (METRIC_DEBUG_IDS.has(metricId)) {
+      openAdminMetricDebug(weekStart, weekIdx, metricId);
+    }
   };
 
   return (
@@ -1661,6 +1775,18 @@ function MetricHistoryModal({
                               key={w.weekStart}
                               className="relative z-[1] min-w-0 flex-1 cursor-pointer"
                               onMouseEnter={() => setHoverWeekIdx(i)}
+                              onClick={(e) => {
+                                if (!isSuperAdmin || !e.shiftKey) return;
+                                e.preventDefault();
+                                e.stopPropagation();
+                                openAdminBarDebug(w.weekStart, i);
+                              }}
+                              title={
+                                isSuperAdmin &&
+                                (metricId === "avgLapDurationMin" || METRIC_DEBUG_IDS.has(metricId))
+                                  ? "Shift+click: view source rows (Administrator)"
+                                  : undefined
+                              }
                             >
                               {empty ? (
                                 <span
@@ -1846,6 +1972,311 @@ function MetricHistoryModal({
           note={footerMissingNote}
         />
       </div>
+
+      {adminDebug?.kind === "laps" && (
+        <AdminFocusLapsDebugModal
+          weekLabel={adminDebug.weekLabel}
+          weekStart={adminDebug.weekStart}
+          loading={adminDebug.loading}
+          payload={adminDebug.payload}
+          error={adminDebug.error}
+          formatDate={formatDate}
+          formatDateTime={formatDateTime}
+          onClose={() => setAdminDebug(null)}
+        />
+      )}
+      {adminDebug?.kind === "metric" && (
+        <AdminMetricDebugModal
+          weekLabel={adminDebug.weekLabel}
+          weekStart={adminDebug.weekStart}
+          loading={adminDebug.loading}
+          payload={adminDebug.payload}
+          error={adminDebug.error}
+          formatDate={formatDate}
+          formatDateTime={formatDateTime}
+          onClose={() => setAdminDebug(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function AdminFocusLapsDebugModal({
+  weekLabel,
+  weekStart,
+  loading,
+  payload,
+  error,
+  formatDate,
+  formatDateTime,
+  onClose,
+}: {
+  weekLabel: string;
+  weekStart: string;
+  loading: boolean;
+  payload: PerfCardFocusLapsPayload | null;
+  error: string | null;
+  formatDate: (iso: string) => string;
+  formatDateTime: (value: string | Date | null | undefined) => string;
+  onClose: () => void;
+}) {
+  const rows: PerfCardFocusLapRow[] = payload?.rows ?? [];
+  const sumMs = payload?.sumDurationMs ?? rows.reduce((s, r) => s + r.durationMs, 0);
+  const avgMin =
+    payload?.avgDurationMin ??
+    (rows.length > 0 ? Math.round((sumMs / rows.length / 60_000) * 10) / 10 : null);
+  const calculation =
+    payload?.calculation ??
+    (rows.length > 0 && avgMin != null
+      ? `avg_lap_min = sum(duration_ms) / lap_count / 60000 = ${sumMs} / ${rows.length} / 60000 = ${avgMin}`
+      : null);
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-3 sm:p-5">
+      <div className="absolute inset-0" onClick={onClose} aria-hidden />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="admin-focus-laps-title"
+        className="relative z-10 flex h-[min(70vh,520px)] w-full max-w-4xl flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-2xl"
+      >
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-border-soft px-4 py-3">
+          <div className="min-w-0">
+            <h2 id="admin-focus-laps-title" className="text-[14px] font-semibold text-foreground">
+              Focus laps · {weekLabel}
+            </h2>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              {payload
+                ? `${payload.employee.name} · ${formatDate(payload.weekStart)} – ${formatDate(payload.weekEnd)} · ${payload.lapCount} lap(s)`
+                : `${formatDate(weekStart)} – ${formatDate(addDaysISO(weekStart, 6))}`}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="cursor-pointer rounded-md p-1.5 text-muted-foreground hover:bg-surface-alt hover:text-foreground"
+            aria-label="Close"
+            title="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          {loading ? (
+            <div className="py-10 text-center text-[12px] text-muted-foreground">Loading…</div>
+          ) : error ? (
+            <div className="py-10 text-center text-[12px] text-danger">{error}</div>
+          ) : rows.length === 0 ? (
+            <div className="py-10 text-center text-[12px] text-muted-foreground">
+              No focus laps for this week.
+            </div>
+          ) : (
+            <>
+              <table className="w-full text-left text-[12px]">
+                <thead className="sticky top-0 bg-surface">
+                  <tr className="text-[10px] uppercase tracking-wide text-muted">
+                    <th className="pb-2 pr-2 font-semibold">work_date</th>
+                    <th className="pb-2 pr-2 font-semibold">started_at</th>
+                    <th className="pb-2 pr-2 font-semibold">ended_at</th>
+                    <th className="pb-2 pr-2 text-right font-semibold">duration_ms</th>
+                    <th className="pb-2 text-right font-semibold">duration_min</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r, i) => (
+                    <tr key={`${r.workDate}-${r.startedAt}-${i}`} className="border-t border-border-soft">
+                      <td className="py-1.5 pr-2 tabular-nums text-foreground">{r.workDate}</td>
+                      <td className="py-1.5 pr-2 tabular-nums text-muted-foreground">
+                        {formatDateTime(r.startedAt)}
+                      </td>
+                      <td className="py-1.5 pr-2 tabular-nums text-muted-foreground">
+                        {formatDateTime(r.endedAt)}
+                      </td>
+                      <td className="py-1.5 pr-2 text-right tabular-nums text-foreground">
+                        {r.durationMs}
+                      </td>
+                      <td className="py-1.5 text-right tabular-nums font-medium text-foreground">
+                        {r.durationMin}
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="border-t border-border font-semibold">
+                    <td className="py-1.5 pr-2 text-foreground">TOTAL</td>
+                    <td className="py-1.5 pr-2" />
+                    <td className="py-1.5 pr-2" />
+                    <td className="py-1.5 pr-2 text-right tabular-nums text-foreground">{sumMs}</td>
+                    <td className="py-1.5 text-right tabular-nums text-danger">
+                      {avgMin == null ? "—" : avgMin}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              {calculation ? (
+                <p className="mt-3 text-[12px] font-bold text-foreground">{calculation}</p>
+              ) : null}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function formatDebugCell(
+  col: string,
+  value: string | number | boolean | null | undefined,
+  formatDateTime: (value: string | Date | null | undefined) => string
+): string {
+  if (value == null || value === "") return "—";
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (
+    (col === "started_at" ||
+      col === "ended_at" ||
+      col === "submitted_at" ||
+      col === "segment_started_at") &&
+    typeof value === "string" &&
+    value !== "—" &&
+    value.includes("T")
+  ) {
+    return formatDateTime(value);
+  }
+  return String(value);
+}
+
+function isNumericDebugCol(col: string): boolean {
+  return (
+    col.endsWith("_hours") ||
+    col.endsWith("_ms") ||
+    col.endsWith("_min") ||
+    col.endsWith("_hrs") ||
+    col === "duration_ms" ||
+    col === "duration_min" ||
+    col === "metric_result" ||
+    col === "is_working_day" ||
+    col === "confirmed"
+  );
+}
+
+function AdminMetricDebugModal({
+  weekLabel,
+  weekStart,
+  loading,
+  payload,
+  error,
+  formatDate,
+  formatDateTime,
+  onClose,
+}: {
+  weekLabel: string;
+  weekStart: string;
+  loading: boolean;
+  payload: PerfCardMetricDebugPayload | null;
+  error: string | null;
+  formatDate: (iso: string) => string;
+  formatDateTime: (value: string | Date | null | undefined) => string;
+  onClose: () => void;
+}) {
+  const columns = payload?.columns ?? [];
+  const rows = payload?.rows ?? [];
+  const totals = payload?.totals;
+  const resultColumn = payload?.resultColumn ?? null;
+  const calculation = payload?.calculation ?? payload?.summary ?? null;
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-3 sm:p-5">
+      <div className="absolute inset-0" onClick={onClose} aria-hidden />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="admin-metric-debug-title"
+        className="relative z-10 flex h-[min(70vh,520px)] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-2xl"
+      >
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-border-soft px-4 py-3">
+          <div className="min-w-0">
+            <h2 id="admin-metric-debug-title" className="text-[14px] font-semibold text-foreground">
+              {payload?.title ?? "Metric detail"} · {weekLabel}
+            </h2>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              {payload
+                ? `${payload.employee.name} · ${formatDate(payload.weekStart)} – ${formatDate(payload.weekEnd)} · ${rows.length} row(s)`
+                : `${formatDate(weekStart)} – ${formatDate(addDaysISO(weekStart, 6))}`}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="cursor-pointer rounded-md p-1.5 text-muted-foreground hover:bg-surface-alt hover:text-foreground"
+            aria-label="Close"
+            title="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          {loading ? (
+            <div className="py-10 text-center text-[12px] text-muted-foreground">Loading…</div>
+          ) : error ? (
+            <div className="py-10 text-center text-[12px] text-danger">{error}</div>
+          ) : !totals && rows.length === 0 ? (
+            <div className="py-10 text-center text-[12px] text-muted-foreground">
+              No source rows for this week.
+            </div>
+          ) : (
+            <>
+              <table className="w-full text-left text-[12px]">
+                <thead className="sticky top-0 bg-surface">
+                  <tr className="text-[10px] uppercase tracking-wide text-muted">
+                    {columns.map((col) => (
+                      <th
+                        key={col}
+                        className={`pb-2 pr-2 font-semibold ${isNumericDebugCol(col) ? "text-right" : ""}`}
+                      >
+                        {col}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r, i) => (
+                    <tr key={i} className="border-t border-border-soft">
+                      {columns.map((col) => (
+                        <td
+                          key={col}
+                          className={`py-1.5 pr-2 tabular-nums ${
+                            isNumericDebugCol(col)
+                              ? "text-right font-medium text-foreground"
+                              : "text-muted-foreground"
+                          }`}
+                        >
+                          {formatDebugCell(col, r[col], formatDateTime)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                  {totals ? (
+                    <tr className="border-t border-border font-semibold">
+                      {columns.map((col) => {
+                        const isResult = resultColumn != null && col === resultColumn;
+                        return (
+                          <td
+                            key={col}
+                            className={`py-1.5 pr-2 tabular-nums ${
+                              isNumericDebugCol(col) ? "text-right" : ""
+                            } ${isResult ? "text-danger" : "text-foreground"}`}
+                          >
+                            {formatDebugCell(col, totals[col], formatDateTime)}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+              {calculation ? (
+                <p className="mt-3 text-[12px] font-bold text-foreground">{calculation}</p>
+              ) : null}
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1957,7 +2388,7 @@ function CompetencyHistoryModal({
   onClose: () => void;
 }) {
   const toast = useToast();
-  const { formatDate } = useAppDateFormat();
+  const { formatDate, dateFormat } = useAppDateFormat();
   const [rankingLevels, setRankingLevels] = useState<RankingLevel[]>(DEFAULT_RANKING_LEVELS);
   const weeks = data.competencies.historyWeeks ?? [];
   const history = data.competencies.history ?? [];
@@ -2083,7 +2514,9 @@ function CompetencyHistoryModal({
     const columns = [
       { header: "Kind" },
       { header: "Competency" },
-      ...weeks.map((w, i) => ({ header: `W${String(i + 1).padStart(2, "0")} (${w})` })),
+      ...weeks.map((w, i) => ({
+        header: `W${String(i + 1).padStart(2, "0")} (${formatDate(w)})`,
+      })),
       { header: "Avg", align: "right" as const },
       { header: "Movement" },
     ];
@@ -2106,6 +2539,7 @@ function CompetencyHistoryModal({
       title: "Competency Detail — Last 12 Weeks",
       fileStem: "Performance_Card_Competency_12w",
       sheetName: "Competency 12w",
+      dateFormat,
       columns,
       rows,
       filterLines: [

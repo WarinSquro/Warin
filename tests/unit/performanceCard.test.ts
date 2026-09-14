@@ -98,42 +98,49 @@ describe("performanceCard trends", () => {
 });
 
 describe("performanceCard strengths ranking", () => {
-  it("ranks by converted % then returns native display", () => {
+  it("classifies by PARAMETER thresholds, not relative rank", () => {
     const { strengths, needsAttention } = pickStrengthsAndNeeds([
       {
-        id: "plan",
+        id: "planningAccuracy",
         label: "Planning Accuracy",
         displayValue: "91%",
         nativeValue: 91,
         rankPct: 91,
       },
       {
-        id: "core",
+        id: "beh_c1",
         label: "Core Understanding",
-        displayValue: "4.4 / 5",
-        nativeValue: 4.4,
-        rankPct: scoreOutOf5ToRankPct(4.4),
+        displayValue: "5.0 / 5",
+        nativeValue: 5,
+        rankPct: scoreOutOf5ToRankPct(5),
       },
       {
-        id: "conf",
+        id: "confirmationDiscipline",
         label: "Confirmation Discipline",
         displayValue: "96%",
         nativeValue: 96,
         rankPct: 96,
       },
       {
-        id: "unpl",
+        id: "unplannedPct",
         label: "Unplanned Work",
         displayValue: "21%",
         nativeValue: 21,
         rankPct: invertPctForRank(21),
       },
       {
-        id: "gov",
+        id: "beh_gov",
         label: "Customer Governance",
-        displayValue: "3.2 / 5",
-        nativeValue: 3.2,
-        rankPct: scoreOutOf5ToRankPct(3.2),
+        displayValue: "3.0 / 5",
+        nativeValue: 3,
+        rankPct: scoreOutOf5ToRankPct(3),
+      },
+      {
+        id: "focusPct",
+        label: "Focus %",
+        displayValue: "85%",
+        nativeValue: 85,
+        rankPct: 85,
       },
       {
         id: "appr",
@@ -144,9 +151,164 @@ describe("performanceCard strengths ranking", () => {
         excludeFromSnapshot: true,
       },
     ]);
-    expect(strengths.map((s) => s.id)).toEqual(["conf", "plan", "core"]);
-    expect(needsAttention.map((s) => s.id)).toEqual(["gov", "unpl"]);
-    expect(strengths[0]?.displayValue).toBe("96%");
+    // Strength: plan 91, conf 96, competency 100%; middle Focus 85 omitted
+    expect(strengths.map((s) => s.id)).toEqual([
+      "beh_c1",
+      "confirmationDiscipline",
+      "planningAccuracy",
+    ]);
+    // Need: unplanned 21, competency 60%; Focus middle omitted
+    expect(needsAttention.map((s) => s.id)).toEqual(["beh_gov", "unplannedPct"]);
+    expect(strengths[0]?.displayValue).toBe("5.0 / 5");
+  });
+
+  it("scenario 2: threshold bands + first competency only when equal %", () => {
+    const { strengths, needsAttention } = pickStrengthsAndNeeds(
+      [
+        { id: "focusPct", label: "Focus %", displayValue: "89%", nativeValue: 89, rankPct: 89 },
+        {
+          id: "planningAccuracy",
+          label: "Planning Accuracy",
+          displayValue: "89%",
+          nativeValue: 89,
+          rankPct: 89,
+        },
+        {
+          id: "confirmationDiscipline",
+          label: "Confirmation Discipline",
+          displayValue: "89%",
+          nativeValue: 89,
+          rankPct: 89,
+        },
+        {
+          id: "billableSplitPct",
+          label: "Billable Split",
+          displayValue: "92%",
+          nativeValue: 92,
+          rankPct: 92,
+        },
+        {
+          id: "unplannedPct",
+          label: "Unplanned Work",
+          displayValue: "21%",
+          nativeValue: 21,
+          rankPct: invertPctForRank(21),
+        },
+        {
+          id: "beh_c1",
+          label: "C1",
+          displayValue: "3.5 / 5",
+          nativeValue: 3.5,
+          rankPct: scoreOutOf5ToRankPct(3.5),
+        },
+        {
+          id: "beh_c3",
+          label: "C3",
+          displayValue: "3.5 / 5",
+          nativeValue: 3.5,
+          rankPct: scoreOutOf5ToRankPct(3.5),
+        },
+        {
+          id: "beh_c6",
+          label: "C6",
+          displayValue: "3.5 / 5",
+          nativeValue: 3.5,
+          rankPct: scoreOutOf5ToRankPct(3.5),
+        },
+        {
+          id: "beh_c7",
+          label: "C7",
+          displayValue: "5.0 / 5",
+          nativeValue: 5,
+          rankPct: scoreOutOf5ToRankPct(5),
+        },
+        {
+          id: "beh_c10",
+          label: "C10",
+          displayValue: "3.0 / 5",
+          nativeValue: 3,
+          rankPct: scoreOutOf5ToRankPct(3),
+        },
+      ],
+      5
+    );
+    expect(strengths.map((s) => s.id)).toEqual(["beh_c7", "billableSplitPct"]);
+    expect(needsAttention.map((s) => s.id)).toEqual(["beh_c10", "unplannedPct"]);
+    // 70% competencies are middle-band — not listed; equal need-attention comps would dedupe
+  });
+
+  it("dedupes equal need-attention competencies to the first in order", () => {
+    const { needsAttention } = pickStrengthsAndNeeds([
+      {
+        id: "beh_c1",
+        label: "C1",
+        displayValue: "2.5 / 5",
+        nativeValue: 2.5,
+        rankPct: scoreOutOf5ToRankPct(2.5),
+      },
+      {
+        id: "beh_c3",
+        label: "C3",
+        displayValue: "2.5 / 5",
+        nativeValue: 2.5,
+        rankPct: scoreOutOf5ToRankPct(2.5),
+      },
+      {
+        id: "unplannedPct",
+        label: "Unplanned Work",
+        displayValue: "25%",
+        nativeValue: 25,
+        rankPct: invertPctForRank(25),
+      },
+    ]);
+    expect(needsAttention.map((s) => s.id)).toEqual(["beh_c1", "unplannedPct"]);
+  });
+
+  it("puts Unplanned 0% in Strengths, Confirmation 80% in Needs Attention", () => {
+    const { strengths, needsAttention } = pickStrengthsAndNeeds([
+      {
+        id: "focusPct",
+        label: "Focus %",
+        displayValue: "197%",
+        nativeValue: 197,
+        rankPct: 197,
+      },
+      {
+        id: "planningAccuracy",
+        label: "Planning Accuracy",
+        displayValue: "100%",
+        nativeValue: 100,
+        rankPct: 100,
+      },
+      {
+        id: "billableSplitPct",
+        label: "Billable Split",
+        displayValue: "100%",
+        nativeValue: 100,
+        rankPct: 100,
+      },
+      {
+        id: "confirmationDiscipline",
+        label: "Confirmation Discipline",
+        displayValue: "80%",
+        nativeValue: 80,
+        rankPct: 80,
+      },
+      {
+        id: "unplannedPct",
+        label: "Unplanned Work",
+        displayValue: "0%",
+        nativeValue: 0,
+        rankPct: invertPctForRank(0),
+      },
+    ]);
+    expect(strengths.map((s) => s.id)).toEqual([
+      "focusPct",
+      "planningAccuracy",
+      "billableSplitPct",
+    ]);
+    expect(needsAttention.map((s) => s.id)).toEqual(["confirmationDiscipline"]);
+    expect(strengths.find((s) => s.id === "unplannedPct")).toBeUndefined();
   });
 
   it("lastCompletedQuarter from mid Q3 is Q2", () => {

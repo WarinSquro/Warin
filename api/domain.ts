@@ -1912,3 +1912,64 @@ export async function fetchPerformanceCard(params: {
   return apiFetch(`/performance-card?${q.toString()}`);
 }
 
+export type PerfCardFocusLapRow = {
+  workDate: string;
+  startedAt: string;
+  endedAt: string;
+  durationMs: number;
+  durationMin: number;
+};
+
+export type PerfCardFocusLapsPayload = {
+  employee: { hrmsId: string; name: string };
+  weekStart: string;
+  weekEnd: string;
+  lapCount: number;
+  avgDurationMin: number | null;
+  sumDurationMs?: number;
+  sumDurationMin?: number;
+  resultColumn?: string | null;
+  resultValue?: number | string | null;
+  calculation?: string | null;
+  rows: PerfCardFocusLapRow[];
+};
+
+/** Administrator-only: focus laps for one employee week (MetricHistory Shift+click). */
+export async function fetchPerformanceCardFocusLaps(params: {
+  employeeHrmsId: string;
+  weekStart: string;
+}): Promise<PerfCardFocusLapsPayload> {
+  const q = new URLSearchParams();
+  q.set("employeeHrmsId", params.employeeHrmsId);
+  q.set("weekStart", params.weekStart);
+  return apiFetch(`/performance-card/focus-laps?${q.toString()}`);
+}
+
+export type PerfCardMetricDebugPayload = {
+  metricId: string;
+  title: string;
+  employee: { hrmsId: string; name: string };
+  weekStart: string;
+  weekEnd: string;
+  columns: string[];
+  rows: Array<Record<string, string | number | boolean | null>>;
+  totals: Record<string, string | number | boolean | null> | null;
+  summary: string | null;
+  resultColumn?: string | null;
+  resultValue?: number | string | null;
+  calculation?: string | null;
+};
+
+/** Administrator-only: underlying rows for a metric week bar (non-lap metrics). */
+export async function fetchPerformanceCardMetricDebug(params: {
+  employeeHrmsId: string;
+  weekStart: string;
+  metricId: string;
+}): Promise<PerfCardMetricDebugPayload> {
+  const q = new URLSearchParams();
+  q.set("employeeHrmsId", params.employeeHrmsId);
+  q.set("weekStart", params.weekStart);
+  q.set("metricId", params.metricId);
+  return apiFetch(`/performance-card/metric-debug?${q.toString()}`);
+}
+

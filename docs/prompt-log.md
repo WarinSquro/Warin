@@ -32,6 +32,83 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-09-14 12:35 IST
+
+**Prompt:**  
+> MetricHistoryModal Export: any date/datetime column must use System Parameters → Date Format
+
+**Output:**  
+- `MetricHistoryModal` Excel export: `Week start` now `formatDate(weekStart)` (Settings date format); passes `dateFormat`.
+- Competency 12-week export: week headers use `formatDate(w)` instead of raw ISO.
+- No API/Docker change (frontend only).
+
+### 2026-09-14 11:50 IST
+
+**Prompt:**  
+> Hotpatch the correct path (or rebuild the API image) — local Docker only
+
+**Output:**  
+- Root cause of stale snapshot: Nest runs from `/app/apps/oneview-api/dist` (`WORKDIR` in Dockerfile); earlier `docker cp` went to unused `/app/dist`.
+- Rebuilt API; `docker cp apps/oneview-api/dist/.` → `oneview-api:/app/apps/oneview-api/dist/`; restarted container.
+- Verified in-container: `classifySnapshotBand`, Focus need cutoff `pct <= 80`; no `Behavioural Competency` / `beh_avg` rollup rows in controller; health via `:8080/api/v1/health` ok.
+
+### 2026-09-14 11:30 IST
+
+**Prompt:**  
+> Restart/Redeploy the API (local Docker only, not EC2)
+
+**Output:**  
+- `npm run build --workspace=apps/oneview-api` — dist includes `classifySnapshotBand`.
+- `docker cp` dist → `oneview-api:/app/dist/` + `docker restart oneview-api`.
+- Container health: **healthy**; `/api/health` → database ok.
+- Confirmed in-container periods.js exports threshold classifier (no EC2 deploy).
+
+### 2026-09-14 10:45 IST
+
+**Prompt:**  
+> Implement Strengths and Need-Attentions as per PARAMETER image (Focus/Planning/Confirmation ≥90 strength / ≤80 need; Billable ≥90 / ≤70; Unplanned ≤10 / ≥20; Competencies ≥100% / ≤60%). Scenario 2: equal competencies → first only.
+
+**Output:**  
+- Root cause: snapshot used relative top/bottom-3 ranking, ignoring PARAMETER cutoffs (e.g. Unplanned 0% could appear under Needs Attention).
+- `utils/performanceCard.ts` + `performance-card.periods.ts`: `classifySnapshotBand` / `resolveSnapshotParam` + threshold `pickStrengthsAndNeeds`; middle band omitted; equal competency % deduped to first in order; cap 3 per column among qualifiers.
+- API: snapshot rankables = individual competencies + 5 % metrics (no beh/tech averages).
+- UI footers updated to threshold wording.
+- Tests: Scenario 2 + Unplanned 0% / Confirmation 80% cases; vitest 14 passed.
+- Nest build + Docker hotpatch.
+
+### 2026-09-11 20:45 IST
+
+**Prompt:**  
+> Fix Shift+click popup totals to match Work & Productivity bar values (Focus Hrs/%, Focus laps avg, Confirmation Discipline, Unplanned %, Billable Split %). Red TOTAL for value used in calc; bold calculation after TOTAL. Do not change chart bar math.
+
+**Output:**  
+- Root cause: focus debug skipped lap fallback when session rows existed with 0 ms; lap TOTAL summed minutes instead of average; % metrics totaled hours; Confirmation Discipline had no result %.
+- API (`performance-card.controller.ts`): focus = sessions, else laps when session sum is 0; lap TOTAL/`resultValue` = avg min + calculation; unplanned%/billable split%/planning accuracy expose `metric_result` % + formula; confirmation discipline = confirmed_days / working_days (same as card).
+- UI: red TOTAL cell on `resultColumn`; bold calculation line under table (`AdminMetricDebugModal` / `AdminFocusLapsDebugModal`).
+- Types: `resultColumn` / `resultValue` / `calculation` on debug payloads in `api/domain.ts`.
+- Nest build + Docker hotpatch of `oneview-api` dist. Chart/`computePeriodMetrics` unchanged.
+
+### 2026-09-11 20:00 IST
+
+**Prompt:**  
+> Per-metric Shift+click APIs + popups for Planned/Actual/Billable/Focus Hrs, Focus %, Unplanned Hrs, Planning Accuracy, Confirmation Discipline (keep Average Lap Duration). Totals row; fixed height + vertical scroll.
+
+**Output:**  
+- API: `GET /performance-card/metric-debug?employeeHrmsId=&weekStart=&metricId=` (super-admin) — confirmation lines / focus sessions / working-day discipline payloads with `columns`, `rows`, `totals`, `summary`.
+- UI: Shift+click routes by metric; lap modal unchanged (plus TOTAL + fixed height); new `AdminMetricDebugModal` with sticky header, TOTAL row, `h-[min(70vh,520px)]` + overflow scroll.
+- Client: `fetchPerformanceCardMetricDebug` in `api/domain.ts`.
+
+### 2026-09-11 19:35 IST
+
+**Prompt:**  
+> Admin-only hidden: Shift+left-click MetricHistoryModal bar → popup table of focus laps (work_date, started_at, ended_at, duration_ms, duration_min) with X close.
+
+**Output:**  
+- API: `GET /performance-card/focus-laps?employeeHrmsId=&weekStart=` — **super-admin only**; returns lap rows + avg for that Mon–Sun week.
+- UI: `MetricHistoryModal` Shift+click on a week bar (admin login only) opens nested dialog with the table; non-admins unchanged.
+- Client: `fetchPerformanceCardFocusLaps` in `api/domain.ts`.
+- Local/live need API rebuild to pick up the new route.
+
 ### 2026-09-11 15:45 IST
 
 **Prompt:**  

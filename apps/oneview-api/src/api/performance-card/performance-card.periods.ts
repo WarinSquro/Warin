@@ -251,17 +251,122 @@ export type RankableMetric = {
   excludeFromSnapshot?: boolean;
 };
 
+/** Snapshot parameter families — thresholds from Performance Snapshot PARAMETER table. */
+export type SnapshotParamId =
+  | "focusPct"
+  | "planningAccuracy"
+  | "confirmationDiscipline"
+  | "billableSplitPct"
+  | "unplannedPct"
+  | "competency";
+
+export type SnapshotBand = "strength" | "needsAttention" | null;
+
+export function resolveSnapshotParam(m: RankableMetric): SnapshotParamId | null {
+  if (m.excludeFromSnapshot) return null;
+  switch (m.id) {
+    case "focusPct":
+      return "focusPct";
+    case "planningAccuracy":
+      return "planningAccuracy";
+    case "confirmationDiscipline":
+      return "confirmationDiscipline";
+    case "billableSplitPct":
+      return "billableSplitPct";
+    case "unplannedPct":
+      return "unplannedPct";
+    default:
+      break;
+  }
+  if (
+    m.id === "beh_avg" ||
+    m.id === "tech_avg" ||
+    m.id.startsWith("beh_") ||
+    m.id.startsWith("tech_")
+  ) {
+    return "competency";
+  }
+  return null;
+}
+
+/**
+ * Classify a metric into Strength / Needs Attention using fixed PARAMETER cutoffs.
+ * Middle-band values return null (omit from both lists).
+ */
+export function classifySnapshotBand(m: RankableMetric): SnapshotBand {
+  const param = resolveSnapshotParam(m);
+  if (!param || !Number.isFinite(m.nativeValue)) return null;
+
+  if (param === "competency") {
+    if (!Number.isFinite(m.rankPct)) return null;
+    if (m.rankPct >= 100) return "strength";
+    if (m.rankPct <= 60) return "needsAttention";
+    return null;
+  }
+
+  const pct = m.nativeValue;
+  if (param === "unplannedPct") {
+    if (pct <= 10) return "strength";
+    if (pct >= 20) return "needsAttention";
+    return null;
+  }
+  if (param === "billableSplitPct") {
+    if (pct >= 90) return "strength";
+    if (pct <= 70) return "needsAttention";
+    return null;
+  }
+  // Focus %, Planning Accuracy %, Confirmation Discipline %
+  if (pct >= 90) return "strength";
+  if (pct <= 80) return "needsAttention";
+  return null;
+}
+
+/** Among competencies with the same %, keep only the first in input order. */
+function dedupeEqualCompetencies(
+  list: RankableMetric[],
+  inputOrder: RankableMetric[]
+): RankableMetric[] {
+  const order = new Map(inputOrder.map((m, i) => [m.id, i]));
+  const sorted = [...list].sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+  const seenPct = new Set<number>();
+  const out: RankableMetric[] = [];
+  for (const m of sorted) {
+    if (resolveSnapshotParam(m) === "competency") {
+      if (seenPct.has(m.rankPct)) continue;
+      seenPct.add(m.rankPct);
+    }
+    out.push(m);
+  }
+  return out;
+}
+
+/**
+ * Strengths / Needs Attention from PARAMETER thresholds (not relative top/bottom).
+ * Only metrics that meet a band are included; then ranked and capped at topN.
+ */
 export function pickStrengthsAndNeeds(
   metrics: RankableMetric[],
   topN = 3
 ): { strengths: RankableMetric[]; needsAttention: RankableMetric[] } {
-  const eligible = metrics.filter((m) => !m.excludeFromSnapshot && Number.isFinite(m.rankPct));
-  const byStrength = [...eligible].sort((a, b) => b.rankPct - a.rankPct || b.nativeValue - a.nativeValue);
-  const byWeakness = [...eligible].sort((a, b) => a.rankPct - b.rankPct || a.nativeValue - b.nativeValue);
-  const strengths = byStrength.slice(0, topN);
-  const strengthIds = new Set(strengths.map((s) => s.id));
-  const needsAttention = byWeakness.filter((m) => !strengthIds.has(m.id)).slice(0, topN);
-  return { strengths, needsAttention };
+  const eligible = metrics.filter(
+    (m) => !m.excludeFromSnapshot && Number.isFinite(m.rankPct) && resolveSnapshotParam(m) != null
+  );
+
+  let strengths = eligible.filter((m) => classifySnapshotBand(m) === "strength");
+  let needsAttention = eligible.filter((m) => classifySnapshotBand(m) === "needsAttention");
+
+  strengths = dedupeEqualCompetencies(strengths, metrics);
+  needsAttention = dedupeEqualCompetencies(needsAttention, metrics);
+
+  strengths.sort((a, b) => b.rankPct - a.rankPct || b.nativeValue - a.nativeValue);
+  needsAttention.sort((a, b) => a.rankPct - b.rankPct || a.nativeValue - b.nativeValue);
+
+  const strengthSlice = strengths.slice(0, topN);
+  const strengthIds = new Set(strengthSlice.map((s) => s.id));
+  return {
+    strengths: strengthSlice,
+    needsAttention: needsAttention.filter((m) => !strengthIds.has(m.id)).slice(0, topN),
+  };
 }
 
 export function lastCompletedQuarter(anchor = new Date()): {
