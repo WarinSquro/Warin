@@ -32,6 +32,16 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-09-14 12:55 IST
+
+**Prompt:**  
+> Now live all to EC2
+
+**Output:**  
+- Commit `bc1146a` pushed to `origin/main` (snapshot thresholds, admin metric debug, export date format, related API/UI/tests/prompt-log).
+- EC2: `bash scripts/ec2-deploy.sh --with-api` → `LIVE_COMMIT=bc1146a`, `SPA_PUBLISH_OK`, API rebuild, migrate none pending, `API_HEALTH_OK`.
+- Verify: `version.json` / health on https://seworkspace.com/. Hard-refresh (Ctrl+Shift+R).
+
 ### 2026-09-14 12:35 IST
 
 **Prompt:**  
