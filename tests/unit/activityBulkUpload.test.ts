@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import * as XLSX from "xlsx";
 import {
@@ -62,9 +63,11 @@ describe("interpretActivityType", () => {
   });
 });
 
-describe("Warin-Activity-Upload.xlsx shape", () => {
+const LOCAL_ACTIVITY_XLSX = "D:/Users/AMIT/Downloads/Warin-Activity-Upload.xlsx";
+
+describe.skipIf(!existsSync(LOCAL_ACTIVITY_XLSX))("Warin-Activity-Upload.xlsx shape", () => {
   it("parses user workbook headers and Type values", () => {
-    const wb = XLSX.readFile("D:/Users/AMIT/Downloads/Warin-Activity-Upload.xlsx");
+    const wb = XLSX.readFile(LOCAL_ACTIVITY_XLSX);
     const sheet = wb.Sheets[wb.SheetNames[0]!]!;
     const records = XLSX.utils.sheet_to_json<Record<string, string>>(sheet, { defval: "" });
     expect(records.length).toBeGreaterThan(0);
