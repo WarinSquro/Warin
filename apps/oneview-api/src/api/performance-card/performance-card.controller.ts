@@ -636,9 +636,9 @@ export class PerformanceCardController {
     const denom = actual > 0 ? actual : planned > 0 ? planned : 0;
     const focusPct = denom > 0 ? round0((focusHrs / denom) * 100) : null;
 
-    let resultColumn: string | null = metric === "focusPct" ? "metric_result" : "focus_hrs";
-    let resultValue: number | string | null = metric === "focusPct" ? focusPct : focusHrs;
-    let calculation: string | null =
+    const resultColumn: string | null = metric === "focusPct" ? "metric_result" : "focus_hrs";
+    const resultValue: number | string | null = metric === "focusPct" ? focusPct : focusHrs;
+    const calculation: string | null =
       metric === "focusPct"
         ? focusPct == null
           ? "focus_pct = — (no planned/actual hours)"

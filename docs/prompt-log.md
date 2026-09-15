@@ -39,8 +39,8 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 **Output:**  
 - Pulled `origin/main` (already up to date at `46596d1`).
-- Committed Cost Analyzer + Employee Cost master in one complete change: SPA screens, Nest `cost-analyzer` API, masters employee-costs, Prisma `employee_costs` + joining/exit dates, FRD/UI PDFs, table workbook.
-- Pushed `origin/main`; GitHub CI quality gate; EC2 `bash scripts/ec2-deploy.sh --with-api`; verify SHA on `https://seworkspace.com/version.json`.
+- Committed Cost Analyzer + Employee Cost master: SPA screens, Nest `cost-analyzer` API, masters employee-costs, Prisma `employee_costs` + joining/exit dates, FRD/UI PDFs, table workbook (`2c2f3f8`).
+- CI lint failed: unused `addDaysISO` + pre-existing `prefer-const` in Performance Card debug. Fixed and re-pushed; EC2 `bash scripts/ec2-deploy.sh --with-api`; verify SHA on `https://seworkspace.com/version.json`.
 
 ### 2026-09-15 06:45 IST
 
