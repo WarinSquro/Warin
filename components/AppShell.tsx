@@ -26,6 +26,7 @@ import {
   Crosshair,
   CalendarDays,
   Signpost,
+  CircleDollarSign,
   type LucideIcon,
 } from "lucide-react";
 import { ProductLogo } from "./ProductLogo";
@@ -37,6 +38,7 @@ import { getMenuNavItems } from "../data/navConfig";
 const NAV_ICONS: Record<string, LucideIcon> = {
   my_workspace: LayoutDashboard,
   "my_workspace.performance_card": IdCard,
+  "my_workspace.cost_analyzer": BarChart3,
   planner: CalendarRange,
   availability: CalendarClock,
   utilization: Activity,
@@ -52,6 +54,7 @@ const NAV_ICONS: Record<string, LucideIcon> = {
   "my_team.team_projects": FolderKanban,
   "masters.weekly_check_in": SlidersHorizontal,
   "masters.kpi_framework": Crosshair,
+  "masters.employee_costs": CircleDollarSign,
   projects: FolderKanban,
   masters: Boxes,
   employees: UserPlus,

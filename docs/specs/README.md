@@ -22,6 +22,8 @@ These files are the **product source of truth** when behavior is ambiguous (UI m
 | `phase1-workdaysummary-frd.pdf` | Workday Summary Report | `/reports/workday-summary` |
 | `phase1-emp2prj-frd.pdf` | Map Employees to Projects utility | `/projects` (Map Employees modal); Work Allocation project filter |
 | `phase1-decisionpoint-frd.pdf` | Decision Points FRD (types master + operational flow) | Setup `/masters` → DP Types; My Team `/my-team/decision-points` |
+| `phase1-CostAnalyzer-v1-frd.pdf` | Cost Analyzer FRD (manpower cost visibility) | `/cost-analyzer`; Setup `/masters/employee-costs` |
+| `phase1-CostAnalyzer-v1-UI.pdf` | Cost Analyzer UI reference | same |
 | `phase1-perfcard-frd.pdf` | Performance Card FRD (individual analysis layer) | `/performance-card` |
 | `phase1-perfcard-ui.pdf` | Performance Card UI reference | `/performance-card` |
 

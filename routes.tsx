@@ -29,6 +29,8 @@ import { KpiResults } from "./screens/KpiResults";
 import { DecisionPoints } from "./screens/DecisionPoints";
 import { TeamProjects } from "./screens/TeamProjects";
 import { PerformanceCard } from "./screens/PerformanceCard";
+import { CostAnalyzer } from "./screens/CostAnalyzer";
+import { EmployeeCostMaster } from "./screens/EmployeeCostMaster";
 import { ChangePinRequired } from "./screens/ChangePinRequired";
 import { AccessRights } from "./screens/AccessRights";
 import { AccessDenied } from "./screens/AccessDenied";
@@ -86,6 +88,14 @@ function AppShellRoutes() {
             </Guarded>
           }
         />
+        <Route
+          path="/cost-analyzer"
+          element={
+            <Guarded path="/cost-analyzer" permissionKey="my_workspace.cost_analyzer">
+              <CostAnalyzer />
+            </Guarded>
+          }
+        />
         <Route path="/planning-conflicts" element={<Guarded path="/planning-conflicts"><PlanningConflicts /></Guarded>} />
         <Route path="/dashboard" element={<Navigate to="/cockpit" replace />} />
         <Route path="/exec-dashboard" element={<Navigate to="/cockpit" replace />} />
@@ -107,6 +117,14 @@ function AppShellRoutes() {
         <Route path="/projects" element={<Guarded path="/projects"><ProjectMaster /></Guarded>} />
         <Route path="/masters/weekly-check-in" element={<Guarded path="/masters/weekly-check-in" superAdminOnly><WeeklyCheckInConfig /></Guarded>} />
         <Route path="/masters/kpi-framework" element={<Guarded path="/masters/kpi-framework" permissionKey="masters.kpi_framework"><KpiFramework /></Guarded>} />
+        <Route
+          path="/masters/employee-costs"
+          element={
+            <Guarded path="/masters/employee-costs" permissionKey="masters.employee_costs">
+              <EmployeeCostMaster />
+            </Guarded>
+          }
+        />
         <Route path="/masters" element={<Guarded path="/masters"><SetupMasters /></Guarded>} />
         <Route path="/employees" element={<Guarded path="/employees"><EmployeeMaster /></Guarded>} />
         <Route path="/settings" element={<Guarded path="/settings"><Settings /></Guarded>} />

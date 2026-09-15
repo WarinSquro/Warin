@@ -32,6 +32,274 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-09-15 06:50 IST
+
+**Prompt:**  
+> Live all on EC2
+
+**Output:**  
+- Pulled `origin/main` (already up to date at `46596d1`).
+- Committed Cost Analyzer + Employee Cost master in one complete change: SPA screens, Nest `cost-analyzer` API, masters employee-costs, Prisma `employee_costs` + joining/exit dates, FRD/UI PDFs, table workbook.
+- Pushed `origin/main`; GitHub CI quality gate; EC2 `bash scripts/ec2-deploy.sh --with-api`; verify SHA on `https://seworkspace.com/version.json`.
+
+### 2026-09-15 06:45 IST
+
+**Prompt:**  
+> now live all on EC2 — show DB values behind Atul Actual Hrs 00:18
+
+**Output:**  
+- Queried live EC2 Postgres (`oneview-postgres`): Atul Karathiya (hrms 115), confirmation 458 on 2026-09-14.
+- One deviation line: `actual_hours=0.3` (→ 00:18), planned 8.5, SCIP SA-TA / M6, reason “Blocked / waiting on input”.
+- Focus laps on alloc 540: 2.1852h + 5.8157h ≈ 8.00h (matches Focus Hrs 08:00). Totals: planned_actual=0.3, unplanned=0.
+
+### 2026-09-14 20:14 IST
+
+**Prompt:**  
+> Project detail drawer opened from Project Cost: put Back arrow ahead of title to return to Project Cost drawer
+
+**Output:**  
+- Project drawer state gets `backTo: "projects_list"` when opened from Project Cost list; `SideDrawer` shows `ArrowLeft` before title; Back restores Project Cost list.
+- Files: `screens/CostAnalyzer.tsx`, `docs/prompt-log.md`
+
+### 2026-09-14 20:10 IST
+
+**Prompt:**  
+> Captured Cost Break-Up: Project Cost and Unplanned Cost cards with violet and orange borders
+
+**Output:**  
+- `BreakupKpiCard` accepts `borderClass`; Project Cost → violet (`#8B5CF6`), Unplanned Cost → orange (`#F59E0B`) — same hues as Cost Analyzer donut palette.
+- Logged in `docs/prompt-log.md`
+
+### 2026-09-14 20:00 IST
+
+**Prompt:**  
+> Cost Analyzer trends: also give text color same as arrow
+
+**Output:**  
+- `TrendVsPrior` now applies the arrow tone (`text-success` / `text-danger`) to the full change line (▲/▼ + % + vs prior amount).
+- Logged in `docs/prompt-log.md`
+
+### 2026-09-14 19:56 IST
+
+**Prompt:**  
+> Cost Analyzer: give up/down arrows proper color per project guideline
+
+**Output:**  
+- Added `TrendVsPrior` in `screens/CostAnalyzer.tsx`: ▲ `text-success` / ▼ `text-danger` (same as Performance Card); Lost & Unplanned use inverted polarity (`upIsBad` — up danger, down success).
+- Applied on Cost Summary + Captured Cost Break-Up cards.
+- Logged in `docs/prompt-log.md`
+
+### 2026-09-14 19:50 IST
+
+**Prompt:**  
+> Cost Summary MetricChips: show in different colors per project guideline so easier to read
+
+**Output:**  
+- `SummaryKpiCard` pills in `screens/CostAnalyzer.tsx` use theme soft chips: Captured → success; Lost → danger; Project → accent; Unplanned → warning (same soft/border/fg pattern as status chips elsewhere).
+- Logged in `docs/prompt-log.md`
+
+### 2026-09-14 19:42 IST
+
+**Prompt:**  
+> Project Employee Contribution: show department below employee name and remove Dept column
+
+**Output:**  
+- Updated project drawer Employee Contribution table in `screens/CostAnalyzer.tsx`: dept under name (muted), removed Dept column; Total row uses standard 4-col layout.
+- Logged in `docs/prompt-log.md`
+
+### 2026-09-14 19:22 IST
+
+**Prompt:**  
+> Department drawer (DEVT): put total for each columns in tables
+
+**Output:**  
+- Added **Total** footers to Project-wise Cost, Unplanned Reason-wise Cost (Hours/Cost/100%), and Employee Contribution (Hours/Cost; Capture % = —) in department drill-down in `screens/CostAnalyzer.tsx`.
+- Logged in `docs/prompt-log.md`
+
+### 2026-09-14 19:20 IST
+
+**Prompt:**  
+> Project drawer: put total for each columns in Department and Employee contribution tables
+
+**Output:**  
+- Added **Total** footer (Hours, Cost, 100%) to Department Contribution and Employee Contribution in project drill-down (`screens/CostAnalyzer.tsx`); employee total leaves Dept cell blank via `leadingExtra`.
+- Logged in `docs/prompt-log.md`
+
+### 2026-09-14 19:15 IST
+
+**Prompt:**  
+> Unplanned Cost drawer tables: for each table, put total of each columns
+
+**Output:**  
+- Added footer **Total** row (Hours, Cost, 100%) to Unplanned Reason-wise, Unplanned Employee-wise, and Project-wise breakdown tables via shared `BreakdownColumnTotal` in `screens/CostAnalyzer.tsx`.
+- Logged in `docs/prompt-log.md`
+
+### 2026-09-14 19:08 IST
+
+**Prompt:**  
+> Lost Cost sticky header: while scrolling, row data shows above the header — fix bleed-through
+
+**Output:**  
+- Root cause: sticky header inside padded drawer scroll left a gap where rows painted above the column header.
+- Fix: SideDrawer body is flex + `overflow-hidden`; Lost list uses a fixed column header with only rows in `overflow-y-auto`. Other drawers scroll in a separate body wrapper.
+- Files: `screens/CostAnalyzer.tsx`, `docs/prompt-log.md`
+
+### 2026-09-14 19:05 IST
+
+**Prompt:**  
+> Lost Cost drawer table header (Employee / Lost / Lost h / Cap %): keep static header
+
+**Output:**  
+- `LostCostEmployeeList` in `screens/CostAnalyzer.tsx`: column header is `sticky top-0 z-10`; removed wrapping `overflow-hidden` so sticky works against the SideDrawer scroll.
+
+### 2026-09-14 18:44 IST
+
+**Prompt:**  
+> Project SideDrawer (IncentivePro-v1): check design image and update header text; also check top area
+
+**Output:**  
+- Updated project drill-down drawer in `screens/CostAnalyzer.tsx` to match Project Atlas design:
+  - Header: project name title + analysis period subtitle (`from`/`to` on drawer state via `openProject`)
+  - Top summary box: label/value rows for Dates, PO, Period, Actual Hours, Total Cost, Company Share (% of Captured); outside-period note retained
+  - Sections retitled **Department Contribution** / **Employee Contribution** with bordered tables matching other Cost Analyzer drawers
+- Logged in `docs/prompt-log.md`
+
+### 2026-09-14 18:35 IST
+
+**Prompt:**  
+> Management Attention cards: update background colors per design image
+
+**Output:**  
+- Type-based card tones: Top Cost → cool grey-blue (`#EEF2F6`); High Lost → `danger-soft` + red label; High Unplanned / Over-Captured → `warning-soft`. Headings aligned to design (“Top Cost-Consuming Project”, “High Lost / Not-Captured Cost”).
+
+### 2026-09-14 18:30 IST
+
+**Prompt:**  
+> Department drawer (DEVT): update table titles per image — Project-wise Cost, Unplanned Reason-wise Cost, Employee Contribution
+
+**Output:**  
+- Department drawer rebuilt to match design: **Project-wise Cost**, **Unplanned Reason-wise Cost**, **Employee Contribution** tables (Hours / Cost / % or Capture %); period subtitle; L/K amounts.
+- API department drilldown employees include `capturePct`; hotpatched API.
+
+### 2026-09-14 18:20 IST
+
+**Prompt:**  
+> Captured Cost Break-Up Project / Unplanned cards → drawers per attached images
+
+**Output:**  
+- API: `unplannedByReason` nests employees; added `unplannedByEmployee` + `unplannedEmployees` on cost-analyzer payload; hotpatched Docker API.
+- UI: clickable Project Cost / Unplanned Cost cards open drawers — Project-wise Breakdown; Unplanned reason-wise + employee-wise expandable lists (dept under name, L/K, period subtitle).
+
+### 2026-09-14 18:10 IST
+
+**Prompt:**  
+> Lost / Not-Captured Cost drawer visuals per image: Employee+dept, Lost / Lost h / Cap %, row expand → CTC, Captured, Eligible, Project, Unplanned, Captured h
+
+**Output:**  
+- `screens/CostAnalyzer.tsx`: redesigned lost drawer — period subtitle in header; expandable employee list (name + department; Lost / Lost h / Cap %); click expands detail grid; amounts via `inrCompact`.
+
+### 2026-09-14 18:05 IST
+
+**Prompt:**  
+> Cost Analyzer department drawer (DEVT): values should be in 00.00L or 00.00K
+
+**Output:**  
+- All Cost Analyzer drawer money displays (department / project / lists / lost-over tables) + Management Attention amounts use `inrCompact`.
+
+### 2026-09-14 18:05 IST
+
+**Prompt:**  
+> Captured Cost Composition / Department Cost Distribution: legends and donut placement per reference (donut left, legend right, L/K values)
+
+**Output:**  
+- Replaced stacked donut+text with `DonutWithLegend`: chart left, color-dot legend right with `inrCompact · %` right-aligned; applied to both composition and department cards.
+
+### 2026-09-14 18:00 IST
+
+**Prompt:**  
+> Project Cost Analysis cards: values should be in 00.00L or 00.00K
+
+**Output:**  
+- `screens/CostAnalyzer.tsx` Project Cost Analysis cards: main cost, outside-period, and department lines use `inrCompact` (₹00.00L / ₹00.00K).
+
+### 2026-09-14 17:55 IST
+
+**Prompt:**  
+> Cost Analyzer KPI cards → COST SUMMARY + CAPTURED COST BREAK-UP per attached images (L/K amounts, no hours, pills, right-side CTC/trend on break-up, 2-card width, footer texts)
+
+**Output:**  
+- `screens/CostAnalyzer.tsx`: `inrCompact` (₹00.00L / ₹00.00K); **Cost Summary** (3 cards + Captured/Lost + Project/Unplanned pills; Lost up → red; footnote Captured+Lost=CTC); **Captured Cost Break-Up** (2 equal cards, CTC% + change on right; footnote Project+Unplanned=Captured); no hours on KPI cards; Over-Captured kept below when >0.
+
+### 2026-09-14 17:35 IST
+
+**Prompt:**  
+> Below Effective from: add “Employee daily cost at __.__ Rs_,____” in small font / different color
+
+**Output:**  
+- `EmployeeCostForm`: hint under Effective from — `Employee daily cost at {amount} Rs` (`text-[11px] text-muted-foreground`).
+- Amount = cost/min × 60 × Settings working hours/day (en-IN, 2 dp); shows `__.__` until a valid rate is entered.
+
+### 2026-09-14 17:00 IST
+
+**Prompt:**  
+> Employee Cost drawer Employee dropdown: “Administrator not come in this list”
+
+**Output:**  
+- Aligned with app-wide rule (Performance Card / Access Rights / KPI): exclude `isSuperAdmin` from Employee Cost picker in `screens/EmployeeCostMaster.tsx`.
+- Cost Analyzer scope (`scopedEmployeeIds`) also excludes SuperAdmin so CTC does not include the platform Administrator.
+- Hotpatched API dist into Docker `oneview-api`.
+
+### 2026-09-14 16:55 IST
+
+**Prompt:**  
+> Employee Cost “Add employee cost” modal → use drawer like rest of app
+
+**Output:**  
+- Converted `EmployeeCostForm` in `screens/EmployeeCostMaster.tsx` from centered modal to right-side drawer matching Employee / Setup masters (`fixed inset-0`, `bg-brand/30` scrim, `w-[440px]` panel, header / scroll body / footer Cancel·Save).
+- Fields, validation, create/edit save behavior unchanged.
+
+### 2026-09-14 16:35 IST
+
+**Prompt:**  
+> Where is "Employee Cost" menu? (SETUP sidebar)
+
+**Output:**  
+- **Cause:** `masters.employee_costs` was only a **child** of “Org · Skills · Activities” (Access Rights leaf). Sidebar `getMenuNavItems` renders top-level pages only, so no SETUP link appeared.
+- **Fix:** Promoted to its own Setup nav page (`menuVisible: true`, route `/masters/employee-costs`) in `data/navConfig.ts`; Lucide `CircleDollarSign` icon in `components/AppShell.tsx`.
+- Hard-refresh to see **SETUP → Employee Cost** (super-admin or users with `masters.employee_costs`).
+
+### 2026-09-14 16:25 IST
+
+**Prompt:**  
+> Cost Analyzer header / page: fix the error (“An unexpected error occurred”, “No data.”)
+
+**Output:**  
+- **Root cause:** API Docker image Prisma client predated `employees.joining_date` / `exit_date` and `employee_costs`. Hotpatched Nest JS selected `joiningDate` → Prisma `Unknown field 'joiningDate'`.
+- **Fix:** `npx prisma migrate deploy` (already applied) + `docker compose build api` + `docker compose up -d api`.
+- **Verify:** container healthy; `GET /api/v1/cost-analyzer?period=this_week` returns KPI payload (zeros OK — no employee cost rates yet). Prisma select of `joiningDate`/`exitDate`/`employeeCosts.costPerMinute` succeeds.
+- **User action:** hard-refresh Cost Analyzer (re-login if session was invalidated during API recreate). Add rates under Setup → Employee Cost for non-zero KPIs.
+- No app source change this turn (infra rebuild only).
+
+### 2026-09-14 16:20 IST
+
+**Prompt:**  
+> Use different icon for Cost Analyzer (bar chart reference, not LayoutDashboard)
+
+**Output:**  
+- `AppShell` NAV_ICONS: `my_workspace.cost_analyzer` → Lucide `BarChart3` (was falling back to `LayoutDashboard`).
+
+### 2026-09-14 16:15 IST
+
+**Prompt:**  
+> Implementation to start (Employee Cost master + Cost Analyzer API/UI) — full FRD V1 with locked decisions (working calendar for CTC, Over-Captured when >0, periods week/month/custom, self+tree scope, INR 2dp, UI PDF landing KPI layout).
+
+**Output:**  
+- Prisma: `employee_costs` + `employees.joining_date` / `exit_date`; migration `20260914100000_employee_costs`; table workbook updated (T16).
+- API: masters CRUD `GET/POST/PUT /masters/employee-costs`; Cost Analyzer module (`/cost-analyzer` + lost/over/project/department drilldowns). CTC uses Settings working days + hours/day (not off-days).
+- UI: `/masters/employee-costs` (Employee Cost), `/cost-analyzer` (KPIs 2 rows, Over-Captured when >0, Management Attention, donuts, project cards, drawers). Nav keys `my_workspace.cost_analyzer`, `masters.employee_costs`.
+- Specs README inventory updated. Local migrate + Nest build + Docker hotpatch to `/app/apps/oneview-api/dist`.
+- Note: Joining/exit dates are in DB for CTC; Employee Master UI to edit them not included in this pass (null = full period).
+
 ### 2026-09-14 12:55 IST
 
 **Prompt:**  

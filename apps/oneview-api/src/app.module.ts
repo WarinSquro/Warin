@@ -25,6 +25,7 @@ import { ResourceLeavesModule } from "./api/resource-leaves/resource-leaves.modu
 import { DecisionPointsModule } from "./api/decision-points/decision-points.module";
 import { TeamProjectsModule } from "./api/team-projects/team-projects.module";
 import { PerformanceCardModule } from "./api/performance-card/performance-card.module";
+import { CostAnalyzerModule } from "./api/cost-analyzer/cost-analyzer.module";
 
 @Module({
   imports: [
@@ -70,6 +71,7 @@ import { PerformanceCardModule } from "./api/performance-card/performance-card.m
     DecisionPointsModule,
     TeamProjectsModule,
     PerformanceCardModule,
+    CostAnalyzerModule,
     HardDeleteModule,
   ],
   controllers: [HealthController],

@@ -145,11 +145,23 @@ const rows: Row[] = [
   { tableNo: 14, tableName: "welcome_pin_email_logs", fieldNo: 5, fieldName: "error_message", dataType: "TEXT", size: "—", defaultValue: "NULL", remarks: "Failure detail if any", rule: "Optional; No PIN in message" },
   { tableNo: 14, tableName: "welcome_pin_email_logs", fieldNo: 6, fieldName: "created_at", dataType: "TIMESTAMP", size: "—", defaultValue: "now()", remarks: "When email was attempted", rule: "System-set" },
 
+  { tableNo: 1, tableName: "employees", fieldNo: 14, fieldName: "joining_date", dataType: "DATE", size: "—", defaultValue: "NULL", remarks: "Employment start for Cost Analyzer CTC", rule: "Optional; Inclusive; Null = count full period" },
+  { tableNo: 1, tableName: "employees", fieldNo: 15, fieldName: "exit_date", dataType: "DATE", size: "—", defaultValue: "NULL", remarks: "Employment end / relieving for Cost Analyzer CTC", rule: "Optional; Inclusive; Null = still employed" },
+
   // T15 employee_project_maps
   { tableNo: 15, tableName: "employee_project_maps", fieldNo: 1, fieldName: "employee_id", dataType: "BIGINT", size: "—", defaultValue: "—", remarks: "FK → employees.id", rule: "PK (composite); FK; Cascade delete with employee" },
   { tableNo: 15, tableName: "employee_project_maps", fieldNo: 2, fieldName: "project_id", dataType: "BIGINT", size: "—", defaultValue: "—", remarks: "FK → projects.id", rule: "PK (composite); FK; Cascade delete with project" },
   { tableNo: 15, tableName: "employee_project_maps", fieldNo: 3, fieldName: "created_at", dataType: "TIMESTAMP", size: "—", defaultValue: "now()", remarks: "When mapping was created", rule: "System-set" },
   { tableNo: 15, tableName: "employee_project_maps", fieldNo: 4, fieldName: "created_by", dataType: "BIGINT", size: "—", defaultValue: "NULL", remarks: "Actor employee PK who mapped", rule: "Optional" },
+
+  // T16 employee_costs
+  { tableNo: 16, tableName: "employee_costs", fieldNo: 1, fieldName: "id", dataType: "BIGINT", size: "—", defaultValue: "autoincrement", remarks: "PK", rule: "Required" },
+  { tableNo: 16, tableName: "employee_costs", fieldNo: 2, fieldName: "employee_id", dataType: "BIGINT", size: "—", defaultValue: "—", remarks: "FK → employees.id", rule: "Required; FK; Cascade delete; Indexed" },
+  { tableNo: 16, tableName: "employee_costs", fieldNo: 3, fieldName: "cost_per_minute", dataType: "DECIMAL(14,4)", size: "—", defaultValue: "—", remarks: "INR cost per minute", rule: "Required; >= 0" },
+  { tableNo: 16, tableName: "employee_costs", fieldNo: 4, fieldName: "effective_from", dataType: "DATE", size: "—", defaultValue: "—", remarks: "Rate applies from this date inclusive", rule: "Required; Historical rates retained" },
+  { tableNo: 16, tableName: "employee_costs", fieldNo: 5, fieldName: "status", dataType: "ENUM", size: "active | inactive", defaultValue: "active", remarks: "SetupStatus", rule: "Required" },
+  { tableNo: 16, tableName: "employee_costs", fieldNo: 6, fieldName: "is_active", dataType: "BOOLEAN", size: "—", defaultValue: "true", remarks: "Active flag", rule: "Required" },
+  { tableNo: 16, tableName: "employee_costs", fieldNo: 7, fieldName: "is_deleted", dataType: "BOOLEAN", size: "—", defaultValue: "false", remarks: "Soft delete", rule: "Required" },
 ];
 
 const tableIndex = [
@@ -168,6 +180,7 @@ const tableIndex = [
   { no: 13, name: "smtp_settings", purpose: "Product SMTP + connection_verified gate for welcome email" },
   { no: 14, name: "welcome_pin_email_logs", purpose: "Audit of welcome temporary-PIN emails (no plaintext PIN)" },
   { no: 15, name: "employee_project_maps", purpose: "Resource ↔ Project eligibility for Work Allocation (Map Employees)" },
+  { no: 16, name: "employee_costs", purpose: "Effective-dated cost/minute for Cost Analyzer (historical rates)" },
 ];
 
 const enums = [

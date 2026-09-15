@@ -1973,3 +1973,279 @@ export async function fetchPerformanceCardMetricDebug(params: {
   return apiFetch(`/performance-card/metric-debug?${q.toString()}`);
 }
 
+// ─── Employee Cost master + Cost Analyzer ───────────────────────────────────
+
+export type EmployeeCostRow = {
+  id: string;
+  employeeId: string;
+  hrmsId: string;
+  employeeName: string;
+  costPerMinute: number;
+  effectiveFrom: string;
+  status: "active" | "inactive";
+  isActive: boolean;
+  version: number;
+};
+
+export async function fetchEmployeeCosts(includeInactive = true): Promise<EmployeeCostRow[]> {
+  const q = includeInactive ? "?includeInactive=true" : "";
+  const rows = await apiFetch<EmployeeCostRow[]>(`/masters/employee-costs${q}`);
+  return rows.map((r) => ({
+    ...r,
+    id: String(r.id),
+    employeeId: String(r.employeeId),
+    effectiveFrom:
+      typeof r.effectiveFrom === "string"
+        ? r.effectiveFrom.slice(0, 10)
+        : String(r.effectiveFrom).slice(0, 10),
+  }));
+}
+
+export async function createEmployeeCost(body: {
+  employeeId?: string;
+  hrmsId?: string;
+  costPerMinute: number;
+  effectiveFrom: string;
+  status?: "active" | "inactive";
+}): Promise<EmployeeCostRow> {
+  const row = await apiFetch<EmployeeCostRow>("/masters/employee-costs", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  return {
+    ...row,
+    id: String(row.id),
+    employeeId: String(row.employeeId),
+    effectiveFrom: String(row.effectiveFrom).slice(0, 10),
+  };
+}
+
+export async function updateEmployeeCost(
+  id: string,
+  body: {
+    costPerMinute?: number;
+    effectiveFrom?: string;
+    status?: "active" | "inactive";
+  }
+): Promise<EmployeeCostRow> {
+  const row = await apiFetch<EmployeeCostRow>(`/masters/employee-costs/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+  return {
+    ...row,
+    id: String(row.id),
+    employeeId: String(row.employeeId),
+    effectiveFrom: String(row.effectiveFrom).slice(0, 10),
+  };
+}
+
+export type CostAnalyzerPeriodId =
+  | "this_week"
+  | "prev_week"
+  | "this_month"
+  | "prev_month"
+  | "custom";
+
+export type CostKpiCard = {
+  amount: number;
+  previousAmount: number;
+  changePct: number | null;
+  direction: "up" | "down" | "same";
+  pctOfCtc?: number | null;
+};
+
+export type CostAnalyzerPayload = {
+  period: {
+    id: CostAnalyzerPeriodId;
+    from: string;
+    to: string;
+    previousFrom: string;
+    previousTo: string;
+    customWeeks: string[];
+    availableWeeks: Array<{ monday: string; label: string }>;
+  };
+  departmentId: string | null;
+  kpi: {
+    totalCtc: CostKpiCard;
+    capturedCost: CostKpiCard;
+    lostCost: CostKpiCard;
+    projectCost: CostKpiCard;
+    unplannedCost: CostKpiCard;
+    overCaptured: {
+      amount: number;
+      hours: number;
+      employeeCount: number;
+      previousAmount: number;
+      changePct: number | null;
+    } | null;
+  };
+  composition: {
+    projectCost: number;
+    unplannedCost: number;
+    projectPct: number | null;
+    unplannedPct: number | null;
+  };
+  departmentMode: "departments" | "project_vs_unplanned";
+  departments: Array<{
+    departmentId: string | null;
+    name: string;
+    cost: number;
+    pctShare: number | null;
+  }> | null;
+  selectedDepartmentSplit: {
+    projectCost: number;
+    unplannedCost: number;
+    projectPct: number | null;
+    unplannedPct: number | null;
+  } | null;
+  projects: Array<{
+    projectId: string;
+    name: string;
+    poNumber: string;
+    startDate: string | null;
+    endDate: string | null;
+    cost: number;
+    hours: number;
+    companySharePct: number | null;
+    outsidePeriodCost: number;
+    outsidePeriodHours: number;
+    departments: Array<{
+      departmentId: string | null;
+      name: string;
+      cost: number;
+      hours: number;
+      pctOfProject: number | null;
+    }>;
+  }>;
+  unplannedReasons: Array<{
+    reason: string;
+    cost: number;
+    hours: number;
+    pctShare: number | null;
+    employees: Array<{
+      employeeId: string;
+      name: string;
+      department: string | null;
+      cost: number;
+      hours: number;
+      pctShare: number | null;
+    }>;
+  }>;
+  unplannedEmployees: Array<{
+    employeeId: string;
+    name: string;
+    department: string | null;
+    cost: number;
+    hours: number;
+    pctShare: number | null;
+    reasons: Array<{
+      reason: string;
+      cost: number;
+      hours: number;
+      pctShare: number | null;
+    }>;
+  }>;
+  attention: Array<{
+    type: string;
+    entityName: string;
+    amount: number;
+    hours?: number;
+    pct?: number | null;
+    reason: string;
+    link: { kind: string; id: string };
+  }>;
+  workingCalendar: { workingDays: string[]; workingHoursPerDay: number };
+};
+
+export async function fetchCostAnalyzer(params: {
+  period: CostAnalyzerPeriodId;
+  weeks?: string[];
+  departmentId?: string | null;
+}): Promise<CostAnalyzerPayload> {
+  const q = new URLSearchParams();
+  q.set("period", params.period);
+  if (params.weeks?.length) q.set("weeks", params.weeks.join(","));
+  if (params.departmentId && params.departmentId !== "all") {
+    q.set("departmentId", params.departmentId);
+  }
+  return apiFetch(`/cost-analyzer?${q.toString()}`);
+}
+
+export async function fetchCostAnalyzerLostDrilldown(params: {
+  period: CostAnalyzerPeriodId;
+  weeks?: string[];
+  departmentId?: string | null;
+}): Promise<{ rows: Array<Record<string, string | number | null>> }> {
+  const q = new URLSearchParams();
+  q.set("period", params.period);
+  if (params.weeks?.length) q.set("weeks", params.weeks.join(","));
+  if (params.departmentId && params.departmentId !== "all") {
+    q.set("departmentId", params.departmentId);
+  }
+  return apiFetch(`/cost-analyzer/lost-drilldown?${q.toString()}`);
+}
+
+export async function fetchCostAnalyzerOverCapturedDrilldown(params: {
+  period: CostAnalyzerPeriodId;
+  weeks?: string[];
+  departmentId?: string | null;
+}): Promise<{ rows: Array<Record<string, string | number | null>> }> {
+  const q = new URLSearchParams();
+  q.set("period", params.period);
+  if (params.weeks?.length) q.set("weeks", params.weeks.join(","));
+  if (params.departmentId && params.departmentId !== "all") {
+    q.set("departmentId", params.departmentId);
+  }
+  return apiFetch(`/cost-analyzer/over-captured-drilldown?${q.toString()}`);
+}
+
+export async function fetchCostAnalyzerProjectDrilldown(params: {
+  period: CostAnalyzerPeriodId;
+  weeks?: string[];
+  departmentId?: string | null;
+  projectId: string;
+}): Promise<{
+  project: CostAnalyzerPayload["projects"][number];
+  departments: CostAnalyzerPayload["projects"][number]["departments"];
+  employees: Array<{
+    name: string;
+    department: string | null;
+    hours: number;
+    cost: number;
+    pctOfProject: number | null;
+  }>;
+}> {
+  const q = new URLSearchParams();
+  q.set("period", params.period);
+  q.set("projectId", params.projectId);
+  if (params.weeks?.length) q.set("weeks", params.weeks.join(","));
+  if (params.departmentId && params.departmentId !== "all") {
+    q.set("departmentId", params.departmentId);
+  }
+  return apiFetch(`/cost-analyzer/project-drilldown?${q.toString()}`);
+}
+
+export async function fetchCostAnalyzerDepartmentDrilldown(params: {
+  period: CostAnalyzerPeriodId;
+  weeks?: string[];
+  departmentId: string;
+}): Promise<{
+  departmentName: string;
+  projects: CostAnalyzerPayload["projects"];
+  unplannedReasons: CostAnalyzerPayload["unplannedReasons"];
+  employees: Array<{
+    employee: string;
+    hours: number;
+    cost: number;
+    pct: number | null;
+    capturePct?: number | null;
+  }>;
+}> {
+  const q = new URLSearchParams();
+  q.set("period", params.period);
+  q.set("departmentId", params.departmentId);
+  if (params.weeks?.length) q.set("weeks", params.weeks.join(","));
+  return apiFetch(`/cost-analyzer/department-drilldown?${q.toString()}`);
+}
+

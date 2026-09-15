@@ -844,4 +844,183 @@ export class MastersController {
     });
     return ser(updated);
   }
+
+  // ─── employee costs ──────────────────────────────────────────────────────
+
+  @Get("employee-costs")
+  @RequirePermissions("masters.employee_costs", "masters")
+  async employeeCosts(@Query("includeInactive") includeInactive?: string) {
+    const rows = await this.prisma.employeeCost.findMany({
+      where: {
+        isDeleted: false,
+        ...(includeInactive === "true" ? {} : { isActive: true, status: "active" }),
+      },
+      include: {
+        employee: { select: { id: true, hrmsId: true, name: true, status: true } },
+      },
+      orderBy: [{ employee: { name: "asc" } }, { effectiveFrom: "desc" }],
+    });
+    return ser(
+      rows.map((r) => ({
+        id: r.id,
+        employeeId: r.employeeId,
+        hrmsId: r.employee.hrmsId,
+        employeeName: r.employee.name,
+        costPerMinute: Number(r.costPerMinute),
+        effectiveFrom: r.effectiveFrom,
+        status: r.status,
+        isActive: r.isActive,
+        version: r.version,
+      }))
+    );
+  }
+
+  @Post("employee-costs")
+  @RequirePermissions("masters.employee_costs", "masters")
+  @EmitDataChange("masters", "create")
+  async createEmployeeCost(
+    @Body()
+    body: {
+      employeeId?: string;
+      hrmsId?: string;
+      costPerMinute?: number;
+      effectiveFrom?: string;
+      status?: string;
+    }
+  ) {
+    let emp =
+      body.employeeId && /^\d+$/.test(body.employeeId.trim())
+        ? await this.prisma.employee.findFirst({
+            where: { id: BigInt(body.employeeId.trim()), isDeleted: false },
+          })
+        : null;
+    if (!emp && body.hrmsId?.trim()) {
+      emp = await this.prisma.employee.findFirst({
+        where: { hrmsId: body.hrmsId.trim(), isDeleted: false },
+      });
+    }
+    if (!emp) throw new BadRequestException("Employee not found (employeeId or hrmsId required)");
+
+    const cost = Number(body.costPerMinute);
+    if (!Number.isFinite(cost) || cost < 0) {
+      throw new BadRequestException("costPerMinute must be a non-negative number");
+    }
+    const effectiveFrom = (body.effectiveFrom ?? "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(effectiveFrom)) {
+      throw new BadRequestException("effectiveFrom must be YYYY-MM-DD");
+    }
+
+    const dup = await this.prisma.employeeCost.findFirst({
+      where: {
+        employeeId: emp.id,
+        effectiveFrom: new Date(`${effectiveFrom}T00:00:00.000Z`),
+        isDeleted: false,
+      },
+    });
+    if (dup) {
+      throw new BadRequestException("A cost record already exists for this employee and effective date");
+    }
+
+    const status = asStatus(body.status);
+    const row = await this.prisma.employeeCost.create({
+      data: {
+        employeeId: emp.id,
+        costPerMinute: cost,
+        effectiveFrom: new Date(`${effectiveFrom}T00:00:00.000Z`),
+        status,
+        isActive: status === "active",
+      },
+      include: {
+        employee: { select: { id: true, hrmsId: true, name: true } },
+      },
+    });
+    return ser({
+      id: row.id,
+      employeeId: row.employeeId,
+      hrmsId: row.employee.hrmsId,
+      employeeName: row.employee.name,
+      costPerMinute: Number(row.costPerMinute),
+      effectiveFrom: row.effectiveFrom,
+      status: row.status,
+      isActive: row.isActive,
+      version: row.version,
+    });
+  }
+
+  @Put("employee-costs/:id")
+  @RequirePermissions("masters.employee_costs", "masters")
+  @EmitDataChange("masters", "update")
+  async updateEmployeeCost(
+    @Param("id") id: string,
+    @Body()
+    body: {
+      costPerMinute?: number;
+      effectiveFrom?: string;
+      status?: string;
+    }
+  ) {
+    if (!/^\d+$/.test(id)) throw new BadRequestException("Invalid id");
+    const row = await this.prisma.employeeCost.findFirst({
+      where: { id: BigInt(id), isDeleted: false },
+    });
+    if (!row) throw new NotFoundException("Employee cost not found");
+
+    let effectiveFrom = row.effectiveFrom;
+    if (body.effectiveFrom !== undefined) {
+      const ef = body.effectiveFrom.trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(ef)) {
+        throw new BadRequestException("effectiveFrom must be YYYY-MM-DD");
+      }
+      effectiveFrom = new Date(`${ef}T00:00:00.000Z`);
+      const dup = await this.prisma.employeeCost.findFirst({
+        where: {
+          employeeId: row.employeeId,
+          effectiveFrom,
+          isDeleted: false,
+          NOT: { id: row.id },
+        },
+      });
+      if (dup) {
+        throw new BadRequestException(
+          "A cost record already exists for this employee and effective date"
+        );
+      }
+    }
+
+    let costPerMinute = row.costPerMinute;
+    if (body.costPerMinute !== undefined) {
+      const cost = Number(body.costPerMinute);
+      if (!Number.isFinite(cost) || cost < 0) {
+        throw new BadRequestException("costPerMinute must be a non-negative number");
+      }
+      costPerMinute = new Prisma.Decimal(cost);
+    }
+
+    const status = body.status !== undefined ? asStatus(body.status) : row.status;
+    const updated = await this.prisma.employeeCost.update({
+      where: { id: row.id },
+      data: {
+        costPerMinute,
+        effectiveFrom,
+        status,
+        isActive: status === "active",
+        deletedAt: status === "active" ? null : row.deletedAt,
+        version: { increment: 1 },
+      },
+      include: {
+        employee: { select: { id: true, hrmsId: true, name: true } },
+      },
+    });
+    return ser({
+      id: updated.id,
+      employeeId: updated.employeeId,
+      hrmsId: updated.employee.hrmsId,
+      employeeName: updated.employee.name,
+      costPerMinute: Number(updated.costPerMinute),
+      effectiveFrom: updated.effectiveFrom,
+      status: updated.status,
+      isActive: updated.isActive,
+      version: updated.version,
+    });
+  }
 }

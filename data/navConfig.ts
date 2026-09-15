@@ -36,6 +36,13 @@ export const PERMISSION_PAGES: PermissionPage[] = [
     menuVisible: true,
   },
   {
+    key: "my_workspace.cost_analyzer",
+    label: "Cost Analyzer",
+    route: "/cost-analyzer",
+    group: "My Workspace",
+    menuVisible: true,
+  },
+  {
     key: "planner",
     label: "Resource Planner",
     route: "/planner",
@@ -145,6 +152,13 @@ export const PERMISSION_PAGES: PermissionPage[] = [
       { key: "masters.activities", label: "Activities", route: "/masters", segment: "activities" },
       { key: "masters.dp_types", label: "DP Types", route: "/masters", segment: "dp_types" },
     ],
+  },
+  {
+    key: "masters.employee_costs",
+    label: "Employee Cost",
+    route: "/masters/employee-costs",
+    group: "Setup",
+    menuVisible: true,
   },
   {
     key: "masters.kpi_framework",
