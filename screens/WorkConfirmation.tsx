@@ -348,11 +348,6 @@ function EmployeeConfirm() {
   );
   /** Productivity for the day being confirmed (today or fetched miss date). */
   const confirmProd = todayProd;
-  /** Productivity for the calendar-selected day (laps shown read-only on past dates). */
-  const viewProd = useMemo(
-    () => getDayProductivity(prodStore, calendarDate),
-    [prodStore, calendarDate]
-  );
 
   const syncProductivityToApi = (
     dateIso: string,

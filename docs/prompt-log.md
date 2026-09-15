@@ -40,7 +40,7 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 **Output:**  
 - Pulled `origin/main` (already up to date at `46596d1`).
 - Committed Cost Analyzer + Employee Cost master: SPA screens, Nest `cost-analyzer` API, masters employee-costs, Prisma `employee_costs` + joining/exit dates, FRD/UI PDFs, table workbook (`2c2f3f8`).
-- CI lint failed: unused `addDaysISO` + pre-existing `prefer-const` in Performance Card debug. Fixed. Unit test skipped missing local Excel fixture. Re-pushed; EC2 `bash scripts/ec2-deploy.sh --with-api`; verify SHA on `https://seworkspace.com/version.json`.
+- CI lint passed after prefer-const/unused-import fix. Unit: skip missing local Excel fixture. Frontend tsc: FocusLap `id` in productivity test + unused `viewProd`. Then EC2 `bash scripts/ec2-deploy.sh --with-api`; verify SHA on `https://seworkspace.com/version.json`.
 
 ### 2026-09-15 06:45 IST
 

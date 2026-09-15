@@ -55,6 +55,7 @@ describe("focusMeetsPlannedThreshold", () => {
     const state = {
       laps: [
         {
+          id: "lap-1",
           startedAt: `${workDate}T10:00:00.000Z`,
           endedAt: `${workDate}T10:00:00.000Z`,
           durationMs: passMs,
