@@ -16,6 +16,8 @@ type SettingsPayload = {
   workingHoursPerDay: number;
   workingDays: string[];
   dateFormat?: string;
+  demandPriority?: string[];
+  focusCheckInMinutes?: number;
   companyOffDays: { date: string; label: string }[];
 };
 
@@ -100,6 +102,9 @@ export class SettingsScheduleApplyService implements OnModuleInit {
             workingHoursPerDay: payload.workingHoursPerDay,
             workingDays: payload.workingDays,
             ...(payload.dateFormat ? { dateFormat: payload.dateFormat } : {}),
+            ...(typeof payload.focusCheckInMinutes === "number"
+              ? { focusCheckInMinutes: payload.focusCheckInMinutes > 0 ? Math.min(240, Math.max(1, Math.trunc(payload.focusCheckInMinutes))) : 0 }
+              : {}),
             ...(row.createdById != null ? { modifiedBy: row.createdById } : {}),
             version: { increment: 1 },
           },

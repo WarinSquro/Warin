@@ -23,6 +23,8 @@ import {
   AllocationFocusTimer,
 } from "../components/ConfirmationProductivity";
 import { ConfirmDeleteDialog } from "../components/ConfirmDeleteDialog";
+import { FocusCheckInModal } from "../components/FocusCheckInModal";
+import { useFocusCheckIn } from "../hooks/useFocusCheckIn";
 import type { PlannedLine, DayStatus, ComplianceRow, DeviationEntry } from "../data/confirmation";
 import { useAuth } from "../context/AuthContext";
 import { useSettings } from "../context/SettingsContext";
@@ -737,6 +739,17 @@ function EmployeeConfirm() {
 
   /** Plan edit / confirm only for the day being confirmed (today or fetched miss date). */
   const viewingConfirmableDate = calendarDate === workDate;
+
+  const focusCheckIn = useFocusCheckIn({
+    enabled: canUseProductivity && !submitted && viewingConfirmableDate,
+    intervalMinutes: settings.focusCheckInMinutes ?? 0,
+    activeTimerId: todayProd.activeTimerId,
+    focusByAllocation: todayProd.focusByAllocation,
+    onAutoStop: (allocationId) => {
+      handleFocusStop(allocationId);
+      toast.warning("Focus timer stopped — no response to check-in.");
+    },
+  });
 
   const loadMyDay = useCallback(async () => {
     const seqAtStart = planLoadSeqRef.current;
@@ -1656,6 +1669,12 @@ function EmployeeConfirm() {
           setUnplanned((arr) => arr.filter((x) => x.id !== unplannedDeleteId));
           setUnplannedDeleteId(null);
         }}
+      />
+
+      <FocusCheckInModal
+        open={focusCheckIn.open}
+        secondsLeft={focusCheckIn.secondsLeft}
+        onContinue={focusCheckIn.onContinue}
       />
     </div>
   );

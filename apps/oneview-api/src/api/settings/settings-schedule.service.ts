@@ -13,6 +13,13 @@ import {
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { DomainEventsService } from "../realtime/domain-events.service";
 
+function normalizeFocusCheckInMinutes(raw: unknown): number {
+  if (raw == null || raw === "") return 0;
+  const n = Math.trunc(Number(raw));
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.min(240, Math.max(1, n));
+}
+
 export type SettingsPayload = {
   idleBelow: number;
   optimalTo: number;
@@ -25,6 +32,7 @@ export type SettingsPayload = {
   workingDays: string[];
   dateFormat: string;
   demandPriority: string[];
+  focusCheckInMinutes: number;
   companyOffDays: { date: string; label: string }[];
 };
 
@@ -40,6 +48,7 @@ export type SettingsSnapshot = {
   workingDays: string[];
   dateFormat: string;
   demandPriority: string[];
+  focusCheckInMinutes: number;
   companyOffDays: { date: string; label: string }[];
 };
 
@@ -96,6 +105,7 @@ export function snapshotFromDb(settings: AppSettings, offDays: CompanyOffDay[]):
     workingDays: [...settings.workingDays],
     dateFormat: normalizeDateFormat(settings.dateFormat),
     demandPriority: normalizeDemandPriority(settings.demandPriority),
+    focusCheckInMinutes: normalizeFocusCheckInMinutes(settings.focusCheckInMinutes),
     companyOffDays: offDays.map((d) => ({ date: dateKey(d.date), label: d.label })),
   };
 }
@@ -140,6 +150,7 @@ export function payloadFromBody(
       : ["Mon", "Tue", "Wed", "Thu", "Fri"],
     dateFormat: normalizeDateFormat(body.dateFormat, fallbackDateFormat),
     demandPriority: normalizeDemandPriority(body.demandPriority, fallbackDemandPriority),
+    focusCheckInMinutes: normalizeFocusCheckInMinutes(body.focusCheckInMinutes),
     companyOffDays,
   };
 }
@@ -177,6 +188,10 @@ export function describeSettingsChanges(prev: SettingsSnapshot, next: SettingsSn
   }
   if (prev.dateFormat !== next.dateFormat) {
     changes.push(`Date format ${prev.dateFormat} → ${next.dateFormat}`);
+  }
+  if (prev.focusCheckInMinutes !== next.focusCheckInMinutes) {
+    const fmt = (n: number) => (n <= 0 ? "Off" : `${n} min`);
+    changes.push(`Focus check-in ${fmt(prev.focusCheckInMinutes)} → ${fmt(next.focusCheckInMinutes)}`);
   }
   if (prev.demandPriority.join(",") !== next.demandPriority.join(",")) {
     changes.push(
@@ -266,6 +281,7 @@ export class SettingsScheduleService {
         workingDays: payload.workingDays,
         dateFormat: payload.dateFormat,
         demandPriority: payload.demandPriority,
+        focusCheckInMinutes: payload.focusCheckInMinutes,
         ...(modifiedBy != null ? { modifiedBy } : {}),
         version: { increment: 1 },
       },

@@ -50,6 +50,7 @@ function settingsPutBody(s: SettingsState, companyOffDays = s.companyOffDays) {
     workingDays: s.workingDays,
     dateFormat: s.dateFormat,
     demandPriority: s.demandPriority,
+    focusCheckInMinutes: s.focusCheckInMinutes ?? 0,
     companyOffDays: companyOffDays.map((d) => ({ date: d.date, label: d.label })),
   };
 }
@@ -83,6 +84,8 @@ export function Settings() {
   const [savingWorkingCalendar, setSavingWorkingCalendar] = useState(false);
   const [committedDateFormat, setCommittedDateFormat] = useState<string | null>(null);
   const [savingDateFormat, setSavingDateFormat] = useState(false);
+  const [committedFocusCheckIn, setCommittedFocusCheckIn] = useState<number | null>(null);
+  const [savingFocusCheckIn, setSavingFocusCheckIn] = useState(false);
   const baselinedRef = useRef(false);
 
   const utilizationDirty =
@@ -109,14 +112,23 @@ export function Settings() {
   const dateFormatDirty =
     committedDateFormat != null && dateFormatValue !== committedDateFormat;
 
+  const focusCheckInDirty =
+    committedFocusCheckIn != null && (s.focusCheckInMinutes ?? 0) !== committedFocusCheckIn;
+
   const anyReviewDirty =
     utilizationDirty || planningDirty || capacityDirty || overallocationDirty;
 
-  usePauseSharedDataSync(anyReviewDirty || workingCalendarDirty || dateFormatDirty);
-  useSharedDataSync(!(anyReviewDirty || workingCalendarDirty || dateFormatDirty), () => refresh(), {
-    resources: ["settings"],
-    intervalMs: MASTER_TXN_SYNC_INTERVAL_MS,
-  });
+  usePauseSharedDataSync(
+    anyReviewDirty || workingCalendarDirty || dateFormatDirty || focusCheckInDirty
+  );
+  useSharedDataSync(
+    !(anyReviewDirty || workingCalendarDirty || dateFormatDirty || focusCheckInDirty),
+    () => refresh(),
+    {
+      resources: ["settings"],
+      intervalMs: MASTER_TXN_SYNC_INTERVAL_MS,
+    }
+  );
 
   const syncCommittedFrom = (src: SettingsState) => {
     setCommittedBands({ ...src.bands });
@@ -128,6 +140,7 @@ export function Settings() {
       workingDays: [...src.workingDays],
     });
     setCommittedDateFormat(src.dateFormat ?? DEFAULT_SETTINGS.dateFormat);
+    setCommittedFocusCheckIn(src.focusCheckInMinutes ?? 0);
   };
 
   const reviewCommittedSnapshot = (): ReviewCommittedSnapshot | null => {
@@ -184,13 +197,14 @@ export function Settings() {
   // Silent SSE/focus refresh: adopt server values only when this page has no local edits.
   useEffect(() => {
     if (!baselinedRef.current || loading) return;
-    if (anyReviewDirty || workingCalendarDirty || dateFormatDirty) return;
+    if (anyReviewDirty || workingCalendarDirty || dateFormatDirty || focusCheckInDirty) return;
     syncCommittedFrom(s);
   }, [
     loading,
     anyReviewDirty,
     workingCalendarDirty,
     dateFormatDirty,
+    focusCheckInDirty,
     s,
   ]);
 
@@ -454,6 +468,26 @@ export function Settings() {
     }
   };
 
+  /** Focus check-in interval — own Save. */
+  const handleSaveFocusCheckIn = async () => {
+    if (!focusCheckInDirty || savingFocusCheckIn) return;
+    setSavingFocusCheckIn(true);
+    setSaveError("");
+    try {
+      const latest = await fetchSettings();
+      const nextMins = Math.max(0, Math.min(240, Math.trunc(Number(s.focusCheckInMinutes) || 0)));
+      await putSettings(settingsPutBody({ ...latest, focusCheckInMinutes: nextMins }));
+      patchSettings({ focusCheckInMinutes: nextMins });
+      setCommittedFocusCheckIn(nextMins);
+      await reloadAuditAndSchedules();
+      toast.updated();
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : "Could not save focus check-in.");
+    } finally {
+      setSavingFocusCheckIn(false);
+    }
+  };
+
   const reviewSaveAction = (section: ReviewSection, sectionDirty: boolean) => (
     <div className="flex shrink-0 items-center gap-2.5">
       {sectionDirty && !saveError ? (
@@ -706,6 +740,42 @@ export function Settings() {
               >
                 Calendar
               </button>
+            </div>
+          </Card>
+
+          <Card
+            title="Focus timer check-in"
+            desc="While a focus timer is running, ask “Continue Focused Work?” every N minutes. No response in 30 seconds stops the timer. Leave blank / 0 to turn off."
+            action={
+              <button
+                type="button"
+                disabled={!focusCheckInDirty || savingFocusCheckIn}
+                onClick={() => void handleSaveFocusCheckIn()}
+                className={`cursor-pointer rounded-md px-3 py-1.5 text-[12px] font-medium disabled:cursor-not-allowed ${
+                  focusCheckInDirty && !savingFocusCheckIn
+                    ? "bg-primary text-primary-foreground hover:opacity-90"
+                    : "bg-surface-alt text-muted-foreground"
+                }`}
+              >
+                {savingFocusCheckIn ? "Saving…" : "Save"}
+              </button>
+            }
+          >
+            <div className="flex flex-wrap items-end gap-6">
+              <NumField
+                label="Check-in every"
+                value={s.focusCheckInMinutes ?? 0}
+                suffix="min"
+                integer
+                min={0}
+                max={240}
+                onChange={(v) => patchSettings({ focusCheckInMinutes: Math.trunc(v) })}
+              />
+              <div className="pb-1 text-[11px] text-muted-foreground">
+                {(s.focusCheckInMinutes ?? 0) <= 0
+                  ? "Currently off — focus timer will not prompt."
+                  : `Prompt every ${s.focusCheckInMinutes} min · auto-stop after 30s without Continue.`}
+              </div>
             </div>
           </Card>
 

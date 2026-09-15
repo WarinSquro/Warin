@@ -49,6 +49,10 @@ export function describeSettingsChanges(prev: SettingsState, next: SettingsState
   if (prev.workingHoursPerDay !== next.workingHoursPerDay) {
     changes.push(`Hours per day ${prev.workingHoursPerDay}h → ${next.workingHoursPerDay}h`);
   }
+  if (prev.focusCheckInMinutes !== next.focusCheckInMinutes) {
+    const fmt = (n: number) => (n <= 0 ? "Off" : `${n} min`);
+    changes.push(`Focus check-in ${fmt(prev.focusCheckInMinutes)} → ${fmt(next.focusCheckInMinutes)}`);
+  }
   if (prev.workingDays.join(",") !== next.workingDays.join(",")) {
     changes.push(`Working days ${prev.workingDays.join(", ")} → ${next.workingDays.join(", ")}`);
   }

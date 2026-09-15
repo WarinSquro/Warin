@@ -335,6 +335,7 @@ async function main() {
       workingDays: ["Mon", "Tue", "Wed", "Thu", "Fri"],
       demandPriority: ["Critical", "High", "Medium"],
       dateFormat: "dd/MM/yyyy",
+      focusCheckInMinutes: 0,
     },
   });
 

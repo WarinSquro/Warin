@@ -121,6 +121,11 @@ function attentionCardTone(type: string): { card: string; label: string; heading
   };
 }
 
+type ProjectDrawerFromDepartment = {
+  id: string;
+  name: string;
+};
+
 type DrawerState =
   | { kind: "lost"; rows: Array<Record<string, string | number | null>>; from: string; to: string }
   | { kind: "over"; rows: Array<Record<string, string | number | null>>; from: string; to: string }
@@ -137,11 +142,16 @@ type DrawerState =
         cost: number;
         pctOfProject: number | null;
       }>;
-      /** When set, header shows Back to return to Project Cost list. */
-      backTo?: "projects_list";
+      /** When set, header shows Back to return to prior list/drawer. */
+      backTo?: "projects_list" | "department";
+      /** Source department when opened from Department Cost Distribution drill-down. */
+      fromDepartment?: ProjectDrawerFromDepartment;
+      /** When false (default from department), contribution tables are scoped to fromDepartment. */
+      showAllDepartments?: boolean;
     }
   | {
       kind: "department";
+      departmentId: string;
       name: string;
       from: string;
       to: string;
@@ -279,6 +289,10 @@ export function CostAnalyzer() {
 
   const openProject = async (projectId: string) => {
     const fromProjectsList = drawer?.kind === "projects_list";
+    const fromDepartment =
+      drawer?.kind === "department"
+        ? { id: drawer.departmentId, name: drawer.name }
+        : undefined;
     setDrawerLoading(true);
     try {
       const res = await fetchCostAnalyzerProjectDrilldown({
@@ -295,6 +309,13 @@ export function CostAnalyzer() {
         departments: res.departments,
         employees: res.employees,
         ...(fromProjectsList ? { backTo: "projects_list" as const } : {}),
+        ...(fromDepartment
+          ? {
+              backTo: "department" as const,
+              fromDepartment,
+              showAllDepartments: false,
+            }
+          : {}),
       });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to load project");
@@ -304,25 +325,42 @@ export function CostAnalyzer() {
   };
 
   const backFromProjectDrawer = () => {
-    if (!drawer || drawer.kind !== "project" || drawer.backTo !== "projects_list") return;
-    setDrawer({
-      kind: "projects_list",
-      rows: data?.projects ?? [],
-      from: drawer.from,
-      to: drawer.to,
-    });
+    if (!drawer || drawer.kind !== "project") return;
+    if (drawer.backTo === "projects_list") {
+      setDrawer({
+        kind: "projects_list",
+        rows: data?.projects ?? [],
+        from: drawer.from,
+        to: drawer.to,
+      });
+      return;
+    }
+    if (drawer.backTo === "department" && drawer.fromDepartment) {
+      const deptId = drawer.fromDepartment.id;
+      void openDepartment(deptId === "none" ? null : deptId);
+    }
+  };
+
+  const showAllDepartmentsInProjectDrawer = () => {
+    setDrawer((prev) =>
+      prev?.kind === "project" && prev.fromDepartment
+        ? { ...prev, showAllDepartments: true }
+        : prev
+    );
   };
 
   const openDepartment = async (id: string | null) => {
+    const departmentKey = id ?? "none";
     setDrawerLoading(true);
     try {
       const res = await fetchCostAnalyzerDepartmentDrilldown({
         period,
         weeks: period === "custom" ? customWeeks : undefined,
-        departmentId: id ?? "none",
+        departmentId: departmentKey,
       });
       setDrawer({
         kind: "department",
+        departmentId: departmentKey,
         name: res.departmentName,
         from: data?.period.from ?? "",
         to: data?.period.to ?? "",
@@ -716,7 +754,8 @@ export function CostAnalyzer() {
               : undefined
           }
           onBack={
-            drawer?.kind === "project" && drawer.backTo === "projects_list"
+            drawer?.kind === "project" &&
+            (drawer.backTo === "projects_list" || drawer.backTo === "department")
               ? backFromProjectDrawer
               : undefined
           }
@@ -725,7 +764,12 @@ export function CostAnalyzer() {
           {drawerLoading || !drawer ? (
             <div className="py-10 text-center text-[12px] text-muted-foreground">Loading…</div>
           ) : (
-            <DrawerBody drawer={drawer} formatDate={formatDate} onOpenProject={openProject} />
+            <DrawerBody
+              drawer={drawer}
+              formatDate={formatDate}
+              onOpenProject={openProject}
+              onShowAllDepartments={showAllDepartmentsInProjectDrawer}
+            />
           )}
         </SideDrawer>
       )}
@@ -1342,10 +1386,12 @@ function DrawerBody({
   drawer,
   formatDate,
   onOpenProject,
+  onShowAllDepartments,
 }: {
   drawer: Exclude<DrawerState, null>;
   formatDate: (iso: string) => string;
   onOpenProject: (id: string) => Promise<void>;
+  onShowAllDepartments?: () => void;
 }) {
   if (drawer.kind === "lost") {
     return <LostCostEmployeeList rows={drawer.rows} />;
@@ -1357,6 +1403,7 @@ function DrawerBody({
         drawer={drawer}
         formatDate={formatDate}
         onOpenProject={onOpenProject}
+        onShowAllDepartments={onShowAllDepartments}
       />
     </div>
   );
@@ -1366,10 +1413,12 @@ function DrawerBodyScrollable({
   drawer,
   formatDate,
   onOpenProject,
+  onShowAllDepartments,
 }: {
   drawer: Exclude<Exclude<DrawerState, null>, { kind: "lost" }>;
   formatDate: (iso: string) => string;
   onOpenProject: (id: string) => Promise<void>;
+  onShowAllDepartments?: () => void;
 }) {
   if (drawer.kind === "over") {
     const cols = [
@@ -1437,10 +1486,19 @@ function DrawerBodyScrollable({
 
   if (drawer.kind === "project") {
     const p = drawer.project;
-    const deptHours = drawer.departments.reduce((s, d) => s + d.hours, 0);
-    const deptCost = drawer.departments.reduce((s, d) => s + d.cost, 0);
-    const empHours = drawer.employees.reduce((s, e) => s + e.hours, 0);
-    const empCost = drawer.employees.reduce((s, e) => s + e.cost, 0);
+    const scopeToDepartment =
+      Boolean(drawer.fromDepartment) && drawer.showAllDepartments !== true;
+    const deptFilterName = scopeToDepartment ? drawer.fromDepartment!.name : null;
+    const departments = deptFilterName
+      ? drawer.departments.filter((d) => d.name === deptFilterName)
+      : drawer.departments;
+    const employees = deptFilterName
+      ? drawer.employees.filter((e) => (e.department ?? "Unassigned") === deptFilterName)
+      : drawer.employees;
+    const deptHours = departments.reduce((s, d) => s + d.hours, 0);
+    const deptCost = departments.reduce((s, d) => s + d.cost, 0);
+    const empHours = employees.reduce((s, e) => s + e.hours, 0);
+    const empCost = employees.reduce((s, e) => s + e.cost, 0);
     const summaryRows: Array<{ label: string; value: string }> = [
       {
         label: "Dates",
@@ -1485,10 +1543,21 @@ function DrawerBodyScrollable({
         </div>
 
         <div>
-          <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">
-            Department Contribution
-          </h3>
-          {drawer.departments.length === 0 ? (
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <h3 className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">
+              Department Contribution
+            </h3>
+            {scopeToDepartment && onShowAllDepartments ? (
+              <button
+                type="button"
+                onClick={onShowAllDepartments}
+                className="cursor-pointer text-[11px] font-medium text-primary hover:underline"
+              >
+                Show all
+              </button>
+            ) : null}
+          </div>
+          {departments.length === 0 ? (
             <div className="py-4 text-center text-muted-foreground">No departments.</div>
           ) : (
             <div className="overflow-hidden rounded-lg border border-border">
@@ -1498,7 +1567,7 @@ function DrawerBodyScrollable({
                 <div className="text-right">Cost</div>
                 <div className="text-right">%</div>
               </div>
-              {drawer.departments.map((d) => (
+              {departments.map((d) => (
                 <div
                   key={d.name}
                   className="grid grid-cols-[minmax(0,1fr)_3.25rem_4.5rem_3rem] gap-x-2 border-b border-border-soft px-3 py-2.5"
@@ -1520,7 +1589,7 @@ function DrawerBodyScrollable({
           <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">
             Employee Contribution
           </h3>
-          {drawer.employees.length === 0 ? (
+          {employees.length === 0 ? (
             <div className="py-4 text-center text-muted-foreground">No employees.</div>
           ) : (
             <div className="overflow-hidden rounded-lg border border-border">
@@ -1530,7 +1599,7 @@ function DrawerBodyScrollable({
                 <div className="text-right">Cost</div>
                 <div className="text-right">%</div>
               </div>
-              {drawer.employees.map((e) => (
+              {employees.map((e) => (
                 <div
                   key={e.name}
                   className="grid grid-cols-[minmax(0,1fr)_3.25rem_4.5rem_3rem] gap-x-2 border-b border-border-soft px-3 py-2.5"

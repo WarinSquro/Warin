@@ -32,6 +32,52 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-09-15 20:03 IST
+
+**Prompt:**  
+> Deploy on EC2
+
+**Output:**  
+- Pulled `origin/main` (up to date at `6262ca7`).
+- Shipping Focus check-in + Cost Analyzer department-back + E2E fixtures in one commit (SPA, Nest/worker settings, Prisma `focus_check_in_minutes`, tests/docs).
+- Push `origin/main`; CI; EC2 `bash scripts/ec2-deploy.sh --with-api`; verify `https://seworkspace.com/version.json`.
+
+### 2026-09-15 19:47 IST
+
+**Prompt:**  
+> Cost Analyzer project drawer from Department Cost Distribution: add back arrow to previous department drawer (same as Project Cost list). Donut → department → project: show only that department’s contribution/employees; “Show all” above Department Contribution to reveal all departments/employees.
+
+**Output:**  
+- `screens/CostAnalyzer.tsx`: project drawer `backTo: "department"` + `fromDepartment`; header ← returns to department drill-down.
+- Opening project from a department drawer scopes Department/Employee Contribution to that department; **Show all** clears the scope.
+- Department drawer state now keeps `departmentId` for back navigation.
+
+### 2026-09-15 12:08 IST
+
+**Prompt:**  
+> Focus timer check-in card — not save and not show in history. fix
+
+**Output:**  
+- **Root cause:** Local `oneview-api` container was still on an old build (~18h). Dist/`applyPayload` and Prisma client lacked `focusCheckInMinutes`, so PUT succeeded without writing the column or Change History; SPA then re-fetched 0.
+- **Fix (ops):** Rebuilt API dist; `docker cp` of `apps/oneview-api/dist` + host `@prisma/client` / `.prisma` into the container; restarted `oneview-api` (healthy).
+- **Verified:** In-container Prisma update `0 → 15` and audit row `Focus check-in Off → 15 min`; reset value to 0.
+- **UI:** Hard-refresh Settings, set minutes, Save — should persist and appear in history. No SPA code change required for this bug.
+
+### 2026-09-15 11:39 IST
+
+**Prompt:**  
+> Now you are in Agent mode > built > settings + UI + auto-stop  
+> (Focus check-in: after every N minutes from System Parameters; empty/0 = off; popup “Continue Focused Work?”; no click in 30s → auto-stop focus timer)
+
+**Output:**  
+- DB: migration `20260915113000_focus_check_in_minutes` → `app_settings.focus_check_in_minutes` (default 0); Prisma `AppSettings.focusCheckInMinutes`; local `prisma migrate deploy` applied.
+- API/domain/schedule/worker/seed/audit wired for `focusCheckInMinutes`.
+- Settings UI: **Focus timer check-in** card (minutes 0–240, own Save) on System Parameters.
+- Work Confirmation: `useFocusCheckIn` + `FocusCheckInModal`; Continue resets cycle; 30s timeout stops active timer + warning toast.
+- Utils: `utils/focusCheckIn.ts`; unit tests `tests/unit/focusCheckIn.test.ts` (4 passed).
+- Docs: `docs/OneView_Table_Structure.xlsx` + `scripts/patch-focus-check-in-xlsx.mjs` / `generate-table-structure-xlsx.ts`.
+- Not committed/pushed (user did not ask). For sync: pull before coding; then add/commit/push these files; EC2 needs migrate deploy + SPA/API rebuild.
+
 ### 2026-09-15 06:50 IST
 
 **Prompt:**  

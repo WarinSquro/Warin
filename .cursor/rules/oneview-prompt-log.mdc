@@ -11,5 +11,6 @@ After every coding task that changes the repo (or produces a documented delivera
 2. Include **Recorded at** date/time with timezone (prefer `YYYY-MM-DD HH:MM IST`).
 3. Include the user **Prompt** and the **Output** (files, commands, results, blockers) in the **same** entry.
 4. Do not delete or rewrite older entries.
+5. If the current docs/prompt-log.md file exceeds 100 KB, create a new versioned file named docs/prompt-log-v1.md and continue logging new prompts in that file. When docs/prompt-log-v1.md exceeds 100 KB, create the next versioned file, docs/prompt-log-v2.md, and continue the same process sequentially (v3, v4, and so on). Requirement: No prompt-log file should exceed 100 KB.
 
 See the template and rules at the top of `docs/prompt-log.md`.

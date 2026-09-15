@@ -23,6 +23,11 @@ export interface SettingsState {
   companyOffDays: CompanyOffDay[];
   /** Display pattern for dates across the app */
   dateFormat: DateFormatPattern;
+  /**
+   * Focus timer check-in interval (minutes). 0 = disabled.
+   * When a focus timer is running, prompt Continue every N minutes; no click in 30s → auto-stop.
+   */
+  focusCheckInMinutes: number;
 }
 
 export type DateFormatPattern = "dd/MM/yyyy" | "MM/dd/yyyy" | "yyyy-MM-dd" | "dd-MMM-yyyy";
@@ -42,6 +47,7 @@ export const DEFAULT_SETTINGS: SettingsState = {
   workingDays: ["Mon", "Tue", "Wed", "Thu", "Fri"],
   demandPriority: ["Critical", "High", "Medium"],
   dateFormat: "dd/MM/yyyy",
+  focusCheckInMinutes: 0,
   companyOffDays: [
     { id: "off1", date: "2026-01-01", label: "New Year's Day" },
     { id: "off2", date: "2026-01-26", label: "Republic Day" },

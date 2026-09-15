@@ -743,6 +743,12 @@ model AppSettings {
   demandPriority      String[]      @map("demand_priority")
   /** App-wide display pattern: dd/MM/yyyy | MM/dd/yyyy | yyyy-MM-dd | dd-MMM-yyyy */
   dateFormat          String        @default("dd/MM/yyyy") @map("date_format")
+  /**
+   * Focus timer check-in interval in minutes.
+   * 0 = disabled. When running, prompt “Continue Focused Work?” every N minutes;
+   * no response within 30s → auto-stop the timer.
+   */
+  focusCheckInMinutes Int           @default(0) @map("focus_check_in_minutes")
   isActive            Boolean       @default(true) @map("is_active")
   isDeleted           Boolean       @default(false) @map("is_deleted")
   deletedAt           DateTime?     @map("deleted_at")

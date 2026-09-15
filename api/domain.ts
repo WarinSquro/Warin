@@ -14,6 +14,7 @@ import type { SettingsState } from "../data/settings";
 import { DEFAULT_SETTINGS, withoutLowDemandPriority } from "../data/settings";
 import { type SettingsAuditEntry } from "../utils/settingsAudit";
 import { normalizedWorkingDays } from "../utils/workingCalendar";
+import { normalizeFocusCheckInMinutes } from "../utils/focusCheckIn";
 
 function isoDate(v: string | Date | null | undefined): string {
   if (!v) return "";
@@ -132,6 +133,7 @@ type ApiSettingsResponse = {
     workingDays: string[];
     demandPriority: string[];
     dateFormat?: string;
+    focusCheckInMinutes?: number;
   } | null;
   companyOffDays: { id: string; date: string; label: string }[];
 };
@@ -284,6 +286,7 @@ export function mapApiSettings(res: ApiSettingsResponse): SettingsState {
     workingDays: normalizedWorkingDays(s.workingDays),
     demandPriority: withoutLowDemandPriority(s.demandPriority),
     dateFormat: normalizeDateFormat(s.dateFormat),
+    focusCheckInMinutes: normalizeFocusCheckInMinutes(s.focusCheckInMinutes),
     companyOffDays: (res.companyOffDays ?? []).map((d) => ({
       id: String(d.id),
       date: isoDate(d.date),
@@ -784,6 +787,7 @@ export async function putSettings(body: {
   workingDays: string[];
   dateFormat: string;
   demandPriority: string[];
+  focusCheckInMinutes: number;
   companyOffDays: { date: string; label: string }[];
 }) {
   return apiFetch<ApiSettingsResponse>("/settings", {
@@ -830,6 +834,7 @@ export async function createSettingsSchedule(
     workingDays: string[];
     dateFormat: string;
     demandPriority: string[];
+    focusCheckInMinutes: number;
     companyOffDays: { date: string; label: string }[];
     effectiveDate: string;
   }

@@ -125,7 +125,9 @@ const rows: Row[] = [
   { tableNo: 11, tableName: "app_settings", fieldNo: 9, fieldName: "working_hours_per_day", dataType: "DOUBLE / FLOAT", size: "—", defaultValue: "—", remarks: "Hours per working day", rule: "Required; > 0" },
   { tableNo: 11, tableName: "app_settings", fieldNo: 10, fieldName: "working_days", dataType: "TEXT[] / ARRAY", size: "—", defaultValue: "—", remarks: "e.g. Mon–Fri", rule: "Required; Non-empty array" },
   { tableNo: 11, tableName: "app_settings", fieldNo: 11, fieldName: "demand_priority", dataType: "TEXT[] / ARRAY", size: "—", defaultValue: "—", remarks: "Ordered priority labels", rule: "Required; Ordered list" },
-  { tableNo: 11, tableName: "app_settings", fieldNo: 12, fieldName: "updated_at", dataType: "TIMESTAMP", size: "—", defaultValue: "auto", remarks: "Last update time", rule: "System-set" },
+  { tableNo: 11, tableName: "app_settings", fieldNo: 12, fieldName: "date_format", dataType: "TEXT", size: "—", defaultValue: "dd/MM/yyyy", remarks: "App-wide date display pattern", rule: "dd/MM/yyyy | MM/dd/yyyy | yyyy-MM-dd | dd-MMM-yyyy" },
+  { tableNo: 11, tableName: "app_settings", fieldNo: 13, fieldName: "focus_check_in_minutes", dataType: "INTEGER", size: "—", defaultValue: "0", remarks: "Focus timer check-in interval; 0=off; Continue prompt every N min; 30s no response → auto-stop", rule: "0–240" },
+  { tableNo: 11, tableName: "app_settings", fieldNo: 14, fieldName: "updated_at", dataType: "TIMESTAMP", size: "—", defaultValue: "auto", remarks: "Last update time", rule: "System-set" },
 
   // T12 company_off_days
   { tableNo: 12, tableName: "company_off_days", fieldNo: 1, fieldName: "id", dataType: "TEXT / VARCHAR", size: "50", defaultValue: "—", remarks: "Holiday / off-day key", rule: "PK; Required" },
