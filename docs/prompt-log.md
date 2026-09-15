@@ -39,8 +39,12 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 **Output:**  
 - Pulled `origin/main` (already up to date at `46596d1`).
-- Committed Cost Analyzer + Employee Cost master: SPA screens, Nest `cost-analyzer` API, masters employee-costs, Prisma `employee_costs` + joining/exit dates, FRD/UI PDFs, table workbook (`2c2f3f8`).
-- CI lint passed after prefer-const/unused-import fix. Unit: skip missing local Excel fixture. Frontend tsc: FocusLap `id` in productivity test + unused `viewProd`. Then EC2 `bash scripts/ec2-deploy.sh --with-api`; verify SHA on `https://seworkspace.com/version.json`.
+- Shipped Cost Analyzer + Employee Cost master: SPA screens, Nest `cost-analyzer` API, masters employee-costs, Prisma `employee_costs` + joining/exit dates, FRD/UI PDFs, table workbook.
+- CI gate fixes on the way: unused `addDaysISO`, Performance Card `prefer-const`, skip missing local Excel fixture, FocusLap `id` in unit test, unused `viewProd`.
+- Pushed `3109508`; GitHub CI #204 green (lint, unit, SPA/API/worker build, E2E smoke).
+- EC2: `bash scripts/ec2-deploy.sh --with-api` — SPA published, API/worker rebuilt, migration `20260914100000_employee_costs` applied (no seed).
+- Verified: EC2 `HEAD` = `version.json.commit` = `310950802799302436f92da210f4290b7018e7b0`; health `status=ok` `database=up`; `apiBase=https://seworkspace.com/api/v1`.
+- Live: https://seworkspace.com/ — hard-refresh (Ctrl+Shift+R). Cost Analyzer: `/cost-analyzer`; Employee Cost: `/masters/employee-costs`.
 
 ### 2026-09-15 06:45 IST
 
