@@ -39,8 +39,11 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 **Output:**  
 - Pulled `origin/main` (up to date at `6262ca7`).
-- Shipping Focus check-in + Cost Analyzer department-back + E2E fixtures in one commit (SPA, Nest/worker settings, Prisma `focus_check_in_minutes`, tests/docs).
-- Push `origin/main`; CI; EC2 `bash scripts/ec2-deploy.sh --with-api`; verify `https://seworkspace.com/version.json`.
+- Shipped Focus check-in + Cost Analyzer department back-nav: SPA, Nest/worker settings, Prisma `focus_check_in_minutes`, E2E/unit tests, docs (`1a3c598`).
+- GitHub CI #206 green (lint, unit, SPA/API/worker, E2E smoke).
+- EC2: `bash scripts/ec2-deploy.sh --with-api` — SPA published, API/worker rebuilt, migration `20260915113000_focus_check_in_minutes` applied (no seed).
+- Verified: EC2 `HEAD` = `version.json.commit` = `1a3c598fe083875a6b70044bd081781e27b7cceb`; health `status=ok` `database=up`.
+- Live: https://seworkspace.com/ — hard-refresh (Ctrl+Shift+R). Settings → Focus timer check-in; Work Confirmation popup; Cost Analyzer department → project Back.
 
 ### 2026-09-15 19:47 IST
 
