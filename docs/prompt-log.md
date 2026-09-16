@@ -32,6 +32,62 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-09-16 16:46 IST
+
+**Prompt:**  
+> Now you are in Agent mode, add MCP for postgres in this project
+
+**Output:**  
+- Added project Cursor MCP: `.cursor/mcp.json` — server `oneview-postgres` using `@modelcontextprotocol/server-postgres` against local Docker URL `postgresql://admin:admin@127.0.0.1:15432/oneview` (read-only queries).
+- Documented setup/usage notes under `docs/service-urls-and-credentials.md` (Cursor MCP section).
+- Enable/reload in Cursor **Settings → MCP**; Postgres must be running on host port 15432.
+- Not committed (await user). Sync: `git pull origin main` first if needed; then add/commit/push the two files when ready.
+
+### 2026-09-16 09:48 IST
+
+**Prompt:**  
+> Cost Analyzer department multi-select — remove trailing “0” counts (this screen only).
+
+**Output:**  
+- Added optional `showCounts` to `FilterMultiSelect` / `DepartmentSelect` (default true).
+- Cost Analyzer passes `showCounts={false}`; other screens unchanged.
+
+### 2026-09-16 09:40 IST
+
+**Prompt:**  
+> Cost Analyzer department filter — checkboxes per item; default all selected; multi-select as needed.
+
+**Output:**  
+- UI: replaced single-select with `DepartmentSelect` / `FilterMultiSelect` (checkboxes, Select all / Clear); defaults to all departments selected.
+- API: `departmentIds` (comma-separated) on cost-analyzer card + lost/over/project drilldowns; `analyze` filters `departmentId IN (…)`.
+- Exactly one department still uses project-vs-unplanned chart mode; multi/all keep department distribution.
+- Files: `screens/CostAnalyzer.tsx`, `api/domain.ts`, `cost-analyzer.controller.ts`, `cost-analyzer.service.ts`.
+
+### 2026-09-16 08:52 IST
+
+**Prompt:**  
+> Department drawer Employee Contribution — remove department under name (single-department view).
+
+**Output:**  
+- `screens/CostAnalyzer.tsx`: department line under employee name removed from department drawer Employee Contribution.
+
+### 2026-09-16 08:49 IST
+
+**Prompt:**  
+> Cost Analyzer department drawer Employee Contribution — show department below employee name.
+
+**Output:**  
+- API `department-drilldown` now returns `department` per employee.
+- `screens/CostAnalyzer.tsx` + `api/domain.ts`: Employee Contribution shows name + department under it (same pattern as project drawer).
+
+### 2026-09-16 08:44 IST
+
+**Prompt:**  
+> Cost Analyzer project sort dropdown — remove “Highest Company Share”.
+
+**Output:**  
+- `screens/CostAnalyzer.tsx`: removed `share` sort option and sort branch; remaining: Highest Cost, Lowest Cost, Highest Outside-Period Cost.
+
 ### 2026-09-15 20:03 IST
 
 **Prompt:**  

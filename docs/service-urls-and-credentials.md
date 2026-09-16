@@ -150,6 +150,16 @@ postgresql://admin:admin@127.0.0.1:15432/oneview?schema=public
 postgresql://admin:admin@postgres:5432/oneview?schema=public
 ```
 
+### Cursor MCP (local Postgres, read-only)
+
+Project config: [`.cursor/mcp.json`](../.cursor/mcp.json) — server **`oneview-postgres`** via `@modelcontextprotocol/server-postgres`.
+
+- Points at **local Docker** host URL `127.0.0.1:15432` (compose defaults `admin` / `admin`).
+- Queries run in a **READ ONLY** transaction (schema inspect + `SELECT`-style use).
+- Requires Postgres up (`docker compose up -d postgres` or full stack).
+- After pulling: Cursor **Settings → MCP** → enable/reload **`oneview-postgres`**.
+- Do **not** point this at QA/EC2 production without an explicit read-only tunnel and rotated credentials.
+
 ---
 
 ## HTTP reverse proxies

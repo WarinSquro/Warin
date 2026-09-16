@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "oneview-postgres": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-postgres",
+        "postgresql://admin:admin@127.0.0.1:15432/oneview"
+      ]
+    }
+  }
+}
