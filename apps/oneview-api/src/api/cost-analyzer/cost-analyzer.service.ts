@@ -99,14 +99,15 @@ export class CostAnalyzerService {
 
   async loadEmployeesInScope(
     employeeIds: bigint[],
-    departmentId?: bigint | null
+    departmentIds?: bigint[] | null
   ): Promise<EmpRow[]> {
     if (!employeeIds.length) return [];
+    if (departmentIds != null && departmentIds.length === 0) return [];
     const rows = await this.prisma.employee.findMany({
       where: {
         id: { in: employeeIds },
         isDeleted: false,
-        ...(departmentId != null ? { departmentId } : {}),
+        ...(departmentIds != null ? { departmentId: { in: departmentIds } } : {}),
       },
       select: {
         id: true,
@@ -683,10 +684,11 @@ export class CostAnalyzerService {
   async analyze(opts: {
     employeeIds: bigint[];
     range: DateRange;
-    departmentId?: bigint | null;
+    /** null/undefined = all departments; [] = none; otherwise IN filter. */
+    departmentIds?: bigint[] | null;
   }) {
     const settings = await this.loadSettings();
-    const employees = await this.loadEmployeesInScope(opts.employeeIds, opts.departmentId);
+    const employees = await this.loadEmployeesInScope(opts.employeeIds, opts.departmentIds);
     const ids = employees.map((e) => e.id);
     const lines = await this.loadWorkLines(ids, opts.range);
     const empRows = this.computeEmployeeBreakdowns(

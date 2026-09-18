@@ -32,6 +32,48 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 ## Entries
 
+### 2026-09-18 19:13 IST
+
+**Prompt:**  
+> Deploy on EC2
+
+**Output:**  
+- Pulled `origin/main` (up to date at `ecfb052`).
+- Shipping pending work in one commit: multi Allowed IP, focus check-in beep/notification, Cost Analyzer department multi-select, Performance Card ranking bar colors.
+- Push `origin/main`; CI; EC2 `bash scripts/ec2-deploy.sh --with-api`; verify `https://seworkspace.com/version.json`.
+
+### 2026-09-18 14:01 IST
+
+**Prompt:**  
+> Focus check-in: implement (A) beep + (B) OS notification when Continue Focused Work popup opens. Preserve existing modal/auto-stop.
+
+**Output:**  
+- `utils/focusCheckInAlert.ts`: Web Audio beep, Notification API helper, `prepareFocusCheckInAlerts` (prime audio + request permission on Focus Start).
+- `hooks/useFocusCheckIn.ts`: on each new prompt deadline, call `alertFocusCheckInOpened()` once.
+- `screens/WorkConfirmation.tsx`: when starting a focus segment and check-in interval &gt; 0, call `prepareFocusCheckInAlerts()`.
+- Tests: `tests/unit/focusCheckInAlert.test.ts` (+ existing focusCheckIn utils).
+
+### 2026-09-18 13:06 IST
+
+**Prompt:**  
+> Allowed IP — support 2+ IPs comma-separated so login works from any listed IP.
+
+**Output:**  
+- API `parseAllowedIpInput` / `isAllowedIpSatisfied`: comma-separated list (max 10, deduped); login matches any entry.
+- DB: `employees.allowed_ip` widened to `VARCHAR(255)` (`20260918120000_employee_allowed_ip_multi`); Prisma schema updated.
+- UI: Employee drawer hint/placeholder/mask allow commas; `maxLength` 255.
+- Tests: `tests/unit/allowedIp.test.ts` extended (all passed). Table workbook docs patched.
+- Local migrate deploy applied; API rebuilt/restarted when build succeeds.
+
+### 2026-09-17 11:38 IST
+
+**Prompt:**  
+> Competency History modal — ScoreCell `4` and average bar `4.0` different colors; implement change so they match (Ranking Master).
+
+**Output:**  
+- `screens/PerformanceCard.tsx`: removed hardcoded `competencyDetailAvgBarFill` (≤3 red / ≤4 amber / >4 green).
+- Behavioural/Technical average-row bars now use `scoreBarFill(…, rankingLevels)` — same Ranking Master mapping as `ScoreCell`.
+
 ### 2026-09-16 16:46 IST
 
 **Prompt:**  

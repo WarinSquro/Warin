@@ -149,6 +149,7 @@ const rows: Row[] = [
 
   { tableNo: 1, tableName: "employees", fieldNo: 14, fieldName: "joining_date", dataType: "DATE", size: "—", defaultValue: "NULL", remarks: "Employment start for Cost Analyzer CTC", rule: "Optional; Inclusive; Null = count full period" },
   { tableNo: 1, tableName: "employees", fieldNo: 15, fieldName: "exit_date", dataType: "DATE", size: "—", defaultValue: "NULL", remarks: "Employment end / relieving for Cost Analyzer CTC", rule: "Optional; Inclusive; Null = still employed" },
+  { tableNo: 1, tableName: "employees", fieldNo: 16, fieldName: "allowed_ip", dataType: "VARCHAR", size: "255", defaultValue: "NULL", remarks: "Optional login IP restriction; comma-separated IPv4/IPv6 (max 10); NULL = any IP", rule: "Optional; Login matches any listed IP" },
 
   // T15 employee_project_maps
   { tableNo: 15, tableName: "employee_project_maps", fieldNo: 1, fieldName: "employee_id", dataType: "BIGINT", size: "—", defaultValue: "—", remarks: "FK → employees.id", rule: "PK (composite); FK; Cascade delete with employee" },

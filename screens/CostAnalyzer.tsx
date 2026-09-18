@@ -13,11 +13,26 @@ import {
   type CostKpiCard,
 } from "../api/domain";
 import { FilterSingleSelect } from "../components/FilterSingleSelect";
+import { DepartmentSelect } from "../components/DepartmentSelect";
 import { useToast } from "../context/ToastContext";
 import type { Department } from "../data/setup";
 import { useAppDateFormat } from "../hooks/useAppDateFormat";
 import { addDaysISO } from "../utils/date";
 
+/** API `departmentIds` query: omit/null = all; `none` = empty; else comma-separated PKs. */
+function costAnalyzerDepartmentIdsParam(
+  selectedNames: string[],
+  departments: Department[]
+): string | null {
+  if (departments.length === 0) return null;
+  if (selectedNames.length === 0) return "none";
+  if (selectedNames.length === departments.length) return null;
+  const ids = departments
+    .filter((d) => selectedNames.includes(d.name))
+    .map((d) => d.dbId ?? d.id)
+    .filter(Boolean);
+  return ids.length > 0 ? ids.join(",") : "none";
+}
 function last12WeekStarts(): string[] {
   const now = new Date();
   const x = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -159,6 +174,7 @@ type DrawerState =
       unplannedReasons: CostAnalyzerPayload["unplannedReasons"];
       employees: Array<{
         employee: string;
+        department: string | null;
         hours: number;
         cost: number;
         pct: number | null;
@@ -180,29 +196,56 @@ export function CostAnalyzer() {
   const { formatDate } = useAppDateFormat();
   const [period, setPeriod] = useState<CostAnalyzerPeriodId>("this_week");
   const [customWeeks, setCustomWeeks] = useState<string[]>([]);
-  const [departmentId, setDepartmentId] = useState("all");
+  const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [departmentsReady, setDepartmentsReady] = useState(false);
   const [data, setData] = useState<CostAnalyzerPayload | null>(null);
   const [loading, setLoading] = useState(true);
-  const [projectSort, setProjectSort] = useState<
-    "highest" | "lowest" | "share" | "outside"
-  >("highest");
+  const [projectSort, setProjectSort] = useState<"highest" | "lowest" | "outside">("highest");
   const [drawer, setDrawer] = useState<DrawerState>(null);
   const [drawerLoading, setDrawerLoading] = useState(false);
 
+  const departmentNames = useMemo(
+    () => [...departments.map((d) => d.name)].sort((a, b) => a.localeCompare(b)),
+    [departments]
+  );
+  const departmentCounts = useMemo(
+    () => Object.fromEntries(departmentNames.map((n) => [n, 0])),
+    [departmentNames]
+  );
+  const departmentIdsParam = useMemo(
+    () => costAnalyzerDepartmentIdsParam(selectedDepartments, departments),
+    [selectedDepartments, departments]
+  );
+
   useEffect(() => {
     void fetchDepartments(false)
-      .then(setDepartments)
-      .catch(() => setDepartments([]));
+      .then((list) => {
+        setDepartments(list);
+        const names = [...list.map((d) => d.name)].sort((a, b) => a.localeCompare(b));
+        setSelectedDepartments(names);
+        setDepartmentsReady(true);
+      })
+      .catch(() => {
+        setDepartments([]);
+        setSelectedDepartments([]);
+        setDepartmentsReady(true);
+      });
   }, []);
 
   const load = useCallback(async () => {
+    if (!departmentsReady) return;
+    if (departments.length > 0 && selectedDepartments.length === 0) {
+      setData(null);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const payload = await fetchCostAnalyzer({
         period,
         weeks: period === "custom" ? customWeeks : undefined,
-        departmentId: departmentId === "all" ? null : departmentId,
+        departmentIds: departmentIdsParam,
       });
       setData(payload);
     } catch (e) {
@@ -211,34 +254,30 @@ export function CostAnalyzer() {
     } finally {
       setLoading(false);
     }
-  }, [period, customWeeks, departmentId, toast]);
+  }, [
+    period,
+    customWeeks,
+    departmentIdsParam,
+    departments.length,
+    selectedDepartments.length,
+    departmentsReady,
+    toast,
+  ]);
 
   useEffect(() => {
+    if (!departmentsReady) return;
     if (period === "custom" && customWeeks.length === 0) {
       setData(null);
       setLoading(false);
       return;
     }
     void load();
-  }, [load, period, customWeeks.length]);
-
-  const deptOptions = useMemo(
-    () => [
-      { value: "all", label: "All Departments" },
-      ...departments.map((d) => ({
-        value: d.dbId ?? d.id,
-        label: d.name,
-      })),
-    ],
-    [departments]
-  );
+  }, [load, period, customWeeks.length, departmentsReady]);
 
   const sortedProjects = useMemo(() => {
     if (!data) return [];
     const list = [...data.projects];
     if (projectSort === "lowest") list.sort((a, b) => a.cost - b.cost);
-    else if (projectSort === "share")
-      list.sort((a, b) => (b.companySharePct ?? 0) - (a.companySharePct ?? 0));
     else if (projectSort === "outside")
       list.sort((a, b) => b.outsidePeriodCost - a.outsidePeriodCost);
     else list.sort((a, b) => b.cost - a.cost);
@@ -251,7 +290,7 @@ export function CostAnalyzer() {
       const res = await fetchCostAnalyzerLostDrilldown({
         period,
         weeks: period === "custom" ? customWeeks : undefined,
-        departmentId: departmentId === "all" ? null : departmentId,
+        departmentIds: departmentIdsParam,
       });
       setDrawer({
         kind: "lost",
@@ -272,7 +311,7 @@ export function CostAnalyzer() {
       const res = await fetchCostAnalyzerOverCapturedDrilldown({
         period,
         weeks: period === "custom" ? customWeeks : undefined,
-        departmentId: departmentId === "all" ? null : departmentId,
+        departmentIds: departmentIdsParam,
       });
       setDrawer({
         kind: "over",
@@ -298,7 +337,7 @@ export function CostAnalyzer() {
       const res = await fetchCostAnalyzerProjectDrilldown({
         period,
         weeks: period === "custom" ? customWeeks : undefined,
-        departmentId: departmentId === "all" ? null : departmentId,
+        departmentIds: departmentIdsParam,
         projectId,
       });
       setDrawer({
@@ -414,11 +453,13 @@ export function CostAnalyzer() {
             options={PERIOD_OPTIONS}
             aria-label="Period"
           />
-          <FilterSingleSelect
-            value={departmentId}
-            onChange={setDepartmentId}
-            options={deptOptions}
-            aria-label="Department"
+          <DepartmentSelect
+            departments={departmentNames}
+            selected={selectedDepartments}
+            onChange={setSelectedDepartments}
+            counts={departmentCounts}
+            align="end"
+            showCounts={false}
           />
         </div>
       </header>
@@ -676,7 +717,6 @@ export function CostAnalyzer() {
                   options={[
                     { value: "highest", label: "Highest Cost" },
                     { value: "lowest", label: "Lowest Cost" },
-                    { value: "share", label: "Highest Company Share" },
                     { value: "outside", label: "Highest Outside-Period Cost" },
                   ]}
                   aria-label="Sort projects"

@@ -23,6 +23,7 @@ export function FilterMultiSelect({
   align = "start",
   emptyNeutral = false,
   fullWidth = false,
+  showCounts = true,
 }: {
   items: readonly string[];
   selected: string[];
@@ -35,6 +36,8 @@ export function FilterMultiSelect({
   emptyNeutral?: boolean;
   /** Stretch trigger to container width. */
   fullWidth?: boolean;
+  /** When false, hide trailing count badges in the menu (default true). */
+  showCounts?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [menuQuery, setMenuQuery] = useState("");
@@ -237,7 +240,9 @@ export function FilterMultiSelect({
                         {checked && <Check className="h-3 w-3" strokeWidth={3} />}
                       </span>
                       <span className="flex-1 text-foreground">{item}</span>
-                      <span className="text-[11px] text-muted-foreground">{counts[item] ?? 0}</span>
+                      {showCounts ? (
+                        <span className="text-[11px] text-muted-foreground">{counts[item] ?? 0}</span>
+                      ) : null}
                     </button>
                   );
                 })

@@ -6,10 +6,12 @@ import {
   focusCheckInSecondsLeft,
   normalizeFocusCheckInMinutes,
 } from "../utils/focusCheckIn";
+import { alertFocusCheckInOpened } from "../utils/focusCheckInAlert";
 
 /**
  * While a focus segment is running, after every N minutes show Continue prompt;
  * no click within 30s → onAutoStop(allocationId).
+ * On open: beep + OS notification (when permitted).
  */
 export function useFocusCheckIn({
   enabled,
@@ -44,6 +46,8 @@ export function useFocusCheckIn({
   const anchorMsRef = useRef<number | null>(null);
   const lastSegmentRef = useRef<string | null>(null);
   const stoppedForDeadlineRef = useRef(false);
+  /** Avoid duplicate beep/notification for the same prompt deadline. */
+  const alertedDeadlineRef = useRef<number | null>(null);
 
   // Reset cycle when timer starts / allocation changes / feature disabled.
   useEffect(() => {
@@ -53,6 +57,7 @@ export function useFocusCheckIn({
       setPromptOpen(false);
       setDeadlineMs(null);
       stoppedForDeadlineRef.current = false;
+      alertedDeadlineRef.current = null;
       return;
     }
     const segKey = `${runningId}:${segmentStartedAt}`;
@@ -62,6 +67,7 @@ export function useFocusCheckIn({
       setPromptOpen(false);
       setDeadlineMs(null);
       stoppedForDeadlineRef.current = false;
+      alertedDeadlineRef.current = null;
     }
   }, [runningId, segmentStartedAt]);
 
@@ -107,6 +113,13 @@ export function useFocusCheckIn({
       document.removeEventListener("visibilitychange", onVis);
     };
   }, [runningId, segmentStartedAt, mins, promptOpen, deadlineMs, onAutoStop]);
+
+  useEffect(() => {
+    if (!promptOpen || deadlineMs == null) return;
+    if (alertedDeadlineRef.current === deadlineMs) return;
+    alertedDeadlineRef.current = deadlineMs;
+    alertFocusCheckInOpened();
+  }, [promptOpen, deadlineMs]);
 
   const onContinue = () => {
     anchorMsRef.current = Date.now();

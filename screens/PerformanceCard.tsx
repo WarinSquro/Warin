@@ -2337,17 +2337,6 @@ function scoreBarFill(s: number | null, levels: RankingLevel[] = DEFAULT_RANKING
   return level ? rankingBarFillClass(level) : "";
 }
 
-/**
- * Competency Detail (12-week modal) average-row bars only.
- * ≤3 red · >3 and ≤4 amber · >4 green.
- */
-function competencyDetailAvgBarFill(score: number | null): string {
-  if (score == null || !Number.isFinite(score)) return "";
-  if (score <= 3) return "bg-danger";
-  if (score <= 4) return "bg-warning";
-  return "bg-success";
-}
-
 function ScoreCell({
   score,
   rankingLevels = DEFAULT_RANKING_LEVELS,
@@ -2716,7 +2705,7 @@ function CompetencyHistoryModal({
                             v == null || v <= 0
                               ? 0
                               : Math.max(2, Math.round((v / weekAvgMax) * 26 * 10) / 10);
-                          const barFill = competencyDetailAvgBarFill(v);
+                          const barFill = scoreBarFill(v, rankingLevels);
                           return (
                             <td key={weeks[i] ?? i} className="p-0.5 align-bottom">
                               <div className="flex h-[40px] flex-col items-center justify-end gap-0.5">

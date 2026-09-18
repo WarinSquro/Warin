@@ -20,7 +20,7 @@ import { FilterSingleSelect } from "../components/FilterSingleSelect";
 import { resourceOwnerName } from "../data/employees";
 import type { Employee } from "../data/employees";
 import { initEmptyEmployeeRights } from "../data/accessRights";
-import { maskIpAddress } from "../utils/ipAddressMask";
+import { maskIpAddress, ALLOWED_IP_INPUT_MAX_LENGTH } from "../utils/ipAddressMask";
 import { createEmployee, hardDeleteRecord, updateEmployee } from "../api/domain";
 import { useEmployees } from "../context/EmployeesContext";
 import { useMasters } from "../context/MastersContext";
@@ -624,15 +624,18 @@ function EmployeeDrawer({
               aria-label="Resource Owner"
             />
           </Field>
-          <Field label="Allowed IP" hint="Optional · blank allows login from any IP">
+          <Field
+            label="Allowed IP"
+            hint="Optional · comma-separated · blank allows login from any IP"
+          >
             <input
               value={allowedIp}
               onChange={(e) => setAllowedIp(maskIpAddress(e.target.value))}
-              inputMode="decimal"
+              inputMode="text"
               autoComplete="off"
               spellCheck={false}
-              maxLength={45}
-              placeholder="e.g. 203.0.113.10"
+              maxLength={ALLOWED_IP_INPUT_MAX_LENGTH}
+              placeholder="e.g. 203.0.113.10, 198.51.100.20"
               className="w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-[13px] text-foreground outline-none focus:border-accent-line"
             />
           </Field>

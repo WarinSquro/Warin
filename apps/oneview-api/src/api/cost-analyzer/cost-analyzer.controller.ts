@@ -82,13 +82,36 @@ export class CostAnalyzerController {
     }
   }
 
+  /**
+   * null = all departments; [] = none selected; otherwise IN-filter ids.
+   * Accepts `departmentIds` (comma-separated) and legacy single `departmentId`.
+   */
+  private parseDepartmentFilter(departmentIds?: string, departmentId?: string): bigint[] | null {
+    const multi = departmentIds?.trim();
+    if (multi != null && multi !== "") {
+      if (multi === "all") return null;
+      if (multi === "none") return [];
+      const ids = multi
+        .split(",")
+        .map((s) => s.trim())
+        .filter((p) => /^\d+$/.test(p))
+        .map((p) => BigInt(p));
+      return ids;
+    }
+    if (departmentId && departmentId !== "all" && /^\d+$/.test(departmentId)) {
+      return [BigInt(departmentId)];
+    }
+    return null;
+  }
+
   @Get()
   @RequirePermissions("my_workspace.cost_analyzer")
   async card(
     @Req() req: { user: JwtPayload },
     @Query("period") period?: string,
     @Query("weeks") weeks?: string,
-    @Query("departmentId") departmentId?: string
+    @Query("departmentId") departmentId?: string,
+    @Query("departmentIds") departmentIds?: string
   ) {
     const actor = await this.prisma.employee.findFirst({
       where: { id: BigInt(req.user.sub), isDeleted: false },
@@ -96,21 +119,20 @@ export class CostAnalyzerController {
     if (!actor) throw new ForbiddenException("Employee not found");
 
     const { periodId, customWeeks, current, previous } = this.parsePeriod(period, weeks);
-    const deptId =
-      departmentId && departmentId !== "all" && /^\d+$/.test(departmentId)
-        ? BigInt(departmentId)
-        : null;
+    const deptFilter = this.parseDepartmentFilter(departmentIds, departmentId);
+    const singleDept =
+      deptFilter != null && deptFilter.length === 1 ? deptFilter[0] : null;
 
     const scopeIds = await this.scopedEmployeeIds(actor.id, Boolean(req.user.isSuperAdmin));
     const cur = await this.analyzer.analyze({
       employeeIds: scopeIds,
       range: current,
-      departmentId: deptId,
+      departmentIds: deptFilter,
     });
     const prev = await this.analyzer.analyze({
       employeeIds: scopeIds,
       range: previous,
-      departmentId: deptId,
+      departmentIds: deptFilter,
     });
 
     const kpi = this.analyzer.buildKpi(cur.totals, prev.totals);
@@ -120,10 +142,7 @@ export class CostAnalyzerController {
     const unplannedShare =
       captured > 0 ? round2((cur.totals.unplannedCost / captured) * 100) : null;
 
-    const departmentsForChart =
-      deptId != null
-        ? null
-        : cur.departments;
+    const departmentsForChart = singleDept != null ? null : cur.departments;
 
     return ser({
       period: {
@@ -138,7 +157,8 @@ export class CostAnalyzerController {
           label: monday,
         })),
       },
-      departmentId: deptId?.toString() ?? null,
+      departmentId: singleDept?.toString() ?? null,
+      departmentIds: deptFilter?.map((id) => id.toString()) ?? null,
       kpi,
       composition: {
         projectCost: cur.totals.projectCost,
@@ -146,10 +166,10 @@ export class CostAnalyzerController {
         projectPct: projectShare,
         unplannedPct: unplannedShare,
       },
-      departmentMode: deptId != null ? "project_vs_unplanned" : "departments",
+      departmentMode: singleDept != null ? "project_vs_unplanned" : "departments",
       departments: departmentsForChart,
       selectedDepartmentSplit:
-        deptId != null
+        singleDept != null
           ? {
               projectCost: cur.totals.projectCost,
               unplannedCost: cur.totals.unplannedCost,
@@ -174,22 +194,20 @@ export class CostAnalyzerController {
     @Req() req: { user: JwtPayload },
     @Query("period") period?: string,
     @Query("weeks") weeks?: string,
-    @Query("departmentId") departmentId?: string
+    @Query("departmentId") departmentId?: string,
+    @Query("departmentIds") departmentIds?: string
   ) {
     const actor = await this.prisma.employee.findFirst({
       where: { id: BigInt(req.user.sub), isDeleted: false },
     });
     if (!actor) throw new ForbiddenException("Employee not found");
     const { current } = this.parsePeriod(period, weeks);
-    const deptId =
-      departmentId && departmentId !== "all" && /^\d+$/.test(departmentId)
-        ? BigInt(departmentId)
-        : null;
+    const deptFilter = this.parseDepartmentFilter(departmentIds, departmentId);
     const scopeIds = await this.scopedEmployeeIds(actor.id, Boolean(req.user.isSuperAdmin));
     const cur = await this.analyzer.analyze({
       employeeIds: scopeIds,
       range: current,
-      departmentId: deptId,
+      departmentIds: deptFilter,
     });
     const rows = cur.empRows
       .filter((r) => r.lostCost > 0)
@@ -217,22 +235,20 @@ export class CostAnalyzerController {
     @Req() req: { user: JwtPayload },
     @Query("period") period?: string,
     @Query("weeks") weeks?: string,
-    @Query("departmentId") departmentId?: string
+    @Query("departmentId") departmentId?: string,
+    @Query("departmentIds") departmentIds?: string
   ) {
     const actor = await this.prisma.employee.findFirst({
       where: { id: BigInt(req.user.sub), isDeleted: false },
     });
     if (!actor) throw new ForbiddenException("Employee not found");
     const { current } = this.parsePeriod(period, weeks);
-    const deptId =
-      departmentId && departmentId !== "all" && /^\d+$/.test(departmentId)
-        ? BigInt(departmentId)
-        : null;
+    const deptFilter = this.parseDepartmentFilter(departmentIds, departmentId);
     const scopeIds = await this.scopedEmployeeIds(actor.id, Boolean(req.user.isSuperAdmin));
     const cur = await this.analyzer.analyze({
       employeeIds: scopeIds,
       range: current,
-      departmentId: deptId,
+      departmentIds: deptFilter,
     });
     const rows = cur.empRows
       .filter((r) => r.overCapturedCost > 0 || r.overCapturedHours > 0)
@@ -260,6 +276,7 @@ export class CostAnalyzerController {
     @Query("period") period?: string,
     @Query("weeks") weeks?: string,
     @Query("departmentId") departmentId?: string,
+    @Query("departmentIds") departmentIds?: string,
     @Query("projectId") projectId?: string
   ) {
     if (!projectId?.trim()) throw new BadRequestException("projectId is required");
@@ -268,15 +285,12 @@ export class CostAnalyzerController {
     });
     if (!actor) throw new ForbiddenException("Employee not found");
     const { current } = this.parsePeriod(period, weeks);
-    const deptId =
-      departmentId && departmentId !== "all" && /^\d+$/.test(departmentId)
-        ? BigInt(departmentId)
-        : null;
+    const deptFilter = this.parseDepartmentFilter(departmentIds, departmentId);
     const scopeIds = await this.scopedEmployeeIds(actor.id, Boolean(req.user.isSuperAdmin));
     const cur = await this.analyzer.analyze({
       employeeIds: scopeIds,
       range: current,
-      departmentId: deptId,
+      departmentIds: deptFilter,
     });
     const project = cur.projects.find((p) => p.projectId === projectId);
     if (!project) throw new BadRequestException("Project not found in period");
@@ -343,7 +357,7 @@ export class CostAnalyzerController {
     const cur = await this.analyzer.analyze({
       employeeIds: scopeIds,
       range: current,
-      departmentId: deptId,
+      departmentIds: deptId != null ? [deptId] : null,
     });
     return ser({
       period: current,
@@ -358,6 +372,7 @@ export class CostAnalyzerController {
         .filter((e) => e.capturedCost > 0 || e.unplannedCost > 0 || e.projectCost > 0)
         .map((e) => ({
           employee: e.name,
+          department: e.departmentName,
           hours: e.capturedHours,
           cost: e.capturedCost,
           pct:

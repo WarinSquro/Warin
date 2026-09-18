@@ -25,6 +25,7 @@ import {
 import { ConfirmDeleteDialog } from "../components/ConfirmDeleteDialog";
 import { FocusCheckInModal } from "../components/FocusCheckInModal";
 import { useFocusCheckIn } from "../hooks/useFocusCheckIn";
+import { prepareFocusCheckInAlerts } from "../utils/focusCheckInAlert";
 import type { PlannedLine, DayStatus, ComplianceRow, DeviationEntry } from "../data/confirmation";
 import { useAuth } from "../context/AuthContext";
 import { useSettings } from "../context/SettingsContext";
@@ -556,6 +557,9 @@ function EmployeeConfirm() {
         };
       } else {
         if (isFocusStartBlocked(day.workday)) return prev;
+        if ((settings.focusCheckInMinutes ?? 0) > 0) {
+          prepareFocusCheckInAlerts();
+        }
         day = pauseActiveTimer(day, id);
         day = {
           ...day,

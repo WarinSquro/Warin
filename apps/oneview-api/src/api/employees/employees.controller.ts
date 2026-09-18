@@ -325,7 +325,9 @@ export class EmployeesController {
 
     const allowedParsed = parseAllowedIpInput(body.allowedIp);
     if (!allowedParsed.ok) {
-      throw new BadRequestException("Enter a valid IPv4 or IPv6 address for Allowed IP, or leave it blank.");
+      throw new BadRequestException(
+        "Enter valid IPv4 or IPv6 address(es), comma-separated (max 10), or leave blank."
+      );
     }
 
     const existing = await this.prisma.employee.findFirst({
@@ -424,7 +426,9 @@ export class EmployeesController {
     if (body.allowedIp !== undefined) {
       const allowedParsed = parseAllowedIpInput(body.allowedIp);
       if (!allowedParsed.ok) {
-        throw new BadRequestException("Enter a valid IPv4 or IPv6 address for Allowed IP, or leave it blank.");
+        throw new BadRequestException(
+        "Enter valid IPv4 or IPv6 address(es), comma-separated (max 10), or leave blank."
+      );
       }
       allowedIp = allowedParsed.value;
     }

@@ -2163,17 +2163,30 @@ export type CostAnalyzerPayload = {
   workingCalendar: { workingDays: string[]; workingHoursPerDay: number };
 };
 
+function appendCostAnalyzerDepartmentParams(
+  q: URLSearchParams,
+  params: { departmentId?: string | null; departmentIds?: string | null }
+) {
+  if (params.departmentIds != null && params.departmentIds !== "") {
+    q.set("departmentIds", params.departmentIds);
+    return;
+  }
+  if (params.departmentId && params.departmentId !== "all") {
+    q.set("departmentId", params.departmentId);
+  }
+}
+
 export async function fetchCostAnalyzer(params: {
   period: CostAnalyzerPeriodId;
   weeks?: string[];
   departmentId?: string | null;
+  /** Comma-separated department PK ids; `none` = empty selection; omit/all = no filter. */
+  departmentIds?: string | null;
 }): Promise<CostAnalyzerPayload> {
   const q = new URLSearchParams();
   q.set("period", params.period);
   if (params.weeks?.length) q.set("weeks", params.weeks.join(","));
-  if (params.departmentId && params.departmentId !== "all") {
-    q.set("departmentId", params.departmentId);
-  }
+  appendCostAnalyzerDepartmentParams(q, params);
   return apiFetch(`/cost-analyzer?${q.toString()}`);
 }
 
@@ -2181,13 +2194,12 @@ export async function fetchCostAnalyzerLostDrilldown(params: {
   period: CostAnalyzerPeriodId;
   weeks?: string[];
   departmentId?: string | null;
+  departmentIds?: string | null;
 }): Promise<{ rows: Array<Record<string, string | number | null>> }> {
   const q = new URLSearchParams();
   q.set("period", params.period);
   if (params.weeks?.length) q.set("weeks", params.weeks.join(","));
-  if (params.departmentId && params.departmentId !== "all") {
-    q.set("departmentId", params.departmentId);
-  }
+  appendCostAnalyzerDepartmentParams(q, params);
   return apiFetch(`/cost-analyzer/lost-drilldown?${q.toString()}`);
 }
 
@@ -2195,13 +2207,12 @@ export async function fetchCostAnalyzerOverCapturedDrilldown(params: {
   period: CostAnalyzerPeriodId;
   weeks?: string[];
   departmentId?: string | null;
+  departmentIds?: string | null;
 }): Promise<{ rows: Array<Record<string, string | number | null>> }> {
   const q = new URLSearchParams();
   q.set("period", params.period);
   if (params.weeks?.length) q.set("weeks", params.weeks.join(","));
-  if (params.departmentId && params.departmentId !== "all") {
-    q.set("departmentId", params.departmentId);
-  }
+  appendCostAnalyzerDepartmentParams(q, params);
   return apiFetch(`/cost-analyzer/over-captured-drilldown?${q.toString()}`);
 }
 
@@ -2209,6 +2220,7 @@ export async function fetchCostAnalyzerProjectDrilldown(params: {
   period: CostAnalyzerPeriodId;
   weeks?: string[];
   departmentId?: string | null;
+  departmentIds?: string | null;
   projectId: string;
 }): Promise<{
   project: CostAnalyzerPayload["projects"][number];
@@ -2225,9 +2237,7 @@ export async function fetchCostAnalyzerProjectDrilldown(params: {
   q.set("period", params.period);
   q.set("projectId", params.projectId);
   if (params.weeks?.length) q.set("weeks", params.weeks.join(","));
-  if (params.departmentId && params.departmentId !== "all") {
-    q.set("departmentId", params.departmentId);
-  }
+  appendCostAnalyzerDepartmentParams(q, params);
   return apiFetch(`/cost-analyzer/project-drilldown?${q.toString()}`);
 }
 
@@ -2241,6 +2251,7 @@ export async function fetchCostAnalyzerDepartmentDrilldown(params: {
   unplannedReasons: CostAnalyzerPayload["unplannedReasons"];
   employees: Array<{
     employee: string;
+    department: string | null;
     hours: number;
     cost: number;
     pct: number | null;

@@ -3,6 +3,9 @@ import type { Request } from "express";
 
 const IPV4_MAPPED = /^::ffff:/i;
 
+/** Max distinct Allowed IPs stored per employee (comma-separated). */
+export const ALLOWED_IP_MAX_COUNT = 10;
+
 /** Strip brackets, IPv4-mapped prefix, and surrounding space. */
 export function canonicalizeIp(raw: string | null | undefined): string | null {
   if (raw == null) return null;
@@ -18,15 +21,31 @@ export function canonicalizeIp(raw: string | null | undefined): string | null {
   return s;
 }
 
-/** Empty/whitespace → null (no restriction). Invalid → null via `ok: false`. */
+/**
+ * Empty/whitespace → null (no restriction).
+ * One or more comma-separated IPv4/IPv6 → canonical comma list (deduped).
+ * Any invalid segment → ok: false.
+ */
 export function parseAllowedIpInput(raw: unknown): { ok: true; value: string | null } | { ok: false } {
   if (raw == null) return { ok: true, value: null };
   if (typeof raw !== "string") return { ok: false };
   const trimmed = raw.trim();
   if (!trimmed) return { ok: true, value: null };
-  const value = canonicalizeIp(trimmed);
-  if (!value) return { ok: false };
-  return { ok: true, value };
+
+  const parts = trimmed
+    .split(",")
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+  if (parts.length === 0) return { ok: true, value: null };
+  if (parts.length > ALLOWED_IP_MAX_COUNT) return { ok: false };
+
+  const canonical: string[] = [];
+  for (const part of parts) {
+    const value = canonicalizeIp(part);
+    if (!value) return { ok: false };
+    if (!canonical.includes(value)) canonical.push(value);
+  }
+  return { ok: true, value: canonical.join(",") };
 }
 
 export function ipsMatch(allowed: string, actual: string): boolean {
@@ -36,10 +55,21 @@ export function ipsMatch(allowed: string, actual: string): boolean {
   return a === b;
 }
 
+/** True when Allowed IP is empty, or request IP matches any configured address. */
 export function isAllowedIpSatisfied(allowedIp: string | null | undefined, requestIp: string | null): boolean {
-  const configured = canonicalizeIp(allowedIp);
-  if (!configured) return true;
-  return ipsMatch(configured, requestIp ?? "");
+  if (allowedIp == null) return true;
+  const raw = String(allowedIp).trim();
+  if (!raw) return true;
+
+  const configured = raw
+    .split(",")
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+  if (configured.length === 0) return true;
+
+  const actual = canonicalizeIp(requestIp);
+  if (!actual) return false;
+  return configured.some((entry) => ipsMatch(entry, actual));
 }
 
 /**
