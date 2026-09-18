@@ -39,8 +39,11 @@ Update this file on **every** coding-related prompt. Keep each prompt and its re
 
 **Output:**  
 - Pulled `origin/main` (up to date at `ecfb052`).
-- Shipping pending work in one commit: multi Allowed IP, focus check-in beep/notification, Cost Analyzer department multi-select, Performance Card ranking bar colors.
-- Push `origin/main`; CI; EC2 `bash scripts/ec2-deploy.sh --with-api`; verify `https://seworkspace.com/version.json`.
+- Shipped multi Allowed IP, focus check-in beep/notification, Cost Analyzer department multi-select, Performance Card ranking bar colors (`7eba079`).
+- GitHub CI #209 green (lint, unit, SPA/API/worker, E2E smoke).
+- EC2: `bash scripts/ec2-deploy.sh --with-api` — SPA published, API/worker rebuilt, migration `20260918120000_employee_allowed_ip_multi` applied (no seed).
+- Verified: EC2 `HEAD` = `version.json.commit` = `7eba079332a67aff296b0985f87caa47d3feb68b`; health `status=ok` `database=up`.
+- Live: https://seworkspace.com/ — hard-refresh (Ctrl+Shift+R).
 
 ### 2026-09-18 14:01 IST
 
